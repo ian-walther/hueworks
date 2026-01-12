@@ -1,0 +1,35 @@
+# Elixir/Phoenix
+/_build
+/cover
+/deps
+/doc
+/.fetch
+erl_crash.dump
+*.ez
+*.beam
+/config/*.secret.exs
+.elixir_ls/
+
+# Database files
+/*.db
+/*.db-shm
+/*.db-wal
+
+# Phoenix
+/priv/static/
+/priv/static/assets/
+
+# Node/NPM
+/assets/node_modules/
+npm-debug.log
+
+# IDE
+/.idea
+/.vscode
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
