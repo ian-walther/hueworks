@@ -14,7 +14,7 @@ defmodule HueworksWeb.Endpoint do
     at: "/",
     from: :hueworks,
     gzip: false,
-    only: HueworksWeb.static_paths()
+    only: ~w(assets fonts images favicon.ico robots.txt)
 
   if code_reloading? do
     socket "/phoenix/live_reload/socket", Phoenix.LiveReloader.Socket
@@ -34,6 +34,4 @@ defmodule HueworksWeb.Endpoint do
   plug Plug.Head
   plug Plug.Session, @session_options
   plug HueworksWeb.Router
-
-  def static_paths, do: ~w(assets fonts images favicon.ico robots.txt)
 end

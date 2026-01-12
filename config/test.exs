@@ -7,7 +7,7 @@ config :hueworks, Hueworks.Repo,
 
 config :hueworks, HueworksWeb.Endpoint,
   http: [ip: {127, 0, 0, 1}, port: 4002],
-  secret_key_base: "test_secret_key_base_at_least_64_bytes_long_for_security_testing",
+  secret_key_base: "Op4X3hwzztmUBfFDqHCl+hQyyrxsOvL+BGEj1wTi3porxlsHiL3JFK9HH638hbC5",
   server: false
 
 config :logger, level: :warning

@@ -47,6 +47,10 @@ defmodule Hueworks.MixProject do
       {:esbuild, "~> 0.8", runtime: Mix.env() == :dev},
       {:tailwind, "~> 0.2", runtime: Mix.env() == :dev},
 
+      # Telemetry
+      {:telemetry_metrics, "~> 1.0"},
+      {:telemetry_poller, "~> 1.0"},
+
       # Development
       {:phoenix_live_reload, "~> 1.4", only: :dev}
     ]

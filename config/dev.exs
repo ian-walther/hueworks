@@ -10,7 +10,7 @@ config :hueworks, HueworksWeb.Endpoint,
   check_origin: false,
   code_reloader: true,
   debug_errors: true,
-  secret_key_base: "development_secret_key_base_at_least_64_bytes_long_for_security",
+  secret_key_base: "b1O2STY2yJOmY4wnlJ9lC8cMa5DZ8sygEHzUD47jjsqNw+c7g8quIp7S+RxHzJKC",
   watchers: [
     esbuild: {Esbuild, :install_and_run, [:hueworks, ~w(--sourcemap=inline --watch)]},
     tailwind: {Tailwind, :install_and_run, [:hueworks, ~w(--watch)]}
