@@ -52,7 +52,8 @@ defmodule Hueworks.MixProject do
       {:telemetry_poller, "~> 1.0"},
 
       # Development
-      {:phoenix_live_reload, "~> 1.4", only: :dev}
+      {:phoenix_live_reload, "~> 1.4", only: :dev},
+      {:credo, "~> 1.7", only: [:dev, :test], runtime: false}
     ]
   end
 
