@@ -1,6 +1,6 @@
 defmodule Hueworks.Exploration.LutronTest do
   @moduledoc """
-  Quick throwaway module to test Lutron LEAP connection
+  Quick throwaway module to test Lutron LEAP button events.
   """
 
   @bridge_ip "192.168.1.123"
@@ -35,116 +35,263 @@ defmodule Hueworks.Exploration.LutronTest do
     end
   end
 
-  def subscribe_to_buttons(socket) do
+  def test_button_simple do
+    {:ok, socket} = connect()
+
+    Task.async(fn ->
+      :ssl.setopts(socket, [{:active, false}, {:packet, :line}])
+
+      IO.puts("\n=== READING DEVICES ===")
+      devices = read_devices(socket)
+
+      IO.puts("\n=== READING BUTTONS ===")
+      buttons = read_buttons(socket)
+      button_map = build_button_map(devices, buttons)
+
+      subscribe_to_button_events(socket, Map.keys(button_map))
+
+      IO.puts("\n=== DRAINING INITIAL RESPONSES ===")
+      drain_initial(socket)
+
+      IO.puts("\n=== NOW PRESS A PICO BUTTON ===\n")
+      listen_decoded(socket, button_map)
+    end)
+    |> then(fn task ->
+      IO.puts("Listening for button events...")
+      {:ok, task}
+    end)
+  end
+
+  defp subscribe(socket, url) do
     message =
       Jason.encode!(%{
         "CommuniqueType" => "SubscribeRequest",
-        "Header" => %{"Url" => "/button"}
+        "Header" => %{"Url" => url}
       })
 
     :ssl.send(socket, message <> "\r\n")
   end
 
-  def subscribe_to_all(socket) do
-    subscriptions = [
-      "/device",
-      # This is the key one!
-      "/button/status/event",
-      "/zone/status",
-      "/occupancygroup/status"
-    ]
+  defp read_request(socket, url) do
+    message =
+      Jason.encode!(%{
+        "CommuniqueType" => "ReadRequest",
+        "Header" => %{"Url" => url}
+      })
 
-    Enum.each(subscriptions, fn url ->
-      message =
-        Jason.encode!(%{
-          "CommuniqueType" => "SubscribeRequest",
-          "Header" => %{"Url" => url}
-        })
-
-      :ssl.send(socket, message <> "\r\n")
-      Process.sleep(100)
-    end)
+    :ssl.send(socket, message <> "\r\n")
   end
 
-  def read_initial_messages(socket) do
-    :ssl.setopts(socket, [{:active, false}])
+  defp read_devices(socket) do
+    read_request(socket, "/device")
 
-    case :ssl.recv(socket, 0, 5000) do
-      {:ok, data} ->
-        IO.puts("Initial message: #{data}")
-        read_initial_messages(socket)
-
-      {:error, :timeout} ->
-        IO.puts("No more initial messages")
-        :ok
+    case read_until(socket, fn decoded ->
+           get_in(decoded, ["Header", "Url"]) == "/device" and
+             is_list(get_in(decoded, ["Body", "Devices"]))
+         end) do
+      {:ok, decoded} ->
+        get_in(decoded, ["Body", "Devices"]) || []
 
       {:error, reason} ->
-        {:error, reason}
+        IO.puts("Failed to read /device list: #{inspect(reason)}")
+        []
     end
   end
 
-  def listen(socket) do
-    # Set socket to passive mode
-    :ssl.setopts(socket, [{:active, false}])
+  defp read_buttons(socket) do
+    read_request(socket, "/button")
 
+    case read_until(socket, fn decoded ->
+           get_in(decoded, ["Header", "Url"]) == "/button" and
+             is_list(get_in(decoded, ["Body", "Buttons"]))
+         end) do
+      {:ok, decoded} ->
+        get_in(decoded, ["Body", "Buttons"]) || []
+
+      {:error, reason} ->
+        IO.puts("Failed to read /button list: #{inspect(reason)}")
+        []
+    end
+  end
+
+  defp build_button_map(devices, buttons) do
+    group_to_device =
+      devices
+      |> Enum.filter(&is_list(&1["ButtonGroups"]))
+      |> Enum.flat_map(fn device ->
+        Enum.map(device["ButtonGroups"], fn group ->
+          {href_id(group["href"], "buttongroup"), device}
+        end)
+      end)
+      |> Enum.filter(fn {group_id, _device} -> group_id end)
+      |> Map.new()
+
+    buttons
+    |> Enum.map(fn button ->
+      button_id = href_id(button["href"], "button")
+      parent_id = get_in(button, ["Parent", "href"]) |> href_id("buttongroup")
+      device = group_to_device[parent_id]
+
+      device_name =
+        cond do
+          is_nil(device) ->
+            "Unknown device"
+
+          is_list(device["FullyQualifiedName"]) ->
+            Enum.join(device["FullyQualifiedName"], " / ")
+
+          is_binary(device["Name"]) ->
+            device["Name"]
+
+          true ->
+            "Unknown device"
+        end
+
+      button_number = button["ButtonNumber"]
+
+      {button_id,
+       %{
+         device_name: device_name,
+         button_number: button_number
+       }}
+    end)
+    |> Enum.filter(fn {button_id, _} -> is_binary(button_id) end)
+    |> Map.new()
+  end
+
+  defp subscribe_to_button_events(socket, button_ids) do
+    Enum.each(button_ids, fn button_id ->
+      subscribe(socket, "/button/#{button_id}/status/event")
+      Process.sleep(50)
+    end)
+  end
+
+  defp drain_initial(socket) do
+    case :ssl.recv(socket, 0, 1000) do
+      {:ok, data} ->
+        log_decoded(data, %{})
+        drain_initial(socket)
+
+      {:error, :timeout} ->
+        :ok
+
+      {:error, reason} ->
+        IO.puts("Error draining initial messages: #{inspect(reason)}")
+        :ok
+    end
+  end
+
+  defp listen_decoded(socket, button_map) do
     case :ssl.recv(socket, 0, 10000) do
       {:ok, data} ->
-        IO.puts("Received: #{data}")
-        listen(socket)
+        log_decoded(data, button_map)
+        listen_decoded(socket, button_map)
 
       {:error, :timeout} ->
         IO.puts("Timeout, listening again...")
-        listen(socket)
+        listen_decoded(socket, button_map)
 
       {:error, reason} ->
         IO.puts("Error: #{inspect(reason)}")
     end
   end
 
-  def test_async() do
-    {:ok, socket} = connect()
-    # Don't read initial messages separately!
-    subscribe_to_all(socket)
+  defp log_decoded(data, button_map) do
+    case decode_line(data) do
+      {:ok, decoded} ->
+        case button_event(decoded, button_map) do
+          {:ok, message} ->
+            IO.puts(message)
 
-    # Start listening immediately - it will catch the subscription responses
-    task = Task.async(fn -> listen(socket) end)
+          :ignore ->
+            IO.inspect(decoded, label: "Received")
+        end
 
-    IO.puts("Listening in background, press some Pico buttons!")
-    {:ok, task}
+      {:error, :invalid} ->
+        :ok
+    end
   end
 
-  def test_async_debug() do
-    {:ok, socket} = connect()
+  defp button_event(decoded, button_map) do
+    event = get_in(decoded, ["Body", "ButtonStatus", "ButtonEvent", "EventType"])
+    button_href = get_in(decoded, ["Body", "ButtonStatus", "Button", "href"])
+    button_id = href_id(button_href, "button")
 
-    # Subscribe and immediately start listening to see the responses
-    Task.async(fn ->
-      :ssl.setopts(socket, [{:active, false}])
+    if is_binary(event) and is_binary(button_id) do
+      case Map.get(button_map, button_id) do
+        %{device_name: device_name, button_number: button_number} ->
+          suffix = if is_nil(button_number), do: "", else: " (button #{button_number})"
+          {:ok, "Button event: #{device_name}#{suffix} #{event}"}
 
-      # Send subscriptions
-      subscribe_to_all(socket)
+        nil ->
+          {:ok, "Button event: button #{button_id} #{event}"}
+      end
+    else
+      :ignore
+    end
+  end
 
-      # Listen for subscription responses
-      IO.puts("\n=== SUBSCRIPTION RESPONSES ===")
+  defp read_until(socket, predicate) do
+    deadline = System.monotonic_time(:millisecond) + 5000
 
-      Enum.each(1..4, fn _ ->
-        case :ssl.recv(socket, 0, 5000) do
-          {:ok, data} ->
-            IO.puts("Response: #{data}\n")
+    do_read_until(socket, predicate, deadline)
+  end
 
-          {:error, reason} ->
-            IO.puts("Error: #{inspect(reason)}")
-        end
-      end)
+  defp do_read_until(socket, predicate, deadline) do
+    remaining = max(0, deadline - System.monotonic_time(:millisecond))
 
-      IO.puts("\n=== NOW LISTENING FOR BUTTON EVENTS - PRESS A PICO ===\n")
-      listen(socket)
-    end)
-    |> then(fn task ->
-      IO.puts("Started, press a Pico button now!")
-      {:ok, task}
-    end)
+    if remaining == 0 do
+      {:error, :timeout}
+    else
+      case :ssl.recv(socket, 0, remaining) do
+        {:ok, data} ->
+          case decode_line(data) do
+            {:ok, decoded} ->
+              IO.inspect(decoded, label: "Received")
+
+              if predicate.(decoded) do
+                {:ok, decoded}
+              else
+                do_read_until(socket, predicate, deadline)
+              end
+
+            {:error, :invalid} ->
+              do_read_until(socket, predicate, deadline)
+          end
+
+        {:error, :timeout} ->
+          {:error, :timeout}
+
+        {:error, reason} ->
+          {:error, reason}
+      end
+    end
+  end
+
+  defp decode_line(data) do
+    line =
+      data
+      |> IO.iodata_to_binary()
+      |> String.trim()
+
+    if line == "" do
+      {:error, :invalid}
+    else
+      case Jason.decode(line) do
+        {:ok, decoded} ->
+          {:ok, decoded}
+
+        {:error, _reason} ->
+          IO.puts("Received (raw): #{line}")
+          {:error, :invalid}
+      end
+    end
+  end
+
+  defp href_id(href, type) do
+    case String.split(to_string(href || ""), "/", trim: true) do
+      [^type, id] -> id
+      _ -> nil
+    end
   end
 end
-
-# Kill it with:
-# Task.shutdown(task, :brutal_kill)
