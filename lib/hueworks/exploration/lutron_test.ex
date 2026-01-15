@@ -62,6 +62,45 @@ defmodule Hueworks.Exploration.LutronTest do
     end)
   end
 
+  def list_zone_devices do
+    {:ok, socket} = connect()
+    :ssl.setopts(socket, [{:active, false}, {:packet, :line}])
+
+    IO.puts("\n=== ZONE DEVICES ===")
+    devices = read_devices(socket)
+    zone_devices = zone_devices(devices)
+
+    Enum.each(zone_devices, fn device ->
+      IO.puts(
+        "#{device.device_id} | zone #{device.zone_id} | #{device.name} (#{device.type})"
+      )
+    end)
+
+    :ssl.close(socket)
+    :ok
+  end
+
+  def test_light_toggle(name_filter \\ nil) do
+    {:ok, socket} = connect()
+    :ssl.setopts(socket, [{:active, false}, {:packet, :line}])
+
+    devices = read_devices(socket)
+    zone_device = pick_zone_device(devices, name_filter)
+
+    if zone_device do
+      IO.puts("Toggling #{zone_device.name} (zone #{zone_device.zone_id})")
+      set_zone_level(socket, zone_device.zone_id, 100)
+      drain_for(socket, 1500)
+      set_zone_level(socket, zone_device.zone_id, 0)
+      drain_for(socket, 1500)
+    else
+      IO.puts("No matching zone device found.")
+    end
+
+    :ssl.close(socket)
+    :ok
+  end
+
   defp subscribe(socket, url) do
     message =
       Jason.encode!(%{
@@ -114,6 +153,56 @@ defmodule Hueworks.Exploration.LutronTest do
     end
   end
 
+  defp zone_devices(devices) do
+    devices
+    |> Enum.filter(&is_list(&1["LocalZones"]))
+    |> Enum.map(fn device ->
+      zone_href = get_in(device, ["LocalZones", Access.at(0), "href"])
+
+      %{
+        device_id: href_id(device["href"], "device"),
+        zone_id: href_id(zone_href, "zone"),
+        name: device_display_name(device),
+        type: device["DeviceType"]
+      }
+    end)
+    |> Enum.filter(& &1.zone_id)
+  end
+
+  defp pick_zone_device(devices, name_filter) do
+    zone_devices = zone_devices(devices)
+
+    case name_filter do
+      nil ->
+        List.first(zone_devices)
+
+      filter ->
+        downcased = String.downcase(filter)
+
+        Enum.find(zone_devices, fn device ->
+          String.contains?(String.downcase(device.name), downcased)
+        end)
+    end
+  end
+
+  defp set_zone_level(socket, zone_id, level) do
+    message =
+      Jason.encode!(%{
+        "CommuniqueType" => "CreateRequest",
+        "Header" => %{"Url" => "/zone/#{zone_id}/commandprocessor"},
+        "Body" => %{
+          "Command" => %{
+            "CommandType" => "GoToLevel",
+            "Parameter" => [
+              %{"Type" => "Level", "Value" => level}
+            ]
+          }
+        }
+      })
+
+    :ssl.send(socket, message <> "\r\n")
+  end
+
   defp build_button_map(devices, buttons) do
     group_to_device =
       devices
@@ -159,6 +248,19 @@ defmodule Hueworks.Exploration.LutronTest do
     |> Map.new()
   end
 
+  defp device_display_name(device) do
+    cond do
+      is_list(device["FullyQualifiedName"]) ->
+        Enum.join(device["FullyQualifiedName"], " / ")
+
+      is_binary(device["Name"]) ->
+        device["Name"]
+
+      true ->
+        "Unknown device"
+    end
+  end
+
   defp subscribe_to_button_events(socket, button_ids) do
     Enum.each(button_ids, fn button_id ->
       subscribe(socket, "/button/#{button_id}/status/event")
@@ -180,6 +282,34 @@ defmodule Hueworks.Exploration.LutronTest do
         :ok
     end
   end
+
+  defp drain_for(socket, duration_ms) do
+    deadline = System.monotonic_time(:millisecond) + duration_ms
+
+    do_drain_for(socket, deadline)
+  end
+
+  defp do_drain_for(socket, deadline) do
+    remaining = max(0, deadline - System.monotonic_time(:millisecond))
+
+    if remaining == 0 do
+      :ok
+    else
+      case :ssl.recv(socket, 0, remaining) do
+        {:ok, data} ->
+          log_decoded(data, %{})
+          do_drain_for(socket, deadline)
+
+        {:error, :timeout} ->
+          :ok
+
+        {:error, reason} ->
+          IO.puts("Error draining responses: #{inspect(reason)}")
+          :ok
+      end
+    end
+  end
+
 
   defp listen_decoded(socket, button_map) do
     case :ssl.recv(socket, 0, 10000) do

@@ -34,6 +34,7 @@ defmodule Hueworks.MixProject do
       # HTTP clients
       {:httpoison, "~> 2.2"},
       {:jason, "~> 1.4"},
+      {:websockex, "~> 0.4"},
 
       # MQTT for Zigbee2MQTT
       {:tortoise, "~> 0.10"},
