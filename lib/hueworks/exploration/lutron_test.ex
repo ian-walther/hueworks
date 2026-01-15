@@ -71,9 +71,7 @@ defmodule Hueworks.Exploration.LutronTest do
     zone_devices = zone_devices(devices)
 
     Enum.each(zone_devices, fn device ->
-      IO.puts(
-        "#{device.device_id} | zone #{device.zone_id} | #{device.name} (#{device.type})"
-      )
+      IO.puts("#{device.device_id} | zone #{device.zone_id} | #{device.name} (#{device.type})")
     end)
 
     :ssl.close(socket)
@@ -310,7 +308,6 @@ defmodule Hueworks.Exploration.LutronTest do
     end
   end
 
-
   defp listen_decoded(socket, button_map) do
     case :ssl.recv(socket, 0, 10000) do
       {:ok, data} ->
@@ -423,5 +420,29 @@ defmodule Hueworks.Exploration.LutronTest do
       [^type, id] -> id
       _ -> nil
     end
+  end
+
+  def get_lights() do
+    {:ok, socket} = connect()
+
+    Task.async(fn ->
+      :ssl.setopts(socket, [{:active, false}, {:packet, :line}])
+
+      IO.puts("\n=== READING DEVICES ===")
+      devices = read_devices(socket)
+      devices |> dbg()
+
+      IO.puts("\n=== READING BUTTONS ===")
+      buttons = read_buttons(socket)
+      button_map = build_button_map(devices, buttons)
+
+      subscribe_to_button_events(socket, Map.keys(button_map))
+
+      IO.puts("\n=== DRAINING INITIAL RESPONSES ===")
+      drain_initial(socket)
+    end)
+    |> then(fn task ->
+      Task.shutdown(task, :brutal_kill)
+    end)
   end
 end
