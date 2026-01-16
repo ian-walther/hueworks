@@ -9,7 +9,7 @@ defmodule Hueworks.Import.Hue do
     %{bridges: bridges, lights: lights} = normalize(export)
 
     Enum.each(bridges, fn %{lights: bridge_lights} = bridge_payload ->
-      bridge = Persist.upsert_bridge(bridge_payload.bridge)
+      bridge = Persist.get_bridge!(:hue, bridge_payload.bridge.host)
 
       Enum.each(bridge_lights, fn light_attrs ->
         attrs = Map.merge(light_attrs, %{bridge_id: bridge.id})
@@ -33,8 +33,7 @@ defmodule Hueworks.Import.Hue do
           bridge: %{
             type: :hue,
             name: name,
-            host: host,
-            credentials: %{}
+            host: host
           },
           lights: lights
         }
@@ -49,25 +48,31 @@ defmodule Hueworks.Import.Hue do
   defp normalize_lights(lights, bridge_host) when is_map(lights) do
     lights
     |> Enum.map(fn {id, light} ->
-      source_id = light["id"] || light[:id] || id
+      source_id = get_value(light, "id") || id
 
       %{
-        name: light["name"],
+        name: get_value(light, "name"),
         source: :hue,
         source_id: to_string(source_id),
         enabled: true,
         metadata: %{
           "bridge_host" => bridge_host,
-          "uniqueid" => light["uniqueid"],
-          "mac" => light["mac"],
-          "modelid" => light["modelid"],
-          "productname" => light["productname"],
-          "type" => light["type"],
-          "capabilities" => light["capabilities"]
+          "uniqueid" => get_value(light, "uniqueid"),
+          "mac" => get_value(light, "mac"),
+          "modelid" => get_value(light, "modelid"),
+          "productname" => get_value(light, "productname"),
+          "type" => get_value(light, "type"),
+          "capabilities" => get_value(light, "capabilities")
         }
       }
     end)
   end
 
   defp normalize_lights(_lights, _bridge_host), do: []
+
+  defp get_value(map, key) when is_map(map) do
+    Map.get(map, key) || Map.get(map, String.to_atom(key))
+  end
+
+  defp get_value(_map, _key), do: nil
 end

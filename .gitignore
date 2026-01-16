@@ -33,6 +33,9 @@ npm-debug.log
 *.swo
 *~
 
+# Local secrets
+/secrets.env
+
 # OS
 .DS_Store
 Thumbs.db

@@ -38,9 +38,11 @@ This project is in early development. The current focus is on building throwaway
 # Install dependencies
 mix deps.get
 
-# Create database and run migrations
-mix ecto.create
-mix ecto.migrate
+# Create database, run migrations, and seed bridges
+mix ecto.reset
+
+# Optional: re-run seeds without resetting
+mix run priv/repo/seeds.exs
 
 # Set up and build assets
 mix assets.setup
@@ -51,6 +53,40 @@ iex -S mix phx.server
 ```
 
 Visit `http://localhost:4000` to see the exploration UI.
+
+## Database Seeding Workflow
+
+Bridge records are seeded before any imports so credentials live in the database.
+
+1) Create `secrets.env` at the repo root:
+
+```bash
+export HUE_API_KEY="..."
+export LUTRON_CERT_PATH="/path/to/bridge.crt"
+export LUTRON_KEY_PATH="/path/to/bridge.key"
+export LUTRON_CACERT_PATH="/path/to/bridge-ca.crt"
+export HA_TOKEN="..."
+```
+
+2) Reset the DB (migrations + seeds):
+
+```bash
+mix ecto.reset
+```
+
+3) Sync live data into `lights`:
+
+```bash
+mix sync
+```
+
+You can also run the steps independently:
+
+```bash
+mix fetch            # fetch + write exports/*.json
+mix import           # import from latest exports/*.json
+mix sync             # fetch + import without writing files
+```
 
 ## License
 

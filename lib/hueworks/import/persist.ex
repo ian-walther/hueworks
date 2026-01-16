@@ -7,16 +7,8 @@ defmodule Hueworks.Import.Persist do
   alias Hueworks.Lights.Light
   alias Hueworks.Repo
 
-  def upsert_bridge(attrs) do
-    changeset = Bridge.changeset(%Bridge{}, attrs)
-
-    Repo.insert(
-      changeset,
-      on_conflict: {:replace, [:name, :credentials, :updated_at]},
-      conflict_target: [:type, :host]
-    )
-
-    Repo.get_by!(Bridge, type: attrs.type, host: attrs.host)
+  def get_bridge!(type, host) do
+    Repo.get_by!(Bridge, type: type, host: host)
   end
 
   def upsert_light(attrs) do
@@ -34,7 +26,8 @@ defmodule Hueworks.Import.Persist do
 
     %{
       hue_by_mac: index_by_metadata(lights, :hue, "mac"),
-      caseta_by_serial: index_by_metadata(lights, :caseta, "serial")
+      caseta_by_serial: index_by_metadata(lights, :caseta, "serial"),
+      caseta_by_zone_id: index_by_source_id(lights, :caseta)
     }
   end
 
@@ -61,4 +54,16 @@ defmodule Hueworks.Import.Persist do
   end
 
   defp metadata_value(_metadata, _key), do: nil
+
+  defp index_by_source_id(lights, source) do
+    lights
+    |> Enum.filter(fn light -> light.source == source end)
+    |> Enum.reduce(%{}, fn light, acc ->
+      if is_binary(light.source_id) do
+        Map.put(acc, light.source_id, light)
+      else
+        acc
+      end
+    end)
+  end
 end
