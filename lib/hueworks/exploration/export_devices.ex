@@ -352,7 +352,8 @@ defmodule Hueworks.Exploration.ExportDevices do
         name: lutron_device_name(device),
         area_id: href_id(area_href, "area"),
         type: device["DeviceType"],
-        model: device["ModelNumber"]
+        model: device["ModelNumber"],
+        serial: device["SerialNumber"]
       }
     end)
     |> Enum.filter(& &1.zone_id)

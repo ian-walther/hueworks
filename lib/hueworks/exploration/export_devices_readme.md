@@ -44,7 +44,7 @@ ha_data = Hueworks.Exploration.ExportDevices.export_home_assistant()
 - **exported_at** - ISO8601 timestamp
 
 ### Lutron Export (`lutron_devices_*.json`)
-- **lights** - Zone-controllable devices with zone_id and metadata
+- **lights** - Zone-controllable devices with zone_id, serial, and metadata
 - **pico_buttons** - Pico button definitions with button_id and parent device
 - **bridge_ip** - Bridge IP address
 - **exported_at** - ISO8601 timestamp
