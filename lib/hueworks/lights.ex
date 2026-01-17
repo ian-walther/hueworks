@@ -16,4 +16,6 @@ defmodule Hueworks.Lights do
       )
     )
   end
+
+  def get_light(id), do: Repo.get(Light, id)
 end

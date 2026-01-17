@@ -16,4 +16,6 @@ defmodule Hueworks.Groups do
       )
     )
   end
+
+  def get_group(id), do: Repo.get(Group, id)
 end
