@@ -7,20 +7,39 @@ defmodule Hueworks.Groups.Group do
     field(:source, Ecto.Enum, values: [:hue, :caseta, :ha])
     field(:source_id, :string)
     belongs_to(:bridge, Hueworks.Bridges.Bridge)
-    belongs_to(:parent, __MODULE__)
+    belongs_to(:parent_group, __MODULE__)
+    belongs_to(:canonical_group, __MODULE__)
     field(:enabled, :boolean, default: true)
     field(:metadata, :map, default: %{})
+    has_many(:group_lights, Hueworks.Groups.GroupLight)
+    has_many(:lights, through: [:group_lights, :light])
 
     timestamps()
   end
 
   def changeset(group, attrs) do
     group
-    |> cast(attrs, [:name, :source, :source_id, :bridge_id, :parent_id, :enabled, :metadata])
+    |> cast(attrs, [
+      :name,
+      :source,
+      :source_id,
+      :bridge_id,
+      :parent_group_id,
+      :canonical_group_id,
+      :enabled,
+      :metadata
+    ])
     |> validate_required([:name, :source, :source_id, :bridge_id])
-    |> validate_change(:parent_id, fn :parent_id, parent_id ->
-      if group.id && parent_id == group.id do
-        [parent_id: "cannot reference itself"]
+    |> validate_change(:parent_group_id, fn :parent_group_id, parent_group_id ->
+      if group.id && parent_group_id == group.id do
+        [parent_group_id: "cannot reference itself"]
+      else
+        []
+      end
+    end)
+    |> validate_change(:canonical_group_id, fn :canonical_group_id, canonical_group_id ->
+      if group.id && canonical_group_id == group.id do
+        [canonical_group_id: "cannot reference itself"]
       else
         []
       end

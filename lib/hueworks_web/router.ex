@@ -14,6 +14,7 @@ defmodule HueworksWeb.Router do
   scope "/", HueworksWeb do
     pipe_through :browser
 
-    live "/", ExplorationLive, :index
+    live "/", ControlLive, :index
+    live "/explore", ExplorationLive, :index
   end
 end

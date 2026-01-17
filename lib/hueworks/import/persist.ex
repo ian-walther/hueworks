@@ -3,8 +3,11 @@ defmodule Hueworks.Import.Persist do
   Shared persistence helpers for importing bridges and lights.
   """
 
+  import Ecto.Query, only: [from: 2]
+
   alias Hueworks.Bridges.Bridge
   alias Hueworks.Groups.Group
+  alias Hueworks.Groups.GroupLight
   alias Hueworks.Lights.Light
   alias Hueworks.Repo
 
@@ -17,7 +20,7 @@ defmodule Hueworks.Import.Persist do
 
     Repo.insert(
       changeset,
-      on_conflict: {:replace, [:name, :metadata, :enabled, :parent_id, :updated_at]},
+      on_conflict: {:replace, [:name, :metadata, :enabled, :canonical_light_id, :updated_at]},
       conflict_target: [:bridge_id, :source_id]
     )
   end
@@ -27,8 +30,20 @@ defmodule Hueworks.Import.Persist do
 
     Repo.insert(
       changeset,
-      on_conflict: {:replace, [:name, :metadata, :enabled, :parent_id, :updated_at]},
+      on_conflict:
+        {:replace,
+         [:name, :metadata, :enabled, :parent_group_id, :canonical_group_id, :updated_at]},
       conflict_target: [:bridge_id, :source_id]
+    )
+  end
+
+  def upsert_group_light(group_id, light_id) do
+    changeset = GroupLight.changeset(%GroupLight{}, %{group_id: group_id, light_id: light_id})
+
+    Repo.insert(
+      changeset,
+      on_conflict: :nothing,
+      conflict_target: [:group_id, :light_id]
     )
   end
 
@@ -40,6 +55,16 @@ defmodule Hueworks.Import.Persist do
       caseta_by_serial: index_by_metadata(lights, :caseta, "serial"),
       caseta_by_zone_id: index_by_source_id(lights, :caseta)
     }
+  end
+
+  def lights_by_source_id(bridge_id, source) do
+    Repo.all(from(l in Light, where: l.bridge_id == ^bridge_id and l.source == ^source))
+    |> Enum.reduce(%{}, fn light, acc -> Map.put(acc, light.source_id, light) end)
+  end
+
+  def groups_by_source_id(bridge_id, source) do
+    Repo.all(from(g in Group, where: g.bridge_id == ^bridge_id and g.source == ^source))
+    |> Enum.reduce(%{}, fn group, acc -> Map.put(acc, group.source_id, group) end)
   end
 
   defp index_by_metadata(lights, source, key) do

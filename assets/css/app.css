@@ -1,3 +1,182 @@
 @import "tailwindcss/base";
 @import "tailwindcss/components";
 @import "tailwindcss/utilities";
+
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,600&display=swap");
+
+:root {
+  --ink: #1b1b17;
+  --paper: #f8f3ec;
+  --accent: #e28413;
+  --accent-2: #2a9d8f;
+  --panel: rgba(255, 255, 255, 0.85);
+  --border: rgba(38, 31, 18, 0.15);
+}
+
+body {
+  font-family: "Space Grotesk", "Segoe UI", sans-serif;
+  background: radial-gradient(circle at top left, #fef3c7 0%, #f8f3ec 50%, #eef2ff 100%);
+  color: var(--ink);
+}
+
+.hw-shell {
+  min-height: 100vh;
+  padding: 2.5rem 3rem 4rem;
+}
+
+.hw-topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 2rem;
+  margin-bottom: 2rem;
+}
+
+.hw-title {
+  font-family: "Fraunces", serif;
+  font-size: 2.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.hw-subtitle {
+  color: rgba(27, 27, 23, 0.65);
+}
+
+.hw-actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.hw-status {
+  margin-bottom: 1.5rem;
+  padding: 0.75rem 1rem;
+  background: rgba(226, 132, 19, 0.12);
+  border: 1px solid rgba(226, 132, 19, 0.3);
+  border-radius: 0.75rem;
+}
+
+.hw-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 2rem;
+}
+
+.hw-panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 1.25rem;
+  padding: 1.5rem;
+  backdrop-filter: blur(12px);
+}
+
+.hw-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.25rem;
+}
+
+.hw-panel-header h2 {
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.hw-count {
+  background: rgba(27, 27, 23, 0.08);
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.85rem;
+}
+
+.hw-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.hw-card {
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  padding: 1rem;
+  box-shadow: 0 10px 30px rgba(27, 27, 23, 0.08);
+}
+
+.hw-card-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.hw-card-title h3 {
+  font-weight: 600;
+  font-size: 1.1rem;
+}
+
+.hw-meta {
+  color: rgba(27, 27, 23, 0.6);
+  font-size: 0.85rem;
+}
+
+.hw-pill {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.15rem 0.6rem;
+  font-size: 0.75rem;
+  background: rgba(42, 157, 143, 0.12);
+  color: #1f6f66;
+}
+
+.hw-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.hw-button {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.35rem 0.9rem;
+  background: white;
+  font-weight: 600;
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+
+.hw-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(27, 27, 23, 0.15);
+}
+
+.hw-button-on {
+  background: rgba(42, 157, 143, 0.15);
+  border-color: rgba(42, 157, 143, 0.4);
+}
+
+.hw-button-off {
+  background: rgba(226, 132, 19, 0.15);
+  border-color: rgba(226, 132, 19, 0.4);
+}
+
+.hw-slider {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.hw-slider input[type="range"] {
+  accent-color: var(--accent);
+}
+
+@media (max-width: 720px) {
+  .hw-shell {
+    padding: 1.5rem;
+  }
+
+  .hw-topbar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

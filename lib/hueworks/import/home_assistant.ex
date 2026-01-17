@@ -20,15 +20,17 @@ defmodule Hueworks.Import.HomeAssistant do
     end)
 
     Enum.each(lights, fn light_attrs ->
-      parent_id = match_parent(light_attrs, indexes)
+      canonical_light_id = match_parent(light_attrs, indexes)
 
       attrs =
         light_attrs
         |> Map.put(:bridge_id, bridge.id)
-        |> Map.put(:parent_id, parent_id)
+        |> Map.put(:canonical_light_id, canonical_light_id)
 
       Persist.upsert_light(attrs)
     end)
+
+    attach_group_memberships(bridge, groups)
 
     %{bridge: bridge_attrs, lights: lights, groups: groups}
   end
@@ -44,8 +46,10 @@ defmodule Hueworks.Import.HomeAssistant do
         name: "Home Assistant",
         host: host
       },
-      lights: Enum.map(light_entities, &normalize_light/1),
-      groups: Enum.map(group_entities, &normalize_group/1)
+      lights: light_entities |> Enum.reject(&group_light?/1) |> Enum.map(&normalize_light/1),
+      groups:
+        (group_entities ++ group_lights_as_groups(light_entities))
+        |> Enum.map(&normalize_group/1)
     }
   end
 
@@ -166,9 +170,21 @@ defmodule Hueworks.Import.HomeAssistant do
       source_id: get_value(group, "entity_id"),
       enabled: true,
       metadata: %{
-        "platform" => get_value(group, "platform")
+        "platform" => get_value(group, "platform"),
+        "members" => get_value(group, "members") || []
       }
     }
+  end
+
+  defp group_light?(light) do
+    platform = get_value(light, "platform")
+    macs = get_value(light, "device") |> get_value("connections") |> macs_from_connections()
+
+    platform in ["group", "light_group"] or (platform == "hue" and macs == [])
+  end
+
+  defp group_lights_as_groups(light_entities) do
+    Enum.filter(light_entities, &group_light?/1)
   end
 
   defp get_value(map, key) when is_map(map) do
@@ -176,4 +192,27 @@ defmodule Hueworks.Import.HomeAssistant do
   end
 
   defp get_value(_map, _key), do: nil
+
+  defp attach_group_memberships(bridge, groups) do
+    groups_by_id = Persist.groups_by_source_id(bridge.id, :ha)
+    lights_by_id = Persist.lights_by_source_id(bridge.id, :ha)
+
+    Enum.each(groups, fn group ->
+      group_id = get_value(group, "source_id")
+      members = get_value(group, "metadata") |> get_value("members") || []
+
+      case Map.get(groups_by_id, to_string(group_id)) do
+        nil ->
+          :ok
+
+        db_group ->
+          Enum.each(members, fn entity_id ->
+            case Map.get(lights_by_id, to_string(entity_id)) do
+              nil -> :ok
+              light -> Persist.upsert_group_light(db_group.id, light.id)
+            end
+          end)
+      end
+    end)
+  end
 end

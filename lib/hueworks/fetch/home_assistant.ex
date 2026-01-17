@@ -26,7 +26,9 @@ defmodule Hueworks.Fetch.HomeAssistant do
     device_registry = get_device_registry(pid)
 
     IO.puts("Fetching light states...")
-    zone_by_entity_id = zone_by_entity_id(pid)
+    states = get_states(pid)
+    zone_by_entity_id = zone_by_entity_id(states)
+    group_members_by_entity_id = group_members_by_entity_id(states)
 
     light_entities =
       entity_registry
@@ -45,7 +47,7 @@ defmodule Hueworks.Fetch.HomeAssistant do
         String.starts_with?(entry["entity_id"], "light.") and
           entry["platform"] in ["group", "light_group"]
       end)
-      |> simplify_groups()
+      |> simplify_groups(group_members_by_entity_id)
 
     %{
       host: bridge.host,
@@ -71,25 +73,41 @@ defmodule Hueworks.Fetch.HomeAssistant do
     end
   end
 
-  defp zone_by_entity_id(pid) do
+  defp get_states(pid) do
     case request(pid, "get_states", %{}) do
-      {:ok, states} when is_list(states) ->
-        states
-        |> Enum.filter(&is_map/1)
-        |> Enum.filter(fn state -> String.starts_with?(state["entity_id"], "light.") end)
-        |> Enum.reduce(%{}, fn state, acc ->
-          zone_id = get_in(state, ["attributes", "zone_id"])
-
-          if zone_id do
-            Map.put(acc, state["entity_id"], zone_id)
-          else
-            acc
-          end
-        end)
-
-      _ ->
-        %{}
+      {:ok, states} when is_list(states) -> states
+      _ -> []
     end
+  end
+
+  defp zone_by_entity_id(states) do
+    states
+    |> Enum.filter(&is_map/1)
+    |> Enum.filter(fn state -> String.starts_with?(state["entity_id"], "light.") end)
+    |> Enum.reduce(%{}, fn state, acc ->
+      zone_id = get_in(state, ["attributes", "zone_id"])
+
+      if zone_id do
+        Map.put(acc, state["entity_id"], zone_id)
+      else
+        acc
+      end
+    end)
+  end
+
+  defp group_members_by_entity_id(states) do
+    states
+    |> Enum.filter(&is_map/1)
+    |> Enum.filter(fn state -> String.starts_with?(state["entity_id"], "light.") end)
+    |> Enum.reduce(%{}, fn state, acc ->
+      members = get_in(state, ["attributes", "entity_id"])
+
+      if is_list(members) do
+        Map.put(acc, state["entity_id"], members)
+      else
+        acc
+      end
+    end)
   end
 
   defp merge_entity_registry(light_entities, entity_registry) do
@@ -197,12 +215,15 @@ defmodule Hueworks.Fetch.HomeAssistant do
 
   defp simplify_device(_device), do: nil
 
-  defp simplify_groups(groups) do
+  defp simplify_groups(groups, group_members_by_entity_id) do
     Enum.map(groups, fn entity ->
+      members = Map.get(group_members_by_entity_id, entity["entity_id"], [])
+
       %{
         entity_id: entity["entity_id"],
         name: entity["name"] || entity["original_name"],
-        platform: entity["platform"]
+        platform: entity["platform"],
+        members: members
       }
     end)
   end

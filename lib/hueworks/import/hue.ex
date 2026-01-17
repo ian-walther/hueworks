@@ -8,18 +8,20 @@ defmodule Hueworks.Import.Hue do
   def import(export) do
     %{bridges: bridges, lights: lights, groups: groups} = normalize(export)
 
-    Enum.each(bridges, fn %{lights: bridge_lights} = bridge_payload ->
+    Enum.each(bridges, fn %{lights: bridge_lights, groups: bridge_groups} = bridge_payload ->
       bridge = Persist.get_bridge!(:hue, bridge_payload.bridge.host)
-
-      Enum.each(bridge_payload.groups, fn group_attrs ->
-        attrs = Map.merge(group_attrs, %{bridge_id: bridge.id})
-        Persist.upsert_group(attrs)
-      end)
 
       Enum.each(bridge_lights, fn light_attrs ->
         attrs = Map.merge(light_attrs, %{bridge_id: bridge.id})
         Persist.upsert_light(attrs)
       end)
+
+      Enum.each(bridge_groups, fn group_attrs ->
+        attrs = Map.merge(group_attrs, %{bridge_id: bridge.id})
+        Persist.upsert_group(attrs)
+      end)
+
+      attach_group_memberships(bridge)
     end)
 
     %{bridges: bridges, lights: lights, groups: groups}
@@ -104,4 +106,20 @@ defmodule Hueworks.Import.Hue do
   end
 
   defp get_value(_map, _key), do: nil
+
+  defp attach_group_memberships(bridge) do
+    groups_by_id = Persist.groups_by_source_id(bridge.id, :hue)
+    lights_by_id = Persist.lights_by_source_id(bridge.id, :hue)
+
+    Enum.each(groups_by_id, fn {_source_id, group} ->
+      members = group.metadata["lights"] || []
+
+      Enum.each(members, fn light_id ->
+        case Map.get(lights_by_id, to_string(light_id)) do
+          nil -> :ok
+          light -> Persist.upsert_group_light(group.id, light.id)
+        end
+      end)
+    end)
+  end
 end

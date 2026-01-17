@@ -7,7 +7,7 @@ defmodule Hueworks.Lights.Light do
     field(:source, Ecto.Enum, values: [:hue, :caseta, :ha])
     field(:source_id, :string)
     belongs_to(:bridge, Hueworks.Bridges.Bridge)
-    belongs_to(:parent, __MODULE__)
+    belongs_to(:canonical_light, __MODULE__)
     field(:enabled, :boolean, default: true)
     field(:metadata, :map, default: %{})
 
@@ -16,11 +16,11 @@ defmodule Hueworks.Lights.Light do
 
   def changeset(light, attrs) do
     light
-    |> cast(attrs, [:name, :source, :source_id, :bridge_id, :parent_id, :enabled, :metadata])
+    |> cast(attrs, [:name, :source, :source_id, :bridge_id, :canonical_light_id, :enabled, :metadata])
     |> validate_required([:name, :source, :source_id, :bridge_id])
-    |> validate_change(:parent_id, fn :parent_id, parent_id ->
-      if light.id && parent_id == light.id do
-        [parent_id: "cannot reference itself"]
+    |> validate_change(:canonical_light_id, fn :canonical_light_id, canonical_light_id ->
+      if light.id && canonical_light_id == light.id do
+        [canonical_light_id: "cannot reference itself"]
       else
         []
       end
