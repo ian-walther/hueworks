@@ -39,9 +39,18 @@ defmodule Hueworks.Fetch.HomeAssistant do
       |> tag_entity_sources()
       |> simplify_lights()
 
+    group_entities =
+      entity_registry
+      |> Enum.filter(fn entry ->
+        String.starts_with?(entry["entity_id"], "light.") and
+          entry["platform"] in ["group", "light_group"]
+      end)
+      |> simplify_groups()
+
     %{
       host: bridge.host,
       light_entities: light_entities,
+      group_entities: group_entities,
       light_count: length(light_entities),
       total_entity_count: length(entity_registry),
       exported_at: DateTime.utc_now() |> DateTime.to_iso8601()
@@ -187,6 +196,16 @@ defmodule Hueworks.Fetch.HomeAssistant do
   end
 
   defp simplify_device(_device), do: nil
+
+  defp simplify_groups(groups) do
+    Enum.map(groups, fn entity ->
+      %{
+        entity_id: entity["entity_id"],
+        name: entity["name"] || entity["original_name"],
+        platform: entity["platform"]
+      }
+    end)
+  end
 
   defp request(pid, type, params) do
     ref = make_ref()

@@ -4,6 +4,7 @@ defmodule Hueworks.Import.Persist do
   """
 
   alias Hueworks.Bridges.Bridge
+  alias Hueworks.Groups.Group
   alias Hueworks.Lights.Light
   alias Hueworks.Repo
 
@@ -13,6 +14,16 @@ defmodule Hueworks.Import.Persist do
 
   def upsert_light(attrs) do
     changeset = Light.changeset(%Light{}, attrs)
+
+    Repo.insert(
+      changeset,
+      on_conflict: {:replace, [:name, :metadata, :enabled, :parent_id, :updated_at]},
+      conflict_target: [:bridge_id, :source_id]
+    )
+  end
+
+  def upsert_group(attrs) do
+    changeset = Group.changeset(%Group{}, attrs)
 
     Repo.insert(
       changeset,

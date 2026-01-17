@@ -61,6 +61,17 @@ bridges = [
     updated_at: now
   },
   %{
+    type: :hue,
+    name: "Downstairs Bridge",
+    host: "192.168.1.224",
+    credentials: %{
+      "api_key" => fetch_env!.("HUE_API_KEY_DOWNSTAIRS")
+    },
+    enabled: true,
+    inserted_at: now,
+    updated_at: now
+  },
+  %{
     type: :caseta,
     name: "Caseta Bridge",
     host: "192.168.1.123",

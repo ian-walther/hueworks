@@ -26,10 +26,15 @@ defmodule Hueworks.Fetch.Hue do
           |> add_hue_macs()
           |> simplify_hue_lights()
 
+        groups =
+          fetch_endpoint(bridge.host, api_key, "/groups")
+          |> simplify_hue_groups()
+
         %{
           name: bridge.name,
           host: bridge.host,
-          lights: lights
+          lights: lights,
+          groups: groups
         }
       end)
 
@@ -104,6 +109,20 @@ defmodule Hueworks.Fetch.Hue do
   end
 
   defp simplify_hue_lights(lights), do: lights
+
+  defp simplify_hue_groups(groups) when is_map(groups) do
+    Map.new(groups, fn {id, group} ->
+      {id,
+       %{
+         id: id,
+         name: group["name"],
+         type: group["type"],
+         lights: group["lights"] || []
+       }}
+    end)
+  end
+
+  defp simplify_hue_groups(groups), do: groups
 
   defp load_bridges(type) do
     Repo.all(from(b in Bridge, where: b.type == ^type and b.enabled == true))

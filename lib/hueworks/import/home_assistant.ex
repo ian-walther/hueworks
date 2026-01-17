@@ -8,11 +8,16 @@ defmodule Hueworks.Import.HomeAssistant do
   alias Hueworks.Import.Persist
 
   def import(export) do
-    %{bridge: bridge_attrs, lights: lights} = normalize(export)
+    %{bridge: bridge_attrs, lights: lights, groups: groups} = normalize(export)
     bridge = Persist.get_bridge!(:ha, bridge_attrs.host)
     indexes = Persist.light_indexes()
 
     log_match_summary(lights, indexes)
+
+    Enum.each(groups, fn group_attrs ->
+      attrs = Map.merge(group_attrs, %{bridge_id: bridge.id})
+      Persist.upsert_group(attrs)
+    end)
 
     Enum.each(lights, fn light_attrs ->
       parent_id = match_parent(light_attrs, indexes)
@@ -25,12 +30,13 @@ defmodule Hueworks.Import.HomeAssistant do
       Persist.upsert_light(attrs)
     end)
 
-    %{bridge: bridge_attrs, lights: lights}
+    %{bridge: bridge_attrs, lights: lights, groups: groups}
   end
 
   def normalize(export) do
     host = export["host"] || export[:host]
     light_entities = export["light_entities"] || export[:light_entities] || []
+    group_entities = export["group_entities"] || export[:group_entities] || []
 
     %{
       bridge: %{
@@ -38,7 +44,8 @@ defmodule Hueworks.Import.HomeAssistant do
         name: "Home Assistant",
         host: host
       },
-      lights: Enum.map(light_entities, &normalize_light/1)
+      lights: Enum.map(light_entities, &normalize_light/1),
+      groups: Enum.map(group_entities, &normalize_group/1)
     }
   end
 
@@ -151,6 +158,18 @@ defmodule Hueworks.Import.HomeAssistant do
 
   defp match_first([first | _rest]), do: first
   defp match_first(_list), do: nil
+
+  defp normalize_group(group) do
+    %{
+      name: get_value(group, "name") || get_value(group, "entity_id"),
+      source: :ha,
+      source_id: get_value(group, "entity_id"),
+      enabled: true,
+      metadata: %{
+        "platform" => get_value(group, "platform")
+      }
+    }
+  end
 
   defp get_value(map, key) when is_map(map) do
     Map.get(map, key) || Map.get(map, String.to_atom(key))

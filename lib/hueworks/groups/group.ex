@@ -1,0 +1,30 @@
+defmodule Hueworks.Groups.Group do
+  use Ecto.Schema
+  import Ecto.Changeset
+
+  schema "groups" do
+    field(:name, :string)
+    field(:source, Ecto.Enum, values: [:hue, :caseta, :ha])
+    field(:source_id, :string)
+    belongs_to(:bridge, Hueworks.Bridges.Bridge)
+    belongs_to(:parent, __MODULE__)
+    field(:enabled, :boolean, default: true)
+    field(:metadata, :map, default: %{})
+
+    timestamps()
+  end
+
+  def changeset(group, attrs) do
+    group
+    |> cast(attrs, [:name, :source, :source_id, :bridge_id, :parent_id, :enabled, :metadata])
+    |> validate_required([:name, :source, :source_id, :bridge_id])
+    |> validate_change(:parent_id, fn :parent_id, parent_id ->
+      if group.id && parent_id == group.id do
+        [parent_id: "cannot reference itself"]
+      else
+        []
+      end
+    end)
+    |> unique_constraint([:bridge_id, :source_id])
+  end
+end
