@@ -58,18 +58,22 @@ defmodule Hueworks.Import.HomeAssistant do
     connections = get_value(device, "connections") || []
     identifiers = get_value(device, "identifiers") || []
     macs = macs_from_connections(connections)
+    {min_kelvin, max_kelvin} = temp_range_from_ha(light)
 
     %{
       name: get_value(light, "name") || get_value(light, "entity_id"),
       source: :ha,
       source_id: get_value(light, "entity_id"),
       enabled: true,
+      min_kelvin: min_kelvin,
+      max_kelvin: max_kelvin,
       metadata: %{
         "unique_id" => get_value(light, "unique_id"),
         "platform" => get_value(light, "platform"),
         "source" => get_value(light, "source"),
         "device_id" => get_value(light, "device_id"),
         "zone_id" => get_value(light, "zone_id"),
+        "temp_range" => get_value(light, "temp_range"),
         "device" => %{
           "id" => get_value(device, "id"),
           "name" => get_value(device, "name"),
@@ -185,6 +189,27 @@ defmodule Hueworks.Import.HomeAssistant do
 
   defp group_lights_as_groups(light_entities) do
     Enum.filter(light_entities, &group_light?/1)
+  end
+
+  defp temp_range_from_ha(light) do
+    range = get_value(light, "temp_range") || %{}
+    min_kelvin = get_value(range, "min_kelvin")
+    max_kelvin = get_value(range, "max_kelvin")
+    min_mireds = get_value(range, "min_mireds")
+    max_mireds = get_value(range, "max_mireds")
+
+    cond do
+      is_number(min_kelvin) and is_number(max_kelvin) ->
+        {round(min_kelvin), round(max_kelvin)}
+
+      is_number(min_mireds) and is_number(max_mireds) ->
+        min_k = round(1_000_000 / max_mireds)
+        max_k = round(1_000_000 / min_mireds)
+        {min_k, max_k}
+
+      true ->
+        {nil, nil}
+    end
   end
 
   defp get_value(map, key) when is_map(map) do

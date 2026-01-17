@@ -29,6 +29,7 @@ defmodule Hueworks.Fetch.HomeAssistant do
     states = get_states(pid)
     zone_by_entity_id = zone_by_entity_id(states)
     group_members_by_entity_id = group_members_by_entity_id(states)
+    temp_range_by_entity_id = temp_range_by_entity_id(states)
 
     light_entities =
       entity_registry
@@ -38,6 +39,7 @@ defmodule Hueworks.Fetch.HomeAssistant do
       |> merge_entity_registry(entity_registry)
       |> merge_device_registry(device_registry)
       |> merge_zone_ids(zone_by_entity_id)
+      |> merge_temp_ranges(temp_range_by_entity_id)
       |> tag_entity_sources()
       |> simplify_lights()
 
@@ -110,6 +112,43 @@ defmodule Hueworks.Fetch.HomeAssistant do
     end)
   end
 
+  defp temp_range_by_entity_id(states) do
+    states
+    |> Enum.filter(&is_map/1)
+    |> Enum.filter(fn state -> String.starts_with?(state["entity_id"], "light.") end)
+    |> Enum.reduce(%{}, fn state, acc ->
+      attrs = state["attributes"] || %{}
+      min_mireds = Map.get(attrs, "min_mireds")
+      max_mireds = Map.get(attrs, "max_mireds")
+      min_kelvin = Map.get(attrs, "min_color_temp_kelvin")
+      max_kelvin = Map.get(attrs, "max_color_temp_kelvin")
+
+      range =
+        cond do
+          is_number(min_kelvin) and is_number(max_kelvin) ->
+            %{
+              "min_kelvin" => round(min_kelvin),
+              "max_kelvin" => round(max_kelvin)
+            }
+
+          is_number(min_mireds) and is_number(max_mireds) ->
+            %{
+              "min_mireds" => round(min_mireds),
+              "max_mireds" => round(max_mireds)
+            }
+
+          true ->
+            nil
+        end
+
+      if range do
+        Map.put(acc, state["entity_id"], range)
+      else
+        acc
+      end
+    end)
+  end
+
   defp merge_entity_registry(light_entities, entity_registry) do
     registry_by_entity_id =
       entity_registry
@@ -139,6 +178,13 @@ defmodule Hueworks.Fetch.HomeAssistant do
     Enum.map(light_entities, fn entity ->
       zone_id = Map.get(zone_by_entity_id, entity["entity_id"])
       if zone_id, do: Map.put(entity, "zone_id", zone_id), else: entity
+    end)
+  end
+
+  defp merge_temp_ranges(light_entities, temp_range_by_entity_id) do
+    Enum.map(light_entities, fn entity ->
+      range = Map.get(temp_range_by_entity_id, entity["entity_id"])
+      if range, do: Map.put(entity, "temp_range", range), else: entity
     end)
   end
 
@@ -196,6 +242,7 @@ defmodule Hueworks.Fetch.HomeAssistant do
         device_id: entity["device_id"],
         zone_id: entity["zone_id"],
         source: entity["source"],
+        temp_range: entity["temp_range"],
         device: simplify_device(device)
       }
     end)

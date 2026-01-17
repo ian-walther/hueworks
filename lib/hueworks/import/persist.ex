@@ -20,7 +20,9 @@ defmodule Hueworks.Import.Persist do
 
     Repo.insert(
       changeset,
-      on_conflict: {:replace, [:name, :metadata, :enabled, :canonical_light_id, :updated_at]},
+      on_conflict:
+        {:replace,
+         [:name, :metadata, :enabled, :canonical_light_id, :min_kelvin, :max_kelvin, :updated_at]},
       conflict_target: [:bridge_id, :source_id]
     )
   end

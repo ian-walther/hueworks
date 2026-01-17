@@ -82,6 +82,7 @@ defmodule Hueworks.Fetch.Hue do
   defp simplify_hue_lights(lights) when is_map(lights) do
     Map.new(lights, fn {id, light} ->
       control = get_in(light, ["capabilities", "control"]) || %{}
+      ct = get_in(control, ["ct"]) || %{}
       state = light["state"] || %{}
 
       supports_brightness = Map.has_key?(state, "bri")
@@ -89,6 +90,8 @@ defmodule Hueworks.Fetch.Hue do
         Map.has_key?(control, "colorgamut") or Map.has_key?(control, "colorgamuttype")
 
       supports_color_temp = Map.has_key?(control, "ct")
+      ct_min = ct["min"]
+      ct_max = ct["max"]
 
       {id,
        %{
@@ -102,7 +105,13 @@ defmodule Hueworks.Fetch.Hue do
          capabilities: %{
            brightness: supports_brightness,
            color: supports_color,
-           color_temp: supports_color_temp
+           color_temp: supports_color_temp,
+           control: %{
+             ct: %{
+               min: ct_min,
+               max: ct_max
+             }
+           }
          }
        }}
     end)

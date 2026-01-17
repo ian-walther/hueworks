@@ -59,12 +59,15 @@ defmodule Hueworks.Import.Hue do
     lights
     |> Enum.map(fn {id, light} ->
       source_id = get_value(light, "id") || id
+      {min_kelvin, max_kelvin} = temp_range_from_capabilities(get_value(light, "capabilities"))
 
       %{
         name: get_value(light, "name"),
         source: :hue,
         source_id: to_string(source_id),
         enabled: true,
+        min_kelvin: min_kelvin,
+        max_kelvin: max_kelvin,
         metadata: %{
           "bridge_host" => bridge_host,
           "uniqueid" => get_value(light, "uniqueid"),
@@ -79,6 +82,35 @@ defmodule Hueworks.Import.Hue do
   end
 
   defp normalize_lights(_lights, _bridge_host), do: []
+
+  defp temp_range_from_capabilities(capabilities) when is_map(capabilities) do
+    control = get_value(capabilities, "control") || %{}
+    ct = get_value(control, "ct") || %{}
+    min_mired = to_number(get_value(ct, "min"))
+    max_mired = to_number(get_value(ct, "max"))
+
+    if is_number(min_mired) and is_number(max_mired) and min_mired > 0 and max_mired > 0 do
+      min_kelvin = round(1_000_000 / max_mired)
+      max_kelvin = round(1_000_000 / min_mired)
+      {min_kelvin, max_kelvin}
+    else
+      {nil, nil}
+    end
+  end
+
+  defp temp_range_from_capabilities(_capabilities), do: {nil, nil}
+
+  defp to_number(value) when is_integer(value), do: value
+  defp to_number(value) when is_float(value), do: value
+
+  defp to_number(value) when is_binary(value) do
+    case Float.parse(value) do
+      {number, ""} -> number
+      _ -> nil
+    end
+  end
+
+  defp to_number(_value), do: nil
 
   defp normalize_groups(groups, bridge_host) when is_map(groups) do
     groups

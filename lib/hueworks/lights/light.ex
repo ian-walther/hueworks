@@ -8,6 +8,8 @@ defmodule Hueworks.Lights.Light do
     field(:source_id, :string)
     belongs_to(:bridge, Hueworks.Bridges.Bridge)
     belongs_to(:canonical_light, __MODULE__)
+    field(:min_kelvin, :integer)
+    field(:max_kelvin, :integer)
     field(:enabled, :boolean, default: true)
     field(:metadata, :map, default: %{})
 
@@ -16,7 +18,17 @@ defmodule Hueworks.Lights.Light do
 
   def changeset(light, attrs) do
     light
-    |> cast(attrs, [:name, :source, :source_id, :bridge_id, :canonical_light_id, :enabled, :metadata])
+    |> cast(attrs, [
+      :name,
+      :source,
+      :source_id,
+      :bridge_id,
+      :canonical_light_id,
+      :min_kelvin,
+      :max_kelvin,
+      :enabled,
+      :metadata
+    ])
     |> validate_required([:name, :source, :source_id, :bridge_id])
     |> validate_change(:canonical_light_id, fn :canonical_light_id, canonical_light_id ->
       if light.id && canonical_light_id == light.id do

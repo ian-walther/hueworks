@@ -10,6 +10,8 @@ defmodule Hueworks.Application do
     children = [
       Hueworks.Repo,
       {Phoenix.PubSub, name: Hueworks.PubSub},
+      Hueworks.Control.State,
+      Hueworks.Control.HueEventStream,
       HueworksWeb.Endpoint
       # Exploration modules will be started manually in iex for now
       # {Hueworks.Exploration.PicoHueSlice, []},
