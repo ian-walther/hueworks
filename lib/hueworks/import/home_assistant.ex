@@ -3,9 +3,15 @@ defmodule Hueworks.Import.HomeAssistant do
   Import helpers for Home Assistant exports.
   """
 
+  import Ecto.Query, only: [from: 2]
+
   require Logger
 
   alias Hueworks.Import.Persist
+  alias Hueworks.Repo
+  alias Hueworks.Schemas.Group
+  alias Hueworks.Schemas.GroupLight
+  alias Hueworks.Schemas.Light
 
   def import(export) do
     %{bridge: bridge_attrs, lights: lights, groups: groups} = normalize(export)
@@ -31,6 +37,7 @@ defmodule Hueworks.Import.HomeAssistant do
     end)
 
     attach_group_memberships(bridge, groups)
+    link_canonical_groups(bridge)
 
     %{bridge: bridge_attrs, lights: lights, groups: groups}
   end
@@ -240,4 +247,111 @@ defmodule Hueworks.Import.HomeAssistant do
       end
     end)
   end
+
+  defp link_canonical_groups(bridge) do
+    canonical_groups =
+      Repo.all(
+        from(gl in GroupLight,
+          join: g in Group,
+          on: g.id == gl.group_id,
+          where: g.source != :ha,
+          select: {g.id, gl.light_id}
+        )
+      )
+      |> Enum.reduce(%{}, fn {group_id, light_id}, acc ->
+        Map.update(acc, group_id, MapSet.new([light_id]), &MapSet.put(&1, light_id))
+      end)
+
+    canonical_by_members =
+      canonical_groups
+      |> Enum.reduce(%{}, fn {group_id, members}, acc ->
+        key = members |> MapSet.to_list() |> Enum.sort()
+        Map.put_new(acc, key, group_id)
+      end)
+
+    ha_groups =
+      Repo.all(from(g in Group, where: g.bridge_id == ^bridge.id and g.source == :ha))
+
+    ha_group_by_source_id =
+      Enum.reduce(ha_groups, %{}, fn group, acc -> Map.put(acc, group.source_id, group) end)
+
+    ha_lights =
+      Repo.all(from(l in Light, where: l.bridge_id == ^bridge.id and l.source == :ha))
+
+    ha_light_by_source_id =
+      Enum.reduce(ha_lights, %{}, fn light, acc -> Map.put(acc, light.source_id, light) end)
+
+    ha_canonical_by_light =
+      Enum.reduce(ha_lights, %{}, fn light, acc -> Map.put(acc, light.id, light.canonical_light_id) end)
+
+    ha_group_members =
+      Enum.reduce(ha_groups, %{}, fn group, acc ->
+        members = get_value(group.metadata, "members") || []
+        light_ids = expand_member_lights(members, ha_group_by_source_id, ha_light_by_source_id, MapSet.new())
+        Map.put(acc, group.id, light_ids)
+      end)
+
+    {linked, total} =
+      Enum.reduce(ha_group_members, {0, 0}, fn {group_id, light_ids}, {linked, total} ->
+        total = total + 1
+
+        canonical_ids =
+          light_ids
+          |> Enum.map(&Map.get(ha_canonical_by_light, &1))
+
+        if Enum.any?(canonical_ids, &is_nil/1) do
+          {linked, total}
+        else
+          key = canonical_ids |> Enum.sort()
+
+          case Map.get(canonical_by_members, key) do
+            nil ->
+              {linked, total}
+
+            canonical_group_id ->
+              Repo.update_all(
+                from(g in Group, where: g.id == ^group_id),
+                set: [canonical_group_id: canonical_group_id]
+              )
+
+              {linked + 1, total}
+          end
+        end
+      end)
+
+    Logger.info("HA group canonical matches: #{linked}/#{total}")
+  end
+
+  defp expand_member_lights(members, ha_group_by_source_id, ha_light_by_source_id, visited)
+       when is_list(members) do
+    Enum.reduce(members, [], fn member_id, acc ->
+      cond do
+        light = Map.get(ha_light_by_source_id, to_string(member_id)) ->
+          [light.id | acc]
+
+        group = Map.get(ha_group_by_source_id, to_string(member_id)) ->
+          if MapSet.member?(visited, group.id) do
+            acc
+          else
+            nested_members = get_value(group.metadata, "members") || []
+
+            nested =
+              expand_member_lights(
+                nested_members,
+                ha_group_by_source_id,
+                ha_light_by_source_id,
+                MapSet.put(visited, group.id)
+              )
+
+            nested ++ acc
+          end
+
+        true ->
+          acc
+      end
+    end)
+    |> Enum.uniq()
+  end
+
+  defp expand_member_lights(_members, _ha_group_by_source_id, _ha_light_by_source_id, _visited), do: []
 end

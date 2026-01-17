@@ -7,7 +7,7 @@ defmodule Hueworks.Fetch.Caseta do
 
   import Ecto.Query, only: [from: 2]
 
-  alias Hueworks.Bridges.Bridge
+  alias Hueworks.Schemas.Bridge
   alias Hueworks.Repo
 
   def fetch do

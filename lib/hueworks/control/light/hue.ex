@@ -1,34 +1,15 @@
 defmodule Hueworks.Control.Light.Hue do
   @moduledoc false
 
-  alias Hueworks.Bridges.Bridge
-  alias Hueworks.Repo
+  alias Hueworks.Control.{HueBridge, HueClient}
 
   def handle(light, action) do
-    with {:ok, host, api_key} <- bridge_credentials(light),
+    with {:ok, host, api_key} <- HueBridge.credentials_for(light),
          payload <- action_payload(action),
-         {:ok, _resp} <- request(host, api_key, "/lights/#{light.source_id}/state", payload) do
+         {:ok, _resp} <- HueClient.request(host, api_key, "/lights/#{light.source_id}/state", payload) do
       :ok
     else
       {:error, _} = error -> error
-    end
-  end
-
-  defp bridge_credentials(light) do
-    host = light.metadata["bridge_host"]
-
-    case Repo.get_by(Bridge, type: :hue, host: host) do
-      nil ->
-        {:error, :bridge_not_found}
-
-      bridge ->
-        api_key = bridge.credentials["api_key"]
-
-        if is_binary(api_key) and api_key != "" do
-          {:ok, host, api_key}
-        else
-          {:error, :missing_api_key}
-        end
     end
   end
 
@@ -48,20 +29,6 @@ defmodule Hueworks.Control.Light.Hue do
   end
 
   defp action_payload(_action), do: %{}
-
-  defp request(host, api_key, path, payload) do
-    url = "http://#{host}/api/#{api_key}#{path}"
-    body = Jason.encode!(payload)
-
-    case HTTPoison.put(url, body, [{"Content-Type", "application/json"}], recv_timeout: 10_000) do
-      {:ok, %HTTPoison.Response{status_code: 200}} -> {:ok, :ok}
-      {:ok, %HTTPoison.Response{status_code: status_code, body: body}} ->
-        {:error, {:http_error, status_code, body}}
-
-      {:error, %HTTPoison.Error{reason: reason}} ->
-        {:error, {:http_error, reason}}
-    end
-  end
 
   defp percent_to_bri(level) do
     level

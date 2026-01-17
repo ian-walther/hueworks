@@ -1,10 +1,10 @@
-defmodule Hueworks.Groups.GroupLight do
+defmodule Hueworks.Schemas.GroupLight do
   use Ecto.Schema
   import Ecto.Changeset
 
   schema "group_lights" do
-    belongs_to(:group, Hueworks.Groups.Group)
-    belongs_to(:light, Hueworks.Lights.Light)
+    belongs_to(:group, Hueworks.Schemas.Group)
+    belongs_to(:light, Hueworks.Schemas.Light)
 
     timestamps()
   end

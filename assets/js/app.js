@@ -42,52 +42,6 @@ Hooks.TempSlider = {
   }
 }
 
-Hooks.StateUpdater = {
-  mounted() {
-    this.handleEvent("control_state_update", (payload) => {
-      console.debug("control_state_update", payload)
-      let prefix = payload.type === "group" ? "group" : "light"
-      let id = payload.id
-
-      let brightness = Number(payload.brightness)
-      if (Number.isFinite(brightness)) {
-        let input = document.getElementById(`${prefix}-level-${id}`)
-        if (input) {
-          input.value = brightness
-          input.setAttribute("value", brightness)
-        } else {
-          console.warn("StateUpdater missing brightness input", prefix, id)
-        }
-        let output = document.getElementById(`${prefix}-brightness-value-${id}`)
-        if (output) {
-          output.textContent = `${brightness}%`
-        } else {
-          console.warn("StateUpdater missing brightness output", prefix, id)
-        }
-      }
-
-      let kelvin = Number(payload.kelvin)
-      if (Number.isFinite(kelvin)) {
-        let input = document.getElementById(`${prefix}-temp-${id}`)
-        if (input) {
-          input.value = String(kelvin)
-          input.valueAsNumber = kelvin
-          input.setAttribute("value", kelvin)
-          console.debug("StateUpdater temp", id, input.value, input.valueAsNumber)
-        } else {
-          console.warn("StateUpdater missing temp input", prefix, id)
-        }
-        let output = document.getElementById(`${prefix}-temp-value-${id}`)
-        if (output) {
-          output.textContent = `${kelvin}K`
-        } else {
-          console.warn("StateUpdater missing temp output", prefix, id)
-        }
-      }
-    })
-  }
-}
-
 let liveSocket = new LiveSocket("/live", Socket, {
   params: { _csrf_token: csrfToken },
   hooks: Hooks

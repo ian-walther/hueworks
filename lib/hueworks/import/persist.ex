@@ -5,10 +5,10 @@ defmodule Hueworks.Import.Persist do
 
   import Ecto.Query, only: [from: 2]
 
-  alias Hueworks.Bridges.Bridge
-  alias Hueworks.Groups.Group
-  alias Hueworks.Groups.GroupLight
-  alias Hueworks.Lights.Light
+  alias Hueworks.Schemas.Bridge
+  alias Hueworks.Schemas.Group
+  alias Hueworks.Schemas.GroupLight
+  alias Hueworks.Schemas.Light
   alias Hueworks.Repo
 
   def get_bridge!(type, host) do

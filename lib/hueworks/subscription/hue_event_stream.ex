@@ -1,4 +1,4 @@
-defmodule Hueworks.Control.HueEventStream do
+defmodule Hueworks.Subscription.HueEventStream do
   @moduledoc """
   Manages Hue SSE connections per bridge.
   """
@@ -7,8 +7,8 @@ defmodule Hueworks.Control.HueEventStream do
 
   import Ecto.Query, only: [from: 2]
 
-  alias Hueworks.Bridges.Bridge
-  alias Hueworks.Control.HueEventStream.Connection
+  alias Hueworks.Schemas.Bridge
+  alias Hueworks.Subscription.HueEventStream.Connection
   alias Hueworks.Repo
 
   @restart_delay_ms 1_000

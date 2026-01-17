@@ -1,4 +1,4 @@
-alias Hueworks.Bridges.Bridge
+alias Hueworks.Schemas.Bridge
 alias Hueworks.Repo
 
 if File.exists?("secrets.env") do

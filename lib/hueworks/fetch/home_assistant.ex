@@ -5,7 +5,8 @@ defmodule Hueworks.Fetch.HomeAssistant do
 
   import Ecto.Query, only: [from: 2]
 
-  alias Hueworks.Bridges.Bridge
+  alias Hueworks.Fetch.HomeAssistant.Client
+  alias Hueworks.Schemas.Bridge
   alias Hueworks.Repo
 
   def fetch do
@@ -17,7 +18,7 @@ defmodule Hueworks.Fetch.HomeAssistant do
     end
 
     IO.puts("Connecting to Home Assistant...")
-    {:ok, pid} = Hueworks.Exploration.HATest.connect(bridge.host, token)
+    {:ok, pid} = Client.connect(bridge.host, token)
 
     IO.puts("Fetching entity registry...")
     entity_registry = get_entity_registry(pid)
@@ -40,6 +41,7 @@ defmodule Hueworks.Fetch.HomeAssistant do
       |> merge_device_registry(device_registry)
       |> merge_zone_ids(zone_by_entity_id)
       |> merge_temp_ranges(temp_range_by_entity_id)
+      |> merge_group_members(group_members_by_entity_id)
       |> tag_entity_sources()
       |> simplify_lights()
 
@@ -188,6 +190,13 @@ defmodule Hueworks.Fetch.HomeAssistant do
     end)
   end
 
+  defp merge_group_members(light_entities, group_members_by_entity_id) do
+    Enum.map(light_entities, fn entity ->
+      members = Map.get(group_members_by_entity_id, entity["entity_id"])
+      if members, do: Map.put(entity, "members", members), else: entity
+    end)
+  end
+
   defp tag_entity_sources(light_entities) do
     Enum.map(light_entities, fn entity ->
       source =
@@ -243,6 +252,7 @@ defmodule Hueworks.Fetch.HomeAssistant do
         zone_id: entity["zone_id"],
         source: entity["source"],
         temp_range: entity["temp_range"],
+        members: entity["members"],
         device: simplify_device(device)
       }
     end)

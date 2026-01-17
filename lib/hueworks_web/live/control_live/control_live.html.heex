@@ -1,0 +1,157 @@
+<div class="hw-shell">
+  <div class="hw-topbar">
+    <div>
+      <h1 class="hw-title">HueWorks Control Console</h1>
+      <p class="hw-subtitle">Minimal UI for live device testing and grouping logic.</p>
+    </div>
+    <div class="hw-actions">
+      <button class="hw-button" phx-click="refresh">Reload</button>
+    </div>
+  </div>
+
+  <%= if @status do %>
+    <div class="hw-status"><%= @status %></div>
+  <% end %>
+
+  <div class="hw-grid">
+    <section class="hw-panel">
+      <div class="hw-panel-header">
+        <h2>Groups</h2>
+        <span class="hw-count"><%= length(filter_entities(@groups, @group_filter)) %></span>
+      </div>
+      <form class="hw-filter" phx-change="set_group_filter">
+        <select name="group_filter" class="hw-select">
+          <option value="all" selected={@group_filter == "all"}>All</option>
+          <option value="hue" selected={@group_filter == "hue"}>Hue</option>
+          <option value="ha" selected={@group_filter == "ha"}>HA</option>
+          <option value="caseta" selected={@group_filter == "caseta"}>Caseta</option>
+        </select>
+      </form>
+      <div class="hw-list">
+        <%= for group <- filter_entities(@groups, @group_filter) do %>
+          <div class="hw-card" id={"group-#{group.id}"}>
+            <div class="hw-card-title">
+              <div>
+                <h3><%= group.name %></h3>
+                <p class="hw-meta">source: <%= group.source %></p>
+              </div>
+              <span class="hw-pill">group</span>
+            </div>
+
+            <div class="hw-controls">
+              <button class="hw-button hw-button-on" phx-click="toggle_on" phx-value-type="group" phx-value-id={group.id}>On</button>
+              <button class="hw-button hw-button-off" phx-click="toggle_off" phx-value-type="group" phx-value-id={group.id}>Off</button>
+              <div class="hw-slider">
+                <% brightness = get_state_value(@group_state, group.id, :brightness, 75) %>
+                <input
+                  id={"group-level-#{group.id}"}
+                  type="range"
+                  min="1"
+                  max="100"
+                  value={brightness}
+                  phx-hook="BrightnessSlider"
+                  data-type="group"
+                  data-id={group.id}
+                  data-output-id={"group-brightness-value-#{group.id}"}
+                />
+                <span id={"group-brightness-label-#{group.id}"}>Brightness</span>
+                <span id={"group-brightness-value-#{group.id}"} class="hw-slider-value">
+                  <%= brightness %>%
+                </span>
+              </div>
+              <div class="hw-slider">
+                <% {min_k, max_k} = Hueworks.Lights.temp_range(group) %>
+                <% kelvin = get_state_value(@group_state, group.id, :kelvin, round((min_k + max_k) / 2)) %>
+                <input
+                  id={"group-temp-#{group.id}"}
+                  type="range"
+                  min={min_k}
+                  max={max_k}
+                  value={kelvin}
+                  phx-hook="TempSlider"
+                  data-type="group"
+                  data-id={group.id}
+                  data-output-id={"group-temp-value-#{group.id}"}
+                />
+                <span id={"group-temp-label-#{group.id}"}>Temperature</span>
+                <span id={"group-temp-value-#{group.id}"} class="hw-slider-value">
+                  <%= kelvin %>K
+                </span>
+              </div>
+            </div>
+          </div>
+        <% end %>
+      </div>
+    </section>
+
+    <section class="hw-panel">
+      <div class="hw-panel-header">
+        <h2>Lights</h2>
+        <span class="hw-count"><%= length(filter_entities(@lights, @light_filter)) %></span>
+      </div>
+      <form class="hw-filter" phx-change="set_light_filter">
+        <select name="light_filter" class="hw-select">
+          <option value="all" selected={@light_filter == "all"}>All</option>
+          <option value="hue" selected={@light_filter == "hue"}>Hue</option>
+          <option value="ha" selected={@light_filter == "ha"}>HA</option>
+          <option value="caseta" selected={@light_filter == "caseta"}>Caseta</option>
+        </select>
+      </form>
+      <div class="hw-list">
+        <%= for light <- filter_entities(@lights, @light_filter) do %>
+          <div class="hw-card" id={"light-#{light.id}"}>
+            <div class="hw-card-title">
+              <div>
+                <h3><%= light.name %></h3>
+                <p class="hw-meta">source: <%= light.source %></p>
+              </div>
+              <span class="hw-pill"><%= light.source_id %></span>
+            </div>
+
+            <div class="hw-controls">
+              <button class="hw-button hw-button-on" phx-click="toggle_on" phx-value-type="light" phx-value-id={light.id}>On</button>
+              <button class="hw-button hw-button-off" phx-click="toggle_off" phx-value-type="light" phx-value-id={light.id}>Off</button>
+              <div class="hw-slider">
+                <% brightness = get_state_value(@light_state, light.id, :brightness, 75) %>
+                <input
+                  id={"light-level-#{light.id}"}
+                  type="range"
+                  min="1"
+                  max="100"
+                  value={brightness}
+                  phx-hook="BrightnessSlider"
+                  data-type="light"
+                  data-id={light.id}
+                  data-output-id={"light-brightness-value-#{light.id}"}
+                />
+                <span id={"light-brightness-label-#{light.id}"}>Brightness</span>
+                <span id={"light-brightness-value-#{light.id}"} class="hw-slider-value">
+                  <%= brightness %>%
+                </span>
+              </div>
+              <div class="hw-slider">
+                <% {min_k, max_k} = Hueworks.Lights.temp_range(light) %>
+                <% kelvin = get_state_value(@light_state, light.id, :kelvin, round((min_k + max_k) / 2)) %>
+                <input
+                  id={"light-temp-#{light.id}"}
+                  type="range"
+                  min={min_k}
+                  max={max_k}
+                  value={kelvin}
+                  phx-hook="TempSlider"
+                  data-type="light"
+                  data-id={light.id}
+                  data-output-id={"light-temp-value-#{light.id}"}
+                />
+                <span id={"light-temp-label-#{light.id}"}>Temperature</span>
+                <span id={"light-temp-value-#{light.id}"} class="hw-slider-value">
+                  <%= kelvin %>K
+                </span>
+              </div>
+            </div>
+          </div>
+        <% end %>
+      </div>
+    </section>
+  </div>
+</div>

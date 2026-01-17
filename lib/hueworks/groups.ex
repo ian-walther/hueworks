@@ -5,7 +5,7 @@ defmodule Hueworks.Groups do
 
   import Ecto.Query, only: [from: 2]
 
-  alias Hueworks.Groups.Group
+  alias Hueworks.Schemas.Group
   alias Hueworks.Repo
 
   def list_controllable_groups do

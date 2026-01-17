@@ -1,4 +1,4 @@
-defmodule Hueworks.Bridges.Bridge do
+defmodule Hueworks.Schemas.Bridge do
   use Ecto.Schema
   import Ecto.Changeset
 

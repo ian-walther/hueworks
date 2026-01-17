@@ -1,4 +1,4 @@
-defmodule Hueworks.Lights.Light do
+defmodule Hueworks.Schemas.Light do
   use Ecto.Schema
   import Ecto.Changeset
 
@@ -6,7 +6,7 @@ defmodule Hueworks.Lights.Light do
     field(:name, :string)
     field(:source, Ecto.Enum, values: [:hue, :caseta, :ha])
     field(:source_id, :string)
-    belongs_to(:bridge, Hueworks.Bridges.Bridge)
+    belongs_to(:bridge, Hueworks.Schemas.Bridge)
     belongs_to(:canonical_light, __MODULE__)
     field(:min_kelvin, :integer)
     field(:max_kelvin, :integer)
