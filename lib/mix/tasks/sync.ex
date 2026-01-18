@@ -17,7 +17,7 @@ defmodule Mix.Tasks.Sync do
 
   alias Hueworks.Fetch
   alias Hueworks.Import
-  alias Hueworks.Import.DisabledList
+  alias Hueworks.Import.SaveState
 
   @impl true
   def run(args) do
@@ -57,9 +57,9 @@ defmodule Mix.Tasks.Sync do
   defp normalize_args(_), do: :unknown
 
   defp apply_disabled_list(result) do
-    DisabledList.default_path()
-    |> DisabledList.load()
-    |> DisabledList.apply()
+    SaveState.default_path()
+    |> SaveState.load()
+    |> SaveState.apply()
 
     result
   end

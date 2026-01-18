@@ -9,14 +9,14 @@ defmodule Mix.Tasks.ResetSync do
       mix reset_sync
 
   Runs:
-    1) mix export_disabled
+    1) mix save_state
     2) mix ecto.reset
     3) mix sync
   """
 
   @impl true
   def run(_args) do
-    run_task("export_disabled")
+    run_task("save_state")
     run_task("ecto.drop")
     run_task("ecto.create")
     run_task("ecto.migrate")
