@@ -43,6 +43,7 @@ defmodule HueworksWeb.ControlLive do
        edit_reported_max_kelvin: "",
        edit_enabled: true,
        edit_mapping_supported: false,
+       edit_extended_kelvin_range: false,
        show_disabled_groups: false,
        show_disabled_lights: false
      )}
@@ -114,7 +115,8 @@ defmodule HueworksWeb.ControlLive do
           edit_reported_min_kelvin: format_kelvin(target.reported_min_kelvin),
           edit_reported_max_kelvin: format_kelvin(target.reported_max_kelvin),
           edit_enabled: target.enabled,
-          edit_mapping_supported: Hueworks.Kelvin.mapping_supported?(target)
+          edit_mapping_supported: Hueworks.Kelvin.mapping_supported?(target),
+          edit_extended_kelvin_range: target.extended_kelvin_range
         )}
 
       {:error, reason} ->
@@ -360,7 +362,8 @@ defmodule HueworksWeb.ControlLive do
       edit_reported_min_kelvin: "",
       edit_reported_max_kelvin: "",
       edit_enabled: true,
-      edit_mapping_supported: false
+      edit_mapping_supported: false,
+      edit_extended_kelvin_range: false
     )
   end
 
@@ -371,7 +374,11 @@ defmodule HueworksWeb.ControlLive do
         Map.get(params, "actual_min_kelvin", socket.assigns.edit_actual_min_kelvin),
       edit_actual_max_kelvin:
         Map.get(params, "actual_max_kelvin", socket.assigns.edit_actual_max_kelvin),
-      edit_enabled: parse_optional_bool(Map.get(params, "enabled", socket.assigns.edit_enabled))
+      edit_enabled: parse_optional_bool(Map.get(params, "enabled", socket.assigns.edit_enabled)),
+      edit_extended_kelvin_range:
+        parse_optional_bool(
+          Map.get(params, "extended_kelvin_range", socket.assigns.edit_extended_kelvin_range)
+        )
     )
   end
 
@@ -380,6 +387,7 @@ defmodule HueworksWeb.ControlLive do
       display_name: Map.get(params, "display_name"),
       actual_min_kelvin: parse_optional_integer(Map.get(params, "actual_min_kelvin")),
       actual_max_kelvin: parse_optional_integer(Map.get(params, "actual_max_kelvin")),
+      extended_kelvin_range: parse_optional_bool(Map.get(params, "extended_kelvin_range")),
       enabled: parse_optional_bool(Map.get(params, "enabled"))
     ]
     |> Enum.reject(fn {_key, value} -> is_nil(value) end)

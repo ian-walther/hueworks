@@ -13,6 +13,7 @@ defmodule Hueworks.Schemas.Light do
     field(:reported_max_kelvin, :integer)
     field(:actual_min_kelvin, :integer)
     field(:actual_max_kelvin, :integer)
+    field(:extended_kelvin_range, :boolean, default: false)
     field(:supports_color, :boolean, default: false)
     field(:supports_temp, :boolean, default: false)
     field(:enabled, :boolean, default: true)
@@ -34,6 +35,7 @@ defmodule Hueworks.Schemas.Light do
       :reported_max_kelvin,
       :actual_min_kelvin,
       :actual_max_kelvin,
+      :extended_kelvin_range,
       :supports_color,
       :supports_temp,
       :enabled,

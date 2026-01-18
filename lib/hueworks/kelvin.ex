@@ -17,20 +17,27 @@ defmodule Hueworks.Kelvin do
       get_field(entity, :actual_max_kelvin) ||
         get_field(entity, :reported_max_kelvin)
 
-    cond do
+    {min_kelvin, max_kelvin} =
+      cond do
       is_number(min_kelvin) and is_number(max_kelvin) ->
-        {round(min_kelvin), round(max_kelvin)}
+          {round(min_kelvin), round(max_kelvin)}
 
-      true ->
-        case mired_range(entity) do
-          {min_mired, max_mired} when min_mired > 0 and max_mired > 0 ->
-            min_k = round(1_000_000 / max_mired)
-            max_k = round(1_000_000 / min_mired)
-            {min_k, max_k}
+        true ->
+          case mired_range(entity) do
+            {min_mired, max_mired} when min_mired > 0 and max_mired > 0 ->
+              min_k = round(1_000_000 / max_mired)
+              max_k = round(1_000_000 / min_mired)
+              {min_k, max_k}
 
-          _ ->
-            {2000, 6500}
-        end
+            _ ->
+              {2000, 6500}
+          end
+      end
+
+    if extended_kelvin_range?(entity) do
+      {min(2000, min_kelvin), max_kelvin}
+    else
+      {min_kelvin, max_kelvin}
     end
   end
 
@@ -100,6 +107,10 @@ defmodule Hueworks.Kelvin do
   end
 
   defp get_field(_entity, _key), do: nil
+
+  defp extended_kelvin_range?(entity) do
+    get_field(entity, :extended_kelvin_range) == true
+  end
 
   defp clamp(value, min, max) when is_number(value) do
     value |> max(min) |> min(max)

@@ -26,4 +26,12 @@ defmodule Hueworks.KelvinTest do
     assert Kelvin.map_for_control(entity, 3000) == 3000
     assert Kelvin.map_from_event(entity, 3000) == 3000
   end
+
+  test "derive_range extends to 2000K when enabled" do
+    entity = %{reported_min_kelvin: 2700, reported_max_kelvin: 6500}
+    assert Kelvin.derive_range(entity) == {2700, 6500}
+
+    extended = Map.put(entity, :extended_kelvin_range, true)
+    assert Kelvin.derive_range(extended) == {2000, 6500}
+  end
 end

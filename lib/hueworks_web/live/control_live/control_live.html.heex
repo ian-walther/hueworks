@@ -244,6 +244,7 @@
           autocomplete="off"
         />
         <input type="hidden" name="enabled" value="false" />
+        <input type="hidden" name="extended_kelvin_range" value="false" />
         <label class="hw-checkbox hw-modal-checkbox">
           <input
             type="checkbox"
@@ -254,6 +255,15 @@
           Enabled
         </label>
         <%= if @edit_mapping_supported do %>
+          <label class="hw-checkbox hw-modal-checkbox">
+            <input
+              type="checkbox"
+              name="extended_kelvin_range"
+              value="true"
+              checked={@edit_extended_kelvin_range}
+            />
+            Extended kelvin range
+          </label>
           <div class="hw-modal-grid">
             <div>
               <label class="hw-modal-label" for="actual_min_kelvin">

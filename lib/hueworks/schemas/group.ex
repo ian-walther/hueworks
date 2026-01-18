@@ -16,6 +16,7 @@ defmodule Hueworks.Schemas.Group do
     field(:reported_max_kelvin, :integer)
     field(:actual_min_kelvin, :integer)
     field(:actual_max_kelvin, :integer)
+    field(:extended_kelvin_range, :boolean, default: false)
     field(:enabled, :boolean, default: true)
     field(:metadata, :map, default: %{})
     has_many(:group_lights, Hueworks.Schemas.GroupLight)
@@ -40,6 +41,7 @@ defmodule Hueworks.Schemas.Group do
       :reported_max_kelvin,
       :actual_min_kelvin,
       :actual_max_kelvin,
+      :extended_kelvin_range,
       :enabled,
       :metadata
     ])
