@@ -9,6 +9,8 @@ defmodule Hueworks.Schemas.Group do
     belongs_to(:bridge, Hueworks.Schemas.Bridge)
     belongs_to(:parent_group, __MODULE__)
     belongs_to(:canonical_group, __MODULE__)
+    field(:supports_color, :boolean, default: false)
+    field(:supports_temp, :boolean, default: false)
     field(:enabled, :boolean, default: true)
     field(:metadata, :map, default: %{})
     has_many(:group_lights, Hueworks.Schemas.GroupLight)
@@ -26,6 +28,8 @@ defmodule Hueworks.Schemas.Group do
       :bridge_id,
       :parent_group_id,
       :canonical_group_id,
+      :supports_color,
+      :supports_temp,
       :enabled,
       :metadata
     ])

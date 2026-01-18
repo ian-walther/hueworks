@@ -55,6 +55,8 @@ defmodule Hueworks.Import.Caseta do
         source: :caseta,
         source_id: to_string(get_value(light, "zone_id")),
         enabled: true,
+        supports_temp: false,
+        supports_color: false,
         metadata: %{
           "device_id" => get_value(light, "device_id"),
           "area_id" => get_value(light, "area_id"),
@@ -75,6 +77,8 @@ defmodule Hueworks.Import.Caseta do
         source: :caseta,
         source_id: to_string(get_value(group, "group_id")),
         enabled: true,
+        supports_temp: false,
+        supports_color: false,
         metadata: %{
           "type" => get_value(group, "type")
         }

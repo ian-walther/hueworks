@@ -10,6 +10,8 @@ defmodule Hueworks.Schemas.Light do
     belongs_to(:canonical_light, __MODULE__)
     field(:min_kelvin, :integer)
     field(:max_kelvin, :integer)
+    field(:supports_color, :boolean, default: false)
+    field(:supports_temp, :boolean, default: false)
     field(:enabled, :boolean, default: true)
     field(:metadata, :map, default: %{})
 
@@ -26,6 +28,8 @@ defmodule Hueworks.Schemas.Light do
       :canonical_light_id,
       :min_kelvin,
       :max_kelvin,
+      :supports_color,
+      :supports_temp,
       :enabled,
       :metadata
     ])

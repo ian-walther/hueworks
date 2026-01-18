@@ -39,8 +39,13 @@
             </div>
 
             <div class="hw-controls">
-              <button class="hw-button hw-button-on" phx-click="toggle_on" phx-value-type="group" phx-value-id={group.id}>On</button>
-              <button class="hw-button hw-button-off" phx-click="toggle_off" phx-value-type="group" phx-value-id={group.id}>Off</button>
+              <% group_power = get_state_value(@group_state, group.id, :power, :off) %>
+              <button
+                class={"hw-button #{if group_power in [:on, "on", true], do: "hw-button-on", else: "hw-button-off"}"}
+                phx-click="toggle"
+                phx-value-type="group"
+                phx-value-id={group.id}
+              >On/Off</button>
               <div class="hw-slider">
                 <% brightness = get_state_value(@group_state, group.id, :brightness, 75) %>
                 <input
@@ -59,25 +64,27 @@
                   <%= brightness %>%
                 </span>
               </div>
-              <div class="hw-slider">
-                <% {min_k, max_k} = Hueworks.Lights.temp_range(group) %>
-                <% kelvin = get_state_value(@group_state, group.id, :kelvin, round((min_k + max_k) / 2)) %>
-                <input
-                  id={"group-temp-#{group.id}"}
-                  type="range"
-                  min={min_k}
-                  max={max_k}
-                  value={kelvin}
-                  phx-hook="TempSlider"
-                  data-type="group"
-                  data-id={group.id}
-                  data-output-id={"group-temp-value-#{group.id}"}
-                />
-                <span id={"group-temp-label-#{group.id}"}>Temperature</span>
-                <span id={"group-temp-value-#{group.id}"} class="hw-slider-value">
-                  <%= kelvin %>K
-                </span>
-              </div>
+              <%= if group.supports_temp do %>
+                <div class="hw-slider">
+                  <% {min_k, max_k} = Hueworks.Lights.temp_range(group) %>
+                  <% kelvin = get_state_value(@group_state, group.id, :kelvin, round((min_k + max_k) / 2)) %>
+                  <input
+                    id={"group-temp-#{group.id}"}
+                    type="range"
+                    min={min_k}
+                    max={max_k}
+                    value={kelvin}
+                    phx-hook="TempSlider"
+                    data-type="group"
+                    data-id={group.id}
+                    data-output-id={"group-temp-value-#{group.id}"}
+                  />
+                  <span id={"group-temp-label-#{group.id}"}>Temperature</span>
+                  <span id={"group-temp-value-#{group.id}"} class="hw-slider-value">
+                    <%= kelvin %>K
+                  </span>
+                </div>
+              <% end %>
             </div>
           </div>
         <% end %>
@@ -109,8 +116,13 @@
             </div>
 
             <div class="hw-controls">
-              <button class="hw-button hw-button-on" phx-click="toggle_on" phx-value-type="light" phx-value-id={light.id}>On</button>
-              <button class="hw-button hw-button-off" phx-click="toggle_off" phx-value-type="light" phx-value-id={light.id}>Off</button>
+              <% light_power = get_state_value(@light_state, light.id, :power, :off) %>
+              <button
+                class={"hw-button #{if light_power in [:on, "on", true], do: "hw-button-on", else: "hw-button-off"}"}
+                phx-click="toggle"
+                phx-value-type="light"
+                phx-value-id={light.id}
+              >On/Off</button>
               <div class="hw-slider">
                 <% brightness = get_state_value(@light_state, light.id, :brightness, 75) %>
                 <input
@@ -129,25 +141,27 @@
                   <%= brightness %>%
                 </span>
               </div>
-              <div class="hw-slider">
-                <% {min_k, max_k} = Hueworks.Lights.temp_range(light) %>
-                <% kelvin = get_state_value(@light_state, light.id, :kelvin, round((min_k + max_k) / 2)) %>
-                <input
-                  id={"light-temp-#{light.id}"}
-                  type="range"
-                  min={min_k}
-                  max={max_k}
-                  value={kelvin}
-                  phx-hook="TempSlider"
-                  data-type="light"
-                  data-id={light.id}
-                  data-output-id={"light-temp-value-#{light.id}"}
-                />
-                <span id={"light-temp-label-#{light.id}"}>Temperature</span>
-                <span id={"light-temp-value-#{light.id}"} class="hw-slider-value">
-                  <%= kelvin %>K
-                </span>
-              </div>
+              <%= if light.supports_temp do %>
+                <div class="hw-slider">
+                  <% {min_k, max_k} = Hueworks.Lights.temp_range(light) %>
+                  <% kelvin = get_state_value(@light_state, light.id, :kelvin, round((min_k + max_k) / 2)) %>
+                  <input
+                    id={"light-temp-#{light.id}"}
+                    type="range"
+                    min={min_k}
+                    max={max_k}
+                    value={kelvin}
+                    phx-hook="TempSlider"
+                    data-type="light"
+                    data-id={light.id}
+                    data-output-id={"light-temp-value-#{light.id}"}
+                  />
+                  <span id={"light-temp-label-#{light.id}"}>Temperature</span>
+                  <span id={"light-temp-value-#{light.id}"} class="hw-slider-value">
+                    <%= kelvin %>K
+                  </span>
+                </div>
+              <% end %>
             </div>
           </div>
         <% end %>

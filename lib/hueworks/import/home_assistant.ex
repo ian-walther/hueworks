@@ -56,7 +56,7 @@ defmodule Hueworks.Import.HomeAssistant do
       lights: light_entities |> Enum.reject(&group_light?/1) |> Enum.map(&normalize_light/1),
       groups:
         (group_entities ++ group_lights_as_groups(light_entities))
-        |> Enum.map(&normalize_group/1)
+        |> normalize_groups(light_entities)
     }
   end
 
@@ -66,6 +66,7 @@ defmodule Hueworks.Import.HomeAssistant do
     identifiers = get_value(device, "identifiers") || []
     macs = macs_from_connections(connections)
     {min_kelvin, max_kelvin} = temp_range_from_ha(light)
+    {supports_temp, supports_color} = supports_from_ha(light)
 
     %{
       name: get_value(light, "name") || get_value(light, "entity_id"),
@@ -74,6 +75,8 @@ defmodule Hueworks.Import.HomeAssistant do
       enabled: true,
       min_kelvin: min_kelvin,
       max_kelvin: max_kelvin,
+      supports_temp: supports_temp,
+      supports_color: supports_color,
       metadata: %{
         "unique_id" => get_value(light, "unique_id"),
         "platform" => get_value(light, "platform"),
@@ -81,6 +84,7 @@ defmodule Hueworks.Import.HomeAssistant do
         "device_id" => get_value(light, "device_id"),
         "zone_id" => get_value(light, "zone_id"),
         "temp_range" => get_value(light, "temp_range"),
+        "supported_color_modes" => get_value(light, "supported_color_modes"),
         "device" => %{
           "id" => get_value(device, "id"),
           "name" => get_value(device, "name"),
@@ -174,17 +178,34 @@ defmodule Hueworks.Import.HomeAssistant do
   defp match_first([first | _rest]), do: first
   defp match_first(_list), do: nil
 
-  defp normalize_group(group) do
+  defp normalize_group(group, supports_by_entity_id) do
+    members = get_value(group, "members") || []
+    {supports_temp, supports_color} = supports_from_members(members, supports_by_entity_id)
+
     %{
       name: get_value(group, "name") || get_value(group, "entity_id"),
       source: :ha,
       source_id: get_value(group, "entity_id"),
       enabled: true,
+      supports_temp: supports_temp,
+      supports_color: supports_color,
       metadata: %{
         "platform" => get_value(group, "platform"),
-        "members" => get_value(group, "members") || []
+        "members" => members
       }
     }
+  end
+
+  defp normalize_groups(groups, light_entities) do
+    supports_by_entity_id =
+      light_entities
+      |> Enum.reject(&group_light?/1)
+      |> Enum.map(&normalize_light/1)
+      |> Enum.reduce(%{}, fn light, acc ->
+        Map.put(acc, light.source_id, {light.supports_temp, light.supports_color})
+      end)
+
+    Enum.map(groups, &normalize_group(&1, supports_by_entity_id))
   end
 
   defp group_light?(light) do
@@ -218,6 +239,35 @@ defmodule Hueworks.Import.HomeAssistant do
         {nil, nil}
     end
   end
+
+  defp supports_from_ha(light) do
+    temp_range = get_value(light, "temp_range") || %{}
+    modes = get_value(light, "supported_color_modes") || []
+
+    supports_temp =
+      is_number(get_value(temp_range, "min_kelvin")) or
+        is_number(get_value(temp_range, "min_mireds")) or
+        Enum.member?(modes, "color_temp") or Enum.member?(modes, "color_temp_kelvin")
+
+    supports_color =
+      Enum.any?(modes, &(&1 in ["hs", "rgb", "rgbw", "rgbww", "xy"]))
+
+    {supports_temp, supports_color}
+  end
+
+  defp supports_from_members(members, supports_by_entity_id) when is_list(members) do
+    Enum.reduce(members, {false, false}, fn member_id, {temp_acc, color_acc} ->
+      case Map.get(supports_by_entity_id, to_string(member_id)) do
+        {supports_temp, supports_color} ->
+          {temp_acc or supports_temp, color_acc or supports_color}
+
+        _ ->
+          {temp_acc, color_acc}
+      end
+    end)
+  end
+
+  defp supports_from_members(_members, _supports_by_entity_id), do: {false, false}
 
   defp get_value(map, key) when is_map(map) do
     Map.get(map, key) || Map.get(map, String.to_atom(key))

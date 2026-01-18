@@ -151,13 +151,13 @@ body {
 }
 
 .hw-button-on {
-  background: rgba(42, 157, 143, 0.15);
-  border-color: rgba(42, 157, 143, 0.4);
+  background: rgba(226, 132, 19, 0.15);
+  border-color: rgba(226, 132, 19, 0.4);
 }
 
 .hw-button-off {
-  background: rgba(226, 132, 19, 0.15);
-  border-color: rgba(226, 132, 19, 0.4);
+  background: rgba(42, 157, 143, 0.15);
+  border-color: rgba(42, 157, 143, 0.4);
 }
 
 .hw-slider {

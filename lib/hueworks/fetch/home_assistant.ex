@@ -31,6 +31,7 @@ defmodule Hueworks.Fetch.HomeAssistant do
     zone_by_entity_id = zone_by_entity_id(states)
     group_members_by_entity_id = group_members_by_entity_id(states)
     temp_range_by_entity_id = temp_range_by_entity_id(states)
+    color_modes_by_entity_id = supported_color_modes_by_entity_id(states)
 
     light_entities =
       entity_registry
@@ -41,6 +42,7 @@ defmodule Hueworks.Fetch.HomeAssistant do
       |> merge_device_registry(device_registry)
       |> merge_zone_ids(zone_by_entity_id)
       |> merge_temp_ranges(temp_range_by_entity_id)
+      |> merge_color_modes(color_modes_by_entity_id)
       |> merge_group_members(group_members_by_entity_id)
       |> tag_entity_sources()
       |> simplify_lights()
@@ -190,6 +192,28 @@ defmodule Hueworks.Fetch.HomeAssistant do
     end)
   end
 
+  defp supported_color_modes_by_entity_id(states) do
+    states
+    |> Enum.filter(&is_map/1)
+    |> Enum.filter(fn state -> String.starts_with?(state["entity_id"], "light.") end)
+    |> Enum.reduce(%{}, fn state, acc ->
+      modes = get_in(state, ["attributes", "supported_color_modes"])
+
+      if is_list(modes) do
+        Map.put(acc, state["entity_id"], modes)
+      else
+        acc
+      end
+    end)
+  end
+
+  defp merge_color_modes(light_entities, color_modes_by_entity_id) do
+    Enum.map(light_entities, fn entity ->
+      modes = Map.get(color_modes_by_entity_id, entity["entity_id"])
+      if modes, do: Map.put(entity, "supported_color_modes", modes), else: entity
+    end)
+  end
+
   defp merge_group_members(light_entities, group_members_by_entity_id) do
     Enum.map(light_entities, fn entity ->
       members = Map.get(group_members_by_entity_id, entity["entity_id"])
@@ -252,6 +276,7 @@ defmodule Hueworks.Fetch.HomeAssistant do
         zone_id: entity["zone_id"],
         source: entity["source"],
         temp_range: entity["temp_range"],
+        supported_color_modes: entity["supported_color_modes"],
         members: entity["members"],
         device: simplify_device(device)
       }

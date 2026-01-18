@@ -13,6 +13,7 @@ defmodule Hueworks.Application do
       Hueworks.Control.State,
       Hueworks.Subscription.HueEventStream,
       Hueworks.Subscription.HomeAssistantEventStream,
+      Hueworks.Subscription.CasetaEventStream,
       HueworksWeb.Endpoint
       # Exploration modules will be started manually in iex for now
       # {Hueworks.Exploration.PicoHueSlice, []},

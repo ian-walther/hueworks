@@ -11,7 +11,7 @@ defmodule HueworksWeb.ControlLive do
   alias Hueworks.Lights
 
   @impl true
-  def mount(_params, _session, socket) do
+  def mount(params, _session, socket) do
     if connected?(socket) do
       Phoenix.PubSub.subscribe(Hueworks.PubSub, "control_state")
     end
@@ -20,16 +20,27 @@ defmodule HueworksWeb.ControlLive do
     lights = Lights.list_controllable_lights()
     group_state = build_group_state(groups)
     light_state = build_light_state(lights)
+    group_filter = parse_filter(params["group_filter"])
+    light_filter = parse_filter(params["light_filter"])
 
     {:ok,
      assign(socket,
        groups: groups,
        lights: lights,
-       group_filter: "all",
-       light_filter: "all",
+       group_filter: group_filter,
+       light_filter: light_filter,
        group_state: group_state,
        light_state: light_state,
        status: nil
+     )}
+  end
+
+  @impl true
+  def handle_params(params, _uri, socket) do
+    {:noreply,
+     assign(socket,
+       group_filter: parse_filter(params["group_filter"]),
+       light_filter: parse_filter(params["light_filter"])
      )}
   end
 
@@ -52,11 +63,11 @@ defmodule HueworksWeb.ControlLive do
   end
 
   def handle_event("set_group_filter", %{"group_filter" => filter}, socket) do
-    {:noreply, assign(socket, group_filter: filter)}
+    {:noreply, push_filter_patch(socket, group_filter: filter)}
   end
 
   def handle_event("set_light_filter", %{"light_filter" => filter}, socket) do
-    {:noreply, assign(socket, light_filter: filter)}
+    {:noreply, push_filter_patch(socket, light_filter: filter)}
   end
 
   def handle_event("toggle_on", %{"type" => type, "id" => id}, socket) do
@@ -65,6 +76,10 @@ defmodule HueworksWeb.ControlLive do
 
   def handle_event("toggle_off", %{"type" => type, "id" => id}, socket) do
     {:noreply, dispatch_action(socket, type, id, :off)}
+  end
+
+  def handle_event("toggle", %{"type" => type, "id" => id}, socket) do
+    {:noreply, dispatch_toggle(socket, type, id)}
   end
 
   def handle_event("set_brightness", %{"type" => type, "id" => id, "level" => level}, socket) do
@@ -87,6 +102,11 @@ defmodule HueworksWeb.ControlLive do
     {:noreply,
      socket
      |> assign(:group_state, Map.update(socket.assigns.group_state, id, state, &merge_state(&1, state)))}
+  end
+
+  @impl true
+  def handle_info(_message, socket) do
+    {:noreply, socket}
   end
 
   @impl true
@@ -176,6 +196,35 @@ defmodule HueworksWeb.ControlLive do
 
   defp dispatch_action(socket, type, id, _action) do
     assign(socket, status: "ERROR #{type} #{id}: unsupported")
+  end
+
+  defp dispatch_toggle(socket, "light", id) do
+    with {:ok, light} <- fetch_light(id) do
+      action = toggle_action(socket.assigns.light_state, light.id)
+      dispatch_action(socket, "light", id, action)
+    else
+      {:error, reason} -> assign(socket, status: "ERROR light #{id}: #{format_reason(reason)}")
+    end
+  end
+
+  defp dispatch_toggle(socket, "group", id) do
+    with {:ok, group} <- fetch_group(id) do
+      action = toggle_action(socket.assigns.group_state, group.id)
+      dispatch_action(socket, "group", id, action)
+    else
+      {:error, reason} -> assign(socket, status: "ERROR group #{id}: #{format_reason(reason)}")
+    end
+  end
+
+  defp dispatch_toggle(socket, type, id) do
+    assign(socket, status: "ERROR #{type} #{id}: unsupported")
+  end
+
+  defp toggle_action(state_map, id) do
+    case Map.get(state_map, id, %{}) do
+      %{power: power} when power in [:on, "on", true] -> :off
+      _ -> :on
+    end
   end
 
   defp apply_light_action(light, :on), do: Control.Light.on(light)
@@ -292,4 +341,17 @@ defmodule HueworksWeb.ControlLive do
   defp parse_source_filter("ha"), do: {:ok, :ha}
   defp parse_source_filter("caseta"), do: {:ok, :caseta}
   defp parse_source_filter(_), do: :error
+
+  defp parse_filter(filter) when filter in ["hue", "ha", "caseta"], do: filter
+  defp parse_filter(_filter), do: "all"
+
+  defp push_filter_patch(socket, updates) do
+    updates = Map.new(updates)
+    group_filter = Map.get(updates, :group_filter, socket.assigns.group_filter)
+    light_filter = Map.get(updates, :light_filter, socket.assigns.light_filter)
+
+    socket
+    |> assign(updates)
+    |> push_patch(to: "/?group_filter=#{group_filter}&light_filter=#{light_filter}")
+  end
 end

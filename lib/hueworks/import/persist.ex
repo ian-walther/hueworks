@@ -22,7 +22,17 @@ defmodule Hueworks.Import.Persist do
       changeset,
       on_conflict:
         {:replace,
-         [:name, :metadata, :enabled, :canonical_light_id, :min_kelvin, :max_kelvin, :updated_at]},
+         [
+           :name,
+           :metadata,
+           :enabled,
+           :canonical_light_id,
+           :min_kelvin,
+           :max_kelvin,
+           :supports_color,
+           :supports_temp,
+           :updated_at
+         ]},
       conflict_target: [:bridge_id, :source_id]
     )
   end
@@ -34,7 +44,16 @@ defmodule Hueworks.Import.Persist do
       changeset,
       on_conflict:
         {:replace,
-         [:name, :metadata, :enabled, :parent_group_id, :canonical_group_id, :updated_at]},
+         [
+           :name,
+           :metadata,
+           :enabled,
+           :parent_group_id,
+           :canonical_group_id,
+           :supports_color,
+           :supports_temp,
+           :updated_at
+         ]},
       conflict_target: [:bridge_id, :source_id]
     )
   end
