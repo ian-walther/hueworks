@@ -58,6 +58,21 @@ defmodule Hueworks.Schemas.Group do
         []
       end
     end)
+    |> validate_actual_kelvin_source()
     |> unique_constraint([:bridge_id, :source_id])
+  end
+
+  defp validate_actual_kelvin_source(changeset) do
+    source = get_field(changeset, :source)
+    actual_min = get_field(changeset, :actual_min_kelvin)
+    actual_max = get_field(changeset, :actual_max_kelvin)
+
+    if source && source != :ha && (not is_nil(actual_min) or not is_nil(actual_max)) do
+      changeset
+      |> add_error(:actual_min_kelvin, "only supported for HA entities")
+      |> add_error(:actual_max_kelvin, "only supported for HA entities")
+    else
+      changeset
+    end
   end
 end

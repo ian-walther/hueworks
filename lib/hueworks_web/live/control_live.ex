@@ -42,6 +42,7 @@ defmodule HueworksWeb.ControlLive do
        edit_reported_min_kelvin: "",
        edit_reported_max_kelvin: "",
        edit_enabled: true,
+       edit_mapping_supported: false,
        show_disabled_groups: false,
        show_disabled_lights: false
      )}
@@ -112,7 +113,8 @@ defmodule HueworksWeb.ControlLive do
           edit_actual_max_kelvin: format_kelvin(target.actual_max_kelvin),
           edit_reported_min_kelvin: format_kelvin(target.reported_min_kelvin),
           edit_reported_max_kelvin: format_kelvin(target.reported_max_kelvin),
-          edit_enabled: target.enabled
+          edit_enabled: target.enabled,
+          edit_mapping_supported: Hueworks.Kelvin.mapping_supported?(target)
         )}
 
       {:error, reason} ->
@@ -357,7 +359,8 @@ defmodule HueworksWeb.ControlLive do
       edit_actual_max_kelvin: "",
       edit_reported_min_kelvin: "",
       edit_reported_max_kelvin: "",
-      edit_enabled: true
+      edit_enabled: true,
+      edit_mapping_supported: false
     )
   end
 
@@ -470,7 +473,7 @@ defmodule HueworksWeb.ControlLive do
 
   defp build_group_state(groups) do
     Enum.reduce(groups, %{}, fn group, acc ->
-      {min_k, max_k} = Lights.temp_range(group)
+      {min_k, max_k} = Hueworks.Kelvin.derive_range(group)
       kelvin = round((min_k + max_k) / 2)
 
       state =
@@ -486,7 +489,7 @@ defmodule HueworksWeb.ControlLive do
 
   defp build_light_state(lights) do
     Enum.reduce(lights, %{}, fn light, acc ->
-      {min_k, max_k} = Lights.temp_range(light)
+      {min_k, max_k} = Hueworks.Kelvin.derive_range(light)
       kelvin = round((min_k + max_k) / 2)
 
       state =

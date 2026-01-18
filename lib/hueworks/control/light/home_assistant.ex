@@ -2,6 +2,7 @@ defmodule Hueworks.Control.Light.HomeAssistant do
   @moduledoc false
 
   alias Hueworks.Control.{HomeAssistantBridge, HomeAssistantClient}
+  alias Hueworks.Kelvin
 
   def handle(light, action) do
     with {:ok, host, token} <- HomeAssistantBridge.credentials_for(light),
@@ -22,6 +23,7 @@ defmodule Hueworks.Control.Light.HomeAssistant do
   end
 
   defp action_payload({:color_temp, kelvin}, light) do
+    kelvin = Kelvin.map_for_control(light, kelvin)
     {"turn_on", %{"entity_id" => light.source_id, "color_temp_kelvin" => round(kelvin)}}
   end
 

@@ -93,7 +93,7 @@
               </div>
               <%= if group.supports_temp do %>
                 <div class="hw-slider">
-                  <% {min_k, max_k} = Hueworks.Lights.temp_range(group) %>
+              <% {min_k, max_k} = Hueworks.Kelvin.derive_range(group) %>
                   <% kelvin = get_state_value(@group_state, group.id, :kelvin, round((min_k + max_k) / 2)) %>
                   <input
                     id={"group-temp-#{group.id}"}
@@ -197,7 +197,7 @@
               </div>
               <%= if light.supports_temp do %>
                 <div class="hw-slider">
-                  <% {min_k, max_k} = Hueworks.Lights.temp_range(light) %>
+              <% {min_k, max_k} = Hueworks.Kelvin.derive_range(light) %>
                   <% kelvin = get_state_value(@light_state, light.id, :kelvin, round((min_k + max_k) / 2)) %>
                   <input
                     id={"light-temp-#{light.id}"}
@@ -253,34 +253,36 @@
           />
           Enabled
         </label>
-        <div class="hw-modal-grid">
-          <div>
-            <label class="hw-modal-label" for="actual_min_kelvin">
-              Actual min kelvin (<%= @edit_reported_min_kelvin %>)
-            </label>
-            <input
-              id="actual_min_kelvin"
-              name="actual_min_kelvin"
-              type="number"
-              inputmode="numeric"
-              value={@edit_actual_min_kelvin}
-              class="hw-modal-input"
-            />
+        <%= if @edit_mapping_supported do %>
+          <div class="hw-modal-grid">
+            <div>
+              <label class="hw-modal-label" for="actual_min_kelvin">
+                Actual min kelvin (<%= @edit_reported_min_kelvin %>)
+              </label>
+              <input
+                id="actual_min_kelvin"
+                name="actual_min_kelvin"
+                type="number"
+                inputmode="numeric"
+                value={@edit_actual_min_kelvin}
+                class="hw-modal-input"
+              />
+            </div>
+            <div>
+              <label class="hw-modal-label" for="actual_max_kelvin">
+                Actual max kelvin (<%= @edit_reported_max_kelvin %>)
+              </label>
+              <input
+                id="actual_max_kelvin"
+                name="actual_max_kelvin"
+                type="number"
+                inputmode="numeric"
+                value={@edit_actual_max_kelvin}
+                class="hw-modal-input"
+              />
+            </div>
           </div>
-          <div>
-            <label class="hw-modal-label" for="actual_max_kelvin">
-              Actual max kelvin (<%= @edit_reported_max_kelvin %>)
-            </label>
-            <input
-              id="actual_max_kelvin"
-              name="actual_max_kelvin"
-              type="number"
-              inputmode="numeric"
-              value={@edit_actual_max_kelvin}
-              class="hw-modal-input"
-            />
-          </div>
-        </div>
+        <% end %>
         <div class="hw-modal-actions">
           <button type="button" class="hw-button hw-button-off" phx-click="close_edit">Cancel</button>
           <button type="submit" class="hw-button hw-button-on">Save</button>

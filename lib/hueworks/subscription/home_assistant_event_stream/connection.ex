@@ -8,6 +8,7 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.Connection do
   import Ecto.Query, only: [from: 2]
 
   alias Hueworks.Control.State
+  alias Hueworks.Kelvin
   alias Hueworks.Repo
   alias Hueworks.Schemas.Group
   alias Hueworks.Schemas.Light
@@ -84,9 +85,9 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.Connection do
             nil ->
               :ok
 
-            group_id ->
-              state_update = build_ha_state(new_state)
-              State.put(:group, group_id, state_update)
+            group ->
+              state_update = build_ha_state(new_state, group)
+              State.put(:group, group.id, state_update)
 
               # TODO: HA group fan-out has known edge cases with template entities; revisit after HA templates are removed.
               state.group_members
@@ -96,21 +97,21 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.Connection do
               end)
           end
 
-        light_id ->
-          State.put(:light, light_id, build_ha_state(new_state))
+        light ->
+          State.put(:light, light.id, build_ha_state(new_state, light))
       end
     end
   end
 
   defp handle_event(_event, _state), do: :ok
 
-  defp build_ha_state(state) do
+  defp build_ha_state(state, entity) do
     attrs = state["attributes"] || %{}
 
     %{}
     |> maybe_put_power(state["state"])
     |> maybe_put_brightness(attrs["brightness"])
-    |> maybe_put_kelvin(attrs)
+    |> maybe_put_kelvin(attrs, entity)
   end
 
   defp maybe_put_power(acc, true), do: Map.put(acc, :power, :on)
@@ -126,20 +127,22 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.Connection do
 
   defp maybe_put_brightness(acc, _), do: acc
 
-  defp maybe_put_kelvin(acc, attrs) when is_map(attrs) do
+  defp maybe_put_kelvin(acc, attrs, entity) when is_map(attrs) do
     cond do
       is_number(attrs["color_temp_kelvin"]) ->
-        Map.put(acc, :kelvin, round(attrs["color_temp_kelvin"]))
+        kelvin = Kelvin.map_from_event(entity, round(attrs["color_temp_kelvin"]))
+        Map.put(acc, :kelvin, kelvin)
 
       is_number(attrs["color_temp"]) and attrs["color_temp"] > 0 ->
-        Map.put(acc, :kelvin, round(1_000_000 / attrs["color_temp"]))
+        kelvin = round(1_000_000 / attrs["color_temp"])
+        Map.put(acc, :kelvin, Kelvin.map_from_event(entity, kelvin))
 
       true ->
         acc
     end
   end
 
-  defp maybe_put_kelvin(acc, _attrs), do: acc
+  defp maybe_put_kelvin(acc, _attrs, _entity), do: acc
 
   defp clamp(value, min, max) when is_number(value) do
     value |> max(min) |> min(max)
@@ -153,7 +156,7 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.Connection do
             is_nil(l.canonical_light_id)
       )
     )
-    |> Enum.reduce(%{}, fn light, acc -> Map.put(acc, light.source_id, light.id) end)
+    |> Enum.reduce(%{}, fn light, acc -> Map.put(acc, light.source_id, light) end)
   end
 
   defp load_groups(bridge_id, lights_by_source_id) do
@@ -166,7 +169,7 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.Connection do
         )
       )
 
-    group_map = Enum.reduce(groups, %{}, fn group, acc -> Map.put(acc, group.source_id, group.id) end)
+    group_map = Enum.reduce(groups, %{}, fn group, acc -> Map.put(acc, group.source_id, group) end)
 
     members_map =
       Enum.reduce(groups, %{}, fn group, acc ->
@@ -175,7 +178,8 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.Connection do
         light_ids =
           members
           |> Enum.map(&Map.get(lights_by_source_id, to_string(&1)))
-          |> Enum.filter(&is_integer/1)
+          |> Enum.filter(&is_map/1)
+          |> Enum.map(& &1.id)
 
         Map.put(acc, group.source_id, light_ids)
       end)

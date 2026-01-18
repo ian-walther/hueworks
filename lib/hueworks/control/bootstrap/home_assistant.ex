@@ -4,6 +4,7 @@ defmodule Hueworks.Control.Bootstrap.HomeAssistant do
   import Ecto.Query, only: [from: 2]
 
   alias Hueworks.Import.Persist
+  alias Hueworks.Kelvin
   alias Hueworks.Repo
   alias Hueworks.Schemas.Bridge
   alias Hueworks.Control.State
@@ -22,7 +23,7 @@ defmodule Hueworks.Control.Bootstrap.HomeAssistant do
         Enum.each(states, fn state ->
           entity_id = state["entity_id"]
           attrs = state["attributes"] || %{}
-          current = build_ha_state(state["state"], attrs)
+          current = build_ha_state(state["state"], attrs, entity_id, lights_by_id, groups_by_id)
 
           case Map.get(lights_by_id, entity_id) do
             nil -> :ok
@@ -54,11 +55,13 @@ defmodule Hueworks.Control.Bootstrap.HomeAssistant do
     end
   end
 
-  defp build_ha_state(state, attrs) do
+  defp build_ha_state(state, attrs, entity_id, lights_by_id, groups_by_id) do
+    entity = Map.get(lights_by_id, entity_id) || Map.get(groups_by_id, entity_id)
+
     %{}
     |> maybe_put_power(state)
     |> maybe_put_brightness(attrs["brightness"])
-    |> maybe_put_kelvin(attrs)
+    |> maybe_put_kelvin(attrs, entity)
   end
 
   defp maybe_put_power(acc, true), do: Map.put(acc, :power, :on)
@@ -74,20 +77,22 @@ defmodule Hueworks.Control.Bootstrap.HomeAssistant do
 
   defp maybe_put_brightness(acc, _), do: acc
 
-  defp maybe_put_kelvin(acc, attrs) when is_map(attrs) do
+  defp maybe_put_kelvin(acc, attrs, entity) when is_map(attrs) do
     cond do
       is_number(attrs["color_temp_kelvin"]) ->
-        Map.put(acc, :kelvin, round(attrs["color_temp_kelvin"]))
+        kelvin = Kelvin.map_from_event(entity, round(attrs["color_temp_kelvin"]))
+        Map.put(acc, :kelvin, kelvin)
 
       is_number(attrs["color_temp"]) and attrs["color_temp"] > 0 ->
-        Map.put(acc, :kelvin, round(1_000_000 / attrs["color_temp"]))
+        kelvin = round(1_000_000 / attrs["color_temp"])
+        Map.put(acc, :kelvin, Kelvin.map_from_event(entity, kelvin))
 
       true ->
         acc
     end
   end
 
-  defp maybe_put_kelvin(acc, _attrs), do: acc
+  defp maybe_put_kelvin(acc, _attrs, _entity), do: acc
 
   defp clamp(value, min, max) when is_number(value) do
     value |> max(min) |> min(max)
