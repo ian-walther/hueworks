@@ -8,6 +8,7 @@ defmodule Hueworks.Repo.Migrations.CreateLights do
       add :bridge_id, references(:bridges, on_delete: :delete_all), null: false
       add :canonical_light_id, references(:lights, on_delete: :nilify_all)
       add :source_id, :string, null: false
+      add :display_name, :string
       add :supports_color, :boolean, default: false, null: false
       add :supports_temp, :boolean, default: false, null: false
       add :enabled, :boolean, default: true, null: false

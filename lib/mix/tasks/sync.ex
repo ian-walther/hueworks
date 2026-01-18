@@ -17,6 +17,7 @@ defmodule Mix.Tasks.Sync do
 
   alias Hueworks.Fetch
   alias Hueworks.Import
+  alias Hueworks.Import.DisabledList
 
   @impl true
   def run(args) do
@@ -29,15 +30,19 @@ defmodule Mix.Tasks.Sync do
           caseta: Import.import_caseta_data(Fetch.Caseta.fetch()),
           ha: Import.import_home_assistant_data(Fetch.HomeAssistant.fetch())
         }
+        |> apply_disabled_list()
 
       :hue ->
         Import.import_hue_data(Fetch.Hue.fetch())
+        |> apply_disabled_list()
 
       :caseta ->
         Import.import_caseta_data(Fetch.Caseta.fetch())
+        |> apply_disabled_list()
 
       :ha ->
         Import.import_home_assistant_data(Fetch.HomeAssistant.fetch())
+        |> apply_disabled_list()
 
       :unknown ->
         Mix.raise("Unknown sync target. Use: hue, caseta, ha, home_assistant")
@@ -50,4 +55,12 @@ defmodule Mix.Tasks.Sync do
   defp normalize_args(["ha"]), do: :ha
   defp normalize_args(["home_assistant"]), do: :ha
   defp normalize_args(_), do: :unknown
+
+  defp apply_disabled_list(result) do
+    DisabledList.default_path()
+    |> DisabledList.load()
+    |> DisabledList.apply()
+
+    result
+  end
 end

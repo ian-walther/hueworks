@@ -4,6 +4,7 @@ defmodule Hueworks.Schemas.Group do
 
   schema "groups" do
     field(:name, :string)
+    field(:display_name, :string)
     field(:source, Ecto.Enum, values: [:hue, :caseta, :ha])
     field(:source_id, :string)
     belongs_to(:bridge, Hueworks.Schemas.Bridge)
@@ -11,6 +12,10 @@ defmodule Hueworks.Schemas.Group do
     belongs_to(:canonical_group, __MODULE__)
     field(:supports_color, :boolean, default: false)
     field(:supports_temp, :boolean, default: false)
+    field(:reported_min_kelvin, :integer)
+    field(:reported_max_kelvin, :integer)
+    field(:actual_min_kelvin, :integer)
+    field(:actual_max_kelvin, :integer)
     field(:enabled, :boolean, default: true)
     field(:metadata, :map, default: %{})
     has_many(:group_lights, Hueworks.Schemas.GroupLight)
@@ -23,6 +28,7 @@ defmodule Hueworks.Schemas.Group do
     group
     |> cast(attrs, [
       :name,
+      :display_name,
       :source,
       :source_id,
       :bridge_id,
@@ -30,6 +36,10 @@ defmodule Hueworks.Schemas.Group do
       :canonical_group_id,
       :supports_color,
       :supports_temp,
+      :reported_min_kelvin,
+      :reported_max_kelvin,
+      :actual_min_kelvin,
+      :actual_max_kelvin,
       :enabled,
       :metadata
     ])

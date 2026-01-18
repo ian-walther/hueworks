@@ -55,6 +55,10 @@ defmodule Hueworks.Import.Caseta do
         source: :caseta,
         source_id: to_string(get_value(light, "zone_id")),
         enabled: true,
+        reported_min_kelvin: nil,
+        reported_max_kelvin: nil,
+        actual_min_kelvin: nil,
+        actual_max_kelvin: nil,
         supports_temp: false,
         supports_color: false,
         metadata: %{
@@ -77,6 +81,10 @@ defmodule Hueworks.Import.Caseta do
         source: :caseta,
         source_id: to_string(get_value(group, "group_id")),
         enabled: true,
+        reported_min_kelvin: nil,
+        reported_max_kelvin: nil,
+        actual_min_kelvin: nil,
+        actual_max_kelvin: nil,
         supports_temp: false,
         supports_color: false,
         metadata: %{

@@ -16,8 +16,8 @@ defmodule HueworksWeb.ControlLive do
       Phoenix.PubSub.subscribe(Hueworks.PubSub, "control_state")
     end
 
-    groups = Groups.list_controllable_groups()
-    lights = Lights.list_controllable_lights()
+    groups = Groups.list_controllable_groups(true)
+    lights = Lights.list_controllable_lights(true)
     group_state = build_group_state(groups)
     light_state = build_light_state(lights)
     group_filter = parse_filter(params["group_filter"])
@@ -31,7 +31,19 @@ defmodule HueworksWeb.ControlLive do
        light_filter: light_filter,
        group_state: group_state,
        light_state: light_state,
-       status: nil
+       status: nil,
+       edit_modal_open: false,
+       edit_target_type: nil,
+       edit_target_id: nil,
+       edit_name: nil,
+       edit_display_name: "",
+       edit_actual_min_kelvin: "",
+       edit_actual_max_kelvin: "",
+       edit_reported_min_kelvin: "",
+       edit_reported_max_kelvin: "",
+       edit_enabled: true,
+       show_disabled_groups: false,
+       show_disabled_lights: false
      )}
   end
 
@@ -47,8 +59,8 @@ defmodule HueworksWeb.ControlLive do
   @impl true
   def handle_event("refresh", _params, socket) do
     State.bootstrap()
-    groups = Groups.list_controllable_groups()
-    lights = Lights.list_controllable_lights()
+    groups = Groups.list_controllable_groups(true)
+    lights = Lights.list_controllable_lights(true)
     group_state = build_group_state(groups)
     light_state = build_light_state(lights)
 
@@ -68,6 +80,70 @@ defmodule HueworksWeb.ControlLive do
 
   def handle_event("set_light_filter", %{"light_filter" => filter}, socket) do
     {:noreply, push_filter_patch(socket, light_filter: filter)}
+  end
+
+  def handle_event("toggle_group_disabled", %{"show_disabled_groups" => value}, socket) do
+    {:noreply, assign(socket, show_disabled_groups: value == "true")}
+  end
+
+  def handle_event("toggle_group_disabled", _params, socket) do
+    {:noreply, assign(socket, show_disabled_groups: false)}
+  end
+
+  def handle_event("toggle_light_disabled", %{"show_disabled_lights" => value}, socket) do
+    {:noreply, assign(socket, show_disabled_lights: value == "true")}
+  end
+
+  def handle_event("toggle_light_disabled", _params, socket) do
+    {:noreply, assign(socket, show_disabled_lights: false)}
+  end
+
+  def handle_event("open_edit", %{"type" => type, "id" => id}, socket) do
+    case fetch_edit_target(type, id) do
+      {:ok, target} ->
+        {:noreply,
+         assign(socket,
+          edit_modal_open: true,
+          edit_target_type: type,
+          edit_target_id: target.id,
+          edit_name: target.name,
+          edit_display_name: target.display_name || "",
+          edit_actual_min_kelvin: format_kelvin(target.actual_min_kelvin),
+          edit_actual_max_kelvin: format_kelvin(target.actual_max_kelvin),
+          edit_reported_min_kelvin: format_kelvin(target.reported_min_kelvin),
+          edit_reported_max_kelvin: format_kelvin(target.reported_max_kelvin),
+          edit_enabled: target.enabled
+        )}
+
+      {:error, reason} ->
+        {:noreply, assign(socket, status: "ERROR #{type} #{id}: #{format_reason(reason)}")}
+    end
+  end
+
+  def handle_event("close_edit", _params, socket) do
+    {:noreply, close_edit_modal(socket)}
+  end
+
+  def handle_event("update_display_name", %{"display_name" => display_name}, socket) do
+    {:noreply, assign_edit_fields(socket, %{"display_name" => display_name})}
+  end
+
+  def handle_event("save_display_name", %{"display_name" => display_name}, socket) do
+    case save_display_name(socket, %{"display_name" => display_name}) do
+      {:ok, socket} -> {:noreply, socket}
+      {:error, reason, socket} -> {:noreply, assign(socket, status: reason)}
+    end
+  end
+
+  def handle_event("update_edit_fields", params, socket) do
+    {:noreply, assign_edit_fields(socket, params)}
+  end
+
+  def handle_event("save_edit_fields", params, socket) do
+    case save_display_name(socket, params) do
+      {:ok, socket} -> {:noreply, socket}
+      {:error, reason, socket} -> {:noreply, assign(socket, status: reason)}
+    end
   end
 
   def handle_event("toggle_on", %{"type" => type, "id" => id}, socket) do
@@ -227,6 +303,113 @@ defmodule HueworksWeb.ControlLive do
     end
   end
 
+  defp fetch_edit_target("light", id), do: fetch_light(id)
+  defp fetch_edit_target("group", id), do: fetch_group(id)
+  defp fetch_edit_target(_type, _id), do: {:error, :invalid_type}
+
+  defp save_display_name(socket, params) do
+    type = socket.assigns.edit_target_type
+    id = socket.assigns.edit_target_id
+    attrs = normalize_edit_attrs(params)
+
+    with {:ok, target} <- fetch_edit_target(type, to_string(id)),
+         {:ok, updated} <- apply_display_name(type, target, attrs) do
+      socket =
+        socket
+        |> update_entity_list(type, updated)
+        |> close_edit_modal()
+        |> assign(status: "Saved #{type} #{updated.name}")
+
+      {:ok, socket}
+    else
+      {:error, reason} ->
+        {:error, "ERROR #{type} #{id}: #{format_reason(reason)}", socket}
+    end
+  end
+
+  defp apply_display_name("light", light, attrs), do: Lights.update_display_name(light, attrs)
+  defp apply_display_name("group", group, attrs), do: Groups.update_display_name(group, attrs)
+  defp apply_display_name(_type, _target, _attrs), do: {:error, :invalid_type}
+
+  defp update_entity_list(socket, "light", updated) do
+    lights = Enum.map(socket.assigns.lights, &replace_entity(&1, updated))
+    assign(socket, lights: lights)
+  end
+
+  defp update_entity_list(socket, "group", updated) do
+    groups = Enum.map(socket.assigns.groups, &replace_entity(&1, updated))
+    assign(socket, groups: groups)
+  end
+
+  defp update_entity_list(socket, _type, _updated), do: socket
+
+  defp replace_entity(%{id: id} = _entity, %{id: id} = updated), do: updated
+  defp replace_entity(entity, _updated), do: entity
+
+  defp close_edit_modal(socket) do
+    assign(socket,
+      edit_modal_open: false,
+      edit_target_type: nil,
+      edit_target_id: nil,
+      edit_name: nil,
+      edit_display_name: "",
+      edit_actual_min_kelvin: "",
+      edit_actual_max_kelvin: "",
+      edit_reported_min_kelvin: "",
+      edit_reported_max_kelvin: "",
+      edit_enabled: true
+    )
+  end
+
+  defp assign_edit_fields(socket, params) do
+    assign(socket,
+      edit_display_name: Map.get(params, "display_name", socket.assigns.edit_display_name),
+      edit_actual_min_kelvin:
+        Map.get(params, "actual_min_kelvin", socket.assigns.edit_actual_min_kelvin),
+      edit_actual_max_kelvin:
+        Map.get(params, "actual_max_kelvin", socket.assigns.edit_actual_max_kelvin),
+      edit_enabled: parse_optional_bool(Map.get(params, "enabled", socket.assigns.edit_enabled))
+    )
+  end
+
+  defp normalize_edit_attrs(params) do
+    [
+      display_name: Map.get(params, "display_name"),
+      actual_min_kelvin: parse_optional_integer(Map.get(params, "actual_min_kelvin")),
+      actual_max_kelvin: parse_optional_integer(Map.get(params, "actual_max_kelvin")),
+      enabled: parse_optional_bool(Map.get(params, "enabled"))
+    ]
+    |> Enum.reject(fn {_key, value} -> is_nil(value) end)
+    |> Map.new()
+  end
+
+  defp parse_optional_integer(nil), do: nil
+
+  defp parse_optional_integer(value) when is_binary(value) do
+    value = String.trim(value)
+
+    if value == "" do
+      nil
+    else
+      case Integer.parse(value) do
+        {int, ""} -> int
+        _ -> nil
+      end
+    end
+  end
+
+  defp parse_optional_integer(value) when is_integer(value), do: value
+  defp parse_optional_integer(_value), do: nil
+
+  defp format_kelvin(nil), do: ""
+  defp format_kelvin(value) when is_integer(value), do: Integer.to_string(value)
+  defp format_kelvin(_value), do: ""
+
+  defp parse_optional_bool(nil), do: nil
+  defp parse_optional_bool(value) when value in ["true", "false"], do: value == "true"
+  defp parse_optional_bool(value) when is_boolean(value), do: value
+  defp parse_optional_bool(_value), do: nil
+
   defp apply_light_action(light, :on), do: Control.Light.on(light)
   defp apply_light_action(light, :off), do: Control.Light.off(light)
 
@@ -327,15 +510,26 @@ defmodule HueworksWeb.ControlLive do
     |> Map.get(key, fallback)
   end
 
-  defp filter_entities(entities, "all"), do: entities
-  defp filter_entities(entities, filter) when is_binary(filter) do
+  defp filter_entities(entities, filter, show_disabled) do
+    entities
+    |> filter_by_source(filter)
+    |> filter_by_enabled(show_disabled)
+  end
+
+  defp filter_by_source(entities, "all"), do: entities
+  defp filter_by_source(entities, filter) when is_binary(filter) do
     case parse_source_filter(filter) do
       {:ok, source} -> Enum.filter(entities, &(&1.source == source))
       :error -> entities
     end
   end
 
-  defp filter_entities(entities, _filter), do: entities
+  defp filter_by_source(entities, _filter), do: entities
+
+  defp filter_by_enabled(entities, true), do: entities
+  defp filter_by_enabled(entities, _show_disabled) do
+    Enum.filter(entities, &(&1.enabled != false))
+  end
 
   defp parse_source_filter("hue"), do: {:ok, :hue}
   defp parse_source_filter("ha"), do: {:ok, :ha}

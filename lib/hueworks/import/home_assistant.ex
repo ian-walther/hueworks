@@ -73,8 +73,10 @@ defmodule Hueworks.Import.HomeAssistant do
       source: :ha,
       source_id: get_value(light, "entity_id"),
       enabled: true,
-      min_kelvin: min_kelvin,
-      max_kelvin: max_kelvin,
+      reported_min_kelvin: min_kelvin,
+      reported_max_kelvin: max_kelvin,
+      actual_min_kelvin: nil,
+      actual_max_kelvin: nil,
       supports_temp: supports_temp,
       supports_color: supports_color,
       metadata: %{
@@ -181,6 +183,8 @@ defmodule Hueworks.Import.HomeAssistant do
   defp normalize_group(group, supports_by_entity_id) do
     members = get_value(group, "members") || []
     {supports_temp, supports_color} = supports_from_members(members, supports_by_entity_id)
+    {reported_min_kelvin, reported_max_kelvin} =
+      reported_range_from_members(members, supports_by_entity_id)
 
     %{
       name: get_value(group, "name") || get_value(group, "entity_id"),
@@ -189,6 +193,10 @@ defmodule Hueworks.Import.HomeAssistant do
       enabled: true,
       supports_temp: supports_temp,
       supports_color: supports_color,
+      reported_min_kelvin: reported_min_kelvin,
+      reported_max_kelvin: reported_max_kelvin,
+      actual_min_kelvin: nil,
+      actual_max_kelvin: nil,
       metadata: %{
         "platform" => get_value(group, "platform"),
         "members" => members
@@ -202,7 +210,12 @@ defmodule Hueworks.Import.HomeAssistant do
       |> Enum.reject(&group_light?/1)
       |> Enum.map(&normalize_light/1)
       |> Enum.reduce(%{}, fn light, acc ->
-        Map.put(acc, light.source_id, {light.supports_temp, light.supports_color})
+        Map.put(
+          acc,
+          light.source_id,
+          {light.supports_temp, light.supports_color, light.reported_min_kelvin,
+           light.reported_max_kelvin}
+        )
       end)
 
     Enum.map(groups, &normalize_group(&1, supports_by_entity_id))
@@ -258,7 +271,7 @@ defmodule Hueworks.Import.HomeAssistant do
   defp supports_from_members(members, supports_by_entity_id) when is_list(members) do
     Enum.reduce(members, {false, false}, fn member_id, {temp_acc, color_acc} ->
       case Map.get(supports_by_entity_id, to_string(member_id)) do
-        {supports_temp, supports_color} ->
+        {supports_temp, supports_color, _min_k, _max_k} ->
           {temp_acc or supports_temp, color_acc or supports_color}
 
         _ ->
@@ -268,6 +281,28 @@ defmodule Hueworks.Import.HomeAssistant do
   end
 
   defp supports_from_members(_members, _supports_by_entity_id), do: {false, false}
+
+  defp reported_range_from_members(members, supports_by_entity_id) when is_list(members) do
+    {mins, maxes} =
+      Enum.reduce(members, {[], []}, fn member_id, {mins, maxes} ->
+        case Map.get(supports_by_entity_id, to_string(member_id)) do
+          {_supports_temp, _supports_color, min_k, max_k}
+          when is_number(min_k) and is_number(max_k) ->
+            {[min_k | mins], [max_k | maxes]}
+
+          _ ->
+            {mins, maxes}
+        end
+      end)
+
+    if mins == [] or maxes == [] do
+      {nil, nil}
+    else
+      {Enum.min(mins), Enum.max(maxes)}
+    end
+  end
+
+  defp reported_range_from_members(_members, _supports_by_entity_id), do: {nil, nil}
 
   defp get_value(map, key) when is_map(map) do
     Map.get(map, key) || Map.get(map, String.to_atom(key))

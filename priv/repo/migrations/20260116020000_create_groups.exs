@@ -9,8 +9,13 @@ defmodule Hueworks.Repo.Migrations.CreateGroups do
       add :parent_group_id, references(:groups, on_delete: :nilify_all)
       add :canonical_group_id, references(:groups, on_delete: :nilify_all)
       add :source_id, :string, null: false
+      add :display_name, :string
       add :supports_color, :boolean, default: false, null: false
       add :supports_temp, :boolean, default: false, null: false
+      add :reported_min_kelvin, :integer
+      add :reported_max_kelvin, :integer
+      add :actual_min_kelvin, :integer
+      add :actual_max_kelvin, :integer
       add :enabled, :boolean, default: true, null: false
       add :metadata, :map, default: %{}, null: false
 

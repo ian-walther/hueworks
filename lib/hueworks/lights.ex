@@ -10,7 +10,7 @@ defmodule Hueworks.Lights do
   alias Hueworks.Schemas.Light
   alias Hueworks.Repo
 
-  def list_controllable_lights do
+  def list_controllable_lights(include_disabled \\ false) do
     excluded_light_ids =
       from(gl in GroupLight,
         join: g in Group,
@@ -19,21 +19,75 @@ defmodule Hueworks.Lights do
         select: gl.light_id
       )
 
-    Repo.all(
+    query =
       from(l in Light,
         where:
-          is_nil(l.canonical_light_id) and l.enabled == true and
+          is_nil(l.canonical_light_id) and
             l.id not in subquery(excluded_light_ids),
         order_by: [asc: l.name]
       )
-    )
+
+    query
+    |> maybe_filter_enabled(include_disabled)
+    |> Repo.all()
   end
 
   def get_light(id), do: Repo.get(Light, id)
 
+  def update_display_name(light, attrs) when is_map(attrs) do
+    attrs =
+      attrs
+      |> Map.update(:display_name, nil, &normalize_display_name/1)
+      |> normalize_kelvin_attrs()
+
+    light
+    |> Light.changeset(attrs)
+    |> Repo.update()
+  end
+
+  def update_display_name(light, display_name) do
+    update_display_name(light, %{display_name: display_name})
+  end
+
+  defp normalize_display_name(display_name) when is_binary(display_name) do
+    display_name = String.trim(display_name)
+    if display_name == "", do: nil, else: display_name
+  end
+
+  defp normalize_display_name(_display_name), do: nil
+
+  defp normalize_kelvin_attrs(attrs) do
+    attrs
+    |> Map.update(:actual_min_kelvin, nil, &normalize_kelvin/1)
+    |> Map.update(:actual_max_kelvin, nil, &normalize_kelvin/1)
+  end
+
+  defp normalize_kelvin(nil), do: nil
+  defp normalize_kelvin(value) when is_integer(value), do: value
+
+  defp normalize_kelvin(value) when is_binary(value) do
+    value = String.trim(value)
+
+    case Integer.parse(value) do
+      {int, ""} -> int
+      _ -> nil
+    end
+  end
+
+  defp normalize_kelvin(_value), do: nil
+
   def temp_range(entity) do
-    min_kelvin = Map.get(entity, :min_kelvin) || Map.get(entity, "min_kelvin")
-    max_kelvin = Map.get(entity, :max_kelvin) || Map.get(entity, "max_kelvin")
+    min_kelvin =
+      Map.get(entity, :actual_min_kelvin) ||
+        Map.get(entity, "actual_min_kelvin") ||
+        Map.get(entity, :reported_min_kelvin) ||
+        Map.get(entity, "reported_min_kelvin")
+
+    max_kelvin =
+      Map.get(entity, :actual_max_kelvin) ||
+        Map.get(entity, "actual_max_kelvin") ||
+        Map.get(entity, :reported_max_kelvin) ||
+        Map.get(entity, "reported_max_kelvin")
 
     cond do
       is_number(min_kelvin) and is_number(max_kelvin) ->
@@ -82,4 +136,10 @@ defmodule Hueworks.Lights do
   end
 
   defp get_nested(_map, _key), do: nil
+
+  defp maybe_filter_enabled(query, true), do: query
+
+  defp maybe_filter_enabled(query, false) do
+    from(l in query, where: l.enabled == true)
+  end
 end

@@ -68,8 +68,10 @@ defmodule Hueworks.Import.Hue do
         source: :hue,
         source_id: to_string(source_id),
         enabled: true,
-        min_kelvin: min_kelvin,
-        max_kelvin: max_kelvin,
+        reported_min_kelvin: min_kelvin,
+        reported_max_kelvin: max_kelvin,
+        actual_min_kelvin: nil,
+        actual_max_kelvin: nil,
         supports_temp: supports_temp,
         supports_color: supports_color,
         metadata: %{
@@ -149,10 +151,36 @@ defmodule Hueworks.Import.Hue do
 
   defp supports_from_members(_members, _supports_by_source_id), do: {false, false}
 
+  defp reported_range_from_members(members, reported_by_source_id) when is_list(members) do
+    {mins, maxes} =
+      Enum.reduce(members, {[], []}, fn member_id, {mins, maxes} ->
+        case Map.get(reported_by_source_id, to_string(member_id)) do
+          {min_k, max_k} when is_number(min_k) and is_number(max_k) ->
+            {[min_k | mins], [max_k | maxes]}
+
+          _ ->
+            {mins, maxes}
+        end
+      end)
+
+    if mins == [] or maxes == [] do
+      {nil, nil}
+    else
+      {Enum.min(mins), Enum.max(maxes)}
+    end
+  end
+
+  defp reported_range_from_members(_members, _reported_by_source_id), do: {nil, nil}
+
   defp normalize_groups(groups, bridge_host, lights) when is_map(groups) do
     supports_by_source_id =
       Enum.reduce(lights, %{}, fn light, acc ->
         Map.put(acc, light.source_id, {light.supports_temp, light.supports_color})
+      end)
+
+    reported_by_source_id =
+      Enum.reduce(lights, %{}, fn light, acc ->
+        Map.put(acc, light.source_id, {light.reported_min_kelvin, light.reported_max_kelvin})
       end)
 
     groups
@@ -160,6 +188,8 @@ defmodule Hueworks.Import.Hue do
       source_id = get_value(group, "id") || id
       members = get_value(group, "lights") || []
       {supports_temp, supports_color} = supports_from_members(members, supports_by_source_id)
+      {reported_min_kelvin, reported_max_kelvin} =
+        reported_range_from_members(members, reported_by_source_id)
 
       %{
         name: get_value(group, "name"),
@@ -168,6 +198,10 @@ defmodule Hueworks.Import.Hue do
         enabled: true,
         supports_temp: supports_temp,
         supports_color: supports_color,
+        reported_min_kelvin: reported_min_kelvin,
+        reported_max_kelvin: reported_max_kelvin,
+        actual_min_kelvin: nil,
+        actual_max_kelvin: nil,
         metadata: %{
           "bridge_host" => bridge_host,
           "type" => get_value(group, "type"),

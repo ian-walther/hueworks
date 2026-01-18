@@ -23,12 +23,15 @@ defmodule Hueworks.Import.Persist do
       on_conflict:
         {:replace,
          [
-           :name,
+          :name,
+          :display_name,
            :metadata,
            :enabled,
            :canonical_light_id,
-           :min_kelvin,
-           :max_kelvin,
+           :reported_min_kelvin,
+           :reported_max_kelvin,
+           :actual_min_kelvin,
+           :actual_max_kelvin,
            :supports_color,
            :supports_temp,
            :updated_at
@@ -45,11 +48,16 @@ defmodule Hueworks.Import.Persist do
       on_conflict:
         {:replace,
          [
-           :name,
+          :name,
+          :display_name,
            :metadata,
            :enabled,
            :parent_group_id,
            :canonical_group_id,
+           :reported_min_kelvin,
+           :reported_max_kelvin,
+           :actual_min_kelvin,
+           :actual_max_kelvin,
            :supports_color,
            :supports_temp,
            :updated_at
