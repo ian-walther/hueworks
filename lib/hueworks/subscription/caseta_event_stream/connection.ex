@@ -21,7 +21,7 @@ defmodule Hueworks.Subscription.CasetaEventStream.Connection do
   def init(bridge) do
     case connect(bridge) do
       {:ok, socket} ->
-        :ssl.setopts(socket, active: :once, packet: :line)
+        :ssl.setopts(socket, active: false, packet: :line)
 
         state = %{
           bridge: bridge,
@@ -30,8 +30,11 @@ defmodule Hueworks.Subscription.CasetaEventStream.Connection do
           buffer: ""
         }
 
+        read_initial_zone_status(socket, state)
+
         subscribe(socket, "/zone/status")
         subscribe(socket, "/button/status/event")
+        :ssl.setopts(socket, active: :once, packet: :line)
 
         {:ok, state}
 
@@ -49,13 +52,14 @@ defmodule Hueworks.Subscription.CasetaEventStream.Connection do
 
   @impl true
   def handle_info({:ssl_closed, _socket}, state) do
-    {:stop, :closed, state}
+    Logger.info("Caseta LEAP connection closed for #{state.bridge.name} (#{state.bridge.host})")
+    {:stop, :normal, state}
   end
 
   @impl true
   def handle_info({:ssl_error, _socket, reason}, state) do
     Logger.warning("Caseta LEAP socket error: #{inspect(reason)}")
-    {:stop, reason, state}
+    {:stop, :normal, state}
   end
 
   defp handle_frame(data, state) do
@@ -103,6 +107,26 @@ defmodule Hueworks.Subscription.CasetaEventStream.Connection do
     Logger.info("Caseta pico event (stub): #{inspect(%{button: button_status, msg: message})}")
   end
 
+  defp read_initial_zone_status(socket, state) do
+    message =
+      Jason.encode!(%{
+        "CommuniqueType" => "ReadRequest",
+        "Header" => %{"Url" => "/zone/status"}
+      })
+
+    :ssl.send(socket, message <> "\r\n")
+
+    case read_until_match(socket, "/zone/status", 5000) do
+      {:ok, decoded} ->
+        decoded
+        |> zone_status_list()
+        |> Enum.each(&handle_zone_status(&1, state))
+
+      {:error, reason} ->
+        Logger.warning("Caseta LEAP initial zone status failed: #{inspect(reason)}")
+    end
+  end
+
   defp subscribe(socket, url) do
     message =
       Jason.encode!(%{
@@ -111,6 +135,42 @@ defmodule Hueworks.Subscription.CasetaEventStream.Connection do
       })
 
     :ssl.send(socket, message <> "\r\n")
+  end
+
+  defp read_until_match(socket, url, timeout) do
+    deadline = System.monotonic_time(:millisecond) + timeout
+    do_read_until_match(socket, url, deadline)
+  end
+
+  defp do_read_until_match(socket, url, deadline) do
+    remaining = max(0, deadline - System.monotonic_time(:millisecond))
+
+    if remaining == 0 do
+      {:error, :timeout}
+    else
+      case :ssl.recv(socket, 0, remaining) do
+        {:ok, data} ->
+          data
+          |> IO.iodata_to_binary()
+          |> String.split("\r\n", trim: true)
+          |> Enum.find_value(:continue, fn line ->
+            case decode_message(line) do
+              {:ok, %{"Header" => %{"Url" => ^url}} = decoded} ->
+                {:ok, decoded}
+
+              _ ->
+                :continue
+            end
+          end)
+          |> case do
+            :continue -> do_read_until_match(socket, url, deadline)
+            other -> other
+          end
+
+        {:error, reason} ->
+          {:error, reason}
+      end
+    end
   end
 
   defp decode_message(""), do: {:error, :empty}
@@ -126,6 +186,17 @@ defmodule Hueworks.Subscription.CasetaEventStream.Connection do
     Repo.all(from(l in Light, where: l.bridge_id == ^bridge_id and l.source == :caseta and l.enabled == true))
     |> Enum.reduce(%{}, fn light, acc -> Map.put(acc, light.source_id, light.id) end)
   end
+
+  defp zone_status_list(%{"Body" => %{"ZoneStatus" => statuses}}) when is_list(statuses),
+    do: statuses
+
+  defp zone_status_list(%{"Body" => %{"ZoneStatus" => status}}) when is_map(status),
+    do: [status]
+
+  defp zone_status_list(%{"Body" => %{"ZoneStatuses" => statuses}}) when is_list(statuses),
+    do: statuses
+
+  defp zone_status_list(_decoded), do: []
 
   defp maybe_put_brightness(acc, level) when is_number(level) do
     Map.put(acc, :brightness, clamp(round(level), 1, 100))
