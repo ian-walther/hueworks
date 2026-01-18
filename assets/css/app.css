@@ -168,6 +168,44 @@ body {
   align-items: center;
 }
 
+.hw-nav {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: rgba(250, 248, 242, 0.9);
+  border-bottom: 1px solid rgba(20, 20, 18, 0.08);
+  backdrop-filter: blur(12px);
+}
+
+.hw-nav-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.hw-nav-title {
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.hw-nav-links {
+  display: flex;
+  gap: 1.25rem;
+}
+
+.hw-nav-links a {
+  text-decoration: none;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.hw-nav-links a:hover {
+  color: var(--accent);
+}
+
 .hw-filter-row {
   display: flex;
   flex-wrap: wrap;

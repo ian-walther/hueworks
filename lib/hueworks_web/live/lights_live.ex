@@ -1,37 +1,44 @@
-defmodule HueworksWeb.ControlLive do
+defmodule HueworksWeb.LightsLive do
   use Phoenix.LiveView
 
   import Phoenix.Component
 
-  embed_templates "control_live/*"
+  embed_templates "lights_live/*"
 
   alias Hueworks.Control
   alias Hueworks.Control.State
   alias Hueworks.Groups
   alias Hueworks.Lights
+  alias HueworksWeb.FilterPrefs
 
   @impl true
-  def mount(params, _session, socket) do
+  def mount(params, session, socket) do
     if connected?(socket) do
       Phoenix.PubSub.subscribe(Hueworks.PubSub, "control_state")
     end
+
+    filter_session_id = session["filter_session_id"]
+    prefs = FilterPrefs.get(filter_session_id)
 
     groups = Groups.list_controllable_groups(true)
     lights = Lights.list_controllable_lights(true)
     group_state = build_group_state(groups)
     light_state = build_light_state(lights)
-    group_filter = parse_filter(params["group_filter"])
-    light_filter = parse_filter(params["light_filter"])
+    group_filter = parse_filter(prefs[:group_filter] || params["group_filter"])
+    light_filter = parse_filter(prefs[:light_filter] || params["light_filter"])
+    show_disabled_groups = prefs[:show_disabled_groups] || false
+    show_disabled_lights = prefs[:show_disabled_lights] || false
 
     {:ok,
      assign(socket,
+       filter_session_id: filter_session_id,
        groups: groups,
        lights: lights,
        group_filter: group_filter,
        light_filter: light_filter,
-       group_state: group_state,
-       light_state: light_state,
-       status: nil,
+        group_state: group_state,
+        light_state: light_state,
+        status: nil,
        edit_modal_open: false,
        edit_target_type: nil,
        edit_target_id: nil,
@@ -44,18 +51,23 @@ defmodule HueworksWeb.ControlLive do
        edit_enabled: true,
        edit_mapping_supported: false,
        edit_extended_kelvin_range: false,
-       show_disabled_groups: false,
-       show_disabled_lights: false
+       show_disabled_groups: show_disabled_groups,
+       show_disabled_lights: show_disabled_lights
      )}
   end
 
   @impl true
   def handle_params(params, _uri, socket) do
-    {:noreply,
-     assign(socket,
-       group_filter: parse_filter(params["group_filter"]),
-       light_filter: parse_filter(params["light_filter"])
-     )}
+    updates =
+      %{}
+      |> maybe_put_param(:group_filter, params["group_filter"])
+      |> maybe_put_param(:light_filter, params["light_filter"])
+
+    if map_size(updates) > 0 do
+      {:noreply, store_filter_prefs(socket, updates)}
+    else
+      {:noreply, socket}
+    end
   end
 
   @impl true
@@ -77,27 +89,27 @@ defmodule HueworksWeb.ControlLive do
   end
 
   def handle_event("set_group_filter", %{"group_filter" => filter}, socket) do
-    {:noreply, push_filter_patch(socket, group_filter: filter)}
+    {:noreply, store_filter_prefs(socket, group_filter: parse_filter(filter))}
   end
 
   def handle_event("set_light_filter", %{"light_filter" => filter}, socket) do
-    {:noreply, push_filter_patch(socket, light_filter: filter)}
+    {:noreply, store_filter_prefs(socket, light_filter: parse_filter(filter))}
   end
 
   def handle_event("toggle_group_disabled", %{"show_disabled_groups" => value}, socket) do
-    {:noreply, assign(socket, show_disabled_groups: value == "true")}
+    {:noreply, store_filter_prefs(socket, show_disabled_groups: value == "true")}
   end
 
   def handle_event("toggle_group_disabled", _params, socket) do
-    {:noreply, assign(socket, show_disabled_groups: false)}
+    {:noreply, store_filter_prefs(socket, show_disabled_groups: false)}
   end
 
   def handle_event("toggle_light_disabled", %{"show_disabled_lights" => value}, socket) do
-    {:noreply, assign(socket, show_disabled_lights: value == "true")}
+    {:noreply, store_filter_prefs(socket, show_disabled_lights: value == "true")}
   end
 
   def handle_event("toggle_light_disabled", _params, socket) do
-    {:noreply, assign(socket, show_disabled_lights: false)}
+    {:noreply, store_filter_prefs(socket, show_disabled_lights: false)}
   end
 
   def handle_event("open_edit", %{"type" => type, "id" => id}, socket) do
@@ -190,7 +202,7 @@ defmodule HueworksWeb.ControlLive do
   end
 
   @impl true
-  def render(assigns), do: control_live(assigns)
+  def render(assigns), do: lights_live(assigns)
 
   defp dispatch_action(socket, "light", id, {:brightness, level}) do
     with {:ok, light} <- fetch_light(id),
@@ -550,13 +562,18 @@ defmodule HueworksWeb.ControlLive do
   defp parse_filter(filter) when filter in ["hue", "ha", "caseta"], do: filter
   defp parse_filter(_filter), do: "all"
 
-  defp push_filter_patch(socket, updates) do
+  defp store_filter_prefs(socket, updates) do
     updates = Map.new(updates)
-    group_filter = Map.get(updates, :group_filter, socket.assigns.group_filter)
-    light_filter = Map.get(updates, :light_filter, socket.assigns.light_filter)
+    session_id = socket.assigns.filter_session_id
 
-    socket
-    |> assign(updates)
-    |> push_patch(to: "/?group_filter=#{group_filter}&light_filter=#{light_filter}")
+    if is_binary(session_id) do
+      FilterPrefs.update(session_id, updates)
+    end
+
+    assign(socket, updates)
   end
+
+  defp maybe_put_param(acc, _key, nil), do: acc
+  defp maybe_put_param(acc, _key, ""), do: acc
+  defp maybe_put_param(acc, key, value), do: Map.put(acc, key, value)
 end

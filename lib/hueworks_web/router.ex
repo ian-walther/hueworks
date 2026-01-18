@@ -6,6 +6,7 @@ defmodule HueworksWeb.Router do
     plug :accepts, ["html"]
     plug :fetch_session
     plug :fetch_live_flash
+    plug HueworksWeb.Plugs.SessionId
     plug :put_root_layout, html: {HueworksWeb.Layouts, :root}
     plug :protect_from_forgery
     plug :put_secure_browser_headers
@@ -14,7 +15,9 @@ defmodule HueworksWeb.Router do
   scope "/", HueworksWeb do
     pipe_through :browser
 
-    live "/", ControlLive, :index
+    get "/", RedirectController, :home
+    live "/lights", LightsLive, :index
+    live "/rooms", RoomsLive, :index
     live "/explore", ExplorationLive, :index
   end
 end

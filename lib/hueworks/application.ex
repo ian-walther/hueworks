@@ -14,6 +14,7 @@ defmodule Hueworks.Application do
       Hueworks.Subscription.HueEventStream,
       Hueworks.Subscription.HomeAssistantEventStream,
       Hueworks.Subscription.CasetaEventStream,
+      HueworksWeb.FilterPrefs,
       HueworksWeb.Endpoint
       # Exploration modules will be started manually in iex for now
       # {Hueworks.Exploration.PicoHueSlice, []},

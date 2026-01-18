@@ -14,9 +14,19 @@ defmodule HueworksWeb.Layouts do
         <script defer phx-track-static type="text/javascript" src="/assets/app.js"></script>
       </head>
       <body>
+        <nav class="hw-nav">
+          <div class="hw-nav-inner">
+            <div class="hw-nav-title">HueWorks</div>
+            <div class="hw-nav-links">
+              <a href="/lights">Lights</a>
+              <a href="/rooms">Rooms</a>
+            </div>
+          </div>
+        </nav>
         <%= @inner_content %>
       </body>
     </html>
     """
   end
+
 end

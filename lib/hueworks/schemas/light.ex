@@ -8,6 +8,7 @@ defmodule Hueworks.Schemas.Light do
     field(:source, Ecto.Enum, values: [:hue, :caseta, :ha])
     field(:source_id, :string)
     belongs_to(:bridge, Hueworks.Schemas.Bridge)
+    belongs_to(:room, Hueworks.Schemas.Room)
     belongs_to(:canonical_light, __MODULE__)
     field(:reported_min_kelvin, :integer)
     field(:reported_max_kelvin, :integer)
@@ -30,6 +31,7 @@ defmodule Hueworks.Schemas.Light do
       :source,
       :source_id,
       :bridge_id,
+      :room_id,
       :canonical_light_id,
       :reported_min_kelvin,
       :reported_max_kelvin,
