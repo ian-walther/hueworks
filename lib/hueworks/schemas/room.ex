@@ -9,6 +9,7 @@ defmodule Hueworks.Schemas.Room do
 
     has_many(:lights, Hueworks.Schemas.Light)
     has_many(:groups, Hueworks.Schemas.Group)
+    has_many(:scenes, Hueworks.Schemas.Scene)
 
     timestamps()
   end

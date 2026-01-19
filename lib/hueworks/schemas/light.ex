@@ -10,6 +10,8 @@ defmodule Hueworks.Schemas.Light do
     belongs_to(:bridge, Hueworks.Schemas.Bridge)
     belongs_to(:room, Hueworks.Schemas.Room)
     belongs_to(:canonical_light, __MODULE__)
+    has_many(:scene_component_lights, Hueworks.Schemas.SceneComponentLight)
+    has_many(:scene_components, through: [:scene_component_lights, :scene_component])
     field(:reported_min_kelvin, :integer)
     field(:reported_max_kelvin, :integer)
     field(:actual_min_kelvin, :integer)
