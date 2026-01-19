@@ -7,6 +7,7 @@ defmodule Hueworks.Import.SaveState do
   alias Hueworks.Schemas.Bridge
   alias Hueworks.Schemas.Group
   alias Hueworks.Schemas.Light
+  alias Hueworks.Schemas.Room
 
   @default_path "exports/save_state.json"
 
@@ -17,10 +18,13 @@ defmodule Hueworks.Import.SaveState do
     lights = Repo.all(Light)
     groups = Repo.all(Group)
 
+    rooms_by_id = rooms_by_id()
+
     payload = %{
       exported_at: DateTime.utc_now() |> DateTime.to_iso8601(),
-      lights: export_entities(:light, lights, bridges),
-      groups: export_entities(:group, groups, bridges)
+      rooms: rooms_by_id |> Map.values() |> Enum.sort(),
+      lights: export_entities(:light, lights, bridges, rooms_by_id),
+      groups: export_entities(:group, groups, bridges, rooms_by_id)
     }
 
     path |> Path.dirname() |> File.mkdir_p!()
@@ -38,31 +42,33 @@ defmodule Hueworks.Import.SaveState do
       cond do
         is_map(data["lights"]) or is_map(data["groups"]) ->
           %{
+            rooms: normalize_rooms(data["rooms"] || []),
             lights: normalize_override_map(data["lights"] || %{}),
             groups: normalize_override_map(data["groups"] || %{})
           }
 
         is_list(data["entries"]) ->
           legacy_entries = Enum.map(data["entries"], &normalize_entry/1)
-          legacy_overrides(legacy_entries)
+          Map.put(legacy_overrides(legacy_entries), :rooms, [])
 
         true ->
-          %{lights: %{}, groups: %{}}
+          %{rooms: [], lights: %{}, groups: %{}}
       end
     else
-      %{lights: %{}, groups: %{}}
+      %{rooms: [], lights: %{}, groups: %{}}
     end
   end
 
-  def apply(%{lights: lights, groups: groups})
-      when is_map(lights) and is_map(groups) do
+  def apply(%{rooms: rooms, lights: lights, groups: groups})
+      when is_list(rooms) and is_map(lights) and is_map(groups) do
     bridges = bridge_index()
+    rooms = ensure_rooms(rooms)
 
     Repo.all(Light)
-    |> Enum.each(&apply_overrides(:light, &1, bridges, lights))
+    |> Enum.each(&apply_overrides(:light, &1, bridges, rooms, lights))
 
     Repo.all(Group)
-    |> Enum.each(&apply_overrides(:group, &1, bridges, groups))
+    |> Enum.each(&apply_overrides(:group, &1, bridges, rooms, groups))
   end
 
   defp bridge_index do
@@ -72,17 +78,18 @@ defmodule Hueworks.Import.SaveState do
     end)
   end
 
-  defp export_entities(type, entities, bridges) do
+  defp export_entities(type, entities, bridges, rooms_by_id) do
     Enum.reduce(entities, %{}, fn entity, acc ->
       key = to_string(entity.source_id)
-      entry = entry_for(type, entity, bridges)
+      entry = entry_for(type, entity, bridges, rooms_by_id)
       put_override(acc, key, entry)
     end)
     |> normalize_override_output()
   end
 
-  defp entry_for(type, entity, bridges) do
+  defp entry_for(type, entity, bridges, rooms_by_id) do
     bridge = Map.get(bridges, entity.bridge_id, %{type: nil, host: nil})
+    room_name = room_name(entity, rooms_by_id)
 
     %{
       type: to_string(type),
@@ -91,6 +98,7 @@ defmodule Hueworks.Import.SaveState do
       name: entity.name,
       bridge_type: to_string(bridge.type || ""),
       bridge_host: bridge.host || "",
+      room_name: room_name,
       display_name: Map.get(entity, :display_name),
       enabled: Map.get(entity, :enabled),
       actual_min_kelvin: Map.get(entity, :actual_min_kelvin),
@@ -105,6 +113,7 @@ defmodule Hueworks.Import.SaveState do
       source: entry["source"] || entry[:source],
       source_id: entry["source_id"] || entry[:source_id],
       bridge_host: entry["bridge_host"] || entry[:bridge_host],
+      room_name: entry["room_name"] || entry[:room_name],
       display_name: entry["display_name"] || entry[:display_name],
       enabled: entry["enabled"],
       actual_min_kelvin: entry["actual_min_kelvin"],
@@ -153,7 +162,7 @@ defmodule Hueworks.Import.SaveState do
     Map.update(map, key, [entry], fn entries -> entries ++ [entry] end)
   end
 
-  defp apply_overrides(type, entity, bridges, overrides) do
+  defp apply_overrides(type, entity, bridges, rooms, overrides) do
     key = to_string(entity.source_id)
     bridge = Map.get(bridges, entity.bridge_id, %{host: "", type: ""})
 
@@ -164,7 +173,7 @@ defmodule Hueworks.Import.SaveState do
 
     case entries do
       [entry | _] ->
-        attrs = override_attrs(entry)
+        attrs = override_attrs(entry, rooms)
         changeset = Ecto.Changeset.change(entity, attrs)
         Repo.update!(changeset)
 
@@ -182,8 +191,9 @@ defmodule Hueworks.Import.SaveState do
       entry_host == to_string(bridge.host)
   end
 
-  defp override_attrs(entry) do
+  defp override_attrs(entry, rooms) do
     %{
+      room_id: room_id(entry, rooms),
       display_name: Map.get(entry, :display_name),
       enabled: Map.get(entry, :enabled),
       actual_min_kelvin: Map.get(entry, :actual_min_kelvin),
@@ -191,4 +201,50 @@ defmodule Hueworks.Import.SaveState do
       extended_kelvin_range: Map.get(entry, :extended_kelvin_range)
     }
   end
+
+  defp rooms_by_id do
+    Repo.all(Room)
+    |> Enum.reduce(%{}, fn room, acc -> Map.put(acc, room.id, room.name) end)
+  end
+
+  defp ensure_rooms(names) do
+    existing =
+      Repo.all(Room)
+      |> Enum.reduce(%{}, fn room, acc -> Map.put(acc, room.name, room.id) end)
+
+    names = normalize_rooms(names)
+
+    Enum.reduce(names, existing, fn name, acc ->
+      case Map.get(acc, name) do
+        nil ->
+          case Repo.insert(Room.changeset(%Room{}, %{name: name})) do
+            {:ok, room} -> Map.put(acc, name, room.id)
+            {:error, _} -> acc
+          end
+
+        _ ->
+          acc
+      end
+    end)
+  end
+
+  defp room_name(%{room_id: nil}, _rooms_by_id), do: nil
+  defp room_name(%{room_id: room_id}, rooms_by_id), do: Map.get(rooms_by_id, room_id)
+
+  defp room_id(entry, rooms) do
+    case Map.get(entry, :room_name) do
+      nil -> nil
+      name -> Map.get(rooms, name)
+    end
+  end
+
+  defp normalize_rooms(names) when is_list(names) do
+    names
+    |> Enum.filter(&is_binary/1)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.uniq()
+  end
+
+  defp normalize_rooms(_names), do: []
 end

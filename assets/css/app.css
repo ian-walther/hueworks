@@ -142,6 +142,16 @@ body {
   box-shadow: 0 6px 16px rgba(27, 27, 23, 0.15);
 }
 
+.hw-delete-button {
+  background: rgba(198, 40, 40, 0.08);
+  border-color: rgba(198, 40, 40, 0.35);
+  color: #8a1b1b;
+}
+
+.hw-delete-button:hover {
+  box-shadow: 0 6px 16px rgba(198, 40, 40, 0.18);
+}
+
 .hw-card-title h3 {
   font-weight: 600;
   font-size: 1.1rem;
@@ -204,6 +214,47 @@ body {
 
 .hw-nav-links a:hover {
   color: var(--accent);
+}
+
+.hw-button-icon {
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.hw-room-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.5rem;
+  margin-top: 1rem;
+}
+
+.hw-room-label {
+  font-weight: 600;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(27, 27, 23, 0.55);
+  margin-bottom: 0.5rem;
+}
+
+.hw-room-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.hw-room-item {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.35rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid rgba(27, 27, 23, 0.1);
+  background: rgba(27, 27, 23, 0.03);
+  font-size: 0.85rem;
+}
+
+.hw-room-empty {
+  color: rgba(27, 27, 23, 0.45);
 }
 
 .hw-filter-row {
@@ -323,6 +374,16 @@ body {
   padding: 0.6rem 0.75rem;
   font-size: 1rem;
   margin-bottom: 1.25rem;
+}
+
+.hw-select {
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  padding: 0.6rem 0.75rem;
+  font-size: 1rem;
+  margin-bottom: 1.25rem;
+  background: white;
 }
 
 .hw-modal-grid {

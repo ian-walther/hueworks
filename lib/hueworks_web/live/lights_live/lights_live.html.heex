@@ -17,7 +17,9 @@
     <section class="hw-panel">
       <div class="hw-panel-header">
         <h2>Groups</h2>
-        <span class="hw-count"><%= length(filter_entities(@groups, @group_filter, @show_disabled_groups)) %></span>
+        <span class="hw-count">
+          <%= length(filter_entities(@groups, @group_filter, @group_room_filter, @show_disabled_groups)) %>
+        </span>
       </div>
       <div class="hw-filter-row">
         <form class="hw-filter" phx-change="set_group_filter">
@@ -26,6 +28,19 @@
             <option value="hue" selected={@group_filter == "hue"}>Hue</option>
             <option value="ha" selected={@group_filter == "ha"}>HA</option>
             <option value="caseta" selected={@group_filter == "caseta"}>Caseta</option>
+          </select>
+        </form>
+        <form class="hw-filter" phx-change="set_group_room_filter">
+          <select name="group_room_filter" class="hw-select">
+            <option value="all" selected={@group_room_filter == "all"}>All Rooms</option>
+            <option value="unassigned" selected={@group_room_filter == "unassigned"}>
+              Unassigned
+            </option>
+            <%= for room <- @rooms do %>
+              <option value={room.id} selected={room.id == @group_room_filter}>
+                <%= room.display_name || room.name %>
+              </option>
+            <% end %>
           </select>
         </form>
         <form class="hw-filter" phx-change="toggle_group_disabled">
@@ -41,7 +56,7 @@
         </form>
       </div>
       <div class="hw-list">
-        <%= for group <- filter_entities(@groups, @group_filter, @show_disabled_groups) do %>
+        <%= for group <- filter_entities(@groups, @group_filter, @group_room_filter, @show_disabled_groups) do %>
           <div class="hw-card" id={"group-#{group.id}"}>
             <div class="hw-card-title">
               <div>
@@ -61,6 +76,17 @@
                   </button>
                 </div>
                 <p class="hw-meta">source: <%= group.source %></p>
+                <p class="hw-meta">
+                  Room:
+                  <%= if group.room_id do %>
+                    <%= case Enum.find(@rooms, &(&1.id == group.room_id)) do %>
+                      <% nil -> %>No Room Assigned
+                      <% room -> %><%= room.display_name || room.name %>
+                    <% end %>
+                  <% else %>
+                    No Room Assigned
+                  <% end %>
+                </p>
               </div>
               <span class="hw-pill">group</span>
             </div>
@@ -121,7 +147,9 @@
     <section class="hw-panel">
       <div class="hw-panel-header">
         <h2>Lights</h2>
-        <span class="hw-count"><%= length(filter_entities(@lights, @light_filter, @show_disabled_lights)) %></span>
+        <span class="hw-count">
+          <%= length(filter_entities(@lights, @light_filter, @light_room_filter, @show_disabled_lights)) %>
+        </span>
       </div>
       <div class="hw-filter-row">
         <form class="hw-filter" phx-change="set_light_filter">
@@ -130,6 +158,19 @@
             <option value="hue" selected={@light_filter == "hue"}>Hue</option>
             <option value="ha" selected={@light_filter == "ha"}>HA</option>
             <option value="caseta" selected={@light_filter == "caseta"}>Caseta</option>
+          </select>
+        </form>
+        <form class="hw-filter" phx-change="set_light_room_filter">
+          <select name="light_room_filter" class="hw-select">
+            <option value="all" selected={@light_room_filter == "all"}>All Rooms</option>
+            <option value="unassigned" selected={@light_room_filter == "unassigned"}>
+              Unassigned
+            </option>
+            <%= for room <- @rooms do %>
+              <option value={room.id} selected={room.id == @light_room_filter}>
+                <%= room.display_name || room.name %>
+              </option>
+            <% end %>
           </select>
         </form>
         <form class="hw-filter" phx-change="toggle_light_disabled">
@@ -145,7 +186,7 @@
         </form>
       </div>
       <div class="hw-list">
-        <%= for light <- filter_entities(@lights, @light_filter, @show_disabled_lights) do %>
+        <%= for light <- filter_entities(@lights, @light_filter, @light_room_filter, @show_disabled_lights) do %>
           <div class="hw-card" id={"light-#{light.id}"}>
             <div class="hw-card-title">
               <div>
@@ -165,6 +206,17 @@
                   </button>
                 </div>
                 <p class="hw-meta">source: <%= light.source %></p>
+                <p class="hw-meta">
+                  Room:
+                  <%= if light.room_id do %>
+                    <%= case Enum.find(@rooms, &(&1.id == light.room_id)) do %>
+                      <% nil -> %>No Room Assigned
+                      <% room -> %><%= room.display_name || room.name %>
+                    <% end %>
+                  <% else %>
+                    No Room Assigned
+                  <% end %>
+                </p>
               </div>
               <span class="hw-pill"><%= light.source_id %></span>
             </div>
@@ -243,6 +295,15 @@
           class="hw-modal-input"
           autocomplete="off"
         />
+        <label class="hw-modal-label" for="room_id">Room</label>
+        <select id="room_id" name="room_id" class="hw-select">
+          <option value="">Unassigned</option>
+          <%= for room <- @rooms do %>
+            <option value={room.id} selected={room.id == @edit_room_id}>
+              <%= room.display_name || room.name %>
+            </option>
+          <% end %>
+        </select>
         <input type="hidden" name="enabled" value="false" />
         <input type="hidden" name="extended_kelvin_range" value="false" />
         <label class="hw-checkbox hw-modal-checkbox">

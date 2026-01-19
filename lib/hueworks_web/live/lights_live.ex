@@ -9,6 +9,7 @@ defmodule HueworksWeb.LightsLive do
   alias Hueworks.Control.State
   alias Hueworks.Groups
   alias Hueworks.Lights
+  alias Hueworks.Rooms
   alias HueworksWeb.FilterPrefs
 
   @impl true
@@ -20,22 +21,37 @@ defmodule HueworksWeb.LightsLive do
     filter_session_id = session["filter_session_id"]
     prefs = FilterPrefs.get(filter_session_id)
 
+    rooms = Rooms.list_rooms()
     groups = Groups.list_controllable_groups(true)
     lights = Lights.list_controllable_lights(true)
     group_state = build_group_state(groups)
     light_state = build_light_state(lights)
     group_filter = parse_filter(prefs[:group_filter] || params["group_filter"])
     light_filter = parse_filter(prefs[:light_filter] || params["light_filter"])
+    group_room_filter = parse_room_filter(prefs[:group_room_filter] || params["group_room_filter"])
+    light_room_filter = parse_room_filter(prefs[:light_room_filter] || params["light_room_filter"])
+    group_room_filter = normalize_room_filter(group_room_filter, rooms)
+    light_room_filter = normalize_room_filter(light_room_filter, rooms)
+
+    if is_binary(filter_session_id) do
+      FilterPrefs.update(filter_session_id, %{
+        group_room_filter: group_room_filter,
+        light_room_filter: light_room_filter
+      })
+    end
     show_disabled_groups = prefs[:show_disabled_groups] || false
     show_disabled_lights = prefs[:show_disabled_lights] || false
 
     {:ok,
      assign(socket,
        filter_session_id: filter_session_id,
+       rooms: rooms,
        groups: groups,
        lights: lights,
        group_filter: group_filter,
        light_filter: light_filter,
+       group_room_filter: group_room_filter,
+       light_room_filter: light_room_filter,
         group_state: group_state,
         light_state: light_state,
         status: nil,
@@ -44,6 +60,7 @@ defmodule HueworksWeb.LightsLive do
        edit_target_id: nil,
        edit_name: nil,
        edit_display_name: "",
+       edit_room_id: nil,
        edit_actual_min_kelvin: "",
        edit_actual_max_kelvin: "",
        edit_reported_min_kelvin: "",
@@ -62,6 +79,8 @@ defmodule HueworksWeb.LightsLive do
       %{}
       |> maybe_put_param(:group_filter, params["group_filter"])
       |> maybe_put_param(:light_filter, params["light_filter"])
+      |> maybe_put_param(:group_room_filter, params["group_room_filter"])
+      |> maybe_put_param(:light_room_filter, params["light_room_filter"])
 
     if map_size(updates) > 0 do
       {:noreply, store_filter_prefs(socket, updates)}
@@ -73,27 +92,30 @@ defmodule HueworksWeb.LightsLive do
   @impl true
   def handle_event("refresh", _params, socket) do
     State.bootstrap()
-    groups = Groups.list_controllable_groups(true)
-    lights = Lights.list_controllable_lights(true)
-    group_state = build_group_state(groups)
-    light_state = build_light_state(lights)
+    socket =
+      socket
+      |> reload_entities()
+      |> assign(status: "Reloaded database snapshot")
 
-    {:noreply,
-     assign(socket,
-       groups: groups,
-       lights: lights,
-       group_state: group_state,
-       light_state: light_state,
-        status: "Reloaded database snapshot"
-     )}
+    {:noreply, socket}
   end
 
   def handle_event("set_group_filter", %{"group_filter" => filter}, socket) do
     {:noreply, store_filter_prefs(socket, group_filter: parse_filter(filter))}
   end
 
+  def handle_event("set_group_room_filter", %{"group_room_filter" => filter}, socket) do
+    filter = parse_room_filter(filter)
+    {:noreply, store_filter_prefs(socket, group_room_filter: normalize_room_filter(filter, socket.assigns.rooms))}
+  end
+
   def handle_event("set_light_filter", %{"light_filter" => filter}, socket) do
     {:noreply, store_filter_prefs(socket, light_filter: parse_filter(filter))}
+  end
+
+  def handle_event("set_light_room_filter", %{"light_room_filter" => filter}, socket) do
+    filter = parse_room_filter(filter)
+    {:noreply, store_filter_prefs(socket, light_room_filter: normalize_room_filter(filter, socket.assigns.rooms))}
   end
 
   def handle_event("toggle_group_disabled", %{"show_disabled_groups" => value}, socket) do
@@ -122,6 +144,7 @@ defmodule HueworksWeb.LightsLive do
           edit_target_id: target.id,
           edit_name: target.name,
           edit_display_name: target.display_name || "",
+          edit_room_id: target.room_id,
           edit_actual_min_kelvin: format_kelvin(target.actual_min_kelvin),
           edit_actual_max_kelvin: format_kelvin(target.actual_max_kelvin),
           edit_reported_min_kelvin: format_kelvin(target.reported_min_kelvin),
@@ -331,8 +354,8 @@ defmodule HueworksWeb.LightsLive do
     with {:ok, target} <- fetch_edit_target(type, to_string(id)),
          {:ok, updated} <- apply_display_name(type, target, attrs) do
       socket =
-        socket
-        |> update_entity_list(type, updated)
+      socket
+        |> reload_entities()
         |> close_edit_modal()
         |> assign(status: "Saved #{type} #{updated.name}")
 
@@ -347,20 +370,25 @@ defmodule HueworksWeb.LightsLive do
   defp apply_display_name("group", group, attrs), do: Groups.update_display_name(group, attrs)
   defp apply_display_name(_type, _target, _attrs), do: {:error, :invalid_type}
 
-  defp update_entity_list(socket, "light", updated) do
-    lights = Enum.map(socket.assigns.lights, &replace_entity(&1, updated))
-    assign(socket, lights: lights)
+  defp reload_entities(socket) do
+    rooms = Rooms.list_rooms()
+    groups = Groups.list_controllable_groups(true)
+    lights = Lights.list_controllable_lights(true)
+    group_room_filter = normalize_room_filter(socket.assigns.group_room_filter, rooms)
+    light_room_filter = normalize_room_filter(socket.assigns.light_room_filter, rooms)
+    group_state = build_group_state(groups)
+    light_state = build_light_state(lights)
+
+    assign(socket,
+      rooms: rooms,
+      groups: groups,
+      lights: lights,
+      group_room_filter: group_room_filter,
+      light_room_filter: light_room_filter,
+      group_state: group_state,
+      light_state: light_state
+    )
   end
-
-  defp update_entity_list(socket, "group", updated) do
-    groups = Enum.map(socket.assigns.groups, &replace_entity(&1, updated))
-    assign(socket, groups: groups)
-  end
-
-  defp update_entity_list(socket, _type, _updated), do: socket
-
-  defp replace_entity(%{id: id} = _entity, %{id: id} = updated), do: updated
-  defp replace_entity(entity, _updated), do: entity
 
   defp close_edit_modal(socket) do
     assign(socket,
@@ -369,6 +397,7 @@ defmodule HueworksWeb.LightsLive do
       edit_target_id: nil,
       edit_name: nil,
       edit_display_name: "",
+      edit_room_id: nil,
       edit_actual_min_kelvin: "",
       edit_actual_max_kelvin: "",
       edit_reported_min_kelvin: "",
@@ -386,6 +415,8 @@ defmodule HueworksWeb.LightsLive do
         Map.get(params, "actual_min_kelvin", socket.assigns.edit_actual_min_kelvin),
       edit_actual_max_kelvin:
         Map.get(params, "actual_max_kelvin", socket.assigns.edit_actual_max_kelvin),
+      edit_room_id:
+        parse_optional_integer(Map.get(params, "room_id", socket.assigns.edit_room_id)),
       edit_enabled: parse_optional_bool(Map.get(params, "enabled", socket.assigns.edit_enabled)),
       edit_extended_kelvin_range:
         parse_optional_bool(
@@ -395,14 +426,26 @@ defmodule HueworksWeb.LightsLive do
   end
 
   defp normalize_edit_attrs(params) do
+    room_id =
+      if Map.has_key?(params, "room_id") do
+        parse_optional_integer(Map.get(params, "room_id"))
+      else
+        :skip
+      end
+
     [
       display_name: Map.get(params, "display_name"),
+      room_id: room_id,
       actual_min_kelvin: parse_optional_integer(Map.get(params, "actual_min_kelvin")),
       actual_max_kelvin: parse_optional_integer(Map.get(params, "actual_max_kelvin")),
       extended_kelvin_range: parse_optional_bool(Map.get(params, "extended_kelvin_range")),
       enabled: parse_optional_bool(Map.get(params, "enabled"))
     ]
-    |> Enum.reject(fn {_key, value} -> is_nil(value) end)
+    |> Enum.reject(fn
+      {_key, :skip} -> true
+      {:room_id, _} -> false
+      {_key, value} -> is_nil(value)
+    end)
     |> Map.new()
   end
 
@@ -533,9 +576,10 @@ defmodule HueworksWeb.LightsLive do
     |> Map.get(key, fallback)
   end
 
-  defp filter_entities(entities, filter, show_disabled) do
+  defp filter_entities(entities, filter, room_filter, show_disabled) do
     entities
     |> filter_by_source(filter)
+    |> filter_by_room(room_filter)
     |> filter_by_enabled(show_disabled)
   end
 
@@ -554,6 +598,16 @@ defmodule HueworksWeb.LightsLive do
     Enum.filter(entities, &(&1.enabled != false))
   end
 
+  defp filter_by_room(entities, "all"), do: entities
+  defp filter_by_room(entities, "unassigned") do
+    Enum.filter(entities, &is_nil(&1.room_id))
+  end
+  defp filter_by_room(entities, nil), do: entities
+  defp filter_by_room(entities, room_id) when is_integer(room_id) do
+    Enum.filter(entities, &(&1.room_id == room_id))
+  end
+  defp filter_by_room(entities, _room_id), do: entities
+
   defp parse_source_filter("hue"), do: {:ok, :hue}
   defp parse_source_filter("ha"), do: {:ok, :ha}
   defp parse_source_filter("caseta"), do: {:ok, :caseta}
@@ -561,6 +615,26 @@ defmodule HueworksWeb.LightsLive do
 
   defp parse_filter(filter) when filter in ["hue", "ha", "caseta"], do: filter
   defp parse_filter(_filter), do: "all"
+
+  defp parse_room_filter(nil), do: "all"
+  defp parse_room_filter(""), do: "all"
+  defp parse_room_filter("all"), do: "all"
+  defp parse_room_filter("unassigned"), do: "unassigned"
+  defp parse_room_filter(value) when is_integer(value), do: value
+  defp parse_room_filter(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {room_id, ""} -> room_id
+      _ -> "all"
+    end
+  end
+
+  defp normalize_room_filter("all", _rooms), do: "all"
+  defp normalize_room_filter("unassigned", _rooms), do: "unassigned"
+  defp normalize_room_filter(nil, _rooms), do: "all"
+  defp normalize_room_filter(room_id, rooms) when is_integer(room_id) do
+    if Enum.any?(rooms, &(&1.id == room_id)), do: room_id, else: "all"
+  end
+  defp normalize_room_filter(_room_id, _rooms), do: "all"
 
   defp store_filter_prefs(socket, updates) do
     updates = Map.new(updates)

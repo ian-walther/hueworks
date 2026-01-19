@@ -5,7 +5,10 @@ defmodule Hueworks.Groups do
 
   import Ecto.Query, only: [from: 2]
 
+  alias Hueworks.Groups.Topology
   alias Hueworks.Schemas.Group
+  alias Hueworks.Schemas.GroupLight
+  alias Hueworks.Schemas.Light
   alias Hueworks.Repo
 
   def list_controllable_groups(include_disabled \\ false) do
@@ -31,6 +34,7 @@ defmodule Hueworks.Groups do
     group
     |> Group.changeset(attrs)
     |> Repo.update()
+    |> maybe_sync_room_lights(attrs)
   end
 
   def update_display_name(group, display_name) do
@@ -63,6 +67,37 @@ defmodule Hueworks.Groups do
   end
 
   defp normalize_kelvin(_value), do: nil
+
+  defp maybe_sync_room_lights({:ok, group} = result, attrs) when is_map(attrs) do
+    if Map.has_key?(attrs, :room_id) do
+      room_id = Map.get(attrs, :room_id)
+
+      subgroup_ids =
+        Topology.member_sets()
+        |> Topology.derive_subgroups()
+        |> then(&Topology.all_subgroups(group.id, &1))
+
+      group_ids = [group.id | subgroup_ids]
+
+      from(l in Light,
+        join: gl in GroupLight,
+        on: gl.light_id == l.id,
+        where: gl.group_id in ^group_ids,
+        update: [set: [room_id: ^room_id]]
+      )
+      |> Repo.update_all([])
+
+      from(g in Group,
+        where: g.id in ^subgroup_ids,
+        update: [set: [room_id: ^room_id]]
+      )
+      |> Repo.update_all([])
+    end
+
+    result
+  end
+
+  defp maybe_sync_room_lights(result, _attrs), do: result
 
   defp maybe_filter_enabled(query, true), do: query
 
