@@ -1,4 +1,4 @@
-defmodule Hueworks.Fetch.HomeAssistant.Client do
+defmodule Hueworks.Legacy.Fetch.HomeAssistant.Client do
   @moduledoc false
 
   use WebSockex
