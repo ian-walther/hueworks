@@ -20,6 +20,7 @@ defmodule HueworksWeb.Layouts do
             <div class="hw-nav-links">
               <a href="/lights">Lights</a>
               <a href="/rooms">Rooms</a>
+              <a href="/config">Config</a>
             </div>
           </div>
         </nav>

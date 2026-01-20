@@ -1,0 +1,45 @@
+<div class="hw-shell">
+  <div class="hw-topbar">
+    <div>
+      <h1 class="hw-title">Config</h1>
+      <p class="hw-subtitle">Bridge configuration UI coming soon.</p>
+    </div>
+  </div>
+
+  <section class="hw-panel">
+    <div class="hw-panel-header">
+      <h2>Bridges</h2>
+      <span class="hw-count"><%= length(@bridges) %></span>
+    </div>
+    <div class="hw-actions">
+      <a class="hw-button" href="/config/bridge/new">Add Bridge</a>
+    </div>
+    <div class="hw-list">
+      <%= for bridge <- @bridges do %>
+        <div class="hw-card" id={"bridge-#{bridge.id}"}>
+          <div class="hw-card-title">
+            <div class="hw-title-row">
+              <h3><%= bridge.name %></h3>
+              <button
+                type="button"
+                class="hw-edit-button"
+                phx-click="noop"
+                phx-value-id={bridge.id}
+                aria-label="Edit bridge"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3l-10 10L6 17l.5-3.5 10-10z"></path>
+                </svg>
+              </button>
+            </div>
+            <p class="hw-meta">type: <%= bridge.type %></p>
+            <p class="hw-meta">host: <%= bridge.host %></p>
+            <%= if bridge.import_complete == false do %>
+              <a class="hw-link" href={"/config/bridge/#{bridge.id}/setup"}>Finish setup</a>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  </section>
+</div>

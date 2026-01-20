@@ -45,5 +45,12 @@ config :logger, :console,
   format: "$time $metadata[$level] $message\n",
   metadata: [:bridge_type, :device_id, :request_id]
 
+# Configure MIME types for credential uploads
+config :mime, :types, %{
+  "application/x-x509-ca-cert" => ["crt"],
+  "application/x-pem-file" => ["pem"],
+  "application/pkcs8" => ["key"]
+}
+
 # Import environment specific config
 import_config "#{config_env()}.exs"

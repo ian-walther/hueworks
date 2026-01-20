@@ -9,9 +9,11 @@ defmodule Hueworks.Subscription.HueEventStream do
 
   alias Hueworks.Schemas.Bridge
   alias Hueworks.Subscription.HueEventStream.Connection
+  alias Hueworks.Subscription.Readiness
   alias Hueworks.Repo
 
   @restart_delay_ms 1_000
+  @retry_delay_ms 2_000
 
   def start_link(_opts) do
     GenServer.start_link(__MODULE__, %{}, name: __MODULE__)
@@ -19,13 +21,9 @@ defmodule Hueworks.Subscription.HueEventStream do
 
   @impl true
   def init(_state) do
-    bridges = Repo.all(from(b in Bridge, where: b.type == :hue and b.enabled == true))
     state = %{monitors: %{}}
 
-    state =
-      Enum.reduce(bridges, state, fn bridge, acc ->
-        start_connection(acc, bridge)
-      end)
+    state = maybe_start_connections(state)
 
     {:ok, state}
   end
@@ -47,6 +45,11 @@ defmodule Hueworks.Subscription.HueEventStream do
     {:noreply, start_connection(state, bridge)}
   end
 
+  @impl true
+  def handle_info(:retry_bootstrap, state) do
+    {:noreply, maybe_start_connections(state)}
+  end
+
   defp start_connection(state, bridge) do
     case Connection.start_link(bridge) do
       {:ok, pid} ->
@@ -56,6 +59,19 @@ defmodule Hueworks.Subscription.HueEventStream do
       {:error, _reason} ->
         Process.send_after(self(), {:restart, bridge}, @restart_delay_ms)
         state
+    end
+  end
+
+  defp maybe_start_connections(state) do
+    if Readiness.bridges_table_ready?() do
+      bridges = Repo.all(from(b in Bridge, where: b.type == :hue and b.enabled == true))
+
+      Enum.reduce(bridges, state, fn bridge, acc ->
+        start_connection(acc, bridge)
+      end)
+    else
+      Process.send_after(self(), :retry_bootstrap, @retry_delay_ms)
+      state
     end
   end
 end

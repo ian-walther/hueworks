@@ -1,0 +1,106 @@
+<div class="hw-shell">
+  <div class="hw-topbar">
+    <div>
+      <h1 class="hw-title">Bridge</h1>
+      <p class="hw-subtitle">Add or edit bridge connections.</p>
+    </div>
+  </div>
+
+  <section class="hw-panel">
+    <div class="hw-panel-header">
+      <h2>Add Bridge</h2>
+    </div>
+    <form class="hw-form" phx-change="update_bridge">
+      <label class="hw-modal-label" for="bridge_type">Type</label>
+      <select id="bridge_type" name="type" class="hw-select">
+        <option value="hue" selected={@type == "hue"}>Hue</option>
+        <option value="ha" selected={@type == "ha"}>Home Assistant</option>
+        <option value="caseta" selected={@type == "caseta"}>Caseta</option>
+      </select>
+
+      <label class="hw-modal-label" for="bridge_host">IP Address</label>
+      <input
+        id="bridge_host"
+        name="host"
+        type="text"
+        value={@host}
+        class="hw-modal-input"
+        placeholder="192.168.1.100"
+        autocomplete="off"
+      />
+
+      <%= if @type == "hue" do %>
+        <label class="hw-modal-label" for="hue_api_key">Hue API Key</label>
+        <input
+          id="hue_api_key"
+          name="hue_api_key"
+          type="text"
+          value={@hue_api_key}
+          class="hw-modal-input"
+          autocomplete="off"
+        />
+      <% end %>
+
+      <%= if @type == "ha" do %>
+        <label class="hw-modal-label" for="ha_token">Home Assistant Token</label>
+        <input
+          id="ha_token"
+          name="ha_token"
+          type="text"
+          value={@ha_token}
+          class="hw-modal-input"
+          autocomplete="off"
+        />
+      <% end %>
+
+      <%= if @type == "caseta" do %>
+        <label class="hw-modal-label" for="caseta_cert">Caseta Cert (.crt)</label>
+        <div class="hw-dropzone" phx-drop-target={@uploads.caseta_cert.ref}>
+          <.live_file_input upload={@uploads.caseta_cert} class="hw-modal-input" id="caseta_cert" />
+          <p class="hw-muted">Drag & drop or click to choose a file.</p>
+        </div>
+        <%= if @caseta_cert_path != "" do %>
+          <p class="hw-muted">Current: <%= @caseta_cert_path %></p>
+        <% end %>
+
+        <label class="hw-modal-label" for="caseta_key">Caseta Key (.key)</label>
+        <div class="hw-dropzone" phx-drop-target={@uploads.caseta_key.ref}>
+          <.live_file_input upload={@uploads.caseta_key} class="hw-modal-input" id="caseta_key" />
+          <p class="hw-muted">Drag & drop or click to choose a file.</p>
+        </div>
+        <%= if @caseta_key_path != "" do %>
+          <p class="hw-muted">Current: <%= @caseta_key_path %></p>
+        <% end %>
+
+        <label class="hw-modal-label" for="caseta_cacert">Caseta CA Cert (.crt)</label>
+        <div class="hw-dropzone" phx-drop-target={@uploads.caseta_cacert.ref}>
+          <.live_file_input upload={@uploads.caseta_cacert} class="hw-modal-input" id="caseta_cacert" />
+          <p class="hw-muted">Drag & drop or click to choose a file.</p>
+        </div>
+        <%= if @caseta_cacert_path != "" do %>
+          <p class="hw-muted">Current: <%= @caseta_cacert_path %></p>
+        <% end %>
+      <% end %>
+
+      <div class="hw-modal-actions">
+        <%= if @test_status == :ok do %>
+          <button type="button" class="hw-button hw-button-on" phx-click="proceed_bridge">
+            Proceed
+          </button>
+        <% else %>
+          <button type="button" class="hw-button hw-button-on" phx-click="test_bridge">
+            Test Connection
+          </button>
+        <% end %>
+      </div>
+
+      <%= if @test_status == :ok do %>
+        <p class="hw-muted">Connection verified.</p>
+      <% end %>
+
+      <%= if @test_status == :error do %>
+        <p class="hw-error"><%= @test_error %></p>
+      <% end %>
+    </form>
+  </section>
+</div>

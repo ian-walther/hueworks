@@ -1,10 +1,6 @@
 defmodule HueworksWeb.LightsLive do
   use Phoenix.LiveView
 
-  import Phoenix.Component
-
-  embed_templates "lights_live/*"
-
   alias Hueworks.Control
   alias Hueworks.Control.State
   alias Hueworks.Groups
@@ -223,9 +219,6 @@ defmodule HueworksWeb.LightsLive do
   def handle_info(_message, socket) do
     {:noreply, socket}
   end
-
-  @impl true
-  def render(assigns), do: lights_live(assigns)
 
   defp dispatch_action(socket, "light", id, {:brightness, level}) do
     with {:ok, light} <- fetch_light(id),

@@ -18,10 +18,12 @@ defmodule Mix.Tasks.Sync do
   alias Hueworks.Fetch
   alias Hueworks.Import
   alias Hueworks.Import.SaveState
+  alias Hueworks.Bridges.Seed
 
   @impl true
   def run(args) do
     Mix.Task.run("app.start")
+    Seed.seed!()
 
     case normalize_args(args) do
       :all ->

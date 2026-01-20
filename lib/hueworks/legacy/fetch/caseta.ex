@@ -40,6 +40,28 @@ defmodule Hueworks.Legacy.Fetch.Caseta do
     }
   end
 
+  def fetch_for_bridge(bridge) do
+    {:ok, socket} = connect(bridge)
+    :ssl.setopts(socket, [{:active, false}, {:packet, :line}])
+
+    devices = read_endpoint(socket, "/device")
+    buttons = read_endpoint(socket, "/button")
+    virtual_buttons = read_endpoint(socket, "/virtualbutton")
+
+    lights = lutron_lights(devices)
+    pico_buttons = lutron_buttons(devices, buttons)
+    groups = lutron_groups(virtual_buttons)
+
+    :ssl.close(socket)
+
+    %{
+      bridge_ip: bridge.host,
+      lights: lights,
+      pico_buttons: pico_buttons,
+      groups: groups
+    }
+  end
+
   defp connect(bridge) do
     cert_path = bridge.credentials["cert_path"]
     key_path = bridge.credentials["key_path"]

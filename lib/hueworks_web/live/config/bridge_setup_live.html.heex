@@ -1,0 +1,30 @@
+<div class="hw-shell">
+  <div class="hw-topbar">
+    <div>
+      <h1 class="hw-title">Setup Bridge</h1>
+      <p class="hw-subtitle">
+        Configure import for <%= @bridge.name %> (<%= @bridge.host %>).
+      </p>
+    </div>
+    <div class="hw-actions">
+      <button class="hw-button" type="button" phx-click="import_configuration">
+        Import Configuration
+      </button>
+    </div>
+  </div>
+
+  <%= if @import_status == :ok do %>
+    <p class="hw-muted">Configuration loaded into memory.</p>
+  <% end %>
+
+  <%= if @import_status == :error do %>
+    <p class="hw-error"><%= @import_error %></p>
+  <% end %>
+
+  <section class="hw-panel">
+    <div class="hw-panel-header">
+      <h2>Import</h2>
+    </div>
+    <p class="hw-muted">Bridge setup is coming next.</p>
+  </section>
+</div>

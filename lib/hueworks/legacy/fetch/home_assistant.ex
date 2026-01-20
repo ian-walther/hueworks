@@ -65,6 +65,54 @@ defmodule Hueworks.Legacy.Fetch.HomeAssistant do
     }
   end
 
+  def fetch_for_bridge(bridge) do
+    token = bridge.credentials["token"]
+
+    if invalid_credential?(token) do
+      raise "Missing Home Assistant token for bridge #{bridge.name} (#{bridge.host})"
+    end
+
+    {:ok, pid} = Client.connect(bridge.host, token)
+
+    entity_registry = get_entity_registry(pid)
+    device_registry = get_device_registry(pid)
+    states = get_states(pid)
+    zone_by_entity_id = zone_by_entity_id(states)
+    group_members_by_entity_id = group_members_by_entity_id(states)
+    temp_range_by_entity_id = temp_range_by_entity_id(states)
+    color_modes_by_entity_id = supported_color_modes_by_entity_id(states)
+
+    light_entities =
+      entity_registry
+      |> Enum.filter(fn entry ->
+        String.starts_with?(entry["entity_id"], "light.")
+      end)
+      |> merge_entity_registry(entity_registry)
+      |> merge_device_registry(device_registry)
+      |> merge_zone_ids(zone_by_entity_id)
+      |> merge_temp_ranges(temp_range_by_entity_id)
+      |> merge_color_modes(color_modes_by_entity_id)
+      |> merge_group_members(group_members_by_entity_id)
+      |> tag_entity_sources()
+      |> simplify_lights()
+
+    group_entities =
+      entity_registry
+      |> Enum.filter(fn entry ->
+        String.starts_with?(entry["entity_id"], "light.") and
+          entry["platform"] in ["group", "light_group"]
+      end)
+      |> simplify_groups(group_members_by_entity_id)
+
+    %{
+      host: bridge.host,
+      light_entities: light_entities,
+      group_entities: group_entities,
+      light_count: length(light_entities),
+      total_entity_count: length(entity_registry)
+    }
+  end
+
   defp get_entity_registry(pid) do
     case request(pid, "config/entity_registry/list", %{}) do
       {:ok, entities} -> entities

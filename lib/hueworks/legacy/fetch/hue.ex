@@ -44,6 +44,30 @@ defmodule Hueworks.Legacy.Fetch.Hue do
     }
   end
 
+  def fetch_for_bridge(bridge) do
+    api_key = bridge.credentials["api_key"]
+
+    if is_nil(api_key) or api_key == "" do
+      raise "Missing Hue api_key for bridge #{bridge.name} (#{bridge.host})"
+    end
+
+    lights =
+      fetch_endpoint(bridge.host, api_key, "/lights")
+      |> add_hue_macs()
+      |> simplify_hue_lights()
+
+    groups =
+      fetch_endpoint(bridge.host, api_key, "/groups")
+      |> simplify_hue_groups()
+
+    %{
+      name: bridge.name,
+      host: bridge.host,
+      lights: lights,
+      groups: groups
+    }
+  end
+
   defp fetch_endpoint(host, api_key, endpoint) do
     url = "http://#{host}/api/#{api_key}#{endpoint}"
 

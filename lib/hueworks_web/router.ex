@@ -18,6 +18,9 @@ defmodule HueworksWeb.Router do
     get "/", RedirectController, :home
     live "/lights", LightsLive, :index
     live "/rooms", RoomsLive, :index
+    live "/config", ConfigLive, :index
+    live "/config/bridge/new", BridgeLive, :index
+    live "/config/bridge/:id/setup", BridgeSetupLive, :index
     live "/explore", ExplorationLive, :index
   end
 end
