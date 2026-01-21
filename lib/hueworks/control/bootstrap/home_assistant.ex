@@ -3,7 +3,7 @@ defmodule Hueworks.Control.Bootstrap.HomeAssistant do
 
   import Ecto.Query, only: [from: 2]
 
-  alias Hueworks.Import.Persist
+  alias Hueworks.Control.Indexes
   alias Hueworks.Kelvin
   alias Hueworks.Repo
   alias Hueworks.Schemas.Bridge
@@ -16,8 +16,8 @@ defmodule Hueworks.Control.Bootstrap.HomeAssistant do
       token = bridge.credentials["token"]
 
       if is_binary(token) and token != "" do
-        lights_by_id = Persist.lights_by_source_id(bridge.id, :ha)
-        groups_by_id = Persist.groups_by_source_id(bridge.id, :ha)
+        lights_by_id = Indexes.lights_by_source_id(bridge.id, :ha)
+        groups_by_id = Indexes.groups_by_source_id(bridge.id, :ha)
         states = fetch_ha_states(bridge.host, token)
 
         Enum.each(states, fn state ->

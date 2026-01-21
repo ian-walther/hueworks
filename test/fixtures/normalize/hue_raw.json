@@ -1,0 +1,53 @@
+{
+  "name": "Test Bridge",
+  "host": "10.0.0.1",
+  "groups": {
+    "1": {
+      "id": "1",
+      "name": "Office",
+      "type": "Room",
+      "lights": ["1", "2"]
+    },
+    "2": {
+      "id": "2",
+      "name": "Office Lamps",
+      "type": "Zone",
+      "lights": ["2"]
+    }
+  },
+  "lights": {
+    "1": {
+      "name": "Ceiling",
+      "uniqueid": "00:11:22:33:44:55-0b",
+      "mac": "00:11:22:33:44:55",
+      "modelid": "LCT001",
+      "productname": "Hue Color Lamp",
+      "type": "Extended color light",
+      "capabilities": {
+        "brightness": true,
+        "color": true,
+        "color_temp": true,
+        "control": {
+          "ct": {
+            "min": 153,
+            "max": 500
+          }
+        }
+      }
+    },
+    "2": {
+      "name": "Desk Lamp",
+      "uniqueid": "00:11:22:33:44:66-0b",
+      "mac": "00:11:22:33:44:66",
+      "modelid": "LWB010",
+      "productname": "Hue White Lamp",
+      "type": "Dimmable light",
+      "capabilities": {
+        "brightness": true,
+        "color": false,
+        "color_temp": false,
+        "control": {}
+      }
+    }
+  }
+}

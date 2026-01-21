@@ -1,0 +1,47 @@
+{
+  "host": "10.0.0.2",
+  "areas": [
+    {
+      "area_id": "office",
+      "name": "Office",
+      "aliases": [],
+      "created_at": 0.0,
+      "modified_at": 0.0
+    }
+  ],
+  "device_registry": [
+    {
+      "id": "device-1",
+      "area_id": "office",
+      "name": "Office Lamp"
+    }
+  ],
+  "light_entities": [
+    {
+      "entity_id": "light.office_lamp",
+      "platform": "hue",
+      "source": "hue",
+      "device_id": "device-1",
+      "name": "Office Lamp",
+      "temp_range": {
+        "min_kelvin": 2000,
+        "max_kelvin": 6500
+      },
+      "supported_color_modes": ["color_temp", "hs"],
+      "device": {
+        "id": "device-1",
+        "name": "Office Lamp",
+        "connections": [["mac", "00:aa:bb:cc:dd:ee"]],
+        "identifiers": [["serial", "SERIAL-1"]]
+      }
+    }
+  ],
+  "group_entities": [
+    {
+      "entity_id": "light.office_group",
+      "platform": "group",
+      "name": "Office Group",
+      "members": ["light.office_lamp"]
+    }
+  ]
+}

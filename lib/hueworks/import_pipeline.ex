@@ -4,15 +4,18 @@ defmodule Hueworks.ImportPipeline do
   alias Hueworks.Repo
   alias Hueworks.Schemas.Bridge
   alias Hueworks.Schemas.BridgeImport
+  alias Hueworks.Import.Normalize
 
   def create_import(%Bridge{} = bridge) do
     with {:ok, raw_blob} <- fetch_raw(bridge) do
+      normalized_blob = Normalize.normalize(bridge, raw_blob)
+
       changeset =
         BridgeImport.changeset(%BridgeImport{}, %{
           bridge_id: bridge.id,
           raw_blob: raw_blob,
-          normalized_blob: nil,
-          status: :fetched,
+          normalized_blob: normalized_blob,
+          status: :normalized,
           imported_at: DateTime.utc_now() |> DateTime.truncate(:second)
         })
 

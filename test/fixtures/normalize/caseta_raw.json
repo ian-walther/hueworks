@@ -1,0 +1,14 @@
+{
+  "lights": [
+    {
+      "name": "Living Room / Lamp",
+      "serial": 12345678,
+      "type": "WallDimmer",
+      "device_id": "10",
+      "zone_id": "1",
+      "model": "PD-6WCL-XX",
+      "area_id": "area_1"
+    }
+  ],
+  "groups": []
+}

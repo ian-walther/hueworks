@@ -92,6 +92,7 @@ mix export_bridge_imports
 - `mix restore_db` — Restore the most recent SQLite database backup.
 - `mix seed_bridges` — Seed bridges from `secrets.env` with `import_complete=false`.
 - `mix export_bridge_imports` — Fetch raw bridge configuration and write JSON to `exports/`.
+- `mix normalize_bridge_imports` — Normalize raw bridge JSON into `exports/*_normalized_*.json`.
 
 ## License
 

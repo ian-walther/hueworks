@@ -6,7 +6,7 @@ defmodule Hueworks.Subscription.HueEventStream.Connection do
   require Logger
 
   alias Hueworks.Subscription.HueEventStream.{Mapper, Parser}
-  alias Hueworks.Import.Persist
+  alias Hueworks.Control.Indexes
 
   def start_link(bridge) do
     GenServer.start_link(__MODULE__, bridge, [])
@@ -14,8 +14,8 @@ defmodule Hueworks.Subscription.HueEventStream.Connection do
 
   @impl true
   def init(bridge) do
-    lights_by_id = Persist.lights_by_source_id(bridge.id, :hue)
-    groups_by_id = Persist.groups_by_source_id(bridge.id, :hue)
+    lights_by_id = Indexes.lights_by_source_id(bridge.id, :hue)
+    groups_by_id = Indexes.groups_by_source_id(bridge.id, :hue)
     {group_light_ids, group_lights} = Mapper.load_group_maps(bridge.id)
 
     state = %{

@@ -1,6 +1,6 @@
-defmodule Hueworks.Import.Persist do
+defmodule Hueworks.Control.Indexes do
   @moduledoc """
-  Shared persistence helpers for importing bridges and lights.
+  Shared indexes for control and subscription pipelines.
   """
 
   import Ecto.Query, only: [from: 2]

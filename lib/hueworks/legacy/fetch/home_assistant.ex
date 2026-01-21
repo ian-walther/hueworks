@@ -26,6 +26,9 @@ defmodule Hueworks.Legacy.Fetch.HomeAssistant do
     IO.puts("Fetching device registry...")
     device_registry = get_device_registry(pid)
 
+    IO.puts("Fetching area registry...")
+    area_registry = get_area_registry(pid)
+
     IO.puts("Fetching light states...")
     states = get_states(pid)
     zone_by_entity_id = zone_by_entity_id(states)
@@ -57,6 +60,8 @@ defmodule Hueworks.Legacy.Fetch.HomeAssistant do
 
     %{
       host: bridge.host,
+      areas: area_registry,
+      device_registry: device_registry,
       light_entities: light_entities,
       group_entities: group_entities,
       light_count: length(light_entities),
@@ -76,6 +81,7 @@ defmodule Hueworks.Legacy.Fetch.HomeAssistant do
 
     entity_registry = get_entity_registry(pid)
     device_registry = get_device_registry(pid)
+    area_registry = get_area_registry(pid)
     states = get_states(pid)
     zone_by_entity_id = zone_by_entity_id(states)
     group_members_by_entity_id = group_members_by_entity_id(states)
@@ -106,6 +112,8 @@ defmodule Hueworks.Legacy.Fetch.HomeAssistant do
 
     %{
       host: bridge.host,
+      areas: area_registry,
+      device_registry: device_registry,
       light_entities: light_entities,
       group_entities: group_entities,
       light_count: length(light_entities),
@@ -123,6 +131,13 @@ defmodule Hueworks.Legacy.Fetch.HomeAssistant do
   defp get_device_registry(pid) do
     case request(pid, "config/device_registry/list", %{}) do
       {:ok, devices} -> devices
+      {:error, _reason} -> []
+    end
+  end
+
+  defp get_area_registry(pid) do
+    case request(pid, "config/area_registry/list", %{}) do
+      {:ok, areas} -> areas
       {:error, _reason} -> []
     end
   end

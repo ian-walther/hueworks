@@ -3,7 +3,7 @@ defmodule Hueworks.Control.Bootstrap.Hue do
 
   import Ecto.Query, only: [from: 2]
 
-  alias Hueworks.Import.Persist
+  alias Hueworks.Control.Indexes
   alias Hueworks.Repo
   alias Hueworks.Schemas.Bridge
   alias Hueworks.Control.State
@@ -17,8 +17,8 @@ defmodule Hueworks.Control.Bootstrap.Hue do
       if is_binary(api_key) and api_key != "" do
         lights = fetch_hue_endpoint(bridge.host, api_key, "/lights")
         groups = fetch_hue_endpoint(bridge.host, api_key, "/groups")
-        lights_by_id = Persist.lights_by_source_id(bridge.id, :hue)
-        groups_by_id = Persist.groups_by_source_id(bridge.id, :hue)
+        lights_by_id = Indexes.lights_by_source_id(bridge.id, :hue)
+        groups_by_id = Indexes.groups_by_source_id(bridge.id, :hue)
 
         Enum.each(lights, fn {id, light} ->
           case Map.get(lights_by_id, to_string(id)) do
@@ -62,6 +62,7 @@ defmodule Hueworks.Control.Bootstrap.Hue do
 
   defp build_hue_light_state(light) when is_map(light) do
     state = light["state"] || %{}
+
     %{}
     |> maybe_put_power(state["on"])
     |> maybe_put_brightness(state["bri"])
@@ -72,6 +73,7 @@ defmodule Hueworks.Control.Bootstrap.Hue do
 
   defp build_hue_group_state(group) when is_map(group) do
     action = group["action"] || %{}
+
     %{}
     |> maybe_put_power(action["on"])
     |> maybe_put_brightness(action["bri"])
