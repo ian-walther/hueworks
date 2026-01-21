@@ -21,9 +21,9 @@ defmodule HueworksWeb.BridgeLive do
         test_error: nil,
         test_bridge_name: nil
       )
-      |> allow_upload(:caseta_cert, accept: ~w(.crt), max_entries: 1)
-      |> allow_upload(:caseta_key, accept: ~w(.key), max_entries: 1)
-      |> allow_upload(:caseta_cacert, accept: ~w(.crt), max_entries: 1)
+      |> allow_upload(:caseta_cert, accept: ~w(.crt), max_entries: 1, auto_upload: true)
+      |> allow_upload(:caseta_key, accept: ~w(.key), max_entries: 1, auto_upload: true)
+      |> allow_upload(:caseta_cacert, accept: ~w(.crt), max_entries: 1, auto_upload: true)
 
     {:ok, socket}
   end
@@ -240,7 +240,8 @@ defmodule HueworksWeb.BridgeLive do
     File.mkdir_p!(dir)
     stamp = System.unique_integer([:positive])
 
-    with {:ok, cert_path} <- stage_upload(socket, :caseta_cert, dir, "#{host_prefix}_cert_#{stamp}"),
+    with :ok <- validate_uploads_complete(socket),
+         {:ok, cert_path} <- stage_upload(socket, :caseta_cert, dir, "#{host_prefix}_cert_#{stamp}"),
          {:ok, key_path} <- stage_upload(socket, :caseta_key, dir, "#{host_prefix}_key_#{stamp}"),
          {:ok, cacert_path} <- stage_upload(socket, :caseta_cacert, dir, "#{host_prefix}_cacert_#{stamp}") do
       {:ok, socket, %{caseta_cert: cert_path, caseta_key: key_path, caseta_cacert: cacert_path}}
@@ -263,6 +264,28 @@ defmodule HueworksWeb.BridgeLive do
       [] -> {:error, "Missing required files for Caseta uploads."}
     end
   end
+
+  defp validate_uploads_complete(socket) do
+    [:caseta_cert, :caseta_key, :caseta_cacert]
+    |> Enum.reduce_while(:ok, fn name, _acc ->
+      upload = Map.fetch!(socket.assigns.uploads, name)
+
+      cond do
+        upload.errors != [] ->
+          {:halt, {:error, "Upload failed for #{name}: #{inspect(upload.errors)}"}}
+
+        upload.entries == [] ->
+          {:cont, :ok}
+
+        Enum.any?(upload.entries, fn entry -> entry.done? == false end) ->
+          {:halt, {:error, "Uploads in progress. Please wait and try again."}}
+
+        true ->
+          {:cont, :ok}
+      end
+    end)
+  end
+
 
   defp host_prefix(host) do
     host |> String.trim() |> String.replace(~r/[^A-Za-z0-9._-]/, "_")
