@@ -68,25 +68,30 @@ export LUTRON_CACERT_PATH="/path/to/bridge-ca.crt"
 export HA_TOKEN="..."
 ```
 
-2) Reset the DB (migrations + seeds):
+2) Reset the DB (migrations only):
 
 ```bash
 mix ecto.reset
 ```
 
-3) Sync live data into `lights`:
+3) Seed bridges from `secrets.env`:
 
 ```bash
-mix sync
+mix seed_bridges
 ```
 
-You can also run the steps independently:
+4) Fetch raw bridge configuration to JSON:
 
 ```bash
-mix fetch            # fetch + write exports/*.json
-mix import           # import from latest exports/*.json
-mix sync             # fetch + import without writing files
+mix export_bridge_imports
 ```
+
+## Mix Tasks
+
+- `mix backup_db` — Back up the SQLite database with a timestamp suffix.
+- `mix restore_db` — Restore the most recent SQLite database backup.
+- `mix seed_bridges` — Seed bridges from `secrets.env` with `import_complete=false`.
+- `mix export_bridge_imports` — Fetch raw bridge configuration and write JSON to `exports/`.
 
 ## License
 

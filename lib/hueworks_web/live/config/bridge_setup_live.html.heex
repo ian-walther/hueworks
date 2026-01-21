@@ -15,6 +15,12 @@
 
   <%= if @import_status == :ok do %>
     <p class="hw-muted">Configuration loaded into memory.</p>
+    <%= if @bridge_import do %>
+      <p class="hw-muted">
+        Import status: <%= @bridge_import.status %> •
+        Imported at: <%= @bridge_import.imported_at %>
+      </p>
+    <% end %>
   <% end %>
 
   <%= if @import_status == :error do %>

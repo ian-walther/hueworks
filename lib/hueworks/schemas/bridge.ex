@@ -10,6 +10,8 @@ defmodule Hueworks.Schemas.Bridge do
     field(:enabled, :boolean, default: true)
     field(:import_complete, :boolean, default: false)
 
+    has_many(:bridge_imports, Hueworks.Schemas.BridgeImport)
+
     timestamps()
   end
 

@@ -76,8 +76,12 @@ defmodule Hueworks.Bridges.Seed do
       |> Stream.map(&String.trim/1)
       |> Enum.each(fn line ->
         cond do
-          line == "" -> :ok
-          String.starts_with?(line, "#") -> :ok
+          line == "" ->
+            :ok
+
+          String.starts_with?(line, "#") ->
+            :ok
+
           String.starts_with?(line, "export ") ->
             line
             |> String.trim_leading("export ")
@@ -102,9 +106,9 @@ defmodule Hueworks.Bridges.Seed do
 
   defp fetch_env!(key) do
     case System.get_env(key) do
-      nil -> raise "Missing #{key}. Populate secrets.env and re-run mix sync."
-      "" -> raise "Missing #{key}. Populate secrets.env and re-run mix sync."
-      "CHANGE_ME" -> raise "Missing #{key}. Populate secrets.env and re-run mix sync."
+      nil -> raise "Missing #{key}. Populate secrets.env and re-run mix seed_bridges."
+      "" -> raise "Missing #{key}. Populate secrets.env and re-run mix seed_bridges."
+      "CHANGE_ME" -> raise "Missing #{key}. Populate secrets.env and re-run mix seed_bridges."
       value -> value
     end
   end
