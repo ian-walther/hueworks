@@ -4,7 +4,7 @@ defmodule Hueworks.Import.Pipeline do
   alias Hueworks.Repo
   alias Hueworks.Schemas.Bridge
   alias Hueworks.Schemas.BridgeImport
-  alias Hueworks.Import.{Materialize, Normalize}
+  alias Hueworks.Import.{Link, Materialize, Normalize}
 
   def create_import(%Bridge{} = bridge) do
     with {:ok, raw_blob} <- fetch_raw(bridge) do
@@ -23,6 +23,7 @@ defmodule Hueworks.Import.Pipeline do
           |> Repo.insert()
 
         :ok = Materialize.apply(bridge, normalized_blob)
+        :ok = Link.apply()
 
         {:ok, updated} =
           bridge_import

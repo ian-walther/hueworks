@@ -94,6 +94,7 @@ mix export_bridge_imports
 - `mix export_bridge_imports` — Fetch raw bridge configuration and write JSON to `exports/`.
 - `mix normalize_bridge_imports` — Normalize raw bridge JSON into `exports/*_normalized_*.json`.
 - `mix materialize_bridge_imports` — Materialize normalized bridge JSON into the database.
+- `mix link_bridge_imports` — Link canonical entities across imports.
 
 ## License
 

@@ -55,7 +55,8 @@ defmodule Hueworks.Import.NormalizeTest do
     refute Enum.any?(normalized.lights, &(&1.source_id == "light.zha_group"))
     refute Enum.any?(normalized.lights, &(&1.source_id == "light.zha_group_members"))
 
-    refute Enum.any?(normalized.lights, &(&1.source_id == "light.zha_group_missing"))
+    missing_state = Enum.find(normalized.lights, &(&1.source_id == "light.zha_group_missing"))
+    assert missing_state.metadata["unique_id"] == "zha-light-2"
 
     hue_group = Enum.find(normalized.groups, &(&1.source_id == "light.office_room"))
     assert hue_group.metadata["device_model"] == "Room"
@@ -76,8 +77,7 @@ defmodule Hueworks.Import.NormalizeTest do
     mixed_group = Enum.find(normalized.groups, &(&1.source_id == "light.mixed_group"))
     assert mixed_group.room_source_id == nil
 
-    zha_group_missing = Enum.find(normalized.groups, &(&1.source_id == "light.zha_group_missing"))
-    assert zha_group_missing.metadata["members"] == ["light.kitchen_lamp"]
+    refute Enum.any?(normalized.groups, &(&1.source_id == "light.zha_group_missing"))
   end
 
   test "normalizes Caseta raw data into rooms and lights" do
