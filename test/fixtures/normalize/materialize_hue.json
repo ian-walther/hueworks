@@ -1,0 +1,45 @@
+{
+  "rooms": [],
+  "lights": [
+    {
+      "source": "hue",
+      "source_id": "1",
+      "name": "Hue Light",
+      "capabilities": {
+        "brightness": true,
+        "color": true,
+        "color_temp": true,
+        "reported_kelvin_min": 2000,
+        "reported_kelvin_max": 6500
+      },
+      "identifiers": {
+        "mac": "11:22:33:44:55:66"
+      },
+      "metadata": {
+        "uniqueid": "11:22:33:44:55:66-0b"
+      }
+    }
+  ],
+  "groups": [
+    {
+      "source": "hue",
+      "source_id": "2",
+      "name": "Hue Group",
+      "type": "zone",
+      "capabilities": {
+        "brightness": true
+      },
+      "metadata": {
+        "type": "Zone"
+      }
+    }
+  ],
+  "memberships": {
+    "group_lights": [
+      {
+        "group_source_id": "2",
+        "light_source_id": "1"
+      }
+    ]
+  }
+}

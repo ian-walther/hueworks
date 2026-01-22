@@ -46,6 +46,7 @@ defmodule Hueworks.Import.Normalize.Hue do
           capabilities: capabilities,
           identifiers: %{"mac" => Normalize.fetch(light, :mac)},
           metadata: %{
+            "bridge_host" => bridge.host,
             "uniqueid" => Normalize.fetch(light, :uniqueid),
             "modelid" => Normalize.fetch(light, :modelid),
             "productname" => Normalize.fetch(light, :productname),
@@ -72,7 +73,10 @@ defmodule Hueworks.Import.Normalize.Hue do
           room_source_id: if(group_type == "Room", do: id, else: nil),
           type: normalized_type,
           capabilities: capabilities,
-          metadata: %{"type" => group_type}
+          metadata: %{
+            "bridge_host" => bridge.host,
+            "type" => group_type
+          }
         }
       end)
 

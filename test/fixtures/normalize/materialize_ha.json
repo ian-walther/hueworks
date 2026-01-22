@@ -1,0 +1,54 @@
+{
+  "rooms": [
+    {
+      "source": "ha",
+      "source_id": "office",
+      "name": "Office",
+      "metadata": {}
+    }
+  ],
+  "lights": [
+    {
+      "source": "ha",
+      "source_id": "light.office_lamp",
+      "name": "Office Lamp",
+      "room_source_id": "office",
+      "capabilities": {
+        "brightness": true,
+        "color": false,
+        "color_temp": true,
+        "reported_kelvin_min": 2000,
+        "reported_kelvin_max": 6500
+      },
+      "identifiers": {
+        "mac": "00:aa:bb:cc:dd:ee"
+      },
+      "metadata": {
+        "unique_id": "ha-light-1"
+      }
+    }
+  ],
+  "groups": [
+    {
+      "source": "ha",
+      "source_id": "light.office_group",
+      "name": "Office Group",
+      "room_source_id": "office",
+      "type": "group",
+      "capabilities": {
+        "brightness": true
+      },
+      "metadata": {
+        "members": ["light.office_lamp"]
+      }
+    }
+  ],
+  "memberships": {
+    "group_lights": [
+      {
+        "group_source_id": "light.office_group",
+        "light_source_id": "light.office_lamp"
+      }
+    ]
+  }
+}

@@ -35,6 +35,8 @@ defmodule Hueworks.Import.Fetch.HomeAssistant do
     group_members_by_entity_id = group_members_by_entity_id(states)
     temp_range_by_entity_id = temp_range_by_entity_id(states)
     color_modes_by_entity_id = supported_color_modes_by_entity_id(states)
+    light_states = light_state_attributes_by_entity_id(states)
+    zha_groups = get_zha_groups(pid)
 
     light_entities =
       entity_registry
@@ -64,6 +66,8 @@ defmodule Hueworks.Import.Fetch.HomeAssistant do
       device_registry: device_registry,
       light_entities: light_entities,
       group_entities: group_entities,
+      light_states: light_states,
+      zha_groups: zha_groups,
       light_count: length(light_entities),
       total_entity_count: length(entity_registry),
       exported_at: DateTime.utc_now() |> DateTime.to_iso8601()
@@ -87,6 +91,8 @@ defmodule Hueworks.Import.Fetch.HomeAssistant do
     group_members_by_entity_id = group_members_by_entity_id(states)
     temp_range_by_entity_id = temp_range_by_entity_id(states)
     color_modes_by_entity_id = supported_color_modes_by_entity_id(states)
+    light_states = light_state_attributes_by_entity_id(states)
+    zha_groups = get_zha_groups(pid)
 
     light_entities =
       entity_registry
@@ -116,6 +122,8 @@ defmodule Hueworks.Import.Fetch.HomeAssistant do
       device_registry: device_registry,
       light_entities: light_entities,
       group_entities: group_entities,
+      light_states: light_states,
+      zha_groups: zha_groups,
       light_count: length(light_entities),
       total_entity_count: length(entity_registry)
     }
@@ -149,6 +157,13 @@ defmodule Hueworks.Import.Fetch.HomeAssistant do
     end
   end
 
+  defp get_zha_groups(pid) do
+    case request(pid, "zha/groups", %{}) do
+      {:ok, groups} when is_list(groups) -> groups
+      _ -> []
+    end
+  end
+
   defp zone_by_entity_id(states) do
     states
     |> Enum.filter(&is_map/1)
@@ -176,6 +191,15 @@ defmodule Hueworks.Import.Fetch.HomeAssistant do
       else
         acc
       end
+    end)
+  end
+
+  defp light_state_attributes_by_entity_id(states) do
+    states
+    |> Enum.filter(&is_map/1)
+    |> Enum.filter(fn state -> String.starts_with?(state["entity_id"], "light.") end)
+    |> Enum.reduce(%{}, fn state, acc ->
+      Map.put(acc, state["entity_id"], state["attributes"] || %{})
     end)
   end
 

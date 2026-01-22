@@ -4,22 +4,37 @@ defmodule Hueworks.Import.Pipeline do
   alias Hueworks.Repo
   alias Hueworks.Schemas.Bridge
   alias Hueworks.Schemas.BridgeImport
-  alias Hueworks.Import.Normalize
+  alias Hueworks.Import.{Materialize, Normalize}
 
   def create_import(%Bridge{} = bridge) do
     with {:ok, raw_blob} <- fetch_raw(bridge) do
       normalized_blob = Normalize.normalize(bridge, raw_blob)
 
-      changeset =
-        BridgeImport.changeset(%BridgeImport{}, %{
-          bridge_id: bridge.id,
-          raw_blob: raw_blob,
-          normalized_blob: normalized_blob,
-          status: :normalized,
-          imported_at: DateTime.utc_now() |> DateTime.truncate(:second)
-        })
+      Repo.transaction(fn ->
+        {:ok, bridge_import} =
+          %BridgeImport{}
+          |> BridgeImport.changeset(%{
+            bridge_id: bridge.id,
+            raw_blob: raw_blob,
+            normalized_blob: normalized_blob,
+            status: :normalized,
+            imported_at: DateTime.utc_now() |> DateTime.truncate(:second)
+          })
+          |> Repo.insert()
 
-      Repo.insert(changeset)
+        :ok = Materialize.apply(bridge, normalized_blob)
+
+        {:ok, updated} =
+          bridge_import
+          |> BridgeImport.changeset(%{status: :applied})
+          |> Repo.update()
+
+        updated
+      end)
+      |> case do
+        {:ok, result} -> {:ok, result}
+        {:error, reason} -> {:error, reason}
+      end
     end
   rescue
     error -> {:error, Exception.message(error)}

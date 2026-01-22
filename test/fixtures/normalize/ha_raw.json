@@ -7,6 +7,13 @@
       "aliases": [],
       "created_at": 0.0,
       "modified_at": 0.0
+    },
+    {
+      "area_id": "kitchen",
+      "name": "Kitchen",
+      "aliases": [],
+      "created_at": 0.0,
+      "modified_at": 0.0
     }
   ],
   "device_registry": [
@@ -14,6 +21,11 @@
       "id": "device-1",
       "area_id": "office",
       "name": "Office Lamp"
+    },
+    {
+      "id": "device-2",
+      "area_id": "kitchen",
+      "name": "Kitchen Lamp"
     }
   ],
   "light_entities": [
@@ -23,6 +35,7 @@
       "source": "hue",
       "device_id": "device-1",
       "name": "Office Lamp",
+      "unique_id": "hue-light-1",
       "temp_range": {
         "min_kelvin": 2000,
         "max_kelvin": 6500
@@ -34,6 +47,114 @@
         "connections": [["mac", "00:aa:bb:cc:dd:ee"]],
         "identifiers": [["serial", "SERIAL-1"]]
       }
+    },
+    {
+      "entity_id": "light.office_group",
+      "platform": "group",
+      "source": "unknown",
+      "name": "Office Group"
+    },
+    {
+      "entity_id": "light.kitchen_lamp",
+      "platform": "zha",
+      "source": "unknown",
+      "device_id": "device-2",
+      "name": "Kitchen Lamp",
+      "unique_id": "zha-light-1",
+      "supported_color_modes": ["color_temp"],
+      "device": {
+        "id": "device-2",
+        "name": "Kitchen Lamp",
+        "connections": [["mac", "11:22:33:44:55:66"]],
+        "identifiers": [["serial", "SERIAL-2"]]
+      }
+    },
+    {
+      "entity_id": "light.office_room",
+      "platform": "hue",
+      "source": "hue",
+      "device_id": "device-room",
+      "name": "Office Room",
+      "unique_id": "hue-room-1",
+      "supported_color_modes": ["color_temp"],
+      "device": {
+        "id": "device-room",
+        "name": "Office Room",
+        "model": "Room"
+      }
+    },
+    {
+      "entity_id": "light.zha_group",
+      "platform": "zha",
+      "source": "unknown",
+      "device_id": "device-zha-group",
+      "name": "ZHA Group",
+      "unique_id": "light_zha_group_0x0001",
+      "device": {
+        "id": "device-zha-group",
+        "name": "ZHA Coordinator",
+        "model": "CC2652"
+      }
+    },
+    {
+      "entity_id": "light.zha_group_members",
+      "platform": "zha",
+      "source": "unknown",
+      "device_id": "device-zha-group-2",
+      "name": "ZHA Group Members",
+      "unique_id": "light_zha_group_0x0002",
+      "device": {
+        "id": "device-zha-group-2",
+        "name": "ZHA Coordinator",
+        "model": "CC2652"
+      }
+    },
+    {
+      "entity_id": "light.zha_group_missing",
+      "platform": "zha",
+      "source": "unknown",
+      "device_id": "device-zha-group-3",
+      "name": "ZHA Group Missing",
+      "unique_id": "zha-light-2",
+      "device": {
+        "id": "device-zha-group-3",
+        "name": "ZHA Coordinator",
+        "model": "CC2652"
+      }
+    }
+  ],
+  "light_states": {
+    "light.office_room": {
+      "entity_id": ["light.office_lamp"]
+    },
+    "light.zha_group": {
+      "entities": ["light.office_lamp"]
+    },
+    "light.zha_group_members": {
+      "members": ["light.office_lamp", "light.kitchen_lamp"]
+    }
+  },
+  "zha_groups": [
+    {
+      "group_id": 2,
+      "name": "ZHA Group Members",
+      "members": [
+        {
+          "ieee": "00:aa:bb:cc:dd:ee"
+        },
+        {
+          "ieee": "11:22:33:44:55:66"
+        }
+      ]
+    },
+    {
+      "group_id": 3,
+      "name": "ZHA Group Missing",
+      "members": [
+        {
+          "device_ieee": "11:22:33:44:55:66"
+        }
+      ]
     }
   ],
   "group_entities": [
@@ -42,6 +163,12 @@
       "platform": "group",
       "name": "Office Group",
       "members": ["light.office_lamp"]
+    },
+    {
+      "entity_id": "light.mixed_group",
+      "platform": "group",
+      "name": "Mixed Group",
+      "members": ["light.office_lamp", "light.kitchen_lamp"]
     }
   ]
 }

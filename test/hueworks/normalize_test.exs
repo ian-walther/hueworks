@@ -36,24 +36,48 @@ defmodule Hueworks.Import.NormalizeTest do
     bridge = %Bridge{id: 2, type: :ha, name: "HA", host: "10.0.0.2"}
     normalized = Normalize.normalize(bridge, raw)
 
-    assert length(normalized.rooms) == 1
-    [room] = normalized.rooms
-    assert room.source_id == "office"
-    assert room.name == "Office"
+    assert length(normalized.rooms) == 2
+    [office] = Enum.filter(normalized.rooms, &(&1.source_id == "office"))
+    assert office.name == "Office"
 
-    [light] = normalized.lights
-    assert light.source_id == "light.office_lamp"
+    light = Enum.find(normalized.lights, &(&1.source_id == "light.office_lamp"))
     assert light.room_source_id == "office"
     assert light.capabilities.color_temp
     assert light.capabilities.reported_kelvin_min == 2000
     assert light.capabilities.reported_kelvin_max == 6500
     assert light.identifiers["mac"] == "00:aa:bb:cc:dd:ee"
 
-    [group] = normalized.groups
-    assert group.source_id == "light.office_group"
+    kitchen = Enum.find(normalized.lights, &(&1.source_id == "light.kitchen_lamp"))
+    assert kitchen.room_source_id == "kitchen"
+
+    refute Enum.any?(normalized.lights, &(&1.source_id == "light.office_group"))
+    refute Enum.any?(normalized.lights, &(&1.source_id == "light.office_room"))
+    refute Enum.any?(normalized.lights, &(&1.source_id == "light.zha_group"))
+    refute Enum.any?(normalized.lights, &(&1.source_id == "light.zha_group_members"))
+
+    refute Enum.any?(normalized.lights, &(&1.source_id == "light.zha_group_missing"))
+
+    hue_group = Enum.find(normalized.groups, &(&1.source_id == "light.office_room"))
+    assert hue_group.metadata["device_model"] == "Room"
+    assert hue_group.metadata["members"] == ["light.office_lamp"]
+
+    zha_group = Enum.find(normalized.groups, &(&1.source_id == "light.zha_group"))
+    assert zha_group.metadata["unique_id"] == "light_zha_group_0x0001"
+    assert zha_group.metadata["members"] == ["light.office_lamp"]
+
+    zha_group_members = Enum.find(normalized.groups, &(&1.source_id == "light.zha_group_members"))
+    assert zha_group_members.metadata["members"] == ["light.office_lamp", "light.kitchen_lamp"]
+
+    group = Enum.find(normalized.groups, &(&1.source_id == "light.office_group"))
     assert group.room_source_id == "office"
     assert Enum.any?(normalized.memberships.group_lights, &(&1.group_source_id == group.source_id))
     assert Enum.any?(normalized.memberships.room_groups, &(&1.group_source_id == group.source_id))
+
+    mixed_group = Enum.find(normalized.groups, &(&1.source_id == "light.mixed_group"))
+    assert mixed_group.room_source_id == nil
+
+    zha_group_missing = Enum.find(normalized.groups, &(&1.source_id == "light.zha_group_missing"))
+    assert zha_group_missing.metadata["members"] == ["light.kitchen_lamp"]
   end
 
   test "normalizes Caseta raw data into rooms and lights" do
