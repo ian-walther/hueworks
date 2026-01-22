@@ -3,7 +3,7 @@ defmodule Hueworks.Import.Normalize.Caseta do
 
   alias Hueworks.Import.Normalize
 
-  def normalize(bridge, raw) do
+  def normalize(bridge, raw, _opts \\ %{}) do
     lights_raw = Normalize.fetch(raw, :lights) || []
     groups_raw = Normalize.fetch(raw, :groups) || []
 

@@ -6,10 +6,14 @@ defmodule Hueworks.Import.Normalize do
   @schema_version 1
 
   def normalize(%Bridge{} = bridge, raw_blob) do
+    normalize(bridge, raw_blob, %{})
+  end
+
+  def normalize(%Bridge{} = bridge, raw_blob, opts) when is_map(opts) do
     case bridge.type do
-      :hue -> Hueworks.Import.Normalize.Hue.normalize(bridge, raw_blob)
-      :ha -> Hueworks.Import.Normalize.HomeAssistant.normalize(bridge, raw_blob)
-      :caseta -> Hueworks.Import.Normalize.Caseta.normalize(bridge, raw_blob)
+      :hue -> Hueworks.Import.Normalize.Hue.normalize(bridge, raw_blob, opts)
+      :ha -> Hueworks.Import.Normalize.HomeAssistant.normalize(bridge, raw_blob, opts)
+      :caseta -> Hueworks.Import.Normalize.Caseta.normalize(bridge, raw_blob, opts)
     end
   end
   def base_normalized(bridge, rooms, groups, lights, memberships) do

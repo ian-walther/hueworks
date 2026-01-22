@@ -80,6 +80,24 @@ defmodule Hueworks.Import.NormalizeTest do
     refute Enum.any?(normalized.groups, &(&1.source_id == "light.zha_group_missing"))
   end
 
+  test "normalizes Home Assistant raw data with template filtering options" do
+    raw = load_fixture("ha_raw.json")
+
+    bridge = %Bridge{id: 2, type: :ha, name: "HA", host: "10.0.0.2"}
+    normalized = Normalize.normalize(bridge, raw, %{exclude_template_lights: true})
+
+    refute Enum.any?(normalized.lights, &(&1.source_id == "light.bar_lower_accent_light"))
+
+    template_group =
+      Enum.find(normalized.groups, &(&1.source_id == "light.template_group"))
+
+    assert template_group.metadata["members"] == ["light.office_lamp"]
+
+    assert Enum.all?(normalized.memberships.group_lights, fn membership ->
+             membership.light_source_id != "light.bar_lower_accent_light"
+           end)
+  end
+
   test "normalizes Caseta raw data into rooms and lights" do
     raw = load_fixture("caseta_raw.json")
 

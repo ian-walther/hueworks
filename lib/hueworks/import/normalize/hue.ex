@@ -3,7 +3,7 @@ defmodule Hueworks.Import.Normalize.Hue do
 
   alias Hueworks.Import.Normalize
 
-  def normalize(bridge, raw) do
+  def normalize(bridge, raw, _opts \\ %{}) do
     raw_groups = Normalize.fetch(raw, :groups) || %{}
     raw_lights = Normalize.fetch(raw, :lights) || %{}
 

@@ -16,7 +16,7 @@ defmodule Hueworks.Import.Normalize.HomeAssistant do
   @color_color_modes ~w(hs rgb rgbw rgbww xy)
   @temp_color_modes ~w(color_temp)
 
-  def normalize(bridge, raw) do
+  def normalize(bridge, raw, opts \\ %{}) do
     areas = Normalize.fetch(raw, :areas) || []
     device_registry = Normalize.fetch(raw, :device_registry) || []
     lights_raw = Normalize.fetch(raw, :light_entities) || []
@@ -25,6 +25,7 @@ defmodule Hueworks.Import.Normalize.HomeAssistant do
     zha_groups = Normalize.fetch(raw, :zha_groups) || []
     state_members_by_entity_id = state_members_by_entity_id(light_states)
     zha_members_by_entity_id = zha_members_by_entity_id(zha_groups, lights_raw)
+    exclude_template_lights = Map.get(opts, :exclude_template_lights, false)
 
     rooms =
       Enum.map(areas, fn area ->
@@ -43,6 +44,9 @@ defmodule Hueworks.Import.Normalize.HomeAssistant do
 
     {lights, derived_groups} =
       lights_raw
+      |> Enum.reject(fn light ->
+        exclude_template_lights and Normalize.fetch(light, :platform) == "template"
+      end)
       |> Enum.reduce({[], []}, fn light, {lights_acc, groups_acc} ->
         name =
           Normalize.fetch(light, :name) ||
@@ -81,6 +85,7 @@ defmodule Hueworks.Import.Normalize.HomeAssistant do
             "source" => Normalize.fetch(light, :source),
             "unique_id" => Normalize.fetch(light, :unique_id),
             "members" => members,
+            "is_template" => platform == "template",
             "device_model" => Normalize.fetch(device, :model),
             "device_name" => Normalize.fetch(device, :name),
             "device_manufacturer" => Normalize.fetch(device, :manufacturer)
@@ -131,6 +136,22 @@ defmodule Hueworks.Import.Normalize.HomeAssistant do
       end)
       |> Kernel.++(derived_groups)
 
+    light_ids = MapSet.new(Enum.map(lights, & &1.source_id))
+
+    groups =
+      groups
+      |> Enum.map(fn group ->
+        members = Normalize.fetch(group, :metadata)["members"] || []
+        filtered_members = Enum.filter(members, &MapSet.member?(light_ids, &1))
+
+        metadata =
+          group
+          |> Normalize.fetch(:metadata)
+          |> Map.put("members", filtered_members)
+
+        Map.put(group, :metadata, metadata)
+      end)
+
     memberships = %{
       room_groups:
         groups
@@ -150,7 +171,7 @@ defmodule Hueworks.Import.Normalize.HomeAssistant do
             light_source_id: light.source_id
           }
         end),
-      group_lights: group_lights_from_groups(groups)
+      group_lights: group_lights_from_groups(groups, light_ids)
     }
 
     Normalize.base_normalized(bridge, rooms, groups, lights, memberships)
@@ -224,11 +245,13 @@ defmodule Hueworks.Import.Normalize.HomeAssistant do
     }
   end
 
-  defp group_lights_from_groups(groups) do
+  defp group_lights_from_groups(groups, light_ids) do
     Enum.flat_map(groups, fn group ->
       members = Normalize.fetch(group, :metadata)["members"] || []
 
-      Enum.map(members, fn light_id ->
+      members
+      |> Enum.filter(fn light_id -> MapSet.member?(light_ids, light_id) end)
+      |> Enum.map(fn light_id ->
         %{group_source_id: group.source_id, light_source_id: light_id}
       end)
     end)

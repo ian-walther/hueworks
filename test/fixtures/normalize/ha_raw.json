@@ -70,6 +70,20 @@
       }
     },
     {
+      "entity_id": "light.bar_lower_accent_light",
+      "platform": "template",
+      "source": "unknown",
+      "device_id": null,
+      "name": "Bar Lower Accent Light",
+      "unique_id": "template-light-1",
+      "supported_color_modes": ["color_temp", "hs"],
+      "temp_range": {
+        "min_kelvin": 2000,
+        "max_kelvin": 6500
+      },
+      "device": null
+    },
+    {
       "entity_id": "light.office_room",
       "platform": "hue",
       "source": "hue",
@@ -163,6 +177,12 @@
       "platform": "group",
       "name": "Office Group",
       "members": ["light.office_lamp"]
+    },
+    {
+      "entity_id": "light.template_group",
+      "platform": "group",
+      "name": "Template Group",
+      "members": ["light.bar_lower_accent_light", "light.office_lamp"]
     },
     {
       "entity_id": "light.mixed_group",
