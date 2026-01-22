@@ -11,7 +11,7 @@ defmodule Mix.Tasks.ExportBridgeImports do
       mix export_bridge_imports
   """
 
-  alias Hueworks.ImportPipeline
+  alias Hueworks.Import.Pipeline
   alias Hueworks.Repo
   alias Hueworks.Schemas.Bridge
 
@@ -23,7 +23,7 @@ defmodule Mix.Tasks.ExportBridgeImports do
     bridges = Repo.all(Bridge)
 
     Enum.each(bridges, fn bridge ->
-      case ImportPipeline.fetch_raw(bridge) do
+      case Pipeline.fetch_raw(bridge) do
         {:ok, raw_blob} ->
           payload = %{
             bridge: %{

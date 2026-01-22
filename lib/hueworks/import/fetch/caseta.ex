@@ -1,4 +1,4 @@
-defmodule Hueworks.Legacy.Fetch.Caseta do
+defmodule Hueworks.Import.Fetch.Caseta do
   @moduledoc """
   Fetch minimal Lutron Caseta data needed for import.
   """

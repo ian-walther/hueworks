@@ -1,11 +1,11 @@
-defmodule Hueworks.Legacy.Fetch.HomeAssistant do
+defmodule Hueworks.Import.Fetch.HomeAssistant do
   @moduledoc """
   Fetch minimal Home Assistant data needed for import.
   """
 
   import Ecto.Query, only: [from: 2]
 
-  alias Hueworks.Legacy.Fetch.HomeAssistant.Client
+  alias Hueworks.Import.Fetch.HomeAssistant.Client
   alias Hueworks.Schemas.Bridge
   alias Hueworks.Repo
 

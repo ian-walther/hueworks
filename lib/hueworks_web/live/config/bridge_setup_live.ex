@@ -3,7 +3,7 @@ defmodule HueworksWeb.BridgeSetupLive do
 
   alias Hueworks.Repo
   alias Hueworks.Schemas.Bridge
-  alias Hueworks.ImportPipeline
+  alias Hueworks.Import.Pipeline
 
   def mount(%{"id" => id}, _session, socket) do
     bridge = Repo.get!(Bridge, id)
@@ -19,7 +19,7 @@ defmodule HueworksWeb.BridgeSetupLive do
   end
 
   def handle_event("import_configuration", _params, socket) do
-    case ImportPipeline.create_import(socket.assigns.bridge) do
+    case Pipeline.create_import(socket.assigns.bridge) do
       {:ok, bridge_import} ->
         {:noreply,
          assign(socket,

@@ -1,4 +1,4 @@
-defmodule Hueworks.ImportPipeline do
+defmodule Hueworks.Import.Pipeline do
   @moduledoc false
 
   alias Hueworks.Repo
@@ -32,14 +32,14 @@ defmodule Hueworks.ImportPipeline do
   end
 
   defp do_fetch_raw(%Bridge{type: :hue} = bridge) do
-    Hueworks.Fetch.Hue.fetch_for_bridge(bridge)
+    Hueworks.Import.Fetch.Hue.fetch_for_bridge(bridge)
   end
 
   defp do_fetch_raw(%Bridge{type: :caseta} = bridge) do
-    Hueworks.Fetch.Caseta.fetch_for_bridge(bridge)
+    Hueworks.Import.Fetch.Caseta.fetch_for_bridge(bridge)
   end
 
   defp do_fetch_raw(%Bridge{type: :ha} = bridge) do
-    Hueworks.Fetch.HomeAssistant.fetch_for_bridge(bridge)
+    Hueworks.Import.Fetch.HomeAssistant.fetch_for_bridge(bridge)
   end
 end

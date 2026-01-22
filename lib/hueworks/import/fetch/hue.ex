@@ -1,4 +1,4 @@
-defmodule Hueworks.Legacy.Fetch.Hue do
+defmodule Hueworks.Import.Fetch.Hue do
   @moduledoc """
   Fetch minimal Hue data needed for import.
   """
