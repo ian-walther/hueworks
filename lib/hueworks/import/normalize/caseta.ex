@@ -18,6 +18,7 @@ defmodule Hueworks.Import.Normalize.Caseta do
           source: :caseta,
           source_id: Normalize.fetch(light, :zone_id),
           name: name,
+          classification: "light",
           room_source_id: room_source_id,
           capabilities: normalize_caseta_capabilities(light),
           identifiers: %{"serial" => to_string(Normalize.fetch(light, :serial) || "")},
@@ -36,6 +37,7 @@ defmodule Hueworks.Import.Normalize.Caseta do
           source: :caseta,
           source_id: Normalize.fetch(group, :id),
           name: Normalize.fetch(group, :name) || "Caseta Group",
+          classification: "group",
           room_source_id: nil,
           type: "group",
           capabilities: %{

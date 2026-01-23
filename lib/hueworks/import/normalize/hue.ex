@@ -42,6 +42,7 @@ defmodule Hueworks.Import.Normalize.Hue do
           source: :hue,
           source_id: id,
           name: Normalize.fetch(light, :name) || "Hue Light #{id}",
+          classification: "light",
           room_source_id: Map.get(light_room_map, id),
           capabilities: capabilities,
           identifiers: %{"mac" => Normalize.fetch(light, :mac)},
@@ -65,11 +66,13 @@ defmodule Hueworks.Import.Normalize.Hue do
         normalized_type = Normalize.normalize_group_type(group_type)
         member_ids = Normalize.fetch(group, :lights) || []
         capabilities = Normalize.aggregate_capabilities(member_ids, light_capabilities_by_id)
+        classification = hue_group_classification(group_type)
 
         %{
           source: :hue,
           source_id: id,
           name: Normalize.fetch(group, :name) || "Hue Group #{id}",
+          classification: classification,
           room_source_id: if(group_type == "Room", do: id, else: nil),
           type: normalized_type,
           capabilities: capabilities,
@@ -111,6 +114,11 @@ defmodule Hueworks.Import.Normalize.Hue do
 
     Normalize.base_normalized(bridge, rooms, groups, lights, memberships)
   end
+
+  defp hue_group_classification("Room"), do: "group_room"
+  defp hue_group_classification("Zone"), do: "group_zone"
+  defp hue_group_classification("LightGroup"), do: "group"
+  defp hue_group_classification(_type), do: "group"
 
   defp normalize_hue_light_capabilities(light) do
     caps = Normalize.fetch(light, :capabilities) || %{}

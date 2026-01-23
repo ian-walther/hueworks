@@ -22,11 +22,13 @@ defmodule Hueworks.Import.NormalizeTest do
     assert length(normalized.lights) == 2
     ceiling = Enum.find(normalized.lights, &(&1.source_id == "1"))
     assert ceiling.room_source_id == "1"
+    assert ceiling.classification == "light"
     assert ceiling.capabilities.reported_kelvin_min == 2000
     assert ceiling.capabilities.reported_kelvin_max == 6536
 
     group = Enum.find(normalized.groups, &(&1.source_id == "2"))
     assert group.type == "zone"
+    assert group.classification == "group_zone"
     assert Enum.any?(normalized.memberships.group_lights, &(&1.group_source_id == "2"))
   end
 
@@ -42,6 +44,7 @@ defmodule Hueworks.Import.NormalizeTest do
 
     light = Enum.find(normalized.lights, &(&1.source_id == "light.office_lamp"))
     assert light.room_source_id == "office"
+    assert light.classification == "light"
     assert light.capabilities.color_temp
     assert light.capabilities.reported_kelvin_min == 2000
     assert light.capabilities.reported_kelvin_max == 6500
@@ -49,6 +52,7 @@ defmodule Hueworks.Import.NormalizeTest do
 
     kitchen = Enum.find(normalized.lights, &(&1.source_id == "light.kitchen_lamp"))
     assert kitchen.room_source_id == "kitchen"
+    assert kitchen.classification == "zha_light"
 
     refute Enum.any?(normalized.lights, &(&1.source_id == "light.office_group"))
     refute Enum.any?(normalized.lights, &(&1.source_id == "light.office_room"))
@@ -61,41 +65,28 @@ defmodule Hueworks.Import.NormalizeTest do
     hue_group = Enum.find(normalized.groups, &(&1.source_id == "light.office_room"))
     assert hue_group.metadata["device_model"] == "Room"
     assert hue_group.metadata["members"] == ["light.office_lamp"]
+    assert hue_group.classification == "hue_group"
 
     zha_group = Enum.find(normalized.groups, &(&1.source_id == "light.zha_group"))
     assert zha_group.metadata["unique_id"] == "light_zha_group_0x0001"
     assert zha_group.metadata["members"] == ["light.office_lamp"]
+    assert zha_group.classification == "zha_group"
 
     zha_group_members = Enum.find(normalized.groups, &(&1.source_id == "light.zha_group_members"))
     assert zha_group_members.metadata["members"] == ["light.office_lamp", "light.kitchen_lamp"]
+    assert zha_group_members.classification == "zha_group"
 
     group = Enum.find(normalized.groups, &(&1.source_id == "light.office_group"))
     assert group.room_source_id == "office"
+    assert group.classification == "ha_group"
     assert Enum.any?(normalized.memberships.group_lights, &(&1.group_source_id == group.source_id))
     assert Enum.any?(normalized.memberships.room_groups, &(&1.group_source_id == group.source_id))
 
     mixed_group = Enum.find(normalized.groups, &(&1.source_id == "light.mixed_group"))
     assert mixed_group.room_source_id == nil
+    assert mixed_group.classification == "ha_group"
 
     refute Enum.any?(normalized.groups, &(&1.source_id == "light.zha_group_missing"))
-  end
-
-  test "normalizes Home Assistant raw data with template filtering options" do
-    raw = load_fixture("ha_raw.json")
-
-    bridge = %Bridge{id: 2, type: :ha, name: "HA", host: "10.0.0.2"}
-    normalized = Normalize.normalize(bridge, raw, %{exclude_template_lights: true})
-
-    refute Enum.any?(normalized.lights, &(&1.source_id == "light.bar_lower_accent_light"))
-
-    template_group =
-      Enum.find(normalized.groups, &(&1.source_id == "light.template_group"))
-
-    assert template_group.metadata["members"] == ["light.office_lamp"]
-
-    assert Enum.all?(normalized.memberships.group_lights, fn membership ->
-             membership.light_source_id != "light.bar_lower_accent_light"
-           end)
   end
 
   test "normalizes Caseta raw data into rooms and lights" do
@@ -111,6 +102,7 @@ defmodule Hueworks.Import.NormalizeTest do
 
     [light] = normalized.lights
     assert light.source_id == "1"
+    assert light.classification == "light"
     assert light.capabilities.brightness
     refute light.capabilities.color
     assert light.identifiers["serial"] == "12345678"

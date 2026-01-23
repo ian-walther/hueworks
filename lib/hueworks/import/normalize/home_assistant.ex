@@ -25,7 +25,6 @@ defmodule Hueworks.Import.Normalize.HomeAssistant do
     zha_groups = Normalize.fetch(raw, :zha_groups) || []
     state_members_by_entity_id = state_members_by_entity_id(light_states)
     zha_members_by_entity_id = zha_members_by_entity_id(zha_groups, lights_raw)
-    exclude_template_lights = Map.get(opts, :exclude_template_lights, false)
 
     rooms =
       Enum.map(areas, fn area ->
@@ -44,9 +43,6 @@ defmodule Hueworks.Import.Normalize.HomeAssistant do
 
     {lights, derived_groups} =
       lights_raw
-      |> Enum.reject(fn light ->
-        exclude_template_lights and Normalize.fetch(light, :platform) == "template"
-      end)
       |> Enum.reduce({[], []}, fn light, {lights_acc, groups_acc} ->
         name =
           Normalize.fetch(light, :name) ||
@@ -68,10 +64,13 @@ defmodule Hueworks.Import.Normalize.HomeAssistant do
             Map.get(state_members_by_entity_id, Normalize.fetch(light, :entity_id)) ||
             Map.get(zha_members_by_entity_id, Normalize.fetch(light, :entity_id))
 
+        classification = ha_light_classification(platform)
+
         base_light = %{
           source: :ha,
           source_id: Normalize.fetch(light, :entity_id),
           name: name,
+          classification: classification,
           room_source_id: room_source_id,
           capabilities: normalize_ha_capabilities(light),
           identifiers: %{
@@ -125,6 +124,7 @@ defmodule Hueworks.Import.Normalize.HomeAssistant do
           source: :ha,
           source_id: Normalize.fetch(group, :entity_id),
           name: Normalize.fetch(group, :name) || Normalize.fetch(group, :entity_id) || "HA Group",
+          classification: "ha_group",
           room_source_id: Normalize.fetch(group, :area_id) || room_source_id,
           type: "group",
           capabilities: capabilities,
@@ -135,22 +135,6 @@ defmodule Hueworks.Import.Normalize.HomeAssistant do
         }
       end)
       |> Kernel.++(derived_groups)
-
-    light_ids = MapSet.new(Enum.map(lights, & &1.source_id))
-
-    groups =
-      groups
-      |> Enum.map(fn group ->
-        members = Normalize.fetch(group, :metadata)["members"] || []
-        filtered_members = Enum.filter(members, &MapSet.member?(light_ids, &1))
-
-        metadata =
-          group
-          |> Normalize.fetch(:metadata)
-          |> Map.put("members", filtered_members)
-
-        Map.put(group, :metadata, metadata)
-      end)
 
     memberships = %{
       room_groups:
@@ -171,7 +155,7 @@ defmodule Hueworks.Import.Normalize.HomeAssistant do
             light_source_id: light.source_id
           }
         end),
-      group_lights: group_lights_from_groups(groups, light_ids)
+      group_lights: group_lights_from_groups(groups)
     }
 
     Normalize.base_normalized(bridge, rooms, groups, lights, memberships)
@@ -235,6 +219,7 @@ defmodule Hueworks.Import.Normalize.HomeAssistant do
       source: :ha,
       source_id: Normalize.fetch(light, :source_id),
       name: Normalize.fetch(light, :name) || "HA Group",
+      classification: group_type,
       room_source_id: Normalize.fetch(light, :room_source_id),
       type: "group",
       capabilities: Normalize.fetch(light, :capabilities) || %{},
@@ -245,17 +230,19 @@ defmodule Hueworks.Import.Normalize.HomeAssistant do
     }
   end
 
-  defp group_lights_from_groups(groups, light_ids) do
+  defp group_lights_from_groups(groups) do
     Enum.flat_map(groups, fn group ->
       members = Normalize.fetch(group, :metadata)["members"] || []
 
-      members
-      |> Enum.filter(fn light_id -> MapSet.member?(light_ids, light_id) end)
-      |> Enum.map(fn light_id ->
+      Enum.map(members, fn light_id ->
         %{group_source_id: group.source_id, light_source_id: light_id}
       end)
     end)
   end
+
+  defp ha_light_classification("template"), do: "template"
+  defp ha_light_classification("zha"), do: "zha_light"
+  defp ha_light_classification(_platform), do: "light"
 
   defp state_members_by_entity_id(light_states) when is_map(light_states) do
     Enum.reduce(light_states, %{}, fn {entity_id, attrs}, acc ->
