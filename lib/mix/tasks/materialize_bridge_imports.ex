@@ -39,7 +39,7 @@ defmodule Mix.Tasks.MaterializeBridgeImports do
     normalized = payload["normalized"] || %{}
 
     with {:ok, bridge} <- find_bridge(bridge_data) do
-      Materialize.apply(bridge, normalized)
+      Materialize.materialize(bridge, normalized)
       Mix.shell().info("Materialized #{path}")
     end
   rescue

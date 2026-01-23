@@ -5,6 +5,12 @@
       "source_id": "office",
       "name": "Office",
       "metadata": {}
+    },
+    {
+      "source": "ha",
+      "source_id": "studio",
+      "name": "Studio",
+      "metadata": {}
     }
   ],
   "lights": [
@@ -26,6 +32,44 @@
       "metadata": {
         "unique_id": "ha-light-1"
       }
+    },
+    {
+      "source": "ha",
+      "source_id": "light.studio_a",
+      "name": "Studio A",
+      "room_source_id": "studio",
+      "capabilities": {
+        "brightness": true,
+        "color": false,
+        "color_temp": false,
+        "reported_kelvin_min": null,
+        "reported_kelvin_max": null
+      },
+      "identifiers": {
+        "mac": "11:22:33:44:55:66"
+      },
+      "metadata": {
+        "unique_id": "ha-light-2"
+      }
+    },
+    {
+      "source": "ha",
+      "source_id": "light.studio_b",
+      "name": "Studio B",
+      "room_source_id": "studio",
+      "capabilities": {
+        "brightness": true,
+        "color": false,
+        "color_temp": false,
+        "reported_kelvin_min": null,
+        "reported_kelvin_max": null
+      },
+      "identifiers": {
+        "mac": "22:33:44:55:66:77"
+      },
+      "metadata": {
+        "unique_id": "ha-light-3"
+      }
     }
   ],
   "groups": [
@@ -41,6 +85,19 @@
       "metadata": {
         "members": ["light.office_lamp"]
       }
+    },
+    {
+      "source": "ha",
+      "source_id": "light.studio_group",
+      "name": "Studio Group",
+      "room_source_id": null,
+      "type": "group",
+      "capabilities": {
+        "brightness": true
+      },
+      "metadata": {
+        "members": ["light.studio_a", "light.studio_b"]
+      }
     }
   ],
   "memberships": {
@@ -48,6 +105,14 @@
       {
         "group_source_id": "light.office_group",
         "light_source_id": "light.office_lamp"
+      },
+      {
+        "group_source_id": "light.studio_group",
+        "light_source_id": "light.studio_a"
+      },
+      {
+        "group_source_id": "light.studio_group",
+        "light_source_id": "light.studio_b"
       }
     ]
   }

@@ -27,10 +27,103 @@
     <p class="hw-error"><%= @import_error %></p>
   <% end %>
 
-  <section class="hw-panel">
-    <div class="hw-panel-header">
-      <h2>Import</h2>
-    </div>
-    <p class="hw-muted">Bridge setup is coming next.</p>
-  </section>
+  <%= if @normalized do %>
+    <section class="hw-panel">
+      <div class="hw-panel-header">
+        <h2>Rooms</h2>
+      </div>
+      <div class="hw-grid">
+        <%= for room <- normalized_entries(@normalized, :rooms) do %>
+          <% room_id = fetch(room, :source_id) %>
+          <div class="hw-row">
+            <div class="hw-row-title"><%= fetch(room, :name) %></div>
+            <div class="hw-row-actions">
+              <select
+                class="hw-select"
+                name="action"
+                phx-change="set_room_action"
+                phx-value-id={room_id}
+              >
+                <option value="create" selected={room_action(@plan, room_id) == "create"}>
+                  Create
+                </option>
+                <option value="merge" selected={room_action(@plan, room_id) == "merge"}>
+                  Merge
+                </option>
+                <option value="skip" selected={room_action(@plan, room_id) == "skip"}>
+                  Skip
+                </option>
+              </select>
+              <%= if room_action(@plan, room_id) == "merge" do %>
+                <select
+                  class="hw-select"
+                  name="target_room_id"
+                  phx-change="set_room_merge"
+                  phx-value-id={room_id}
+                >
+                  <option value="">Select room</option>
+                  <%= for existing <- @rooms do %>
+                    <option value={existing.id} selected={room_merge_target(@plan, room_id) == existing.id}>
+                      <%= existing.name %>
+                    </option>
+                  <% end %>
+                </select>
+              <% end %>
+            </div>
+          </div>
+        <% end %>
+      </div>
+    </section>
+
+    <section class="hw-panel">
+      <div class="hw-panel-header">
+        <h2>Lights</h2>
+      </div>
+      <div class="hw-grid">
+        <%= for light <- normalized_entries(@normalized, :lights) do %>
+          <% light_id = fetch(light, :source_id) %>
+          <label class="hw-row">
+            <input
+              type="checkbox"
+              checked={plan_selected?(@plan, :lights, light_id)}
+              phx-click="toggle_light"
+              phx-value-id={light_id}
+            />
+            <span class="hw-row-title"><%= fetch(light, :name) %></span>
+            <span class="hw-muted">(<%= fetch(light, :classification) %>)</span>
+          </label>
+        <% end %>
+      </div>
+    </section>
+
+    <section class="hw-panel">
+      <div class="hw-panel-header">
+        <h2>Groups</h2>
+      </div>
+      <div class="hw-grid">
+        <%= for group <- normalized_entries(@normalized, :groups) do %>
+          <% group_id = fetch(group, :source_id) %>
+          <label class="hw-row">
+            <input
+              type="checkbox"
+              checked={plan_selected?(@plan, :groups, group_id)}
+              phx-click="toggle_group"
+              phx-value-id={group_id}
+            />
+            <span class="hw-row-title"><%= fetch(group, :name) %></span>
+            <span class="hw-muted">(<%= fetch(group, :classification) %>)</span>
+          </label>
+        <% end %>
+      </div>
+    </section>
+
+    <section class="hw-panel">
+      <div class="hw-panel-header">
+        <h2>Materialize</h2>
+      </div>
+      <button class="hw-button" type="button" phx-click="apply_materialization">
+        Apply Materialization
+      </button>
+    </section>
+  <% end %>
 </div>

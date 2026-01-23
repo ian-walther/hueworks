@@ -6,6 +6,7 @@ defmodule Hueworks.Schemas.BridgeImport do
     belongs_to(:bridge, Hueworks.Schemas.Bridge)
     field(:raw_blob, :map)
     field(:normalized_blob, :map)
+    field(:review_blob, :map)
     field(:status, Ecto.Enum, values: [:fetched, :normalized, :reviewed, :applied])
     field(:imported_at, :utc_datetime)
 
@@ -14,7 +15,7 @@ defmodule Hueworks.Schemas.BridgeImport do
 
   def changeset(import, attrs) do
     import
-    |> cast(attrs, [:bridge_id, :raw_blob, :normalized_blob, :status, :imported_at])
+    |> cast(attrs, [:bridge_id, :raw_blob, :normalized_blob, :review_blob, :status, :imported_at])
     |> validate_required([:bridge_id, :raw_blob, :status, :imported_at])
   end
 end

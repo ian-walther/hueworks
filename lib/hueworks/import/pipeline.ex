@@ -4,33 +4,28 @@ defmodule Hueworks.Import.Pipeline do
   alias Hueworks.Repo
   alias Hueworks.Schemas.Bridge
   alias Hueworks.Schemas.BridgeImport
-  alias Hueworks.Import.{Link, Materialize, Normalize}
+  alias Hueworks.Import.{Normalize, Plan}
 
   def create_import(%Bridge{} = bridge) do
     with {:ok, raw_blob} <- fetch_raw(bridge) do
       normalized_blob = Normalize.normalize(bridge, raw_blob)
 
       Repo.transaction(fn ->
+        plan = Plan.build_default(normalized_blob)
+
         {:ok, bridge_import} =
           %BridgeImport{}
           |> BridgeImport.changeset(%{
             bridge_id: bridge.id,
             raw_blob: raw_blob,
             normalized_blob: normalized_blob,
+            review_blob: plan,
             status: :normalized,
             imported_at: DateTime.utc_now() |> DateTime.truncate(:second)
           })
           |> Repo.insert()
 
-        :ok = Materialize.apply(bridge, normalized_blob)
-        :ok = Link.apply()
-
-        {:ok, updated} =
-          bridge_import
-          |> BridgeImport.changeset(%{status: :applied})
-          |> Repo.update()
-
-        updated
+        bridge_import
       end)
       |> case do
         {:ok, result} -> {:ok, result}

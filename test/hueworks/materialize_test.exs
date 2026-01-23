@@ -50,7 +50,7 @@ defmodule Hueworks.Import.MaterializeTest do
 
     normalized = load_fixture("materialize_ha.json")
 
-    :ok = Materialize.apply(bridge, normalized)
+    :ok = Materialize.materialize(bridge, normalized)
 
     room = Repo.get_by!(Room, name: "Office")
 
@@ -71,6 +71,10 @@ defmodule Hueworks.Import.MaterializeTest do
     assert Repo.get_by(GroupLight, group_id: group.id, light_id: light.id)
     assert Repo.get_by(Light, id: existing_light.id)
     assert Repo.get_by(Group, id: existing_group.id)
+
+    studio = Repo.get_by!(Room, name: "Studio")
+    studio_group = Repo.get_by!(Group, bridge_id: bridge.id, source_id: "light.studio_group")
+    assert studio_group.room_id == studio.id
   end
 
   test "materializes Hue metadata and bridge_host" do
@@ -88,7 +92,7 @@ defmodule Hueworks.Import.MaterializeTest do
 
     normalized = load_fixture("materialize_hue.json")
 
-    :ok = Materialize.apply(bridge, normalized)
+    :ok = Materialize.materialize(bridge, normalized)
 
     light = Repo.get_by!(Light, bridge_id: bridge.id, source_id: "1")
     assert light.metadata["bridge_host"] == "10.0.0.9"

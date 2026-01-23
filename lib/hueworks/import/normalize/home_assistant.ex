@@ -16,7 +16,7 @@ defmodule Hueworks.Import.Normalize.HomeAssistant do
   @color_color_modes ~w(hs rgb rgbw rgbww xy)
   @temp_color_modes ~w(color_temp)
 
-  def normalize(bridge, raw, opts \\ %{}) do
+  def normalize(bridge, raw, _opts \\ %{}) do
     areas = Normalize.fetch(raw, :areas) || []
     device_registry = Normalize.fetch(raw, :device_registry) || []
     lights_raw = Normalize.fetch(raw, :light_entities) || []

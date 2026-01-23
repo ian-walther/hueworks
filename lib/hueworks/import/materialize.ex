@@ -4,48 +4,78 @@ defmodule Hueworks.Import.Materialize do
   import Ecto.Query, only: [from: 2]
 
   alias Hueworks.Repo
+  alias Hueworks.Import.Plan
   alias Hueworks.Schemas.{Group, GroupLight, Light, Room}
 
-  def apply(bridge, normalized) do
+  def materialize(bridge, normalized) do
+    materialize(bridge, normalized, Plan.build_default(normalized))
+  end
+
+  def materialize(bridge, normalized, plan) do
     rooms = fetch(normalized, :rooms) || []
     groups = fetch(normalized, :groups) || []
     lights = fetch(normalized, :lights) || []
     memberships = fetch(normalized, :memberships) || %{}
 
-    room_map = upsert_rooms(rooms)
+    plan_rooms = fetch(plan, :rooms) || %{}
+    plan_lights = fetch(plan, :lights) || %{}
+    plan_groups = fetch(plan, :groups) || %{}
+
+    room_map = upsert_rooms(rooms, plan_rooms)
+    lights = filter_entities(lights, plan_lights)
+    groups = filter_entities(groups, plan_groups)
+    memberships = filter_memberships(memberships, plan_lights, plan_groups)
+
     light_map = upsert_lights(bridge, lights, room_map)
     group_map = upsert_groups(bridge, groups, room_map)
 
     upsert_group_lights(memberships, light_map, group_map)
+    infer_group_rooms(group_map)
 
     :ok
   end
 
-  defp upsert_rooms(rooms) do
+  defp upsert_rooms(rooms, plan_rooms) do
     Enum.reduce(rooms, %{}, fn room, acc ->
       source_id = normalize_source_id(fetch(room, :source_id))
       name = fetch(room, :name) || "Room"
       normalized_name = String.downcase(String.trim(name))
-
-      existing =
-        Repo.one(
-          from(r in Room,
-            where: fragment("lower(?)", r.name) == ^normalized_name
-          )
-        )
+      plan = fetch(plan_rooms, source_id) || %{}
+      action = fetch(plan, :action) || "create"
 
       room_record =
-        case existing do
-          nil ->
-            %Room{}
-            |> Room.changeset(%{name: name, metadata: %{"normalized_name" => normalized_name}})
-            |> Repo.insert!()
+        case action do
+          "skip" ->
+            nil
 
-          room ->
-            room
+          "merge" ->
+            target_room_id = fetch(plan, :target_room_id)
+
+            case normalize_room_target_id(target_room_id) do
+              nil -> nil
+              id -> Repo.get(Room, id)
+            end
+
+          _ ->
+            existing =
+              Repo.one(
+                from(r in Room,
+                  where: fragment("lower(?)", r.name) == ^normalized_name
+                )
+              )
+
+            case existing do
+              nil ->
+                %Room{}
+                |> Room.changeset(%{name: name, metadata: %{"normalized_name" => normalized_name}})
+                |> Repo.insert!()
+
+              room ->
+                room
+            end
         end
 
-      if source_id do
+      if source_id && room_record do
         Map.put(acc, source_id, room_record.id)
       else
         acc
@@ -151,6 +181,92 @@ defmodule Hueworks.Import.Materialize do
         _ -> :ok
       end
     end)
+  end
+
+  defp infer_group_rooms(group_map) do
+    group_ids = Map.values(group_map)
+
+    if group_ids == [] do
+      :ok
+    else
+      Repo.all(
+        from(gl in GroupLight,
+          join: l in Light,
+          on: l.id == gl.light_id,
+          where: gl.group_id in ^group_ids,
+          select: {gl.group_id, l.room_id}
+        )
+      )
+      |> Enum.group_by(fn {group_id, _room_id} -> group_id end, fn {_group_id, room_id} -> room_id end)
+      |> Enum.each(fn {group_id, room_ids} ->
+        rooms =
+          room_ids
+          |> Enum.filter(&is_integer/1)
+          |> Enum.uniq()
+
+        case rooms do
+          [room_id] ->
+            from(g in Group, where: g.id == ^group_id)
+            |> Repo.update_all(set: [room_id: room_id])
+
+          _ ->
+            :ok
+        end
+      end)
+    end
+  end
+
+  defp filter_entities(entities, plan_map) do
+    Enum.filter(entities, fn entity ->
+      source_id = normalize_source_id(fetch(entity, :source_id))
+
+      case fetch(plan_map, source_id) do
+        false -> false
+        true -> true
+        nil -> true
+        _ -> true
+      end
+    end)
+  end
+
+  defp normalize_room_target_id(nil), do: nil
+  defp normalize_room_target_id(id) when is_integer(id), do: id
+
+  defp normalize_room_target_id(id) when is_binary(id) do
+    case Integer.parse(id) do
+      {int, ""} -> int
+      _ -> nil
+    end
+  end
+
+  defp normalize_room_target_id(_id), do: nil
+
+  defp filter_memberships(memberships, plan_lights, plan_groups) do
+    group_lights = fetch(memberships, :group_lights) || []
+
+    filtered =
+      Enum.filter(group_lights, fn membership ->
+        group_id = normalize_source_id(fetch(membership, :group_source_id))
+        light_id = normalize_source_id(fetch(membership, :light_source_id))
+
+        group_ok = plan_selected?(plan_groups, group_id)
+        light_ok = plan_selected?(plan_lights, light_id)
+
+        group_ok and light_ok
+      end)
+
+    Map.put(memberships, :group_lights, filtered)
+  end
+
+  defp plan_selected?(_plan, nil), do: false
+
+  defp plan_selected?(plan, source_id) do
+    case fetch(plan, source_id) do
+      false -> false
+      true -> true
+      nil -> true
+      _ -> true
+    end
   end
 
   defp room_id_for(entry, room_map) do
