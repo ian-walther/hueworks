@@ -11,11 +11,9 @@ defmodule Mix.Tasks.SeedBridges do
       mix seed_bridges
   """
 
-  alias Hueworks.Bridges.Seed
-
   @impl true
   def run(_args) do
     Mix.Task.run("app.start")
-    Seed.seed!()
+    Mix.Task.run("run", ["priv/repo/seeds.exs"])
   end
 end
