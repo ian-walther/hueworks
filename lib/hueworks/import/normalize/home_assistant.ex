@@ -17,12 +17,12 @@ defmodule Hueworks.Import.Normalize.HomeAssistant do
   @temp_color_modes ~w(color_temp)
 
   def normalize(bridge, raw, _opts \\ %{}) do
-    areas = Normalize.fetch(raw, :areas) || []
-    device_registry = Normalize.fetch(raw, :device_registry) || []
-    lights_raw = Normalize.fetch(raw, :light_entities) || []
-    groups_raw = Normalize.fetch(raw, :group_entities) || []
+    areas = Normalize.fetch(raw, :areas) |> Normalize.normalize_list()
+    device_registry = Normalize.fetch(raw, :device_registry) |> Normalize.normalize_list()
+    lights_raw = Normalize.fetch(raw, :light_entities) |> Normalize.normalize_list()
+    groups_raw = Normalize.fetch(raw, :group_entities) |> Normalize.normalize_list()
     light_states = Normalize.fetch(raw, :light_states) || %{}
-    zha_groups = Normalize.fetch(raw, :zha_groups) || []
+    zha_groups = Normalize.fetch(raw, :zha_groups) |> Normalize.normalize_list()
     state_members_by_entity_id = state_members_by_entity_id(light_states)
     zha_members_by_entity_id = zha_members_by_entity_id(zha_groups, lights_raw)
 
@@ -52,7 +52,9 @@ defmodule Hueworks.Import.Normalize.HomeAssistant do
 
         device_area_id =
           Normalize.fetch(light, :device_id)
-          |> then(fn device_id -> if is_binary(device_id), do: Map.get(device_area_by_id, device_id), else: nil end)
+          |> then(fn device_id ->
+            if is_binary(device_id), do: Map.get(device_area_by_id, device_id), else: nil
+          end)
 
         room_source_id = Normalize.fetch(light, :area_id) || device_area_id
 
@@ -63,6 +65,8 @@ defmodule Hueworks.Import.Normalize.HomeAssistant do
           Normalize.fetch(light, :members) ||
             Map.get(state_members_by_entity_id, Normalize.fetch(light, :entity_id)) ||
             Map.get(zha_members_by_entity_id, Normalize.fetch(light, :entity_id))
+
+        members = Normalize.normalize_list(members)
 
         classification = ha_light_classification(platform)
 
@@ -90,6 +94,7 @@ defmodule Hueworks.Import.Normalize.HomeAssistant do
             "device_manufacturer" => Normalize.fetch(device, :manufacturer)
           }
         }
+
         group = maybe_group_from_light(base_light, members)
 
         cond do
@@ -116,7 +121,7 @@ defmodule Hueworks.Import.Normalize.HomeAssistant do
     groups =
       groups_raw
       |> Enum.map(fn group ->
-        members = Normalize.fetch(group, :members) || []
+        members = Normalize.fetch(group, :members) |> Normalize.normalize_list()
         room_source_id = Normalize.shared_room_for_members(members, light_room_by_id)
         capabilities = Normalize.aggregate_capabilities(members, light_capabilities_by_id)
 
@@ -169,7 +174,8 @@ defmodule Hueworks.Import.Normalize.HomeAssistant do
       cond do
         is_number(Normalize.fetch(temp_range, :min_kelvin)) and
             is_number(Normalize.fetch(temp_range, :max_kelvin)) ->
-          {round(Normalize.fetch(temp_range, :min_kelvin)), round(Normalize.fetch(temp_range, :max_kelvin))}
+          {round(Normalize.fetch(temp_range, :min_kelvin)),
+           round(Normalize.fetch(temp_range, :max_kelvin))}
 
         is_number(Normalize.fetch(temp_range, :min_mireds)) and
             is_number(Normalize.fetch(temp_range, :max_mireds)) ->
@@ -195,7 +201,7 @@ defmodule Hueworks.Import.Normalize.HomeAssistant do
     device_model = Normalize.fetch(metadata, :device_model)
     unique_id = Normalize.fetch(metadata, :unique_id)
     source = Normalize.fetch(light, :source)
-    members_list = if is_list(members), do: members, else: []
+    members_list = Normalize.normalize_list(members)
 
     cond do
       source != :ha ->
@@ -204,7 +210,8 @@ defmodule Hueworks.Import.Normalize.HomeAssistant do
       platform == "hue" and device_model in ["Room", "Zone"] and members_list != [] ->
         build_group_from_light(light, members_list, "hue_group")
 
-      platform == "zha" and is_binary(unique_id) and String.starts_with?(unique_id, "light_zha_group_") ->
+      platform == "zha" and is_binary(unique_id) and
+          String.starts_with?(unique_id, "light_zha_group_") ->
         build_group_from_light(light, members_list, "zha_group")
 
       true ->
@@ -232,7 +239,8 @@ defmodule Hueworks.Import.Normalize.HomeAssistant do
 
   defp group_lights_from_groups(groups) do
     Enum.flat_map(groups, fn group ->
-      members = Normalize.fetch(group, :metadata)["members"] || []
+      metadata = Normalize.fetch(group, :metadata) || %{}
+      members = Map.get(metadata, "members") |> Normalize.normalize_list()
 
       Enum.map(members, fn light_id ->
         %{group_source_id: group.source_id, light_source_id: light_id}
@@ -344,7 +352,7 @@ defmodule Hueworks.Import.Normalize.HomeAssistant do
   end
 
   defp zha_member_entities(group, entity_by_ieee) do
-    members = Normalize.fetch(group, :members) || []
+    members = Normalize.fetch(group, :members) |> Normalize.normalize_list()
 
     members
     |> Enum.flat_map(fn member ->

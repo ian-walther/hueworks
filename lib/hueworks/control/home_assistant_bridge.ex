@@ -1,6 +1,7 @@
 defmodule Hueworks.Control.HomeAssistantBridge do
   @moduledoc false
 
+  alias Hueworks.HomeAssistant.Host
   alias Hueworks.Repo
   alias Hueworks.Schemas.Bridge
 
@@ -13,7 +14,7 @@ defmodule Hueworks.Control.HomeAssistantBridge do
         token = bridge.credentials["token"]
 
         if is_binary(token) and token != "" do
-          {:ok, normalize_host(bridge.host), token}
+          {:ok, Host.normalize(bridge.host), token}
         else
           {:error, :missing_token}
         end
@@ -22,13 +23,5 @@ defmodule Hueworks.Control.HomeAssistantBridge do
 
   def credentials_for(_entity), do: {:error, :missing_bridge_id}
 
-  defp normalize_host(host) when is_binary(host) do
-    if String.contains?(host, ":") do
-      host
-    else
-      "#{host}:8123"
-    end
-  end
-
-  defp normalize_host(_host), do: "127.0.0.1:8123"
+ 
 end

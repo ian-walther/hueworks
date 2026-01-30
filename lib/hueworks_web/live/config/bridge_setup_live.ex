@@ -4,7 +4,8 @@ defmodule HueworksWeb.BridgeSetupLive do
   alias Hueworks.Repo
   alias Hueworks.Schemas.Bridge
   alias Hueworks.Schemas.Room
-  alias Hueworks.Import.{Materialize, Pipeline, Plan, Link}
+  alias Hueworks.Import.{Materialize, Pipeline, Plan, Normalize, Link}
+  import Hueworks.Import.Normalize, only: [fetch: 2]
 
   def mount(%{"id" => id}, _session, socket) do
     bridge = Repo.get!(Bridge, id)
@@ -84,7 +85,7 @@ defmodule HueworksWeb.BridgeSetupLive do
 
   defp update_plan(socket, type, source_id) do
     plan = socket.assigns.plan || %{}
-    map = fetch(plan, type) || %{}
+    map = Normalize.fetch(plan, type) || %{}
     current = Map.get(map, source_id, true)
     updated = Map.put(map, source_id, !current)
     assign(socket, plan: Map.put(plan, Atom.to_string(type), updated))
@@ -92,7 +93,7 @@ defmodule HueworksWeb.BridgeSetupLive do
 
   defp put_room_plan(plan, source_id, attrs) do
     plan = plan || %{}
-    rooms = fetch(plan, :rooms) || %{}
+    rooms = Normalize.fetch(plan, :rooms) || %{}
     current = Map.get(rooms, source_id, %{})
     updated = Map.merge(current, attrs)
     Map.put(plan, "rooms", Map.put(rooms, source_id, updated))
@@ -118,18 +119,12 @@ defmodule HueworksWeb.BridgeSetupLive do
     |> Repo.update()
   end
 
-  defp fetch(map, key) when is_map(map) do
-    Map.get(map, key) || Map.get(map, Atom.to_string(key))
-  end
-
-  defp fetch(_map, _key), do: nil
-
   defp normalized_entries(normalized, key) do
-    fetch(normalized, key) || []
+    Normalize.fetch(normalized, key) || []
   end
 
   defp plan_selected?(plan, key, source_id) do
-    map = fetch(plan, key) || %{}
+    map = Normalize.fetch(plan, key) || %{}
     case Map.get(map, source_id, true) do
       false -> false
       _ -> true
@@ -137,9 +132,9 @@ defmodule HueworksWeb.BridgeSetupLive do
   end
 
   defp room_action(plan, source_id) do
-    rooms = fetch(plan, :rooms) || %{}
+    rooms = Normalize.fetch(plan, :rooms) || %{}
     Map.get(rooms, source_id, %{})
-    |> fetch(:action)
+    |> Normalize.fetch(:action)
     |> case do
       nil -> "create"
       value -> value
@@ -147,8 +142,8 @@ defmodule HueworksWeb.BridgeSetupLive do
   end
 
   defp room_merge_target(plan, source_id) do
-    rooms = fetch(plan, :rooms) || %{}
+    rooms = Normalize.fetch(plan, :rooms) || %{}
     Map.get(rooms, source_id, %{})
-    |> fetch(:target_room_id)
+    |> Normalize.fetch(:target_room_id)
   end
 end

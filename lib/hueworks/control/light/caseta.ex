@@ -2,6 +2,7 @@ defmodule Hueworks.Control.Light.Caseta do
   @moduledoc false
 
   alias Hueworks.Control.{CasetaBridge, CasetaClient}
+  alias Hueworks.Util
 
   def handle(light, action) do
     with {:ok, host, ssl_opts} <- CasetaBridge.connection_for(light),
@@ -24,7 +25,7 @@ defmodule Hueworks.Control.Light.Caseta do
 
   defp action_payload({:brightness, level}, light) do
     if supports_level?(light) do
-      build_command(light.source_id, "GoToLevel", %{"Level" => clamp(round(level), 0, 100)})
+      build_command(light.source_id, "GoToLevel", %{"Level" => Util.clamp(round(level), 0, 100)})
     else
       if level <= 0 do
         action_payload(:off, light)
@@ -52,9 +53,6 @@ defmodule Hueworks.Control.Light.Caseta do
     }
   end
 
-  defp clamp(value, min, max) when is_number(value) do
-    value |> max(min) |> min(max)
-  end
 
   defp supports_level?(%{metadata: %{"type" => type}}) when is_binary(type) do
     not String.contains?(String.downcase(type), "switch")

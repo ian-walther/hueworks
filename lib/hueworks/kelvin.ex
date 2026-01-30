@@ -3,6 +3,8 @@ defmodule Hueworks.Kelvin do
   Kelvin mapping helpers for translating between reported and actual ranges.
   """
 
+  alias Hueworks.Util
+
   def mapping_supported?(entity) do
     source = get_field(entity, :source)
     source == :ha or source == "ha"
@@ -58,7 +60,7 @@ defmodule Hueworks.Kelvin do
               is_number(to_max) and from_max > from_min and to_max > to_min do
     ratio = (value - from_min) / (from_max - from_min)
     mapped = to_min + ratio * (to_max - to_min)
-    round(clamp(mapped, to_min, to_max))
+    round(Util.clamp(mapped, to_min, to_max))
   end
 
   defp map_between_ranges(value, _from_range, _to_range), do: value
@@ -112,7 +114,4 @@ defmodule Hueworks.Kelvin do
     get_field(entity, :extended_kelvin_range) == true
   end
 
-  defp clamp(value, min, max) when is_number(value) do
-    value |> max(min) |> min(max)
-  end
 end

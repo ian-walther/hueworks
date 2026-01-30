@@ -16,6 +16,7 @@ defmodule Hueworks.Import.Normalize do
       :caseta -> Hueworks.Import.Normalize.Caseta.normalize(bridge, raw_blob, opts)
     end
   end
+
   def base_normalized(bridge, rooms, groups, lights, memberships) do
     %{
       schema_version: @schema_version,
@@ -135,10 +136,31 @@ defmodule Hueworks.Import.Normalize do
   def mired_to_kelvin(_mired), do: nil
 
   def fetch(map, key) when is_map(map) do
-    Map.get(map, key) || Map.get(map, Atom.to_string(key))
+    case Map.fetch(map, key) do
+      {:ok, value} ->
+        value
+
+      :error ->
+        if is_atom(key) do
+          Map.get(map, Atom.to_string(key))
+        else
+          nil
+        end
+    end
   end
 
   def fetch(_map, _key), do: nil
+
+  def normalize_list(value) when is_list(value), do: value
+  def normalize_list(_value), do: []
+
+  def normalize_map(value) when is_map(value), do: value
+  def normalize_map(_value), do: %{}
+
+  def normalize_source_id(id) when is_binary(id), do: id
+  def normalize_source_id(id) when is_integer(id), do: Integer.to_string(id)
+  def normalize_source_id(id) when is_float(id), do: Float.to_string(id)
+  def normalize_source_id(_id), do: nil
 
   def extract_device_connection(light, type) do
     device = fetch(light, :device) || %{}

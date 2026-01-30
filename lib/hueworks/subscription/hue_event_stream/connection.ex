@@ -26,7 +26,8 @@ defmodule Hueworks.Subscription.HueEventStream.Connection do
       lights_by_id: lights_by_id,
       groups_by_id: groups_by_id,
       group_light_ids: group_light_ids,
-      group_lights: group_lights
+      group_lights: group_lights,
+      last_refresh_at: 0
     }
 
     send(self(), :connect)
@@ -82,6 +83,7 @@ defmodule Hueworks.Subscription.HueEventStream.Connection do
   @impl true
   def handle_info(%HTTPoison.AsyncChunk{id: ref, chunk: chunk}, %{ref: ref} = state) do
     {resources, rest} = Parser.consume(state.buffer, chunk)
+    state = maybe_refresh_indexes(state, resources)
     Enum.each(resources, &Mapper.handle_resource(&1, state))
     HTTPoison.stream_next(state.async_response)
     {:noreply, %{state | buffer: rest}}
@@ -107,5 +109,30 @@ defmodule Hueworks.Subscription.HueEventStream.Connection do
 
   defp schedule_reconnect do
     Process.send_after(self(), :connect, 2_000)
+  end
+
+  defp maybe_refresh_indexes(state, resources) do
+    if Mapper.needs_refresh?(resources, state) do
+      now = System.monotonic_time(:millisecond)
+
+      if now - state.last_refresh_at > 2_000 do
+        lights_by_id = Indexes.lights_by_source_id(state.bridge.id, :hue)
+        groups_by_id = Indexes.groups_by_source_id(state.bridge.id, :hue)
+        {group_light_ids, group_lights} = Mapper.load_group_maps(state.bridge.id)
+
+        %{
+          state
+          | lights_by_id: lights_by_id,
+            groups_by_id: groups_by_id,
+            group_light_ids: group_light_ids,
+            group_lights: group_lights,
+            last_refresh_at: now
+        }
+      else
+        state
+      end
+    else
+      state
+    end
   end
 end

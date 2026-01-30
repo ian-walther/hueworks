@@ -2,6 +2,7 @@ defmodule Hueworks.Control.Light.Hue do
   @moduledoc false
 
   alias Hueworks.Control.{HueBridge, HueClient}
+  alias Hueworks.Util
 
   def handle(light, action) do
     with {:ok, host, api_key} <- HueBridge.credentials_for(light),
@@ -32,29 +33,26 @@ defmodule Hueworks.Control.Light.Hue do
 
   defp percent_to_bri(level) do
     level
-    |> clamp(1, 100)
+    |> Util.clamp(1, 100)
     |> then(fn pct -> round(pct / 100 * 254) end)
   end
 
   defp kelvin_to_mired(kelvin) do
     kelvin
-    |> clamp(1000, 6500)
+    |> Util.clamp(1000, 6500)
     |> then(fn k -> round(1_000_000 / k) end)
   end
 
   defp hue_to_hue(hue) do
     hue
-    |> clamp(0, 360)
+    |> Util.clamp(0, 360)
     |> then(fn h -> round(h / 360 * 65_535) end)
   end
 
   defp sat_to_sat(sat) do
     sat
-    |> clamp(0, 100)
+    |> Util.clamp(0, 100)
     |> then(fn s -> round(s / 100 * 254) end)
   end
 
-  defp clamp(value, min, max) when is_number(value) do
-    value |> max(min) |> min(max)
-  end
 end

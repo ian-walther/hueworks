@@ -7,6 +7,8 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.Connection do
 
   import Ecto.Query, only: [from: 2]
 
+  alias Hueworks.HomeAssistant.Host
+  alias Hueworks.Util
   alias Hueworks.Control.State
   alias Hueworks.Kelvin
   alias Hueworks.Repo
@@ -14,7 +16,7 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.Connection do
   alias Hueworks.Schemas.Light
 
   def start_link(bridge) do
-    url = "ws://#{normalize_host(bridge.host)}/api/websocket"
+    url = "ws://#{Host.normalize(bridge.host)}/api/websocket"
     token = bridge.credentials["token"]
 
     if invalid_credential?(token) do
@@ -122,7 +124,7 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.Connection do
 
   defp maybe_put_brightness(acc, brightness) when is_number(brightness) do
     percent = round(brightness / 255 * 100)
-    Map.put(acc, :brightness, clamp(percent, 1, 100))
+    Map.put(acc, :brightness, Util.clamp(percent, 1, 100))
   end
 
   defp maybe_put_brightness(acc, _), do: acc
@@ -144,9 +146,6 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.Connection do
 
   defp maybe_put_kelvin(acc, _attrs, _entity), do: acc
 
-  defp clamp(value, min, max) when is_number(value) do
-    value |> max(min) |> min(max)
-  end
 
   defp load_lights(bridge_id) do
     Repo.all(
@@ -190,16 +189,6 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.Connection do
   defp next_id(state) do
     {state.next_id, %{state | next_id: state.next_id + 1}}
   end
-
-  defp normalize_host(host) when is_binary(host) do
-    if String.contains?(host, ":") do
-      host
-    else
-      "#{host}:8123"
-    end
-  end
-
-  defp normalize_host(_host), do: "127.0.0.1:8123"
 
   defp invalid_credential?(value) do
     not is_binary(value) or value == "" or value == "CHANGE_ME"

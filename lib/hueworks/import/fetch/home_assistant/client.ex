@@ -3,12 +3,14 @@ defmodule Hueworks.Import.Fetch.HomeAssistant.Client do
 
   use WebSockex
 
+  alias Hueworks.HomeAssistant.Host
+
   require Logger
 
   @default_state %{token: nil, authenticated: false, next_id: 1, pending: %{}, queue: []}
 
   def connect(host, token) do
-    url = "ws://#{normalize_host(host)}/api/websocket"
+    url = "ws://#{Host.normalize(host)}/api/websocket"
     state = %{@default_state | token: token}
     WebSockex.start_link(url, __MODULE__, state)
   end
@@ -102,16 +104,6 @@ defmodule Hueworks.Import.Fetch.HomeAssistant.Client do
   defp result_from_payload(%{"success" => true, "result" => result}), do: {:ok, result}
   defp result_from_payload(%{"success" => false, "error" => error}), do: {:error, error}
   defp result_from_payload(_payload), do: {:error, :invalid_response}
-
-  defp normalize_host(host) when is_binary(host) do
-    if String.contains?(host, ":") do
-      host
-    else
-      "#{host}:8123"
-    end
-  end
-
-  defp normalize_host(_host), do: "127.0.0.1:8123"
 
   defp normalize_state(state) when is_map(state) do
     Map.merge(@default_state, state)

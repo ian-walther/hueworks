@@ -15,115 +15,22 @@
 ### 1. Test Coverage to 80%+ (HIGH PRIORITY) — [planning/test-coverage.md](planning/test-coverage.md)
 **Status:** ~25% coverage, need comprehensive testing before building more features
 
-- [ ] **Schema validation unit tests**
-  - [ ] Light changeset validations (self-referential canonical_light, kelvin ranges)
-  - [ ] Group changeset validations
-  - [ ] Bridge changeset validations
-  - [ ] Room changeset validations
-  - [ ] Scene and SceneComponent changesets
-  - [ ] All unique constraints tested
-  - [ ] All Ecto relationship validations tested
-
-- [ ] **Context module tests** (currently missing entirely)
-  - [ ] `Hueworks.Lights` - list, get, update operations
-  - [ ] `Hueworks.Groups` - group management
-  - [ ] `Hueworks.Rooms` - room operations
-  - [ ] `Hueworks.Scenes` - scene CRUD
-  - [ ] Error cases and edge conditions
-
-- [ ] **Control layer integration tests** (critical for core value prop)
-  - [ ] Group command batching by bridge
-  - [ ] Parallel execution across bridges
-  - [ ] Partial failure handling
-  - [ ] Bridge offline scenarios
-  - [ ] Command timing verification (measure popcorning prevention)
-
-- [ ] **Import pipeline edge cases**
-  - [ ] Malformed JSON handling
-  - [ ] Bridge timeout scenarios
-  - [ ] Duplicate entity handling
-  - [ ] Missing required fields
-  - [ ] Re-import/resync behavior
+- See [planning/test-coverage.md](planning/test-coverage.md) for detailed test tasks.
 
 ### 2. Implement Core Control Functionality (HIGH PRIORITY) — [planning/control-batching.md](planning/control-batching.md)
 **Status:** Control layer exists but clients are stubs returning `:ok`
 
-- [ ] **Error handling infrastructure**
-  - [ ] Define error types (`:bridge_offline`, `:network_error`, `:invalid_state`, etc.)
-  - [ ] Consistent error return pattern across control modules
-  - [ ] Error logging and telemetry hooks
-  - [ ] User-friendly error messages
-
-- [ ] **Hue control implementation**
-  - [ ] Replace `HueClient` stubs with actual HTTP calls
-  - [ ] Rate limiting awareness
-  - [ ] Retry logic with exponential backoff
-  - [ ] Group command optimization (single API call per group)
-  - [ ] Integration tests with mock HTTP
-
-- [ ] **Caseta control implementation**
-  - [ ] Replace `CasetaClient` stubs with LEAP protocol
-  - [ ] Connection management
-  - [ ] Command queuing for reliability
-  - [ ] Integration tests with mock SSL socket
-
-- [ ] **Group command batching** (CORE VALUE PROPOSITION)
-  - [ ] Detect lights on same bridge within group
-  - [ ] Batch commands into single bridge API call
-  - [ ] Parallel execution across different bridges
-  - [ ] Timing coordination to prevent visible delay
-  - [ ] Performance testing with 50+ lights
-  - [ ] Document batching strategy in code
-
-- [ ] **State synchronization foundation**
-  - [ ] Poll bridge state on interval
-  - [ ] Update database with physical state
-  - [ ] Publish state changes via PubSub for LiveView
-  - [ ] Handle bridge offline gracefully
-  - [ ] Separate desired state from actual state (future enhancement)
+- See [planning/control-batching.md](planning/control-batching.md) for detailed tasks.
 
 ### 3. Bridge Configuration Wizard UI (CURRENT FOCUS) — [planning/import-review-ui.md](planning/import-review-ui.md)
 **Status:** Import pipeline works via CLI, needs user-friendly UI
 
-- [ ] **Bridge addition wizard**
-  - [ ] Step 1: Bridge type selection (Hue, Caseta, HA)
-  - [ ] Step 2: Credential entry form
-  - [ ] Step 3: Connection test with feedback
-  - [ ] Step 4: Review import plan before execution
-  - [ ] Step 5: Import execution with progress indicator
-  - [ ] Step 6: Results review (success/warnings/errors)
-
-- [ ] **Import review workflow**
-  - [ ] Display normalized entities before materialization
-  - [ ] Show room assignments with confidence indicators
-  - [ ] Allow override/manual assignment
-  - [ ] Highlight duplicates/conflicts
-  - [ ] Accept/decline individual entities
-
-- [ ] **Bridge management UI**
-  - [ ] List all configured bridges with status
-  - [ ] Edit bridge credentials
-  - [ ] Re-test connection
-  - [ ] Trigger re-import/resync
-  - [ ] Delete bridge with cascade warning
+- See [planning/import-review-ui.md](planning/import-review-ui.md) for detailed tasks.
 
 ### 4. Database Performance & Integrity (MEDIUM PRIORITY) — [planning/db-integrity.md](planning/db-integrity.md)
 **Status:** Schema is functional but missing critical indices
 
-- [ ] **Add database indices**
-  - [ ] `CREATE INDEX lights_canonical_light_id ON lights(canonical_light_id)`
-  - [ ] `CREATE INDEX lights_room_id ON lights(room_id)`
-  - [ ] `CREATE INDEX lights_bridge_id ON lights(bridge_id)`
-  - [ ] `CREATE INDEX groups_bridge_id_source_id ON groups(bridge_id, source_id)`
-  - [ ] `CREATE INDEX group_lights_group_id ON group_lights(group_id)`
-  - [ ] `CREATE INDEX group_lights_light_id ON group_lights(light_id)`
-  - [ ] Document index strategy in migration comments
-
-- [ ] **Schema refinement**
-  - [ ] Review metadata usage - promote frequently-queried fields to columns
-  - [ ] Centralize `source` enum definition (currently scattered)
-  - [ ] Add database-level foreign key constraints
-  - [ ] Consider cascade delete vs soft delete strategy
+- See [planning/db-integrity.md](planning/db-integrity.md) for detailed tasks.
 
 ---
 
@@ -191,12 +98,7 @@
 
 ### Import & Sync Improvements — [planning/import-resync.md](planning/import-resync.md)
 
-- [ ] **Re-import/Resync functionality**
-  - [ ] Detect newly added lights on bridges
-  - [ ] Detect removed lights
-  - [ ] Preserve user customizations (display_name, room_id, enabled)
-  - [ ] Upsert strategy with conflict resolution
-  - [ ] Track import history for audit trail
+- See [planning/import-resync.md](planning/import-resync.md) for detailed tasks.
 
 - [ ] **Bridge credential management**
   - [ ] Update IP address without re-import

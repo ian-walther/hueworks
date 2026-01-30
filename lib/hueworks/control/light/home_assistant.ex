@@ -2,6 +2,7 @@ defmodule Hueworks.Control.Light.HomeAssistant do
   @moduledoc false
 
   alias Hueworks.Control.{HomeAssistantBridge, HomeAssistantClient}
+  alias Hueworks.Util
   alias Hueworks.Kelvin
 
   def handle(light, action) do
@@ -40,13 +41,10 @@ defmodule Hueworks.Control.Light.HomeAssistant do
 
   defp percent_to_brightness(level) do
     level
-    |> clamp(1, 100)
+    |> Util.clamp(1, 100)
     |> then(fn pct -> round(pct / 100 * 255) end)
   end
 
-  defp clamp(value, min, max) when is_number(value) do
-    value |> max(min) |> min(max)
-  end
 
   defp extended_xy(kelvin) do
     k_fake = kelvin |> min(2700) |> max(2000)

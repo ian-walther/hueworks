@@ -1,8 +1,10 @@
 defmodule Hueworks.ConnectionTest.HomeAssistant do
   @moduledoc false
 
+  alias Hueworks.HomeAssistant.Host
+
   def test(host, token) do
-    url = "http://#{normalize_host(host)}/api/config"
+    url = "http://#{Host.normalize(host)}/api/config"
     headers = [{"Authorization", "Bearer #{token}"}]
 
     case HTTPoison.get(url, headers, recv_timeout: 5_000) do
@@ -20,13 +22,4 @@ defmodule Hueworks.ConnectionTest.HomeAssistant do
     end
   end
 
-  defp normalize_host(host) when is_binary(host) do
-    if String.contains?(host, ":") do
-      host
-    else
-      "#{host}:8123"
-    end
-  end
-
-  defp normalize_host(_host), do: "127.0.0.1:8123"
 end

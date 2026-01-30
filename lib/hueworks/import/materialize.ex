@@ -4,7 +4,7 @@ defmodule Hueworks.Import.Materialize do
   import Ecto.Query, only: [from: 2]
 
   alias Hueworks.Repo
-  alias Hueworks.Import.Plan
+  alias Hueworks.Import.{Normalize, Plan}
   alias Hueworks.Schemas.{Group, GroupLight, Light, Room}
 
   def materialize(bridge, normalized) do
@@ -12,14 +12,14 @@ defmodule Hueworks.Import.Materialize do
   end
 
   def materialize(bridge, normalized, plan) do
-    rooms = fetch(normalized, :rooms) || []
-    groups = fetch(normalized, :groups) || []
-    lights = fetch(normalized, :lights) || []
-    memberships = fetch(normalized, :memberships) || %{}
+    rooms = Normalize.fetch(normalized, :rooms) || []
+    groups = Normalize.fetch(normalized, :groups) || []
+    lights = Normalize.fetch(normalized, :lights) || []
+    memberships = Normalize.fetch(normalized, :memberships) || %{}
 
-    plan_rooms = fetch(plan, :rooms) || %{}
-    plan_lights = fetch(plan, :lights) || %{}
-    plan_groups = fetch(plan, :groups) || %{}
+    plan_rooms = Normalize.fetch(plan, :rooms) || %{}
+    plan_lights = Normalize.fetch(plan, :lights) || %{}
+    plan_groups = Normalize.fetch(plan, :groups) || %{}
 
     room_map = upsert_rooms(rooms, plan_rooms)
     lights = filter_entities(lights, plan_lights)
@@ -37,42 +37,47 @@ defmodule Hueworks.Import.Materialize do
 
   defp upsert_rooms(rooms, plan_rooms) do
     Enum.reduce(rooms, %{}, fn room, acc ->
-      source_id = normalize_source_id(fetch(room, :source_id))
-      name = fetch(room, :name) || "Room"
+      source_id = Normalize.normalize_source_id(Normalize.fetch(room, :source_id))
+      name = Normalize.fetch(room, :name) || "Room"
       normalized_name = String.downcase(String.trim(name))
-      plan = fetch(plan_rooms, source_id) || %{}
-      action = fetch(plan, :action) || "create"
+      plan = Normalize.fetch(plan_rooms, source_id) || %{}
+      action = Normalize.fetch(plan, :action) || "create"
 
       room_record =
-        case action do
-          "skip" ->
-            nil
+        if is_binary(source_id) do
+          case action do
+            "skip" ->
+              nil
 
-          "merge" ->
-            target_room_id = fetch(plan, :target_room_id)
+            "merge" ->
+              target_room_id = Normalize.fetch(plan, :target_room_id)
 
-            case normalize_room_target_id(target_room_id) do
-              nil -> nil
-              id -> Repo.get(Room, id)
-            end
+              case normalize_room_target_id(target_room_id) do
+                nil -> nil
+                id -> Repo.get(Room, id)
+              end
 
-          _ ->
-            existing =
-              Repo.one(
-                from(r in Room,
-                  where: fragment("lower(?)", r.name) == ^normalized_name
+            _ ->
+              existing =
+                Repo.one(
+                  from(r in Room,
+                    where: fragment("lower(?)", r.name) == ^normalized_name
+                  )
                 )
-              )
 
-            case existing do
-              nil ->
-                %Room{}
-                |> Room.changeset(%{name: name, metadata: %{"normalized_name" => normalized_name}})
-                |> Repo.insert!()
+              case existing do
+                nil ->
+                  %Room{}
+                  |> Room.changeset(%{
+                    name: name,
+                    metadata: %{"normalized_name" => normalized_name}
+                  })
+                  |> Repo.insert!()
 
-              room ->
-                room
-            end
+                room ->
+                  room
+              end
+          end
         end
 
       if source_id && room_record do
@@ -87,35 +92,38 @@ defmodule Hueworks.Import.Materialize do
     bridge_id = bridge.id
 
     Enum.reduce(lights, %{}, fn light, acc ->
-      source_id = normalize_source_id(fetch(light, :source_id))
+      source_id = Normalize.normalize_source_id(Normalize.fetch(light, :source_id))
 
-      attrs = %{
-        name: fetch(light, :name) || "Light",
-        source: normalize_source(fetch(light, :source)),
-        source_id: source_id,
-        bridge_id: bridge_id,
-        room_id: room_id_for(light, room_map),
-        supports_color: !!fetch(fetch(light, :capabilities) || %{}, :color),
-        supports_temp: !!fetch(fetch(light, :capabilities) || %{}, :color_temp),
-        reported_min_kelvin: fetch(fetch(light, :capabilities) || %{}, :reported_kelvin_min),
-        reported_max_kelvin: fetch(fetch(light, :capabilities) || %{}, :reported_kelvin_max),
-        metadata: light_metadata(light, bridge.host)
-      }
+      if is_binary(source_id) do
+        attrs = %{
+          name: Normalize.fetch(light, :name) || "Light",
+          source: normalize_source(Normalize.fetch(light, :source)),
+          source_id: source_id,
+          bridge_id: bridge_id,
+          room_id: room_id_for(light, room_map),
+          supports_color: !!Normalize.fetch(Normalize.fetch(light, :capabilities) || %{}, :color),
+          supports_temp:
+            !!Normalize.fetch(Normalize.fetch(light, :capabilities) || %{}, :color_temp),
+          reported_min_kelvin:
+            Normalize.fetch(Normalize.fetch(light, :capabilities) || %{}, :reported_kelvin_min),
+          reported_max_kelvin:
+            Normalize.fetch(Normalize.fetch(light, :capabilities) || %{}, :reported_kelvin_max),
+          metadata: light_metadata(light, bridge.host)
+        }
 
-      record =
-        case Repo.get_by(Light, bridge_id: bridge_id, source_id: source_id) do
-          nil ->
-            %Light{}
-            |> Light.changeset(attrs)
-            |> Repo.insert!()
+        record =
+          case Repo.get_by(Light, bridge_id: bridge_id, source_id: source_id) do
+            nil ->
+              %Light{}
+              |> Light.changeset(attrs)
+              |> Repo.insert!()
 
-          existing ->
-            existing
-            |> Light.changeset(attrs)
-            |> Repo.update!()
-        end
+            existing ->
+              existing
+              |> Light.changeset(attrs)
+              |> Repo.update!()
+          end
 
-      if source_id do
         Map.put(acc, source_id, record.id)
       else
         acc
@@ -127,35 +135,38 @@ defmodule Hueworks.Import.Materialize do
     bridge_id = bridge.id
 
     Enum.reduce(groups, %{}, fn group, acc ->
-      source_id = normalize_source_id(fetch(group, :source_id))
+      source_id = Normalize.normalize_source_id(Normalize.fetch(group, :source_id))
 
-      attrs = %{
-        name: fetch(group, :name) || "Group",
-        source: normalize_source(fetch(group, :source)),
-        source_id: source_id,
-        bridge_id: bridge_id,
-        room_id: room_id_for(group, room_map),
-        supports_color: !!fetch(fetch(group, :capabilities) || %{}, :color),
-        supports_temp: !!fetch(fetch(group, :capabilities) || %{}, :color_temp),
-        reported_min_kelvin: fetch(fetch(group, :capabilities) || %{}, :reported_kelvin_min),
-        reported_max_kelvin: fetch(fetch(group, :capabilities) || %{}, :reported_kelvin_max),
-        metadata: group_metadata(group, bridge.host)
-      }
+      if is_binary(source_id) do
+        attrs = %{
+          name: Normalize.fetch(group, :name) || "Group",
+          source: normalize_source(Normalize.fetch(group, :source)),
+          source_id: source_id,
+          bridge_id: bridge_id,
+          room_id: room_id_for(group, room_map),
+          supports_color: !!Normalize.fetch(Normalize.fetch(group, :capabilities) || %{}, :color),
+          supports_temp:
+            !!Normalize.fetch(Normalize.fetch(group, :capabilities) || %{}, :color_temp),
+          reported_min_kelvin:
+            Normalize.fetch(Normalize.fetch(group, :capabilities) || %{}, :reported_kelvin_min),
+          reported_max_kelvin:
+            Normalize.fetch(Normalize.fetch(group, :capabilities) || %{}, :reported_kelvin_max),
+          metadata: group_metadata(group, bridge.host)
+        }
 
-      record =
-        case Repo.get_by(Group, bridge_id: bridge_id, source_id: source_id) do
-          nil ->
-            %Group{}
-            |> Group.changeset(attrs)
-            |> Repo.insert!()
+        record =
+          case Repo.get_by(Group, bridge_id: bridge_id, source_id: source_id) do
+            nil ->
+              %Group{}
+              |> Group.changeset(attrs)
+              |> Repo.insert!()
 
-          existing ->
-            existing
-            |> Group.changeset(attrs)
-            |> Repo.update!()
-        end
+            existing ->
+              existing
+              |> Group.changeset(attrs)
+              |> Repo.update!()
+          end
 
-      if source_id do
         Map.put(acc, source_id, record.id)
       else
         acc
@@ -164,11 +175,11 @@ defmodule Hueworks.Import.Materialize do
   end
 
   defp upsert_group_lights(memberships, light_map, group_map) do
-    group_lights = fetch(memberships, :group_lights) || []
+    group_lights = Normalize.fetch(memberships, :group_lights) || []
 
     Enum.each(group_lights, fn member ->
-      group_id = normalize_source_id(fetch(member, :group_source_id))
-      light_id = normalize_source_id(fetch(member, :light_source_id))
+      group_id = Normalize.normalize_source_id(Normalize.fetch(member, :group_source_id))
+      light_id = Normalize.normalize_source_id(Normalize.fetch(member, :light_source_id))
 
       with true <- is_binary(group_id),
            true <- is_binary(light_id),
@@ -197,7 +208,9 @@ defmodule Hueworks.Import.Materialize do
           select: {gl.group_id, l.room_id}
         )
       )
-      |> Enum.group_by(fn {group_id, _room_id} -> group_id end, fn {_group_id, room_id} -> room_id end)
+      |> Enum.group_by(fn {group_id, _room_id} -> group_id end, fn {_group_id, room_id} ->
+        room_id
+      end)
       |> Enum.each(fn {group_id, room_ids} ->
         rooms =
           room_ids
@@ -218,9 +231,9 @@ defmodule Hueworks.Import.Materialize do
 
   defp filter_entities(entities, plan_map) do
     Enum.filter(entities, fn entity ->
-      source_id = normalize_source_id(fetch(entity, :source_id))
+      source_id = Normalize.normalize_source_id(Normalize.fetch(entity, :source_id))
 
-      case fetch(plan_map, source_id) do
+      case Normalize.fetch(plan_map, source_id) do
         false -> false
         true -> true
         nil -> true
@@ -242,12 +255,12 @@ defmodule Hueworks.Import.Materialize do
   defp normalize_room_target_id(_id), do: nil
 
   defp filter_memberships(memberships, plan_lights, plan_groups) do
-    group_lights = fetch(memberships, :group_lights) || []
+    group_lights = Normalize.fetch(memberships, :group_lights) || []
 
     filtered =
       Enum.filter(group_lights, fn membership ->
-        group_id = normalize_source_id(fetch(membership, :group_source_id))
-        light_id = normalize_source_id(fetch(membership, :light_source_id))
+        group_id = Normalize.normalize_source_id(Normalize.fetch(membership, :group_source_id))
+        light_id = Normalize.normalize_source_id(Normalize.fetch(membership, :light_source_id))
 
         group_ok = plan_selected?(plan_groups, group_id)
         light_ok = plan_selected?(plan_lights, light_id)
@@ -261,7 +274,7 @@ defmodule Hueworks.Import.Materialize do
   defp plan_selected?(_plan, nil), do: false
 
   defp plan_selected?(plan, source_id) do
-    case fetch(plan, source_id) do
+    case Normalize.fetch(plan, source_id) do
       false -> false
       true -> true
       nil -> true
@@ -270,7 +283,7 @@ defmodule Hueworks.Import.Materialize do
   end
 
   defp room_id_for(entry, room_map) do
-    room_source_id = normalize_source_id(fetch(entry, :room_source_id))
+    room_source_id = Normalize.normalize_source_id(Normalize.fetch(entry, :room_source_id))
 
     case room_source_id do
       nil -> nil
@@ -279,8 +292,8 @@ defmodule Hueworks.Import.Materialize do
   end
 
   defp light_metadata(light, bridge_host) do
-    base = fetch(light, :metadata) || %{}
-    identifiers = fetch(light, :identifiers) || %{}
+    base = Normalize.fetch(light, :metadata) || %{}
+    identifiers = Normalize.fetch(light, :identifiers) || %{}
 
     base
     |> Map.put("identifiers", identifiers)
@@ -288,23 +301,12 @@ defmodule Hueworks.Import.Materialize do
   end
 
   defp group_metadata(group, bridge_host) do
-    (fetch(group, :metadata) || %{})
+    (Normalize.fetch(group, :metadata) || %{})
     |> Map.put_new("bridge_host", bridge_host)
   end
-
 
   defp normalize_source(source) when is_atom(source), do: source
   defp normalize_source(source) when is_binary(source), do: String.to_atom(source)
   defp normalize_source(_source), do: nil
 
-  defp normalize_source_id(id) when is_binary(id), do: id
-  defp normalize_source_id(id) when is_integer(id), do: Integer.to_string(id)
-  defp normalize_source_id(id) when is_float(id), do: Float.to_string(id)
-  defp normalize_source_id(_id), do: nil
-
-  defp fetch(map, key) when is_map(map) do
-    Map.get(map, key) || Map.get(map, Atom.to_string(key))
-  end
-
-  defp fetch(_map, _key), do: nil
 end

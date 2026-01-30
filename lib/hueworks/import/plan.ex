@@ -17,7 +17,7 @@ defmodule Hueworks.Import.Plan do
 
   defp build_room_plan(rooms) do
     Enum.reduce(rooms, %{}, fn room, acc ->
-      source_id = Normalize.fetch(room, :source_id) |> normalize_source_id()
+      source_id = Normalize.fetch(room, :source_id) |> Normalize.normalize_source_id()
 
       if source_id do
         Map.put(acc, source_id, %{
@@ -33,7 +33,7 @@ defmodule Hueworks.Import.Plan do
 
   defp build_selection(items) do
     Enum.reduce(items, %{}, fn item, acc ->
-      source_id = Normalize.fetch(item, :source_id) |> normalize_source_id()
+      source_id = Normalize.fetch(item, :source_id) |> Normalize.normalize_source_id()
 
       if source_id do
         Map.put(acc, source_id, true)
@@ -43,8 +43,4 @@ defmodule Hueworks.Import.Plan do
     end)
   end
 
-  defp normalize_source_id(id) when is_binary(id), do: id
-  defp normalize_source_id(id) when is_integer(id), do: Integer.to_string(id)
-  defp normalize_source_id(id) when is_float(id), do: Float.to_string(id)
-  defp normalize_source_id(_id), do: nil
 end

@@ -4,6 +4,7 @@ defmodule Hueworks.Subscription.HueEventStream.Mapper do
   import Ecto.Query, only: [from: 2]
 
   alias Hueworks.Control.State
+  alias Hueworks.Util
   alias Hueworks.Schemas.Group
   alias Hueworks.Schemas.GroupLight
   alias Hueworks.Repo
@@ -36,6 +37,27 @@ defmodule Hueworks.Subscription.HueEventStream.Mapper do
   end
 
   def handle_resource(_resource, _state), do: :ok
+
+  def needs_refresh?(resources, state) when is_list(resources) do
+    Enum.any?(resources, fn
+      %{"type" => "light"} = resource ->
+        case v1_id_from_event(resource, "/lights/") do
+          {:ok, v1_id} -> Map.get(state.lights_by_id, v1_id) == nil
+          _ -> false
+        end
+
+      %{"type" => "grouped_light"} = resource ->
+        case v1_group_id(resource) do
+          {:ok, v1_id} -> Map.get(state.groups_by_id, v1_id) == nil
+          _ -> false
+        end
+
+      _ ->
+        false
+    end)
+  end
+
+  def needs_refresh?(_resources, _state), do: false
 
   defp v1_id_from_event(event, prefix) do
     v1_id_from_id_v1(event["id_v1"], prefix)
@@ -81,7 +103,7 @@ defmodule Hueworks.Subscription.HueEventStream.Mapper do
   defp extract_brightness(event) do
     case get_in(event, ["dimming", "brightness"]) do
       value when is_number(value) ->
-        %{brightness: clamp(round(value), 1, 100)}
+        %{brightness: Util.clamp(round(value), 1, 100)}
 
       _ ->
         %{}
@@ -185,7 +207,4 @@ defmodule Hueworks.Subscription.HueEventStream.Mapper do
     end
   end
 
-  defp clamp(value, min, max) when is_number(value) do
-    value |> max(min) |> min(max)
-  end
 end

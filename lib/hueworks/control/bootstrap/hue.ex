@@ -4,6 +4,7 @@ defmodule Hueworks.Control.Bootstrap.Hue do
   import Ecto.Query, only: [from: 2]
 
   alias Hueworks.Control.Indexes
+  alias Hueworks.Util
   alias Hueworks.Repo
   alias Hueworks.Schemas.Bridge
   alias Hueworks.Control.State
@@ -90,7 +91,7 @@ defmodule Hueworks.Control.Bootstrap.Hue do
 
   defp maybe_put_brightness(acc, brightness) when is_number(brightness) do
     percent = round(brightness / 255 * 100)
-    Map.put(acc, :brightness, clamp(percent, 1, 100))
+    Map.put(acc, :brightness, Util.clamp(percent, 1, 100))
   end
 
   defp maybe_put_brightness(acc, _), do: acc
@@ -102,7 +103,4 @@ defmodule Hueworks.Control.Bootstrap.Hue do
 
   defp maybe_put_kelvin_from_mired(acc, _), do: acc
 
-  defp clamp(value, min, max) when is_number(value) do
-    value |> max(min) |> min(max)
-  end
 end

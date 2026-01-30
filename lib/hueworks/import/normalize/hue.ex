@@ -4,8 +4,8 @@ defmodule Hueworks.Import.Normalize.Hue do
   alias Hueworks.Import.Normalize
 
   def normalize(bridge, raw, _opts \\ %{}) do
-    raw_groups = Normalize.fetch(raw, :groups) || %{}
-    raw_lights = Normalize.fetch(raw, :lights) || %{}
+    raw_groups = Normalize.fetch(raw, :groups) |> Normalize.normalize_map()
+    raw_lights = Normalize.fetch(raw, :lights) |> Normalize.normalize_map()
 
     rooms =
       raw_groups
@@ -142,4 +142,5 @@ defmodule Hueworks.Import.Normalize.Hue do
       reported_kelvin_max: max_kelvin
     }
   end
+
 end

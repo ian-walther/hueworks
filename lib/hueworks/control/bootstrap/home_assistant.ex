@@ -4,6 +4,8 @@ defmodule Hueworks.Control.Bootstrap.HomeAssistant do
   import Ecto.Query, only: [from: 2]
 
   alias Hueworks.Control.Indexes
+  alias Hueworks.Util
+  alias Hueworks.HomeAssistant.Host
   alias Hueworks.Kelvin
   alias Hueworks.Repo
   alias Hueworks.Schemas.Bridge
@@ -40,7 +42,7 @@ defmodule Hueworks.Control.Bootstrap.HomeAssistant do
   end
 
   defp fetch_ha_states(host, token) do
-    url = "http://#{normalize_ha_host(host)}/api/states"
+    url = "http://#{Host.normalize(host)}/api/states"
     headers = [{"Authorization", "Bearer #{token}"}, {"Content-Type", "application/json"}]
 
     case HTTPoison.get(url, headers, recv_timeout: 10_000) do
@@ -72,7 +74,7 @@ defmodule Hueworks.Control.Bootstrap.HomeAssistant do
 
   defp maybe_put_brightness(acc, brightness) when is_number(brightness) do
     percent = round(brightness / 255 * 100)
-    Map.put(acc, :brightness, clamp(percent, 1, 100))
+    Map.put(acc, :brightness, Util.clamp(percent, 1, 100))
   end
 
   defp maybe_put_brightness(acc, _), do: acc
@@ -94,17 +96,5 @@ defmodule Hueworks.Control.Bootstrap.HomeAssistant do
 
   defp maybe_put_kelvin(acc, _attrs, _entity), do: acc
 
-  defp clamp(value, min, max) when is_number(value) do
-    value |> max(min) |> min(max)
-  end
 
-  defp normalize_ha_host(host) when is_binary(host) do
-    if String.contains?(host, ":") do
-      host
-    else
-      "#{host}:8123"
-    end
-  end
-
-  defp normalize_ha_host(_host), do: "127.0.0.1:8123"
 end

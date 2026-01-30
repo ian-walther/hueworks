@@ -4,8 +4,8 @@ defmodule Hueworks.Import.Normalize.Caseta do
   alias Hueworks.Import.Normalize
 
   def normalize(bridge, raw, _opts \\ %{}) do
-    lights_raw = Normalize.fetch(raw, :lights) || []
-    groups_raw = Normalize.fetch(raw, :groups) || []
+    lights_raw = Normalize.fetch(raw, :lights) |> Normalize.normalize_list()
+    groups_raw = Normalize.fetch(raw, :groups) |> Normalize.normalize_list()
 
     {rooms, room_map} = build_caseta_rooms(lights_raw)
 

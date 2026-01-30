@@ -8,6 +8,7 @@ defmodule Hueworks.Subscription.CasetaEventStream.Connection do
   import Ecto.Query, only: [from: 2]
 
   alias Hueworks.Control.State
+  alias Hueworks.Util
   alias Hueworks.Repo
   alias Hueworks.Schemas.Light
 
@@ -199,7 +200,7 @@ defmodule Hueworks.Subscription.CasetaEventStream.Connection do
   defp zone_status_list(_decoded), do: []
 
   defp maybe_put_brightness(acc, level) when is_number(level) do
-    Map.put(acc, :brightness, clamp(round(level), 1, 100))
+    Map.put(acc, :brightness, Util.clamp(round(level), 1, 100))
   end
 
   defp maybe_put_brightness(acc, _level), do: acc
@@ -210,9 +211,6 @@ defmodule Hueworks.Subscription.CasetaEventStream.Connection do
 
   defp maybe_put_power(acc, _level), do: acc
 
-  defp clamp(value, min, max) when is_number(value) do
-    value |> max(min) |> min(max)
-  end
 
   defp connect(bridge) do
     cert_path = bridge.credentials["cert_path"]
