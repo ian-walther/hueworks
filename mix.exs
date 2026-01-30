@@ -54,7 +54,8 @@ defmodule Hueworks.MixProject do
 
       # Development
       {:phoenix_live_reload, "~> 1.4", only: :dev},
-      {:credo, "~> 1.7", only: [:dev, :test], runtime: false}
+      {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
+      {:floki, ">= 0.30.0", only: :test}
     ]
   end
 

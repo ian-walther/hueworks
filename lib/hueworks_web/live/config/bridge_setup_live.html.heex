@@ -38,36 +38,32 @@
           <div class="hw-row">
             <div class="hw-row-title"><%= fetch(room, :name) %></div>
             <div class="hw-row-actions">
-              <select
-                class="hw-select"
-                name="action"
-                phx-change="set_room_action"
-                phx-value-id={room_id}
-              >
-                <option value="create" selected={room_action(@plan, room_id) == "create"}>
-                  Create
-                </option>
-                <option value="merge" selected={room_action(@plan, room_id) == "merge"}>
-                  Merge
-                </option>
-                <option value="skip" selected={room_action(@plan, room_id) == "skip"}>
-                  Skip
-                </option>
-              </select>
-              <%= if room_action(@plan, room_id) == "merge" do %>
-                <select
-                  class="hw-select"
-                  name="target_room_id"
-                  phx-change="set_room_merge"
-                  phx-value-id={room_id}
-                >
-                  <option value="">Select room</option>
-                  <%= for existing <- @rooms do %>
-                    <option value={existing.id} selected={room_merge_target(@plan, room_id) == existing.id}>
-                      <%= existing.name %>
-                    </option>
-                  <% end %>
+              <form phx-change="set_room_action" data-room-id={room_id}>
+                <input type="hidden" name="room_id" value={room_id} />
+                <select class="hw-select" name="action">
+                  <option value="create" selected={room_action(@plan, room_id) == "create"}>
+                    Create
+                  </option>
+                  <option value="merge" selected={room_action(@plan, room_id) == "merge"}>
+                    Merge
+                  </option>
+                  <option value="skip" selected={room_action(@plan, room_id) == "skip"}>
+                    Skip
+                  </option>
                 </select>
+              </form>
+              <%= if room_action(@plan, room_id) == "merge" do %>
+                <form phx-change="set_room_merge" data-room-id={room_id}>
+                  <input type="hidden" name="room_id" value={room_id} />
+                  <select class="hw-select" name="target_room_id">
+                    <option value="">Select room</option>
+                    <%= for existing <- @rooms do %>
+                      <option value={existing.id} selected={room_merge_target(@plan, room_id) == existing.id}>
+                        <%= existing.name %>
+                      </option>
+                    <% end %>
+                  </select>
+                </form>
               <% end %>
             </div>
           </div>
