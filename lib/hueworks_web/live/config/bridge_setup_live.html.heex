@@ -6,11 +6,6 @@
         Configure import for <%= @bridge.name %> (<%= @bridge.host %>).
       </p>
     </div>
-    <div class="hw-actions">
-      <button class="hw-button" type="button" phx-click="import_configuration">
-        Import Configuration
-      </button>
-    </div>
   </div>
 
   <%= if @import_status == :ok do %>

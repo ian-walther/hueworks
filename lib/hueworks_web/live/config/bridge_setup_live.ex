@@ -11,6 +11,10 @@ defmodule HueworksWeb.BridgeSetupLive do
     bridge = Repo.get!(Bridge, id)
     rooms = Repo.all(Room)
 
+    if connected?(socket) do
+      send(self(), :import_configuration)
+    end
+
     {:ok,
      assign(socket,
        bridge: bridge,
@@ -24,27 +28,6 @@ defmodule HueworksWeb.BridgeSetupLive do
      )}
   end
 
-  def handle_event("import_configuration", _params, socket) do
-    case pipeline_module().create_import(socket.assigns.bridge) do
-      {:ok, bridge_import} ->
-        normalized = bridge_import.normalized_blob
-        plan = bridge_import.review_blob || Plan.build_default(normalized)
-
-        {:noreply,
-         assign(socket,
-           import_status: :ok,
-           import_error: nil,
-           import_blob: bridge_import.raw_blob,
-           bridge_import: bridge_import,
-           normalized: normalized,
-           plan: plan
-         )}
-
-      {:error, message} ->
-        {:noreply, assign(socket, import_status: :error, import_error: message)}
-    end
-  end
-
   def handle_event("toggle_light", %{"id" => source_id}, socket) do
     {:noreply, update_plan(socket, :lights, source_id)}
   end
@@ -56,6 +39,10 @@ defmodule HueworksWeb.BridgeSetupLive do
   def handle_event("set_room_action", %{"room_id" => source_id, "action" => action}, socket) do
     plan = put_room_plan(socket.assigns.plan, source_id, %{"action" => action})
     {:noreply, assign(socket, plan: plan)}
+  end
+
+  def handle_event("import_configuration", _params, socket) do
+    {:noreply, start_import(socket)}
   end
 
   def handle_event(
@@ -88,7 +75,31 @@ defmodule HueworksWeb.BridgeSetupLive do
        |> push_navigate(to: "/config")}
     else
       {:error, reason} ->
-        {:noreply, assign(socket, import_status: :error, import_error: inspect(reason))}
+      {:noreply, assign(socket, import_status: :error, import_error: inspect(reason))}
+    end
+  end
+
+  def handle_info(:import_configuration, socket) do
+    {:noreply, start_import(socket)}
+  end
+
+  defp start_import(socket) do
+    case pipeline_module().create_import(socket.assigns.bridge) do
+      {:ok, bridge_import} ->
+        normalized = bridge_import.normalized_blob
+        plan = bridge_import.review_blob || Plan.build_default(normalized)
+
+        assign(socket,
+          import_status: :ok,
+          import_error: nil,
+          import_blob: bridge_import.raw_blob,
+          bridge_import: bridge_import,
+          normalized: normalized,
+          plan: plan
+        )
+
+      {:error, message} ->
+        assign(socket, import_status: :error, import_error: message)
     end
   end
 

@@ -75,8 +75,7 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
     Application.put_env(:hueworks, :import_pipeline_payload, normalized)
 
     {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/setup")
-
-    render_click(view, "import_configuration")
+    render(view)
 
     view
     |> form("form[phx-change='set_room_action'][data-room-id='room-1']", %{
@@ -127,8 +126,7 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
     Application.put_env(:hueworks, :import_pipeline_payload, normalized)
 
     {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/setup")
-
-    render_click(view, "import_configuration")
+    render(view)
     view
     |> form("form[phx-change='set_room_action'][data-room-id='12']", %{
       "action" => "skip"
