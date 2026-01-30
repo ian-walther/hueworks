@@ -8,9 +8,8 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.Connection do
   import Ecto.Query, only: [from: 2]
 
   alias Hueworks.HomeAssistant.Host
-  alias Hueworks.Util
   alias Hueworks.Control.State
-  alias Hueworks.Kelvin
+  alias Hueworks.Control.StateParser
   alias Hueworks.Repo
   alias Hueworks.Schemas.Group
   alias Hueworks.Schemas.Light
@@ -111,40 +110,10 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.Connection do
     attrs = state["attributes"] || %{}
 
     %{}
-    |> maybe_put_power(state["state"])
-    |> maybe_put_brightness(attrs["brightness"])
-    |> maybe_put_kelvin(attrs, entity)
+    |> Map.merge(StateParser.power_map(state["state"]))
+    |> Map.merge(StateParser.brightness_from_0_255(attrs["brightness"]))
+    |> Map.merge(StateParser.kelvin_from_ha_attrs(attrs, entity))
   end
-
-  defp maybe_put_power(acc, true), do: Map.put(acc, :power, :on)
-  defp maybe_put_power(acc, false), do: Map.put(acc, :power, :off)
-  defp maybe_put_power(acc, "on"), do: Map.put(acc, :power, :on)
-  defp maybe_put_power(acc, "off"), do: Map.put(acc, :power, :off)
-  defp maybe_put_power(acc, _), do: acc
-
-  defp maybe_put_brightness(acc, brightness) when is_number(brightness) do
-    percent = round(brightness / 255 * 100)
-    Map.put(acc, :brightness, Util.clamp(percent, 1, 100))
-  end
-
-  defp maybe_put_brightness(acc, _), do: acc
-
-  defp maybe_put_kelvin(acc, attrs, entity) when is_map(attrs) do
-    cond do
-      is_number(attrs["color_temp_kelvin"]) ->
-        kelvin = Kelvin.map_from_event(entity, round(attrs["color_temp_kelvin"]))
-        Map.put(acc, :kelvin, kelvin)
-
-      is_number(attrs["color_temp"]) and attrs["color_temp"] > 0 ->
-        kelvin = round(1_000_000 / attrs["color_temp"])
-        Map.put(acc, :kelvin, Kelvin.map_from_event(entity, kelvin))
-
-      true ->
-        acc
-    end
-  end
-
-  defp maybe_put_kelvin(acc, _attrs, _entity), do: acc
 
 
   defp load_lights(bridge_id) do

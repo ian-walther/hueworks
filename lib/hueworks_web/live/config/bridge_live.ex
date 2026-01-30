@@ -3,6 +3,7 @@ defmodule HueworksWeb.BridgeLive do
 
   alias Hueworks.Repo
   alias Hueworks.Schemas.Bridge
+  alias Hueworks.Util
 
   def mount(_params, _session, socket) do
     socket =
@@ -29,7 +30,7 @@ defmodule HueworksWeb.BridgeLive do
   end
 
   def handle_event("update_bridge", %{"type" => "hue"} = params, socket) do
-    host = normalize_host_input(Map.get(params, "host", socket.assigns.host))
+    host = Util.normalize_host_input(Map.get(params, "host", socket.assigns.host))
 
     {:noreply,
       assign(socket,
@@ -44,7 +45,7 @@ defmodule HueworksWeb.BridgeLive do
   end
 
   def handle_event("update_bridge", %{"type" => "ha"} = params, socket) do
-    host = normalize_host_input(Map.get(params, "host", socket.assigns.host))
+    host = Util.normalize_host_input(Map.get(params, "host", socket.assigns.host))
 
     {:noreply,
       assign(socket,
@@ -59,7 +60,7 @@ defmodule HueworksWeb.BridgeLive do
   end
 
   def handle_event("update_bridge", %{"type" => "caseta"} = params, socket) do
-    host = normalize_host_input(Map.get(params, "host", socket.assigns.host))
+    host = Util.normalize_host_input(Map.get(params, "host", socket.assigns.host))
 
     {:noreply,
       assign(socket,
@@ -75,7 +76,7 @@ defmodule HueworksWeb.BridgeLive do
   end
 
   def handle_event("update_bridge", params, socket) do
-    host = normalize_host_input(Map.get(params, "host", socket.assigns.host))
+    host = Util.normalize_host_input(Map.get(params, "host", socket.assigns.host))
 
     {:noreply,
       assign(socket,
@@ -108,7 +109,7 @@ defmodule HueworksWeb.BridgeLive do
 
   defp save_bridge(socket) do
     credentials = build_credentials(socket)
-    name = socket.assigns.test_bridge_name || default_bridge_name(socket.assigns.type)
+    name = socket.assigns.test_bridge_name || Util.default_bridge_name(socket.assigns.type)
 
     changeset =
       Bridge.changeset(%Bridge{}, %{
@@ -125,7 +126,7 @@ defmodule HueworksWeb.BridgeLive do
         {:noreply, push_navigate(socket, to: "/config/bridge/#{bridge.id}/setup")}
 
       {:error, changeset} ->
-        {:noreply, assign(socket, test_status: :error, test_error: format_changeset_error(changeset))}
+        {:noreply, assign(socket, test_status: :error, test_error: Util.format_changeset_error(changeset))}
     end
   end
 
@@ -235,7 +236,7 @@ defmodule HueworksWeb.BridgeLive do
   end
 
   defp stage_caseta_uploads(socket) do
-    host_prefix = host_prefix(socket.assigns.host)
+    host_prefix = Util.host_prefix(socket.assigns.host)
     dir = Path.join(["priv", "credentials", "caseta", "staging"])
     File.mkdir_p!(dir)
     stamp = System.unique_integer([:positive])
@@ -287,10 +288,6 @@ defmodule HueworksWeb.BridgeLive do
   end
 
 
-  defp host_prefix(host) do
-    host |> String.trim() |> String.replace(~r/[^A-Za-z0-9._-]/, "_")
-  end
-
   defp build_credentials(%{assigns: %{type: "hue", hue_api_key: api_key}}) do
     %{"api_key" => api_key}
   end
@@ -306,7 +303,7 @@ defmodule HueworksWeb.BridgeLive do
   defp build_credentials(_socket), do: %{}
 
   defp save_caseta_uploads(host, staged) do
-    host_prefix = host_prefix(host)
+    host_prefix = Util.host_prefix(host)
     dir = Path.join(["priv", "credentials", "caseta"])
     File.mkdir_p!(dir)
 
@@ -329,37 +326,4 @@ defmodule HueworksWeb.BridgeLive do
     end
   end
 
-  defp default_bridge_name("hue"), do: "Hue Bridge"
-  defp default_bridge_name("ha"), do: "Home Assistant"
-  defp default_bridge_name("caseta"), do: "Caseta Bridge"
-  defp default_bridge_name(_type), do: "Bridge"
-
-  defp normalize_host_input(value) when is_binary(value) do
-    value
-    |> String.trim()
-    |> String.replace(~r/^(host:)\s*/i, "")
-  end
-
-  defp normalize_host_input(value), do: value
-
-  defp format_changeset_error(changeset) do
-    errors =
-      Ecto.Changeset.traverse_errors(changeset, fn {message, opts} ->
-        Enum.reduce(opts, message, fn {key, value}, acc ->
-          String.replace(acc, "%{#{key}}", to_string(value))
-        end)
-      end)
-
-    if duplicate_bridge_error?(errors) do
-      "Bridge with this type and host already exists."
-    else
-      inspect(errors)
-    end
-  end
-
-  defp duplicate_bridge_error?(errors) do
-    Enum.any?(errors, fn {_field, messages} ->
-      Enum.any?(List.wrap(messages), &String.contains?(&1, "has already been taken"))
-    end)
-  end
 end

@@ -5,6 +5,7 @@ defmodule Hueworks.Import.Materialize do
 
   alias Hueworks.Repo
   alias Hueworks.Import.{Normalize, Plan}
+  alias Hueworks.Util
   alias Hueworks.Schemas.{Group, GroupLight, Light, Room}
 
   def materialize(bridge, normalized) do
@@ -39,7 +40,7 @@ defmodule Hueworks.Import.Materialize do
     Enum.reduce(rooms, %{}, fn room, acc ->
       source_id = Normalize.normalize_source_id(Normalize.fetch(room, :source_id))
       name = Normalize.fetch(room, :name) || "Room"
-      normalized_name = String.downcase(String.trim(name))
+      normalized_name = Normalize.normalize_room_name(name)
       plan = Normalize.fetch(plan_rooms, source_id) || %{}
       action = Normalize.fetch(plan, :action) || "create"
 
@@ -242,17 +243,7 @@ defmodule Hueworks.Import.Materialize do
     end)
   end
 
-  defp normalize_room_target_id(nil), do: nil
-  defp normalize_room_target_id(id) when is_integer(id), do: id
-
-  defp normalize_room_target_id(id) when is_binary(id) do
-    case Integer.parse(id) do
-      {int, ""} -> int
-      _ -> nil
-    end
-  end
-
-  defp normalize_room_target_id(_id), do: nil
+  defp normalize_room_target_id(id), do: Util.parse_optional_integer(id)
 
   defp filter_memberships(memberships, plan_lights, plan_groups) do
     group_lights = Normalize.fetch(memberships, :group_lights) || []

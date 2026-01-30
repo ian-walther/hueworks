@@ -4,6 +4,7 @@ defmodule Hueworks.Subscription.HueEventStream.Mapper do
   import Ecto.Query, only: [from: 2]
 
   alias Hueworks.Control.State
+  alias Hueworks.Control.StateParser
   alias Hueworks.Util
   alias Hueworks.Schemas.Group
   alias Hueworks.Schemas.GroupLight
@@ -93,49 +94,23 @@ defmodule Hueworks.Subscription.HueEventStream.Mapper do
   defp event_state_from_group(event), do: event_state_from_light(event)
 
   defp extract_power(event) do
-    case get_in(event, ["on", "on"]) do
-      true -> %{power: :on}
-      false -> %{power: :off}
-      _ -> %{}
-    end
+    StateParser.power_map(get_in(event, ["on", "on"]))
   end
 
   defp extract_brightness(event) do
-    case get_in(event, ["dimming", "brightness"]) do
-      value when is_number(value) ->
-        %{brightness: Util.clamp(round(value), 1, 100)}
-
-      _ ->
-        %{}
-    end
+    StateParser.brightness_from_0_100(get_in(event, ["dimming", "brightness"]))
   end
 
   defp extract_kelvin(event) do
     mired =
       case event["color_temperature"] do
-        %{"mirek" => value} -> to_number(value)
-        %{:mirek => value} -> to_number(value)
-        value -> to_number(value)
+        %{"mirek" => value} -> Util.to_number(value)
+        %{:mirek => value} -> Util.to_number(value)
+        value -> Util.to_number(value)
       end
 
-    if is_number(mired) and mired > 0 do
-      %{kelvin: round(1_000_000 / mired)}
-    else
-      %{}
-    end
+    StateParser.kelvin_from_mired(mired)
   end
-
-  defp to_number(value) when is_integer(value), do: value
-  defp to_number(value) when is_float(value), do: value
-
-  defp to_number(value) when is_binary(value) do
-    case Float.parse(value) do
-      {number, ""} -> number
-      _ -> nil
-    end
-  end
-
-  defp to_number(_value), do: nil
 
   defp load_group_lights(bridge_id) do
     Repo.all(
@@ -206,5 +181,4 @@ defmodule Hueworks.Subscription.HueEventStream.Mapper do
       :error
     end
   end
-
 end

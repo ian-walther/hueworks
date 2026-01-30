@@ -4,7 +4,7 @@ defmodule Hueworks.Control.Bootstrap.Hue do
   import Ecto.Query, only: [from: 2]
 
   alias Hueworks.Control.Indexes
-  alias Hueworks.Util
+  alias Hueworks.Control.StateParser
   alias Hueworks.Repo
   alias Hueworks.Schemas.Bridge
   alias Hueworks.Control.State
@@ -65,9 +65,9 @@ defmodule Hueworks.Control.Bootstrap.Hue do
     state = light["state"] || %{}
 
     %{}
-    |> maybe_put_power(state["on"])
-    |> maybe_put_brightness(state["bri"])
-    |> maybe_put_kelvin_from_mired(state["ct"])
+    |> Map.merge(StateParser.power_map(state["on"]))
+    |> Map.merge(StateParser.brightness_from_0_255(state["bri"]))
+    |> Map.merge(StateParser.kelvin_from_mired(state["ct"]))
   end
 
   defp build_hue_light_state(_light), do: %{}
@@ -76,31 +76,11 @@ defmodule Hueworks.Control.Bootstrap.Hue do
     action = group["action"] || %{}
 
     %{}
-    |> maybe_put_power(action["on"])
-    |> maybe_put_brightness(action["bri"])
-    |> maybe_put_kelvin_from_mired(action["ct"])
+    |> Map.merge(StateParser.power_map(action["on"]))
+    |> Map.merge(StateParser.brightness_from_0_255(action["bri"]))
+    |> Map.merge(StateParser.kelvin_from_mired(action["ct"]))
   end
 
   defp build_hue_group_state(_group), do: %{}
-
-  defp maybe_put_power(acc, true), do: Map.put(acc, :power, :on)
-  defp maybe_put_power(acc, false), do: Map.put(acc, :power, :off)
-  defp maybe_put_power(acc, "on"), do: Map.put(acc, :power, :on)
-  defp maybe_put_power(acc, "off"), do: Map.put(acc, :power, :off)
-  defp maybe_put_power(acc, _), do: acc
-
-  defp maybe_put_brightness(acc, brightness) when is_number(brightness) do
-    percent = round(brightness / 255 * 100)
-    Map.put(acc, :brightness, Util.clamp(percent, 1, 100))
-  end
-
-  defp maybe_put_brightness(acc, _), do: acc
-
-  defp maybe_put_kelvin_from_mired(acc, mired) when is_number(mired) and mired > 0 do
-    kelvin = round(1_000_000 / mired)
-    Map.put(acc, :kelvin, kelvin)
-  end
-
-  defp maybe_put_kelvin_from_mired(acc, _), do: acc
 
 end

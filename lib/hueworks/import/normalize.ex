@@ -2,6 +2,7 @@ defmodule Hueworks.Import.Normalize do
   @moduledoc false
 
   alias Hueworks.Schemas.Bridge
+  alias Hueworks.Util
 
   @schema_version 1
 
@@ -77,24 +78,8 @@ defmodule Hueworks.Import.Normalize do
   def normalize_group_type("LightGroup"), do: "group"
   def normalize_group_type(_type), do: "group"
 
-  def normalize_room_name(name) when is_binary(name) do
-    name
-    |> String.trim()
-    |> String.downcase()
-  end
-
-  def normalize_room_name(_name), do: nil
-
-  def normalize_room_display(name) when is_binary(name) do
-    trimmed = String.trim(name)
-
-    case String.downcase(trimmed) do
-      "" -> trimmed
-      downcased -> String.capitalize(downcased)
-    end
-  end
-
-  def normalize_room_display(_name), do: nil
+  def normalize_room_name(name), do: Util.normalize_room_name(name)
+  def normalize_room_display(name), do: Util.normalize_room_display(name)
 
   def build_device_area_map(device_registry) do
     Enum.reduce(device_registry, %{}, fn device, acc ->
