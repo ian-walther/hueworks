@@ -6,15 +6,24 @@ HueWorks brings Lutron HomeWorks-style functionality to commodity smart lighting
 
 ## Project Status
 
-**Phase 0: Vertical Slice Exploration**
+**Phase 0: Foundations + Control UI**
 
-This project is in early development. The current focus is on building throwaway vertical slices to understand API constraints before designing the final architecture.
+HueWorks is in active early development with a working import pipeline, LiveView setup wizard, and basic control UI. The core value prop (group batching to eliminate popcorning) is not implemented yet, but the schema, import flow, and control scaffolding are in place.
 
 ## Core Vision
 
 - **Problem**: Home Assistant's lighting control causes lights to turn on/off one at a time
 - **Solution**: Intelligent command batching, group detection, and hardware optimization
 - **Target**: Power users with 50+ bulbs who want professional lighting behavior without the professional price tag
+
+## Features (Current)
+
+- Multi-bridge import pipeline (Hue, Home Assistant, Caseta)
+- LiveView bridge setup wizard (add bridge, test credentials, import, review, apply)
+- Control UI for lights and groups (Hue + Home Assistant fully wired; Caseta lights only)
+- Event stream subscriptions (Hue SSE, Home Assistant WebSocket, Caseta LEAP) feeding in-memory state
+- Rooms + scenes CRUD UI (scene activation not implemented yet)
+- Kelvin mapping helpers and per-entity override controls
 
 ## Features (Planned)
 
@@ -29,7 +38,7 @@ This project is in early development. The current focus is on building throwaway
 
 - Test-Driven Development from day one
 - Type specifications on all public functions
-- 80%+ test coverage enforced in CI
+- Test coverage is growing (import + kelvin paths have tests; control + contexts still need coverage)
 - Learn by building vertical slices first, then abstract
 
 ## Getting Started
@@ -52,11 +61,65 @@ mix assets.build
 iex -S mix phx.server
 ```
 
-Visit `http://localhost:4000` to see the exploration UI.
+Visit `http://localhost:4000` and use the UI:
 
-## Database Seeding Workflow
+- `/config` to add a bridge and run the import wizard
+- `/lights` to control lights/groups and tune kelvin ranges
+- `/rooms` to manage room names and scenes
 
-Bridge records are seeded before any imports so credentials live in the database.
+The `/explore` route is a placeholder.
+
+## Architecture Tour
+
+If you want to orient quickly, these are the main flows and modules:
+
+- **Bridge setup + import wizard (UI)**: `/config` and `/config/bridge/:id/setup`  
+  `lib/hueworks_web/live/config/bridge_live.ex`  
+  `lib/hueworks_web/live/config/bridge_setup_live.ex`
+- **Import pipeline (core)**: fetch → normalize → plan → materialize → link  
+  `lib/hueworks/import/pipeline.ex`  
+  `lib/hueworks/import/normalize/*.ex`  
+  `lib/hueworks/import/materialize.ex`  
+  `lib/hueworks/import/link.ex`
+- **Control dispatch** (per-bridge implementations)  
+  `lib/hueworks/control/light.ex`  
+  `lib/hueworks/control/group.ex`
+- **Event subscriptions → in-memory state**  
+  `lib/hueworks/subscription/*`  
+  `lib/hueworks/control/state.ex`
+- **UI control screens**  
+  `lib/hueworks_web/live/lights_live.ex`  
+  `lib/hueworks_web/live/rooms_live.ex`
+- **Domain + schema**  
+  `lib/hueworks/schemas/*`  
+  `lib/hueworks/lights.ex`, `lib/hueworks/groups.ex`, `lib/hueworks/rooms.ex`
+
+## Import Pipeline Overview
+
+There are two ways to run imports: the UI wizard or the CLI mix tasks. Under the hood they share the same pipeline.
+
+**Pipeline steps**
+1) **Fetch raw data** from each bridge into a JSON blob.
+2) **Normalize** into a common shape (rooms, groups, lights, memberships).
+3) **Plan** a default review plan (what to create/skip/merge).
+4) **Materialize** into the database.
+5) **Link** canonical entities across imports (primarily HA ↔ Hue/Caseta).
+
+**CLI path (optional)**
+```bash
+mix export_bridge_imports
+mix normalize_bridge_imports
+mix materialize_bridge_imports
+mix link_bridge_imports
+```
+
+**Output files**
+- Raw files: `exports/*_raw_*.json`
+- Normalized files: `exports/*_normalized_*.json`
+
+## Bridge Credentials + Seeding Workflow
+
+Bridge records live in the database. You can either seed via `secrets.env` or use the UI wizard.
 
 1) Create `secrets.env` at the repo root:
 
@@ -68,23 +131,30 @@ export LUTRON_CACERT_PATH="/path/to/bridge-ca.crt"
 export HA_TOKEN="..."
 ```
 
-2) Reset the DB (migrations only):
+2) Reset the DB (migrations + seeds):
 
 ```bash
 mix ecto.reset
 ```
 
-3) Seed bridges from `secrets.env`:
+3) Optional: re-run seeds without resetting:
 
 ```bash
 mix seed_bridges
 ```
 
-4) Fetch raw bridge configuration to JSON:
+4) Optional: run the CLI import pipeline:
 
 ```bash
 mix export_bridge_imports
+mix normalize_bridge_imports
+mix materialize_bridge_imports
+mix link_bridge_imports
 ```
+
+Notes:
+- The UI setup wizard can do import + review + apply without any CLI steps.
+- Caseta credentials can also be uploaded via the UI and are stored under `priv/credentials/caseta/`.
 
 ## Mix Tasks
 

@@ -12,7 +12,7 @@
 
 ## Critical Path: Foundation Completion
 
-### 1. Test Coverage to 80%+ (HIGH PRIORITY)
+### 1. Test Coverage to 80%+ (HIGH PRIORITY) — [planning/test-coverage.md](planning/test-coverage.md)
 **Status:** ~25% coverage, need comprehensive testing before building more features
 
 - [ ] **Schema validation unit tests**
@@ -45,7 +45,7 @@
   - [ ] Missing required fields
   - [ ] Re-import/resync behavior
 
-### 2. Implement Core Control Functionality (HIGH PRIORITY)
+### 2. Implement Core Control Functionality (HIGH PRIORITY) — [planning/control-batching.md](planning/control-batching.md)
 **Status:** Control layer exists but clients are stubs returning `:ok`
 
 - [ ] **Error handling infrastructure**
@@ -82,7 +82,7 @@
   - [ ] Handle bridge offline gracefully
   - [ ] Separate desired state from actual state (future enhancement)
 
-### 3. Bridge Configuration Wizard UI (CURRENT FOCUS)
+### 3. Bridge Configuration Wizard UI (CURRENT FOCUS) — [planning/import-review-ui.md](planning/import-review-ui.md)
 **Status:** Import pipeline works via CLI, needs user-friendly UI
 
 - [ ] **Bridge addition wizard**
@@ -107,7 +107,7 @@
   - [ ] Trigger re-import/resync
   - [ ] Delete bridge with cascade warning
 
-### 4. Database Performance & Integrity (MEDIUM PRIORITY)
+### 4. Database Performance & Integrity (MEDIUM PRIORITY) — [planning/db-integrity.md](planning/db-integrity.md)
 **Status:** Schema is functional but missing critical indices
 
 - [ ] **Add database indices**
@@ -189,7 +189,7 @@
 
 ## Mid-Term Enhancements
 
-### Import & Sync Improvements
+### Import & Sync Improvements — [planning/import-resync.md](planning/import-resync.md)
 
 - [ ] **Re-import/Resync functionality**
   - [ ] Detect newly added lights on bridges
