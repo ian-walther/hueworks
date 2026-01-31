@@ -25,85 +25,325 @@
   <%= if @normalized do %>
     <section class="hw-panel">
       <div class="hw-panel-header">
+        <h2>Import Options</h2>
+      </div>
+      <label class="hw-row">
+        <input
+          type="checkbox"
+          checked={@reimport}
+          phx-change="toggle_reimport"
+          name="enabled"
+          value={if @reimport, do: "false", else: "true"}
+        />
+        <span class="hw-row-title">Reimport (delete existing entities on apply)</span>
+      </label>
+    </section>
+
+    <section class="hw-panel">
+      <div class="hw-panel-header">
+        <h2>Selection</h2>
+        <div class="hw-row-actions">
+          <button class="hw-button" type="button" phx-click="toggle_all" phx-value-action="check">
+            Check All
+          </button>
+          <button class="hw-button" type="button" phx-click="toggle_all" phx-value-action="uncheck">
+            Uncheck All
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <% rooms = normalized_entries(@normalized, :rooms) %>
+    <% lights = normalized_entries(@normalized, :lights) %>
+    <% groups = normalized_entries(@normalized, :groups) %>
+    <% room_keys =
+      rooms
+      |> Enum.map(fn room ->
+        room
+        |> fetch(:source_id)
+        |> Hueworks.Import.Normalize.normalize_source_id()
+      end)
+      |> Enum.filter(&is_binary/1)
+    %>
+
+    <section class="hw-panel">
+      <div class="hw-panel-header">
         <h2>Rooms</h2>
       </div>
       <div class="hw-grid">
-        <%= for room <- normalized_entries(@normalized, :rooms) do %>
+        <%= for room <- rooms do %>
           <% room_id = fetch(room, :source_id) %>
-          <div class="hw-row">
-            <div class="hw-row-title"><%= fetch(room, :name) %></div>
-            <div class="hw-row-actions">
-              <form phx-change="set_room_action" data-room-id={room_id}>
-                <input type="hidden" name="room_id" value={room_id} />
-                <select class="hw-select" name="action">
-                  <option value="create" selected={room_action(@plan, room_id) == "create"}>
-                    Create
-                  </option>
-                  <option value="merge" selected={room_action(@plan, room_id) == "merge"}>
-                    Merge
-                  </option>
-                  <option value="skip" selected={room_action(@plan, room_id) == "skip"}>
-                    Skip
-                  </option>
-                </select>
-              </form>
-              <%= if room_action(@plan, room_id) == "merge" do %>
-                <form phx-change="set_room_merge" data-room-id={room_id}>
+          <% room_key = Hueworks.Import.Normalize.normalize_source_id(room_id) %>
+          <% room_lights =
+            Enum.filter(lights, fn light ->
+              Hueworks.Import.Normalize.normalize_source_id(fetch(light, :room_source_id)) == room_key
+            end)
+          %>
+          <% room_groups =
+            Enum.filter(groups, fn group ->
+              Hueworks.Import.Normalize.normalize_source_id(fetch(group, :room_source_id)) == room_key
+            end)
+          %>
+          <div class="hw-card">
+            <div class="hw-row">
+              <div class="hw-row-title"><%= fetch(room, :name) %></div>
+              <div class="hw-row-actions">
+                <div class="hw-button-group">
+                  <button
+                    class="hw-button"
+                    type="button"
+                    phx-click="toggle_room"
+                    phx-value-room_id={room_id}
+                    phx-value-action="check"
+                  >
+                    Check All
+                  </button>
+                  <button
+                    class="hw-button"
+                    type="button"
+                    phx-click="toggle_room"
+                    phx-value-room_id={room_id}
+                    phx-value-action="uncheck"
+                  >
+                    Uncheck All
+                  </button>
+                </div>
+                <form phx-change="set_room_action" data-room-id={room_id}>
                   <input type="hidden" name="room_id" value={room_id} />
-                  <select class="hw-select" name="target_room_id">
-                    <option value="">Select room</option>
-                    <%= for existing <- @rooms do %>
-                      <option value={existing.id} selected={room_merge_target(@plan, room_id) == existing.id}>
-                        <%= existing.name %>
-                      </option>
-                    <% end %>
+                  <select class="hw-select" name="action">
+                    <option value="create" selected={room_action(@plan, room_id) == "create"}>
+                      Create
+                    </option>
+                    <option value="merge" selected={room_action(@plan, room_id) == "merge"}>
+                      Merge
+                    </option>
+                    <option value="skip" selected={room_action(@plan, room_id) == "skip"}>
+                      Skip
+                    </option>
                   </select>
                 </form>
-              <% end %>
+                <%= if room_action(@plan, room_id) == "merge" do %>
+                  <form phx-change="set_room_merge" data-room-id={room_id}>
+                    <input type="hidden" name="room_id" value={room_id} />
+                    <select class="hw-select" name="target_room_id">
+                      <option value="">Select room</option>
+                      <%= for existing <- @rooms do %>
+                        <option value={existing.id} selected={room_merge_target(@plan, room_id) == existing.id}>
+                          <%= existing.name %>
+                        </option>
+                      <% end %>
+                    </select>
+                  </form>
+                <% end %>
+              </div>
+            </div>
+
+            <div class="hw-subsection">
+              <div class="hw-row">
+                <div class="hw-subtitle">Lights</div>
+                <div class="hw-row-actions">
+                  <button
+                    class="hw-button"
+                    type="button"
+                    phx-click="toggle_room_section"
+                    phx-value-room_id={room_id}
+                    phx-value-section="lights"
+                    phx-value-action="check"
+                  >
+                    Check All
+                  </button>
+                  <button
+                    class="hw-button"
+                    type="button"
+                    phx-click="toggle_room_section"
+                    phx-value-room_id={room_id}
+                    phx-value-section="lights"
+                    phx-value-action="uncheck"
+                  >
+                    Uncheck All
+                  </button>
+                </div>
+              </div>
+              <div class="hw-grid">
+                <%= if room_lights == [] do %>
+                  <div class="hw-muted">No lights</div>
+                <% end %>
+                <%= for light <- room_lights do %>
+                  <% light_id = fetch(light, :source_id) %>
+                  <label class="hw-row">
+                    <input
+                      type="checkbox"
+                      checked={plan_selected?(@plan, :lights, light_id)}
+                      phx-click="toggle_light"
+                      phx-value-id={light_id}
+                    />
+                    <span class="hw-row-title"><%= fetch(light, :name) %></span>
+                    <span class="hw-muted">(<%= fetch(light, :classification) %>)</span>
+                  </label>
+                <% end %>
+              </div>
+            </div>
+
+            <div class="hw-subsection">
+              <div class="hw-row">
+                <div class="hw-subtitle">Groups</div>
+                <div class="hw-row-actions">
+                  <button
+                    class="hw-button"
+                    type="button"
+                    phx-click="toggle_room_section"
+                    phx-value-room_id={room_id}
+                    phx-value-section="groups"
+                    phx-value-action="check"
+                  >
+                    Check All
+                  </button>
+                  <button
+                    class="hw-button"
+                    type="button"
+                    phx-click="toggle_room_section"
+                    phx-value-room_id={room_id}
+                    phx-value-section="groups"
+                    phx-value-action="uncheck"
+                  >
+                    Uncheck All
+                  </button>
+                </div>
+              </div>
+              <div class="hw-grid">
+                <%= if room_groups == [] do %>
+                  <div class="hw-muted">No groups</div>
+                <% end %>
+                <%= for group <- room_groups do %>
+                  <% group_id = fetch(group, :source_id) %>
+                  <label class="hw-row">
+                    <input
+                      type="checkbox"
+                      checked={plan_selected?(@plan, :groups, group_id)}
+                      phx-click="toggle_group"
+                      phx-value-id={group_id}
+                    />
+                    <span class="hw-row-title"><%= fetch(group, :name) %></span>
+                    <span class="hw-muted">(<%= fetch(group, :classification) %>)</span>
+                  </label>
+                <% end %>
+              </div>
             </div>
           </div>
         <% end %>
-      </div>
-    </section>
 
-    <section class="hw-panel">
-      <div class="hw-panel-header">
-        <h2>Lights</h2>
-      </div>
-      <div class="hw-grid">
-        <%= for light <- normalized_entries(@normalized, :lights) do %>
-          <% light_id = fetch(light, :source_id) %>
-          <label class="hw-row">
-            <input
-              type="checkbox"
-              checked={plan_selected?(@plan, :lights, light_id)}
-              phx-click="toggle_light"
-              phx-value-id={light_id}
-            />
-            <span class="hw-row-title"><%= fetch(light, :name) %></span>
-            <span class="hw-muted">(<%= fetch(light, :classification) %>)</span>
-          </label>
-        <% end %>
-      </div>
-    </section>
+        <% unassigned_lights =
+          Enum.filter(lights, fn light ->
+            room_key = Hueworks.Import.Normalize.normalize_source_id(fetch(light, :room_source_id))
+            not is_binary(room_key) or not Enum.member?(room_keys, room_key)
+          end)
+        %>
+        <% unassigned_groups =
+          Enum.filter(groups, fn group ->
+            room_key = Hueworks.Import.Normalize.normalize_source_id(fetch(group, :room_source_id))
+            not is_binary(room_key) or not Enum.member?(room_keys, room_key)
+          end)
+        %>
 
-    <section class="hw-panel">
-      <div class="hw-panel-header">
-        <h2>Groups</h2>
-      </div>
-      <div class="hw-grid">
-        <%= for group <- normalized_entries(@normalized, :groups) do %>
-          <% group_id = fetch(group, :source_id) %>
-          <label class="hw-row">
-            <input
-              type="checkbox"
-              checked={plan_selected?(@plan, :groups, group_id)}
-              phx-click="toggle_group"
-              phx-value-id={group_id}
-            />
-            <span class="hw-row-title"><%= fetch(group, :name) %></span>
-            <span class="hw-muted">(<%= fetch(group, :classification) %>)</span>
-          </label>
+        <%= if unassigned_lights != [] or unassigned_groups != [] do %>
+          <div class="hw-card">
+            <div class="hw-row">
+              <div class="hw-row-title">Unassigned</div>
+              <div class="hw-muted">No matching room</div>
+            </div>
+
+            <div class="hw-subsection">
+              <div class="hw-row">
+                <div class="hw-subtitle">Lights</div>
+                <div class="hw-row-actions">
+                  <button
+                    class="hw-button"
+                    type="button"
+                    phx-click="toggle_room_section"
+                    phx-value-room_id="unassigned"
+                    phx-value-section="lights"
+                    phx-value-action="check"
+                  >
+                    Check All
+                  </button>
+                  <button
+                    class="hw-button"
+                    type="button"
+                    phx-click="toggle_room_section"
+                    phx-value-room_id="unassigned"
+                    phx-value-section="lights"
+                    phx-value-action="uncheck"
+                  >
+                    Uncheck All
+                  </button>
+                </div>
+              </div>
+              <div class="hw-grid">
+                <%= if unassigned_lights == [] do %>
+                  <div class="hw-muted">No lights</div>
+                <% end %>
+                <%= for light <- unassigned_lights do %>
+                  <% light_id = fetch(light, :source_id) %>
+                  <label class="hw-row">
+                    <input
+                      type="checkbox"
+                      checked={plan_selected?(@plan, :lights, light_id)}
+                      phx-click="toggle_light"
+                      phx-value-id={light_id}
+                    />
+                    <span class="hw-row-title"><%= fetch(light, :name) %></span>
+                    <span class="hw-muted">(<%= fetch(light, :classification) %>)</span>
+                  </label>
+                <% end %>
+              </div>
+            </div>
+
+            <div class="hw-subsection">
+              <div class="hw-row">
+                <div class="hw-subtitle">Groups</div>
+                <div class="hw-row-actions">
+                  <button
+                    class="hw-button"
+                    type="button"
+                    phx-click="toggle_room_section"
+                    phx-value-room_id="unassigned"
+                    phx-value-section="groups"
+                    phx-value-action="check"
+                  >
+                    Check All
+                  </button>
+                  <button
+                    class="hw-button"
+                    type="button"
+                    phx-click="toggle_room_section"
+                    phx-value-room_id="unassigned"
+                    phx-value-section="groups"
+                    phx-value-action="uncheck"
+                  >
+                    Uncheck All
+                  </button>
+                </div>
+              </div>
+              <div class="hw-grid">
+                <%= if unassigned_groups == [] do %>
+                  <div class="hw-muted">No groups</div>
+                <% end %>
+                <%= for group <- unassigned_groups do %>
+                  <% group_id = fetch(group, :source_id) %>
+                  <label class="hw-row">
+                    <input
+                      type="checkbox"
+                      checked={plan_selected?(@plan, :groups, group_id)}
+                      phx-click="toggle_group"
+                      phx-value-id={group_id}
+                    />
+                    <span class="hw-row-title"><%= fetch(group, :name) %></span>
+                    <span class="hw-muted">(<%= fetch(group, :classification) %>)</span>
+                  </label>
+                <% end %>
+              </div>
+            </div>
+          </div>
         <% end %>
       </div>
     </section>

@@ -4,6 +4,7 @@ defmodule HueworksWeb.BridgeSetupLive do
   alias Hueworks.Repo
   alias Hueworks.Schemas.Bridge
   alias Hueworks.Schemas.Room
+  alias Hueworks.Bridges
   alias Hueworks.Import.{Materialize, Plan, Normalize, Link}
   import Hueworks.Import.Normalize, only: [fetch: 2]
 
@@ -24,6 +25,7 @@ defmodule HueworksWeb.BridgeSetupLive do
        import_blob: nil,
        normalized: nil,
        plan: nil,
+       reimport: false,
        rooms: rooms
      )}
   end
@@ -36,9 +38,29 @@ defmodule HueworksWeb.BridgeSetupLive do
     {:noreply, update_plan(socket, :groups, source_id)}
   end
 
+  def handle_event("toggle_all", %{"action" => action}, socket) do
+    {:noreply, apply_bulk_toggle(socket, action)}
+  end
+
+  def handle_event("toggle_room", %{"room_id" => room_id, "action" => action}, socket) do
+    {:noreply, apply_room_toggle(socket, room_id, action)}
+  end
+
+  def handle_event(
+        "toggle_room_section",
+        %{"room_id" => room_id, "section" => section, "action" => action},
+        socket
+      ) do
+    {:noreply, apply_room_section_toggle(socket, room_id, section, action)}
+  end
+
   def handle_event("set_room_action", %{"room_id" => source_id, "action" => action}, socket) do
     plan = put_room_plan(socket.assigns.plan, source_id, %{"action" => action})
     {:noreply, assign(socket, plan: plan)}
+  end
+
+  def handle_event("toggle_reimport", %{"enabled" => enabled}, socket) do
+    {:noreply, assign(socket, reimport: enabled == "true")}
   end
 
   def handle_event("import_configuration", _params, socket) do
@@ -65,6 +87,7 @@ defmodule HueworksWeb.BridgeSetupLive do
     bridge_import = socket.assigns.bridge_import
 
     with {:ok, reviewed} <- update_review_blob(bridge_import, plan),
+         :ok <- maybe_delete_entities(socket),
          :ok <- Materialize.materialize(socket.assigns.bridge, normalized, plan),
          :ok <- Link.apply(),
          {:ok, applied} <- mark_applied(reviewed),
@@ -151,8 +174,170 @@ defmodule HueworksWeb.BridgeSetupLive do
     |> Repo.update()
   end
 
+  defp maybe_delete_entities(%{assigns: %{reimport: true, bridge: bridge}}) do
+    case Bridges.delete_entities(bridge) do
+      {:ok, _} -> :ok
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp maybe_delete_entities(_socket), do: :ok
+
   defp normalized_entries(normalized, key) do
     Normalize.fetch(normalized, key) || []
+  end
+
+  defp apply_bulk_toggle(socket, value) do
+    plan = socket.assigns.plan || %{}
+    normalized = socket.assigns.normalized || %{}
+    rooms = normalized_entries(normalized, :rooms)
+    lights = normalized_entries(normalized, :lights)
+    groups = normalized_entries(normalized, :groups)
+    room_ids = entity_ids(rooms)
+    light_ids = entity_ids(lights)
+    group_ids = entity_ids(groups)
+
+    action = if value == "check", do: "create", else: "skip"
+    selected = value == "check"
+
+    plan
+    |> put_room_actions(room_ids, action)
+    |> put_selection(:lights, light_ids, selected)
+    |> put_selection(:groups, group_ids, selected)
+    |> then(&assign(socket, plan: &1))
+  end
+
+  defp apply_room_toggle(socket, room_id, value) do
+    plan = socket.assigns.plan || %{}
+    normalized = socket.assigns.normalized || %{}
+    selected = value == "check"
+    action = if selected, do: "create", else: "skip"
+
+    light_ids = room_entity_ids(normalized, room_id, :lights)
+    group_ids = room_entity_ids(normalized, room_id, :groups)
+    room_ids = room_entity_ids(normalized, room_id, :rooms)
+
+    plan
+    |> put_room_actions(room_ids, action)
+    |> put_selection(:lights, light_ids, selected)
+    |> put_selection(:groups, group_ids, selected)
+    |> then(&assign(socket, plan: &1))
+  end
+
+  defp apply_room_section_toggle(socket, room_id, section, value) do
+    plan = socket.assigns.plan || %{}
+    normalized = socket.assigns.normalized || %{}
+    selected = value == "check"
+    section_key = if section == "groups", do: :groups, else: :lights
+
+    ids =
+      if room_id == "unassigned" do
+        unassigned_entity_ids(normalized, section_key)
+      else
+        room_entity_ids(normalized, room_id, section_key)
+      end
+
+    plan
+    |> put_selection(section_key, ids, selected)
+    |> then(&assign(socket, plan: &1))
+  end
+
+  defp put_room_actions(plan, room_ids, action) do
+    plan = plan || %{}
+    rooms = Normalize.fetch(plan, :rooms) || %{}
+
+    updated =
+      Enum.reduce(room_ids, rooms, fn room_id, acc ->
+        current = Map.get(acc, room_id, %{})
+        Map.put(acc, room_id, Map.put(current, "action", action))
+      end)
+
+    Map.put(plan, :rooms, updated)
+  end
+
+  defp put_selection(plan, key, ids, selected) do
+    plan = plan || %{}
+    map = Normalize.fetch(plan, key) || %{}
+
+    updated =
+      Enum.reduce(ids, map, fn id, acc ->
+        Map.put(acc, id, selected)
+      end)
+
+    Map.put(plan, key, updated)
+  end
+
+  defp entity_ids(entries) do
+    entries
+    |> Enum.map(fn entry ->
+      entry
+      |> Normalize.fetch(:source_id)
+      |> Normalize.normalize_source_id()
+    end)
+    |> Enum.filter(&is_binary/1)
+  end
+
+  defp room_entity_ids(_normalized, room_id, :rooms) do
+    case Normalize.normalize_source_id(room_id) do
+      nil -> []
+      id -> [id]
+    end
+  end
+
+  defp room_entity_ids(normalized, room_id, type) when type in [:lights, :groups] do
+    room_key = Normalize.normalize_source_id(room_id)
+    entries = normalized_entries(normalized, type)
+
+    if is_binary(room_key) do
+      entries
+      |> Enum.reduce([], fn entry, acc ->
+        entry_room =
+          entry
+          |> Normalize.fetch(:room_source_id)
+          |> Normalize.normalize_source_id()
+
+        if entry_room == room_key do
+          case Normalize.normalize_source_id(Normalize.fetch(entry, :source_id)) do
+            nil -> acc
+            id -> [id | acc]
+          end
+        else
+          acc
+        end
+      end)
+      |> Enum.reverse()
+    else
+      []
+    end
+  end
+
+  defp unassigned_entity_ids(normalized, type) when type in [:lights, :groups] do
+    room_keys =
+      normalized_entries(normalized, :rooms)
+      |> Enum.map(fn room ->
+        room
+        |> Normalize.fetch(:source_id)
+        |> Normalize.normalize_source_id()
+      end)
+      |> Enum.filter(&is_binary/1)
+
+    normalized_entries(normalized, type)
+    |> Enum.reduce([], fn entry, acc ->
+      room_key =
+        entry
+        |> Normalize.fetch(:room_source_id)
+        |> Normalize.normalize_source_id()
+
+      if not is_binary(room_key) or not Enum.member?(room_keys, room_key) do
+        case Normalize.normalize_source_id(Normalize.fetch(entry, :source_id)) do
+          nil -> acc
+          id -> [id | acc]
+        end
+      else
+        acc
+      end
+    end)
+    |> Enum.reverse()
   end
 
   defp pipeline_module do
