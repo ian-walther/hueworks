@@ -170,15 +170,29 @@
                 <% end %>
                 <%= for light <- room_lights do %>
                   <% light_id = fetch(light, :source_id) %>
+                  <% light_status = reimport_status(@reimport_statuses, :lights, light_id) %>
                   <label class="hw-row">
                     <input
                       type="checkbox"
-                      checked={plan_selected?(@plan, :lights, light_id)}
+                      checked={
+                        if reimport_disabled?(@reimport_statuses, :lights, light_id) do
+                          false
+                        else
+                          plan_selected?(@plan, :lights, light_id)
+                        end
+                      }
+                      disabled={reimport_disabled?(@reimport_statuses, :lights, light_id)}
                       phx-click="toggle_light"
                       phx-value-id={light_id}
                     />
                     <span class="hw-row-title"><%= fetch(light, :name) %></span>
                     <span class="hw-muted">(<%= fetch(light, :classification) %>)</span>
+                    <%= if light_status == :existing do %>
+                      <span class="hw-muted">(already imported)</span>
+                    <% end %>
+                    <%= if light_status == :missing do %>
+                      <span class="hw-muted">(no longer present)</span>
+                    <% end %>
                   </label>
                 <% end %>
               </div>
@@ -216,15 +230,29 @@
                 <% end %>
                 <%= for group <- room_groups do %>
                   <% group_id = fetch(group, :source_id) %>
+                  <% group_status = reimport_status(@reimport_statuses, :groups, group_id) %>
                   <label class="hw-row">
                     <input
                       type="checkbox"
-                      checked={plan_selected?(@plan, :groups, group_id)}
+                      checked={
+                        if reimport_disabled?(@reimport_statuses, :groups, group_id) do
+                          false
+                        else
+                          plan_selected?(@plan, :groups, group_id)
+                        end
+                      }
+                      disabled={reimport_disabled?(@reimport_statuses, :groups, group_id)}
                       phx-click="toggle_group"
                       phx-value-id={group_id}
                     />
                     <span class="hw-row-title"><%= fetch(group, :name) %></span>
                     <span class="hw-muted">(<%= fetch(group, :classification) %>)</span>
+                    <%= if group_status == :existing do %>
+                      <span class="hw-muted">(already imported)</span>
+                    <% end %>
+                    <%= if group_status == :missing do %>
+                      <span class="hw-muted">(no longer present)</span>
+                    <% end %>
                   </label>
                 <% end %>
               </div>
@@ -284,15 +312,29 @@
                 <% end %>
                 <%= for light <- unassigned_lights do %>
                   <% light_id = fetch(light, :source_id) %>
+                  <% light_status = reimport_status(@reimport_statuses, :lights, light_id) %>
                   <label class="hw-row">
                     <input
                       type="checkbox"
-                      checked={plan_selected?(@plan, :lights, light_id)}
+                      checked={
+                        if reimport_disabled?(@reimport_statuses, :lights, light_id) do
+                          false
+                        else
+                          plan_selected?(@plan, :lights, light_id)
+                        end
+                      }
+                      disabled={reimport_disabled?(@reimport_statuses, :lights, light_id)}
                       phx-click="toggle_light"
                       phx-value-id={light_id}
                     />
                     <span class="hw-row-title"><%= fetch(light, :name) %></span>
                     <span class="hw-muted">(<%= fetch(light, :classification) %>)</span>
+                    <%= if light_status == :existing do %>
+                      <span class="hw-muted">(already imported)</span>
+                    <% end %>
+                    <%= if light_status == :missing do %>
+                      <span class="hw-muted">(no longer present)</span>
+                    <% end %>
                   </label>
                 <% end %>
               </div>
@@ -330,15 +372,29 @@
                 <% end %>
                 <%= for group <- unassigned_groups do %>
                   <% group_id = fetch(group, :source_id) %>
+                  <% group_status = reimport_status(@reimport_statuses, :groups, group_id) %>
                   <label class="hw-row">
                     <input
                       type="checkbox"
-                      checked={plan_selected?(@plan, :groups, group_id)}
+                      checked={
+                        if reimport_disabled?(@reimport_statuses, :groups, group_id) do
+                          false
+                        else
+                          plan_selected?(@plan, :groups, group_id)
+                        end
+                      }
+                      disabled={reimport_disabled?(@reimport_statuses, :groups, group_id)}
                       phx-click="toggle_group"
                       phx-value-id={group_id}
                     />
                     <span class="hw-row-title"><%= fetch(group, :name) %></span>
                     <span class="hw-muted">(<%= fetch(group, :classification) %>)</span>
+                    <%= if group_status == :existing do %>
+                      <span class="hw-muted">(already imported)</span>
+                    <% end %>
+                    <%= if group_status == :missing do %>
+                      <span class="hw-muted">(no longer present)</span>
+                    <% end %>
                   </label>
                 <% end %>
               </div>

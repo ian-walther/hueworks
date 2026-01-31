@@ -20,6 +20,8 @@ defmodule Hueworks.Schemas.Group do
     field(:extended_kelvin_range, :boolean, default: false)
     field(:enabled, :boolean, default: true)
     field(:metadata, :map, default: %{})
+    field(:external_id, :string)
+    field(:normalized_json, :map, default: %{})
     has_many(:group_lights, Hueworks.Schemas.GroupLight)
     has_many(:lights, through: [:group_lights, :light])
 
@@ -45,7 +47,9 @@ defmodule Hueworks.Schemas.Group do
       :actual_max_kelvin,
       :extended_kelvin_range,
       :enabled,
-      :metadata
+      :metadata,
+      :external_id,
+      :normalized_json
     ])
     |> validate_required([:name, :source, :source_id, :bridge_id])
     |> validate_change(:parent_group_id, fn :parent_group_id, parent_group_id ->

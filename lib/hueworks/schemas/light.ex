@@ -21,6 +21,8 @@ defmodule Hueworks.Schemas.Light do
     field(:supports_temp, :boolean, default: false)
     field(:enabled, :boolean, default: true)
     field(:metadata, :map, default: %{})
+    field(:external_id, :string)
+    field(:normalized_json, :map, default: %{})
 
     timestamps()
   end
@@ -43,7 +45,9 @@ defmodule Hueworks.Schemas.Light do
       :supports_color,
       :supports_temp,
       :enabled,
-      :metadata
+      :metadata,
+      :external_id,
+      :normalized_json
     ])
     |> validate_required([:name, :source, :source_id, :bridge_id])
     |> validate_change(:canonical_light_id, fn :canonical_light_id, canonical_light_id ->

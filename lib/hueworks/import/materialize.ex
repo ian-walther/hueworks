@@ -4,7 +4,7 @@ defmodule Hueworks.Import.Materialize do
   import Ecto.Query, only: [from: 2]
 
   alias Hueworks.Repo
-  alias Hueworks.Import.{Normalize, Plan}
+  alias Hueworks.Import.{Identifiers, Normalize, NormalizeJson, Plan}
   alias Hueworks.Util
   alias Hueworks.Schemas.{Group, GroupLight, Light, Room}
 
@@ -109,7 +109,9 @@ defmodule Hueworks.Import.Materialize do
             Normalize.fetch(Normalize.fetch(light, :capabilities) || %{}, :reported_kelvin_min),
           reported_max_kelvin:
             Normalize.fetch(Normalize.fetch(light, :capabilities) || %{}, :reported_kelvin_max),
-          metadata: light_metadata(light, bridge.host)
+          metadata: light_metadata(light, bridge.host),
+          external_id: Identifiers.light_external_id(light),
+          normalized_json: NormalizeJson.to_map(light)
         }
 
         record =
@@ -152,7 +154,9 @@ defmodule Hueworks.Import.Materialize do
             Normalize.fetch(Normalize.fetch(group, :capabilities) || %{}, :reported_kelvin_min),
           reported_max_kelvin:
             Normalize.fetch(Normalize.fetch(group, :capabilities) || %{}, :reported_kelvin_max),
-          metadata: group_metadata(group, bridge.host)
+          metadata: group_metadata(group, bridge.host),
+          external_id: Identifiers.group_external_id(group),
+          normalized_json: NormalizeJson.to_map(group)
         }
 
         record =

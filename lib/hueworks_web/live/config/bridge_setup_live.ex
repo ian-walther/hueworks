@@ -5,12 +5,13 @@ defmodule HueworksWeb.BridgeSetupLive do
   alias Hueworks.Schemas.Bridge
   alias Hueworks.Schemas.Room
   alias Hueworks.Bridges
-  alias Hueworks.Import.{Materialize, Plan, Normalize, Link}
+  alias Hueworks.Import.{Link, Materialize, Normalize, NormalizeFromDb, Plan, ReimportPlan}
   import Hueworks.Import.Normalize, only: [fetch: 2]
 
-  def mount(%{"id" => id}, _session, socket) do
+  def mount(%{"id" => id} = params, _session, socket) do
     bridge = Repo.get!(Bridge, id)
     rooms = Repo.all(Room)
+    reimport = Map.get(params, "reimport") == "1"
 
     if connected?(socket) do
       send(self(), :import_configuration)
@@ -24,8 +25,12 @@ defmodule HueworksWeb.BridgeSetupLive do
        import_error: nil,
        import_blob: nil,
        normalized: nil,
+       normalized_display: nil,
+       normalized_import: nil,
+       normalized_db: nil,
        plan: nil,
-       reimport: false,
+       reimport: reimport,
+       reimport_statuses: %{},
        rooms: rooms
      )}
   end
@@ -60,7 +65,18 @@ defmodule HueworksWeb.BridgeSetupLive do
   end
 
   def handle_event("toggle_reimport", %{"enabled" => enabled}, socket) do
-    {:noreply, assign(socket, reimport: enabled == "true")}
+    reimport = enabled == "true"
+    socket = assign(socket, reimport: reimport)
+    socket = refresh_reimport_plan(socket)
+
+    socket =
+      if reimport do
+        socket
+      else
+        assign_default_plan_if_needed(socket, socket.assigns.bridge_import)
+      end
+
+    {:noreply, socket}
   end
 
   def handle_event("import_configuration", _params, socket) do
@@ -83,11 +99,11 @@ defmodule HueworksWeb.BridgeSetupLive do
 
   def handle_event("apply_materialization", _params, socket) do
     plan = socket.assigns.plan || %{}
-    normalized = socket.assigns.normalized || %{}
+    normalized = socket.assigns.normalized_import || %{}
     bridge_import = socket.assigns.bridge_import
 
     with {:ok, reviewed} <- update_review_blob(bridge_import, plan),
-         :ok <- maybe_delete_entities(socket),
+         :ok <- maybe_delete_entities(socket, plan),
          :ok <- Materialize.materialize(socket.assigns.bridge, normalized, plan),
          :ok <- Link.apply(),
          {:ok, applied} <- mark_applied(reviewed),
@@ -110,19 +126,61 @@ defmodule HueworksWeb.BridgeSetupLive do
     case pipeline_module().create_import(socket.assigns.bridge) do
       {:ok, bridge_import} ->
         normalized = bridge_import.normalized_blob
-        plan = bridge_import.review_blob || Plan.build_default(normalized)
+        socket =
+          assign(socket,
+            import_status: :ok,
+            import_error: nil,
+            import_blob: bridge_import.raw_blob,
+            bridge_import: bridge_import,
+            normalized_import: normalized
+          )
 
-        assign(socket,
-          import_status: :ok,
-          import_error: nil,
-          import_blob: bridge_import.raw_blob,
-          bridge_import: bridge_import,
-          normalized: normalized,
-          plan: plan
-        )
+        socket
+        |> refresh_reimport_plan()
+        |> assign_default_plan_if_needed(bridge_import)
 
       {:error, message} ->
         assign(socket, import_status: :error, import_error: message)
+    end
+  end
+
+  defp refresh_reimport_plan(socket) do
+    if socket.assigns.reimport and socket.assigns.normalized_import do
+      normalized_db = NormalizeFromDb.normalize(socket.assigns.bridge)
+      reimport = ReimportPlan.build(socket.assigns.normalized_import, normalized_db, socket.assigns.rooms)
+
+      assign(socket,
+        normalized: reimport.normalized,
+        normalized_display: reimport.normalized,
+        normalized_db: normalized_db,
+        plan: reimport.plan,
+        reimport_statuses: reimport.statuses
+      )
+    else
+      socket
+    end
+  end
+
+  defp assign_default_plan_if_needed(socket, bridge_import) do
+    if socket.assigns.reimport do
+      socket
+    else
+      normalized = socket.assigns.normalized_import || %{}
+      review_blob =
+        case bridge_import do
+          nil -> nil
+          _ -> bridge_import.review_blob
+        end
+
+      plan = review_blob || Plan.build_default(normalized)
+
+      assign(socket,
+        normalized: normalized,
+        normalized_display: normalized,
+        normalized_db: nil,
+        plan: plan,
+        reimport_statuses: %{}
+      )
     end
   end
 
@@ -174,22 +232,44 @@ defmodule HueworksWeb.BridgeSetupLive do
     |> Repo.update()
   end
 
-  defp maybe_delete_entities(%{assigns: %{reimport: true, bridge: bridge}}) do
-    case Bridges.delete_entities(bridge) do
+  defp maybe_delete_entities(%{assigns: %{reimport: true, bridge: bridge}} = socket, plan) do
+    normalized_import = socket.assigns.normalized_import || %{}
+    normalized_db = socket.assigns.normalized_db || %{}
+    deletions = ReimportPlan.deletions(plan, normalized_import, normalized_db)
+
+    case Bridges.delete_unchecked_entities(bridge, deletions.lights, deletions.groups) do
       {:ok, _} -> :ok
       {:error, reason} -> {:error, reason}
     end
   end
 
-  defp maybe_delete_entities(_socket), do: :ok
+  defp maybe_delete_entities(_socket, _plan), do: :ok
 
   defp normalized_entries(normalized, key) do
     Normalize.fetch(normalized, key) || []
   end
 
+  defp normalized_for_plan(socket) do
+    if socket.assigns.reimport do
+      socket.assigns.normalized_import || %{}
+    else
+      socket.assigns.normalized || %{}
+    end
+  end
+
+  defp reimport_status(statuses, key, source_id) do
+    source_id = Normalize.normalize_source_id(source_id)
+    map = Normalize.fetch(statuses, key) || %{}
+    Map.get(map, source_id)
+  end
+
+  defp reimport_disabled?(statuses, key, source_id) do
+    reimport_status(statuses, key, source_id) == :missing
+  end
+
   defp apply_bulk_toggle(socket, value) do
     plan = socket.assigns.plan || %{}
-    normalized = socket.assigns.normalized || %{}
+    normalized = normalized_for_plan(socket)
     rooms = normalized_entries(normalized, :rooms)
     lights = normalized_entries(normalized, :lights)
     groups = normalized_entries(normalized, :groups)
@@ -209,7 +289,7 @@ defmodule HueworksWeb.BridgeSetupLive do
 
   defp apply_room_toggle(socket, room_id, value) do
     plan = socket.assigns.plan || %{}
-    normalized = socket.assigns.normalized || %{}
+    normalized = normalized_for_plan(socket)
     selected = value == "check"
     action = if selected, do: "create", else: "skip"
 
@@ -226,7 +306,7 @@ defmodule HueworksWeb.BridgeSetupLive do
 
   defp apply_room_section_toggle(socket, room_id, section, value) do
     plan = socket.assigns.plan || %{}
-    normalized = socket.assigns.normalized || %{}
+    normalized = normalized_for_plan(socket)
     selected = value == "check"
     section_key = if section == "groups", do: :groups, else: :lights
 
