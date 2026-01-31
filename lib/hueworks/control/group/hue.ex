@@ -7,7 +7,8 @@ defmodule Hueworks.Control.Group.Hue do
   def handle(group, action) do
     with {:ok, host, api_key} <- HueBridge.credentials_for(group),
          payload <- action_payload(action),
-         {:ok, _resp} <- HueClient.request(host, api_key, "/groups/#{group.source_id}/action", payload) do
+         {:ok, _resp} <-
+           HueClient.request(host, api_key, "/groups/#{group.source_id}/action", payload) do
       :ok
     else
       {:error, _} = error -> error
@@ -54,5 +55,4 @@ defmodule Hueworks.Control.Group.Hue do
     |> Util.clamp(0, 100)
     |> then(fn s -> round(s / 100 * 254) end)
   end
-
 end

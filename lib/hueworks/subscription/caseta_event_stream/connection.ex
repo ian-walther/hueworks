@@ -184,7 +184,11 @@ defmodule Hueworks.Subscription.CasetaEventStream.Connection do
   end
 
   defp load_lights(bridge_id) do
-    Repo.all(from(l in Light, where: l.bridge_id == ^bridge_id and l.source == :caseta and l.enabled == true))
+    Repo.all(
+      from(l in Light,
+        where: l.bridge_id == ^bridge_id and l.source == :caseta and l.enabled == true
+      )
+    )
     |> Enum.reduce(%{}, fn light, acc -> Map.put(acc, light.source_id, light.id) end)
   end
 

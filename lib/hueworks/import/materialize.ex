@@ -299,5 +299,4 @@ defmodule Hueworks.Import.Materialize do
   defp normalize_source(source) when is_atom(source), do: source
   defp normalize_source(source) when is_binary(source), do: String.to_atom(source)
   defp normalize_source(_source), do: nil
-
 end

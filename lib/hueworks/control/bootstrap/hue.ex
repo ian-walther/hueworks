@@ -82,5 +82,4 @@ defmodule Hueworks.Control.Bootstrap.Hue do
   end
 
   defp build_hue_group_state(_group), do: %{}
-
 end

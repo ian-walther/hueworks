@@ -7,7 +7,8 @@ defmodule Hueworks.Control.Light.Hue do
   def handle(light, action) do
     with {:ok, host, api_key} <- HueBridge.credentials_for(light),
          payload <- action_payload(action),
-         {:ok, _resp} <- HueClient.request(host, api_key, "/lights/#{light.source_id}/state", payload) do
+         {:ok, _resp} <-
+           HueClient.request(host, api_key, "/lights/#{light.source_id}/state", payload) do
       :ok
     else
       {:error, _} = error -> error
@@ -54,5 +55,4 @@ defmodule Hueworks.Control.Light.Hue do
     |> Util.clamp(0, 100)
     |> then(fn s -> round(s / 100 * 254) end)
   end
-
 end

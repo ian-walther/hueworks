@@ -142,5 +142,4 @@ defmodule Hueworks.Import.Normalize.Hue do
       reported_kelvin_max: max_kelvin
     }
   end
-
 end

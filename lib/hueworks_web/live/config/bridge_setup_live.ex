@@ -75,7 +75,7 @@ defmodule HueworksWeb.BridgeSetupLive do
        |> push_navigate(to: "/config")}
     else
       {:error, reason} ->
-      {:noreply, assign(socket, import_status: :error, import_error: inspect(reason))}
+        {:noreply, assign(socket, import_status: :error, import_error: inspect(reason))}
     end
   end
 

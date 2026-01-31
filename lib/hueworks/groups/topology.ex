@@ -45,7 +45,9 @@ defmodule Hueworks.Groups.Topology do
         |> Enum.reject(&(&1 == id))
         |> Enum.filter(fn other_id ->
           other = Map.get(member_sets, other_id, MapSet.new())
-          MapSet.size(other) > 0 and MapSet.subset?(other, base) and not MapSet.equal?(other, base)
+
+          MapSet.size(other) > 0 and MapSet.subset?(other, base) and
+            not MapSet.equal?(other, base)
         end)
 
       Map.put(acc, id, subgroups)

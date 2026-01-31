@@ -115,7 +115,6 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.Connection do
     |> Map.merge(StateParser.kelvin_from_ha_attrs(attrs, entity))
   end
 
-
   defp load_lights(bridge_id) do
     Repo.all(
       from(l in Light,
@@ -137,7 +136,8 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.Connection do
         )
       )
 
-    group_map = Enum.reduce(groups, %{}, fn group, acc -> Map.put(acc, group.source_id, group) end)
+    group_map =
+      Enum.reduce(groups, %{}, fn group, acc -> Map.put(acc, group.source_id, group) end)
 
     members_map =
       Enum.reduce(groups, %{}, fn group, acc ->

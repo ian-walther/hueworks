@@ -114,10 +114,14 @@ defmodule Hueworks.Import.Fetch.Caseta do
 
     :ssl.send(socket, message <> "\r\n")
 
-    case read_until_match(socket, fn decoded ->
-           get_in(decoded, ["Header", "Url"]) == url and
-             not is_nil(get_in(decoded, ["Header", "StatusCode"]))
-         end, timeout) do
+    case read_until_match(
+           socket,
+           fn decoded ->
+             get_in(decoded, ["Header", "Url"]) == url and
+               not is_nil(get_in(decoded, ["Header", "StatusCode"]))
+           end,
+           timeout
+         ) do
       {:ok, decoded} ->
         responses = acc ++ [decoded]
 

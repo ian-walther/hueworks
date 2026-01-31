@@ -21,7 +21,7 @@ defmodule Hueworks.Kelvin do
 
     {min_kelvin, max_kelvin} =
       cond do
-      is_number(min_kelvin) and is_number(max_kelvin) ->
+        is_number(min_kelvin) and is_number(max_kelvin) ->
           {round(min_kelvin), round(max_kelvin)}
 
         true ->
@@ -113,5 +113,4 @@ defmodule Hueworks.Kelvin do
   defp extended_kelvin_range?(entity) do
     get_field(entity, :extended_kelvin_range) == true
   end
-
 end

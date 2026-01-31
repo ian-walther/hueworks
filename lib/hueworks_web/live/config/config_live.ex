@@ -9,5 +9,4 @@ defmodule HueworksWeb.ConfigLive do
   def handle_event("noop", _params, socket) do
     {:noreply, socket}
   end
-
 end

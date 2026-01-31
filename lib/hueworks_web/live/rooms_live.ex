@@ -8,15 +8,15 @@ defmodule HueworksWeb.RoomsLive do
     {:ok,
      assign(socket,
        rooms: Rooms.list_rooms_with_children(),
-        modal_open: false,
-        edit_mode: :new,
-        edit_room_id: nil,
-        edit_name: "",
-        scene_modal_open: false,
-        scene_mode: :new,
-        scene_room_id: nil,
-        scene_id: nil,
-        scene_name: ""
+       modal_open: false,
+       edit_mode: :new,
+       edit_room_id: nil,
+       edit_name: "",
+       scene_modal_open: false,
+       scene_mode: :new,
+       scene_room_id: nil,
+       scene_id: nil,
+       scene_name: ""
      )}
   end
 
@@ -259,9 +259,9 @@ defmodule HueworksWeb.RoomsLive do
      assign(socket,
        scene_modal_open: true,
        scene_mode: :new,
-        scene_room_id: String.to_integer(id),
-        scene_id: nil,
-        scene_name: ""
+       scene_room_id: String.to_integer(id),
+       scene_id: nil,
+       scene_name: ""
      )}
   end
 
@@ -338,7 +338,7 @@ defmodule HueworksWeb.RoomsLive do
     case socket.assigns.edit_mode do
       :new ->
         case Rooms.create_room(%{name: name}) do
-            {:ok, _room} ->
+          {:ok, _room} ->
             {:noreply, refresh_rooms(socket)}
 
           {:error, _changeset} ->

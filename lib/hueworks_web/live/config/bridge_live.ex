@@ -33,60 +33,61 @@ defmodule HueworksWeb.BridgeLive do
     host = Util.normalize_host_input(Map.get(params, "host", socket.assigns.host))
 
     {:noreply,
-      assign(socket,
-        host: host,
-        type: Map.get(params, "type", socket.assigns.type),
-        hue_api_key: Map.get(params, "hue_api_key", socket.assigns.hue_api_key),
-        caseta_staged_paths: %{},
-        test_status: :idle,
-        test_error: nil,
-        test_bridge_name: nil
-      )}
+     assign(socket,
+       host: host,
+       type: Map.get(params, "type", socket.assigns.type),
+       hue_api_key: Map.get(params, "hue_api_key", socket.assigns.hue_api_key),
+       caseta_staged_paths: %{},
+       test_status: :idle,
+       test_error: nil,
+       test_bridge_name: nil
+     )}
   end
 
   def handle_event("update_bridge", %{"type" => "ha"} = params, socket) do
     host = Util.normalize_host_input(Map.get(params, "host", socket.assigns.host))
 
     {:noreply,
-      assign(socket,
-        host: host,
-        type: Map.get(params, "type", socket.assigns.type),
-        ha_token: Map.get(params, "ha_token", socket.assigns.ha_token),
-        caseta_staged_paths: %{},
-        test_status: :idle,
-        test_error: nil,
-        test_bridge_name: nil
-      )}
+     assign(socket,
+       host: host,
+       type: Map.get(params, "type", socket.assigns.type),
+       ha_token: Map.get(params, "ha_token", socket.assigns.ha_token),
+       caseta_staged_paths: %{},
+       test_status: :idle,
+       test_error: nil,
+       test_bridge_name: nil
+     )}
   end
 
   def handle_event("update_bridge", %{"type" => "caseta"} = params, socket) do
     host = Util.normalize_host_input(Map.get(params, "host", socket.assigns.host))
 
     {:noreply,
-      assign(socket,
-        host: host,
-        type: Map.get(params, "type", socket.assigns.type),
-        caseta_cert_path: Map.get(params, "caseta_cert_path", socket.assigns.caseta_cert_path),
-        caseta_key_path: Map.get(params, "caseta_key_path", socket.assigns.caseta_key_path),
-        caseta_cacert_path: Map.get(params, "caseta_cacert_path", socket.assigns.caseta_cacert_path),
-        test_status: :idle,
-        test_error: nil,
-        test_bridge_name: nil
-      )}
+     assign(socket,
+       host: host,
+       type: Map.get(params, "type", socket.assigns.type),
+       caseta_cert_path: Map.get(params, "caseta_cert_path", socket.assigns.caseta_cert_path),
+       caseta_key_path: Map.get(params, "caseta_key_path", socket.assigns.caseta_key_path),
+       caseta_cacert_path:
+         Map.get(params, "caseta_cacert_path", socket.assigns.caseta_cacert_path),
+       test_status: :idle,
+       test_error: nil,
+       test_bridge_name: nil
+     )}
   end
 
   def handle_event("update_bridge", params, socket) do
     host = Util.normalize_host_input(Map.get(params, "host", socket.assigns.host))
 
     {:noreply,
-      assign(socket,
-        host: host,
-        type: Map.get(params, "type", socket.assigns.type),
-        caseta_staged_paths: %{},
-        test_status: :idle,
-        test_error: nil,
-        test_bridge_name: nil
-      )}
+     assign(socket,
+       host: host,
+       type: Map.get(params, "type", socket.assigns.type),
+       caseta_staged_paths: %{},
+       test_status: :idle,
+       test_error: nil,
+       test_bridge_name: nil
+     )}
   end
 
   def handle_event("test_bridge", _params, socket) do
@@ -126,7 +127,8 @@ defmodule HueworksWeb.BridgeLive do
         {:noreply, push_navigate(socket, to: "/config/bridge/#{bridge.id}/setup")}
 
       {:error, changeset} ->
-        {:noreply, assign(socket, test_status: :error, test_error: Util.format_changeset_error(changeset))}
+        {:noreply,
+         assign(socket, test_status: :error, test_error: Util.format_changeset_error(changeset))}
     end
   end
 
@@ -214,7 +216,9 @@ defmodule HueworksWeb.BridgeLive do
   defp validate_required_fields(_socket), do: {:error, "Missing required fields."}
 
   defp missing_message([]), do: :ok
-  defp missing_message(missing), do: {:error, "Missing required fields: #{Enum.join(missing, ", ")}"}
+
+  defp missing_message(missing),
+    do: {:error, "Missing required fields: #{Enum.join(missing, ", ")}"}
 
   defp maybe_missing(list, true, label), do: list ++ [label]
   defp maybe_missing(list, false, _label), do: list
@@ -242,9 +246,11 @@ defmodule HueworksWeb.BridgeLive do
     stamp = System.unique_integer([:positive])
 
     with :ok <- validate_uploads_complete(socket),
-         {:ok, cert_path} <- stage_upload(socket, :caseta_cert, dir, "#{host_prefix}_cert_#{stamp}"),
+         {:ok, cert_path} <-
+           stage_upload(socket, :caseta_cert, dir, "#{host_prefix}_cert_#{stamp}"),
          {:ok, key_path} <- stage_upload(socket, :caseta_key, dir, "#{host_prefix}_key_#{stamp}"),
-         {:ok, cacert_path} <- stage_upload(socket, :caseta_cacert, dir, "#{host_prefix}_cacert_#{stamp}") do
+         {:ok, cacert_path} <-
+           stage_upload(socket, :caseta_cacert, dir, "#{host_prefix}_cacert_#{stamp}") do
       {:ok, socket, %{caseta_cert: cert_path, caseta_key: key_path, caseta_cacert: cacert_path}}
     else
       {:error, reason} -> {:error, reason}
@@ -287,7 +293,6 @@ defmodule HueworksWeb.BridgeLive do
     end)
   end
 
-
   defp build_credentials(%{assigns: %{type: "hue", hue_api_key: api_key}}) do
     %{"api_key" => api_key}
   end
@@ -310,7 +315,8 @@ defmodule HueworksWeb.BridgeLive do
     %{
       "cert_path" => move_upload(staged.caseta_cert, Path.join(dir, "#{host_prefix}_cert.crt")),
       "key_path" => move_upload(staged.caseta_key, Path.join(dir, "#{host_prefix}_key.key")),
-      "cacert_path" => move_upload(staged.caseta_cacert, Path.join(dir, "#{host_prefix}_cacert.crt"))
+      "cacert_path" =>
+        move_upload(staged.caseta_cacert, Path.join(dir, "#{host_prefix}_cacert.crt"))
     }
   end
 
@@ -325,5 +331,4 @@ defmodule HueworksWeb.BridgeLive do
         dest
     end
   end
-
 end

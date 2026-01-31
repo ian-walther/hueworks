@@ -40,13 +40,15 @@ defmodule Hueworks.Subscription.HueEventStream.Connection do
 
     if is_binary(api_key) and api_key != "" do
       url = "https://#{state.bridge.host}/eventstream/clip/v2"
+
       headers = [
         {"hue-application-key", api_key},
         {"Accept", "text/event-stream"},
         {"Connection", "keep-alive"}
       ]
 
-      case HTTPoison.get(url,
+      case HTTPoison.get(
+             url,
              headers,
              recv_timeout: :infinity,
              stream_to: self(),
@@ -57,7 +59,10 @@ defmodule Hueworks.Subscription.HueEventStream.Connection do
           {:noreply, %{state | ref: ref, async_response: async_response, buffer: ""}}
 
         {:error, reason} ->
-          Logger.warning("Hue SSE failed to connect to #{state.bridge.name} (#{state.bridge.host}): #{inspect(reason)}")
+          Logger.warning(
+            "Hue SSE failed to connect to #{state.bridge.name} (#{state.bridge.host}): #{inspect(reason)}"
+          )
+
           schedule_reconnect()
           {:noreply, state}
       end

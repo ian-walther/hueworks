@@ -22,6 +22,4 @@ defmodule Hueworks.Control.HomeAssistantBridge do
   end
 
   def credentials_for(_entity), do: {:error, :missing_bridge_id}
-
- 
 end

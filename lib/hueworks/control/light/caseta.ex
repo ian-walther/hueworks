@@ -53,7 +53,6 @@ defmodule Hueworks.Control.Light.Caseta do
     }
   end
 
-
   defp supports_level?(%{metadata: %{"type" => type}}) when is_binary(type) do
     not String.contains?(String.downcase(type), "switch")
   end

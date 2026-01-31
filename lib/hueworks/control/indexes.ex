@@ -23,18 +23,18 @@ defmodule Hueworks.Control.Indexes do
       on_conflict:
         {:replace,
          [
-          :name,
-          :display_name,
-          :metadata,
-          :enabled,
-          :canonical_light_id,
-          :reported_min_kelvin,
-          :reported_max_kelvin,
-          :actual_min_kelvin,
-          :actual_max_kelvin,
-          :supports_color,
-          :supports_temp,
-          :updated_at
+           :name,
+           :display_name,
+           :metadata,
+           :enabled,
+           :canonical_light_id,
+           :reported_min_kelvin,
+           :reported_max_kelvin,
+           :actual_min_kelvin,
+           :actual_max_kelvin,
+           :supports_color,
+           :supports_temp,
+           :updated_at
          ]},
       conflict_target: [:bridge_id, :source_id]
     )
@@ -48,19 +48,19 @@ defmodule Hueworks.Control.Indexes do
       on_conflict:
         {:replace,
          [
-          :name,
-          :display_name,
-          :metadata,
-          :enabled,
-          :parent_group_id,
-          :canonical_group_id,
-          :reported_min_kelvin,
-          :reported_max_kelvin,
-          :actual_min_kelvin,
-          :actual_max_kelvin,
-          :supports_color,
-          :supports_temp,
-          :updated_at
+           :name,
+           :display_name,
+           :metadata,
+           :enabled,
+           :parent_group_id,
+           :canonical_group_id,
+           :reported_min_kelvin,
+           :reported_max_kelvin,
+           :actual_min_kelvin,
+           :actual_max_kelvin,
+           :supports_color,
+           :supports_temp,
+           :updated_at
          ]},
       conflict_target: [:bridge_id, :source_id]
     )

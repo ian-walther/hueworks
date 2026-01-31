@@ -110,6 +110,7 @@ defmodule Hueworks.Import.Fetch.Hue do
       state = light["state"] || %{}
 
       supports_brightness = Map.has_key?(state, "bri")
+
       supports_color =
         Map.has_key?(control, "colorgamut") or Map.has_key?(control, "colorgamuttype")
 

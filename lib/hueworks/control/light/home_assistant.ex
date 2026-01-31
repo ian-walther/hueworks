@@ -45,7 +45,6 @@ defmodule Hueworks.Control.Light.HomeAssistant do
     |> then(fn pct -> round(pct / 100 * 255) end)
   end
 
-
   defp extended_xy(kelvin) do
     k_fake = kelvin |> min(2700) |> max(2000)
     t_base = (k_fake - 2000) / 700

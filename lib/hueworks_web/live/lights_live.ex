@@ -25,8 +25,13 @@ defmodule HueworksWeb.LightsLive do
     light_state = build_light_state(lights)
     group_filter = Util.parse_filter(prefs[:group_filter] || params["group_filter"])
     light_filter = Util.parse_filter(prefs[:light_filter] || params["light_filter"])
-    group_room_filter = Util.parse_room_filter(prefs[:group_room_filter] || params["group_room_filter"])
-    light_room_filter = Util.parse_room_filter(prefs[:light_room_filter] || params["light_room_filter"])
+
+    group_room_filter =
+      Util.parse_room_filter(prefs[:group_room_filter] || params["group_room_filter"])
+
+    light_room_filter =
+      Util.parse_room_filter(prefs[:light_room_filter] || params["light_room_filter"])
+
     group_room_filter = Util.normalize_room_filter(group_room_filter, rooms)
     light_room_filter = Util.normalize_room_filter(light_room_filter, rooms)
 
@@ -36,6 +41,7 @@ defmodule HueworksWeb.LightsLive do
         light_room_filter: light_room_filter
       })
     end
+
     show_disabled_groups = prefs[:show_disabled_groups] || false
     show_disabled_lights = prefs[:show_disabled_lights] || false
 
@@ -49,9 +55,9 @@ defmodule HueworksWeb.LightsLive do
        light_filter: light_filter,
        group_room_filter: group_room_filter,
        light_room_filter: light_room_filter,
-        group_state: group_state,
-        light_state: light_state,
-        status: nil,
+       group_state: group_state,
+       light_state: light_state,
+       status: nil,
        edit_modal_open: false,
        edit_target_type: nil,
        edit_target_id: nil,
@@ -89,6 +95,7 @@ defmodule HueworksWeb.LightsLive do
   @impl true
   def handle_event("refresh", _params, socket) do
     State.bootstrap()
+
     socket =
       socket
       |> reload_entities()
@@ -103,7 +110,11 @@ defmodule HueworksWeb.LightsLive do
 
   def handle_event("set_group_room_filter", %{"group_room_filter" => filter}, socket) do
     filter = Util.parse_room_filter(filter)
-    {:noreply, store_filter_prefs(socket, group_room_filter: Util.normalize_room_filter(filter, socket.assigns.rooms))}
+
+    {:noreply,
+     store_filter_prefs(socket,
+       group_room_filter: Util.normalize_room_filter(filter, socket.assigns.rooms)
+     )}
   end
 
   def handle_event("set_light_filter", %{"light_filter" => filter}, socket) do
@@ -112,7 +123,11 @@ defmodule HueworksWeb.LightsLive do
 
   def handle_event("set_light_room_filter", %{"light_room_filter" => filter}, socket) do
     filter = Util.parse_room_filter(filter)
-    {:noreply, store_filter_prefs(socket, light_room_filter: Util.normalize_room_filter(filter, socket.assigns.rooms))}
+
+    {:noreply,
+     store_filter_prefs(socket,
+       light_room_filter: Util.normalize_room_filter(filter, socket.assigns.rooms)
+     )}
   end
 
   def handle_event("toggle_group_disabled", %{"show_disabled_groups" => value}, socket) do
@@ -136,20 +151,20 @@ defmodule HueworksWeb.LightsLive do
       {:ok, target} ->
         {:noreply,
          assign(socket,
-          edit_modal_open: true,
-          edit_target_type: type,
-          edit_target_id: target.id,
-          edit_name: target.name,
-          edit_display_name: target.display_name || "",
-          edit_room_id: target.room_id,
-          edit_actual_min_kelvin: Util.format_integer(target.actual_min_kelvin),
-          edit_actual_max_kelvin: Util.format_integer(target.actual_max_kelvin),
-          edit_reported_min_kelvin: Util.format_integer(target.reported_min_kelvin),
-          edit_reported_max_kelvin: Util.format_integer(target.reported_max_kelvin),
-          edit_enabled: target.enabled,
-          edit_mapping_supported: Hueworks.Kelvin.mapping_supported?(target),
-          edit_extended_kelvin_range: target.extended_kelvin_range
-        )}
+           edit_modal_open: true,
+           edit_target_type: type,
+           edit_target_id: target.id,
+           edit_name: target.name,
+           edit_display_name: target.display_name || "",
+           edit_room_id: target.room_id,
+           edit_actual_min_kelvin: Util.format_integer(target.actual_min_kelvin),
+           edit_actual_max_kelvin: Util.format_integer(target.actual_max_kelvin),
+           edit_reported_min_kelvin: Util.format_integer(target.reported_min_kelvin),
+           edit_reported_max_kelvin: Util.format_integer(target.reported_max_kelvin),
+           edit_enabled: target.enabled,
+           edit_mapping_supported: Hueworks.Kelvin.mapping_supported?(target),
+           edit_extended_kelvin_range: target.extended_kelvin_range
+         )}
 
       {:error, reason} ->
         {:noreply, assign(socket, status: "ERROR #{type} #{id}: #{Util.format_reason(reason)}")}
@@ -206,14 +221,20 @@ defmodule HueworksWeb.LightsLive do
   def handle_info({:control_state, :light, id, state}, socket) do
     {:noreply,
      socket
-     |> assign(:light_state, Map.update(socket.assigns.light_state, id, state, &merge_state(&1, state)))}
+     |> assign(
+       :light_state,
+       Map.update(socket.assigns.light_state, id, state, &merge_state(&1, state))
+     )}
   end
 
   @impl true
   def handle_info({:control_state, :group, id, state}, socket) do
     {:noreply,
      socket
-     |> assign(:group_state, Map.update(socket.assigns.group_state, id, state, &merge_state(&1, state)))}
+     |> assign(
+       :group_state,
+       Map.update(socket.assigns.group_state, id, state, &merge_state(&1, state))
+     )}
   end
 
   @impl true
@@ -228,10 +249,19 @@ defmodule HueworksWeb.LightsLive do
       State.put(:light, light.id, %{brightness: parsed})
 
       socket
-      |> assign(:light_state, Map.update(socket.assigns.light_state, light.id, %{brightness: parsed}, &merge_state(&1, %{brightness: parsed})))
+      |> assign(
+        :light_state,
+        Map.update(
+          socket.assigns.light_state,
+          light.id,
+          %{brightness: parsed},
+          &merge_state(&1, %{brightness: parsed})
+        )
+      )
       |> assign(status: "BRIGHTNESS light #{light.name} -> #{parsed}%")
     else
-      {:error, reason} -> assign(socket, status: "ERROR light #{id}: #{Util.format_reason(reason)}")
+      {:error, reason} ->
+        assign(socket, status: "ERROR light #{id}: #{Util.format_reason(reason)}")
     end
   end
 
@@ -242,10 +272,19 @@ defmodule HueworksWeb.LightsLive do
       State.put(:light, light.id, %{kelvin: parsed})
 
       socket
-      |> assign(:light_state, Map.update(socket.assigns.light_state, light.id, %{kelvin: parsed}, &merge_state(&1, %{kelvin: parsed})))
+      |> assign(
+        :light_state,
+        Map.update(
+          socket.assigns.light_state,
+          light.id,
+          %{kelvin: parsed},
+          &merge_state(&1, %{kelvin: parsed})
+        )
+      )
       |> assign(status: "TEMP light #{light.name} -> #{parsed}K")
     else
-      {:error, reason} -> assign(socket, status: "ERROR light #{id}: #{Util.format_reason(reason)}")
+      {:error, reason} ->
+        assign(socket, status: "ERROR light #{id}: #{Util.format_reason(reason)}")
     end
   end
 
@@ -256,10 +295,19 @@ defmodule HueworksWeb.LightsLive do
       State.put(:group, group.id, %{brightness: parsed})
 
       socket
-      |> assign(:group_state, Map.update(socket.assigns.group_state, group.id, %{brightness: parsed}, &merge_state(&1, %{brightness: parsed})))
+      |> assign(
+        :group_state,
+        Map.update(
+          socket.assigns.group_state,
+          group.id,
+          %{brightness: parsed},
+          &merge_state(&1, %{brightness: parsed})
+        )
+      )
       |> assign(status: "BRIGHTNESS group #{group.name} -> #{parsed}%")
     else
-      {:error, reason} -> assign(socket, status: "ERROR group #{id}: #{Util.format_reason(reason)}")
+      {:error, reason} ->
+        assign(socket, status: "ERROR group #{id}: #{Util.format_reason(reason)}")
     end
   end
 
@@ -270,10 +318,19 @@ defmodule HueworksWeb.LightsLive do
       State.put(:group, group.id, %{kelvin: parsed})
 
       socket
-      |> assign(:group_state, Map.update(socket.assigns.group_state, group.id, %{kelvin: parsed}, &merge_state(&1, %{kelvin: parsed})))
+      |> assign(
+        :group_state,
+        Map.update(
+          socket.assigns.group_state,
+          group.id,
+          %{kelvin: parsed},
+          &merge_state(&1, %{kelvin: parsed})
+        )
+      )
       |> assign(status: "TEMP group #{group.name} -> #{parsed}K")
     else
-      {:error, reason} -> assign(socket, status: "ERROR group #{id}: #{Util.format_reason(reason)}")
+      {:error, reason} ->
+        assign(socket, status: "ERROR group #{id}: #{Util.format_reason(reason)}")
     end
   end
 
@@ -283,10 +340,19 @@ defmodule HueworksWeb.LightsLive do
       State.put(:light, light.id, %{power: action})
 
       socket
-      |> assign(:light_state, Map.update(socket.assigns.light_state, light.id, %{power: action}, &merge_state(&1, %{power: action})))
+      |> assign(
+        :light_state,
+        Map.update(
+          socket.assigns.light_state,
+          light.id,
+          %{power: action},
+          &merge_state(&1, %{power: action})
+        )
+      )
       |> assign(status: "#{action_label(action)} light #{light.name}")
     else
-      {:error, reason} -> assign(socket, status: "ERROR light #{id}: #{Util.format_reason(reason)}")
+      {:error, reason} ->
+        assign(socket, status: "ERROR light #{id}: #{Util.format_reason(reason)}")
     end
   end
 
@@ -296,10 +362,19 @@ defmodule HueworksWeb.LightsLive do
       State.put(:group, group.id, %{power: action})
 
       socket
-      |> assign(:group_state, Map.update(socket.assigns.group_state, group.id, %{power: action}, &merge_state(&1, %{power: action})))
+      |> assign(
+        :group_state,
+        Map.update(
+          socket.assigns.group_state,
+          group.id,
+          %{power: action},
+          &merge_state(&1, %{power: action})
+        )
+      )
       |> assign(status: "#{action_label(action)} group #{group.name}")
     else
-      {:error, reason} -> assign(socket, status: "ERROR group #{id}: #{Util.format_reason(reason)}")
+      {:error, reason} ->
+        assign(socket, status: "ERROR group #{id}: #{Util.format_reason(reason)}")
     end
   end
 
@@ -312,7 +387,8 @@ defmodule HueworksWeb.LightsLive do
       action = toggle_action(socket.assigns.light_state, light.id)
       dispatch_action(socket, "light", id, action)
     else
-      {:error, reason} -> assign(socket, status: "ERROR light #{id}: #{Util.format_reason(reason)}")
+      {:error, reason} ->
+        assign(socket, status: "ERROR light #{id}: #{Util.format_reason(reason)}")
     end
   end
 
@@ -321,7 +397,8 @@ defmodule HueworksWeb.LightsLive do
       action = toggle_action(socket.assigns.group_state, group.id)
       dispatch_action(socket, "group", id, action)
     else
-      {:error, reason} -> assign(socket, status: "ERROR group #{id}: #{Util.format_reason(reason)}")
+      {:error, reason} ->
+        assign(socket, status: "ERROR group #{id}: #{Util.format_reason(reason)}")
     end
   end
 
@@ -348,7 +425,7 @@ defmodule HueworksWeb.LightsLive do
     with {:ok, target} <- fetch_edit_target(type, to_string(id)),
          {:ok, updated} <- apply_display_name(type, target, attrs) do
       socket =
-      socket
+        socket
         |> reload_entities()
         |> close_edit_modal()
         |> assign(status: "Saved #{type} #{updated.name}")
@@ -411,7 +488,8 @@ defmodule HueworksWeb.LightsLive do
         Map.get(params, "actual_max_kelvin", socket.assigns.edit_actual_max_kelvin),
       edit_room_id:
         Util.parse_optional_integer(Map.get(params, "room_id", socket.assigns.edit_room_id)),
-      edit_enabled: Util.parse_optional_bool(Map.get(params, "enabled", socket.assigns.edit_enabled)),
+      edit_enabled:
+        Util.parse_optional_bool(Map.get(params, "enabled", socket.assigns.edit_enabled)),
       edit_extended_kelvin_range:
         Util.parse_optional_bool(
           Map.get(params, "extended_kelvin_range", socket.assigns.edit_extended_kelvin_range)
@@ -529,6 +607,7 @@ defmodule HueworksWeb.LightsLive do
   end
 
   defp filter_by_source(entities, "all"), do: entities
+
   defp filter_by_source(entities, filter) when is_binary(filter) do
     case Util.parse_source_filter(filter) do
       {:ok, source} -> Enum.filter(entities, &(&1.source == source))
@@ -539,18 +618,23 @@ defmodule HueworksWeb.LightsLive do
   defp filter_by_source(entities, _filter), do: entities
 
   defp filter_by_enabled(entities, true), do: entities
+
   defp filter_by_enabled(entities, _show_disabled) do
     Enum.filter(entities, &(&1.enabled != false))
   end
 
   defp filter_by_room(entities, "all"), do: entities
+
   defp filter_by_room(entities, "unassigned") do
     Enum.filter(entities, &is_nil(&1.room_id))
   end
+
   defp filter_by_room(entities, nil), do: entities
+
   defp filter_by_room(entities, room_id) when is_integer(room_id) do
     Enum.filter(entities, &(&1.room_id == room_id))
   end
+
   defp filter_by_room(entities, _room_id), do: entities
 
   defp store_filter_prefs(socket, updates) do

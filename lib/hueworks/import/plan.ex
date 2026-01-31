@@ -42,5 +42,4 @@ defmodule Hueworks.Import.Plan do
       end
     end)
   end
-
 end
