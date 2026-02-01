@@ -33,7 +33,7 @@ defmodule Hueworks.Import.IdentifiersTest do
 
   test "group_external_id falls back to source_id" do
     hue_group = %{
-      source: :hue,
+      source: "hue",
       source_id: "group-1",
       metadata: %{}
     }

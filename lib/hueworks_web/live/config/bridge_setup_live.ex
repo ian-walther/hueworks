@@ -5,6 +5,7 @@ defmodule HueworksWeb.BridgeSetupLive do
   alias Hueworks.Schemas.Bridge
   alias Hueworks.Schemas.Room
   alias Hueworks.Bridges
+  alias Hueworks.Util
   alias Hueworks.Import.{Link, Materialize, Normalize, NormalizeFromDb, Plan, ReimportPlan}
   import Hueworks.Import.Normalize, only: [fetch: 2]
 
@@ -62,21 +63,6 @@ defmodule HueworksWeb.BridgeSetupLive do
   def handle_event("set_room_action", %{"room_id" => source_id, "action" => action}, socket) do
     plan = put_room_plan(socket.assigns.plan, source_id, %{"action" => action})
     {:noreply, assign(socket, plan: plan)}
-  end
-
-  def handle_event("toggle_reimport", %{"enabled" => enabled}, socket) do
-    reimport = enabled == "true"
-    socket = assign(socket, reimport: reimport)
-    socket = refresh_reimport_plan(socket)
-
-    socket =
-      if reimport do
-        socket
-      else
-        assign_default_plan_if_needed(socket, socket.assigns.bridge_import)
-      end
-
-    {:noreply, socket}
   end
 
   def handle_event("import_configuration", _params, socket) do
@@ -172,7 +158,10 @@ defmodule HueworksWeb.BridgeSetupLive do
           _ -> bridge_import.review_blob
         end
 
-      plan = review_blob || Plan.build_default(normalized)
+      plan =
+        review_blob
+        |> Kernel.||(Plan.build_default(normalized))
+        |> apply_room_merge_defaults(normalized, socket.assigns.rooms)
 
       assign(socket,
         normalized: normalized,
@@ -277,11 +266,11 @@ defmodule HueworksWeb.BridgeSetupLive do
     light_ids = entity_ids(lights)
     group_ids = entity_ids(groups)
 
-    action = if value == "check", do: "create", else: "skip"
+    action = if value == "check", do: "check", else: "skip"
     selected = value == "check"
 
     plan
-    |> put_room_actions(room_ids, action)
+    |> put_room_actions(room_ids, action, normalized, socket.assigns.rooms)
     |> put_selection(:lights, light_ids, selected)
     |> put_selection(:groups, group_ids, selected)
     |> then(&assign(socket, plan: &1))
@@ -291,14 +280,14 @@ defmodule HueworksWeb.BridgeSetupLive do
     plan = socket.assigns.plan || %{}
     normalized = normalized_for_plan(socket)
     selected = value == "check"
-    action = if selected, do: "create", else: "skip"
+    action = if selected, do: "check", else: "skip"
 
     light_ids = room_entity_ids(normalized, room_id, :lights)
     group_ids = room_entity_ids(normalized, room_id, :groups)
     room_ids = room_entity_ids(normalized, room_id, :rooms)
 
     plan
-    |> put_room_actions(room_ids, action)
+    |> put_room_actions(room_ids, action, normalized, socket.assigns.rooms)
     |> put_selection(:lights, light_ids, selected)
     |> put_selection(:groups, group_ids, selected)
     |> then(&assign(socket, plan: &1))
@@ -322,14 +311,15 @@ defmodule HueworksWeb.BridgeSetupLive do
     |> then(&assign(socket, plan: &1))
   end
 
-  defp put_room_actions(plan, room_ids, action) do
+  defp put_room_actions(plan, room_ids, action, normalized, rooms) do
     plan = plan || %{}
-    rooms = Normalize.fetch(plan, :rooms) || %{}
+    plan_rooms = Normalize.fetch(plan, :rooms) || %{}
 
     updated =
-      Enum.reduce(room_ids, rooms, fn room_id, acc ->
+      Enum.reduce(room_ids, plan_rooms, fn room_id, acc ->
         current = Map.get(acc, room_id, %{})
-        Map.put(acc, room_id, Map.put(current, "action", action))
+        new_attrs = room_action_for(room_id, action, normalized, rooms)
+        Map.put(acc, room_id, Map.merge(current, new_attrs))
       end)
 
     Map.put(plan, :rooms, updated)
@@ -420,6 +410,51 @@ defmodule HueworksWeb.BridgeSetupLive do
     |> Enum.reverse()
   end
 
+  defp apply_room_merge_defaults(plan, normalized, rooms) do
+    plan = plan || %{}
+    room_entries = normalized_entries(normalized, :rooms)
+    room_ids = entity_ids(room_entries)
+    put_room_actions(plan, room_ids, "check", normalized, rooms)
+  end
+
+  defp room_action_for(_room_id, "skip", _normalized, _rooms) do
+    %{"action" => "skip", "target_room_id" => nil}
+  end
+
+  defp room_action_for(room_id, _action, normalized, rooms) do
+    room_entries = normalized_entries(normalized, :rooms)
+    source_id = Normalize.normalize_source_id(room_id)
+
+    room =
+      Enum.find(room_entries, fn entry ->
+        Normalize.normalize_source_id(Normalize.fetch(entry, :source_id)) == source_id
+      end)
+
+    case matching_room_id(room, rooms) do
+      nil ->
+        %{"action" => "create", "target_room_id" => nil}
+
+      target_id ->
+        %{"action" => "merge", "target_room_id" => Integer.to_string(target_id)}
+    end
+  end
+
+  defp matching_room_id(nil, _rooms), do: nil
+
+  defp matching_room_id(room, rooms) do
+    name = Normalize.fetch(room, :name) || "Room"
+    normalized_name = Normalize.fetch(room, :normalized_name) || Util.normalize_room_name(name)
+
+    rooms
+    |> Enum.find_value(fn existing ->
+      if Util.normalize_room_name(existing.name) == normalized_name do
+        existing.id
+      else
+        nil
+      end
+    end)
+  end
+
   defp pipeline_module do
     Application.get_env(:hueworks, :import_pipeline, Hueworks.Import.Pipeline)
   end
@@ -467,6 +502,7 @@ defmodule HueworksWeb.BridgeSetupLive do
       _ ->
         Map.get(rooms, source_id, %{})
         |> Normalize.fetch(:target_room_id)
+        |> Normalize.normalize_source_id()
     end
   end
 end

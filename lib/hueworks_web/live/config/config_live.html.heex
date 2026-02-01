@@ -23,13 +23,13 @@
               </div>
             <p class="hw-meta">type: <%= bridge.type %></p>
             <p class="hw-meta">host: <%= bridge.host %></p>
-            <%= if bridge.import_complete == false do %>
-              <a class="hw-link" href={"/config/bridge/#{bridge.id}/setup"}>Finish setup</a>
-            <% end %>
             <div class="hw-actions">
-              <a class="hw-button" href={"/config/bridge/#{bridge.id}/setup?reimport=1"}>
-                Reimport
-              </a>
+              <%= if bridge.import_complete == false do %>
+                <a class="hw-button" href={"/config/bridge/#{bridge.id}/setup"}>Finish setup</a>
+              <% else %>
+                <a class="hw-button" href={"/config/bridge/#{bridge.id}/setup?reimport=1"}>Reimport</a>
+              <% end %>
+              <%= if bridge.import_complete do %>
               <button
                 class="hw-button"
                 type="button"
@@ -38,6 +38,7 @@
               >
                 Delete Entities
               </button>
+              <% end %>
               <button
                 class="hw-button"
                 type="button"

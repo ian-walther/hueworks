@@ -25,22 +25,6 @@
   <%= if @normalized do %>
     <section class="hw-panel">
       <div class="hw-panel-header">
-        <h2>Import Options</h2>
-      </div>
-      <label class="hw-row">
-        <input
-          type="checkbox"
-          checked={@reimport}
-          phx-change="toggle_reimport"
-          name="enabled"
-          value={if @reimport, do: "false", else: "true"}
-        />
-        <span class="hw-row-title">Reimport (delete existing entities on apply)</span>
-      </label>
-    </section>
-
-    <section class="hw-panel">
-      <div class="hw-panel-header">
         <h2>Selection</h2>
         <div class="hw-row-actions">
           <button class="hw-button" type="button" phx-click="toggle_all" phx-value-action="check">
@@ -128,9 +112,9 @@
                     <select class="hw-select" name="target_room_id">
                       <option value="">Select room</option>
                       <%= for existing <- @rooms do %>
-                        <option value={existing.id} selected={room_merge_target(@plan, room_id) == existing.id}>
-                          <%= existing.name %>
-                        </option>
+                    <option value={existing.id} selected={room_merge_target(@plan, room_id) == to_string(existing.id)}>
+                      <%= existing.name %>
+                    </option>
                       <% end %>
                     </select>
                   </form>

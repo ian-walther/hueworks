@@ -73,7 +73,12 @@ defmodule Hueworks.Import.Normalize.Hue do
           source_id: id,
           name: Normalize.fetch(group, :name) || "Hue Group #{id}",
           classification: classification,
-          room_source_id: if(group_type == "Room", do: id, else: nil),
+        room_source_id:
+          if group_type == "Room" do
+            id
+          else
+            Normalize.shared_room_for_members(member_ids, light_room_map)
+          end,
           type: normalized_type,
           capabilities: capabilities,
           metadata: %{

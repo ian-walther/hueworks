@@ -138,6 +138,149 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
     assert get_in(plan, [:rooms, "12", "action"]) == "skip"
   end
 
+  test "default room plan merges when names match", %{conn: conn} do
+    existing_room =
+      Repo.insert!(%Hueworks.Schemas.Room{
+        name: "Studio",
+        metadata: %{}
+      })
+
+    bridge =
+      %Bridge{}
+      |> Bridge.changeset(%{
+        type: :hue,
+        name: "Hue Bridge",
+        host: "10.0.0.221",
+        credentials: %{"api_key" => "key"},
+        import_complete: false,
+        enabled: true
+      })
+      |> Repo.insert!()
+
+    normalized = %{
+      rooms: [
+        %{
+          source: :hue,
+          source_id: "room-1",
+          name: "Studio",
+          normalized_name: "studio",
+          metadata: %{}
+        }
+      ],
+      lights: [],
+      groups: [],
+      memberships: %{}
+    }
+
+    Application.put_env(:hueworks, :import_pipeline_payload, normalized)
+
+    {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/setup")
+    render(view)
+
+    plan = get_assign(view, :plan)
+
+    assert get_in(plan, [:rooms, "room-1", "action"]) == "merge"
+    assert get_in(plan, [:rooms, "room-1", "target_room_id"]) ==
+             Integer.to_string(existing_room.id)
+  end
+
+  test "check all preserves merge selection for matching rooms", %{conn: conn} do
+    existing_room =
+      Repo.insert!(%Hueworks.Schemas.Room{
+        name: "Studio",
+        metadata: %{}
+      })
+
+    bridge =
+      %Bridge{}
+      |> Bridge.changeset(%{
+        type: :hue,
+        name: "Hue Bridge",
+        host: "10.0.0.222",
+        credentials: %{"api_key" => "key"},
+        import_complete: false,
+        enabled: true
+      })
+      |> Repo.insert!()
+
+    normalized = %{
+      rooms: [
+        %{
+          source: :hue,
+          source_id: "room-1",
+          name: "Studio",
+          normalized_name: "studio",
+          metadata: %{}
+        }
+      ],
+      lights: [],
+      groups: [],
+      memberships: %{}
+    }
+
+    Application.put_env(:hueworks, :import_pipeline_payload, normalized)
+
+    {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/setup")
+    render(view)
+
+    view
+    |> element("button[phx-click='toggle_all'][phx-value-action='check']")
+    |> render_click()
+
+    plan = get_assign(view, :plan)
+
+    assert get_in(plan, [:rooms, "room-1", "action"]) == "merge"
+    assert get_in(plan, [:rooms, "room-1", "target_room_id"]) ==
+             Integer.to_string(existing_room.id)
+  end
+
+  test "merge dropdown selects matching room by default", %{conn: conn} do
+    existing_room =
+      Repo.insert!(%Hueworks.Schemas.Room{
+        name: "Studio",
+        metadata: %{}
+      })
+
+    bridge =
+      %Bridge{}
+      |> Bridge.changeset(%{
+        type: :hue,
+        name: "Hue Bridge",
+        host: "10.0.0.223",
+        credentials: %{"api_key" => "key"},
+        import_complete: false,
+        enabled: true
+      })
+      |> Repo.insert!()
+
+    normalized = %{
+      rooms: [
+        %{
+          source: :hue,
+          source_id: "room-1",
+          name: "Studio",
+          normalized_name: "studio",
+          metadata: %{}
+        }
+      ],
+      lights: [],
+      groups: [],
+      memberships: %{}
+    }
+
+    Application.put_env(:hueworks, :import_pipeline_payload, normalized)
+
+    {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/setup")
+    render(view)
+
+    selected =
+      view
+      |> element("form[phx-change='set_room_merge'][data-room-id='room-1'] option[selected]")
+      |> render()
+
+    assert selected =~ "value=\"#{existing_room.id}\""
+  end
+
   test "light and group checkboxes toggle plan selections", %{conn: conn} do
     {view, _bridge} = setup_import_view(conn, with_unassigned: true)
 

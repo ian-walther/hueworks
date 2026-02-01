@@ -84,4 +84,74 @@ defmodule Hueworks.Import.ReimportPlanTest do
 
     assert Enum.sort(deletions.lights) == ["hue-1", "hue-2"]
   end
+
+  test "build uses HA entity_id as stable identifier" do
+    normalized_import = %{
+      rooms: [],
+      lights: [
+        %{
+          source: :ha,
+          source_id: "light.kitchen",
+          name: "Kitchen",
+          metadata: %{"entity_id" => "light.kitchen"}
+        }
+      ],
+      groups: [],
+      memberships: %{}
+    }
+
+    normalized_db = %{
+      rooms: [],
+      lights: [
+        %{
+          "source" => "ha",
+          "source_id" => "light.kitchen",
+          "metadata" => %{"entity_id" => "light.kitchen"}
+        }
+      ],
+      groups: [],
+      memberships: %{}
+    }
+
+    %{plan: plan, statuses: statuses} =
+      ReimportPlan.build(normalized_import, normalized_db, [])
+
+    assert plan.lights["light.kitchen"] == true
+    assert statuses.lights["light.kitchen"] == :existing
+  end
+
+  test "build uses Caseta device_id as stable identifier" do
+    normalized_import = %{
+      rooms: [],
+      lights: [
+        %{
+          source: :caseta,
+          source_id: "zone-1",
+          name: "Entry",
+          metadata: %{"device_id" => "caseta-1"}
+        }
+      ],
+      groups: [],
+      memberships: %{}
+    }
+
+    normalized_db = %{
+      rooms: [],
+      lights: [
+        %{
+          "source" => "caseta",
+          "source_id" => "zone-1",
+          "metadata" => %{"device_id" => "caseta-1"}
+        }
+      ],
+      groups: [],
+      memberships: %{}
+    }
+
+    %{plan: plan, statuses: statuses} =
+      ReimportPlan.build(normalized_import, normalized_db, [])
+
+    assert plan.lights["zone-1"] == true
+    assert statuses.lights["zone-1"] == :existing
+  end
 end
