@@ -375,6 +375,8 @@ body {
   border: 1px solid rgba(20, 20, 18, 0.1);
   box-shadow: 0 24px 60px rgba(20, 20, 18, 0.2);
   padding: 1.5rem;
+  max-height: calc(100vh - 3rem);
+  overflow-y: auto;
 }
 
 .hw-modal-header {
