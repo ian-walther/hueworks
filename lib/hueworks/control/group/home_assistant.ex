@@ -19,6 +19,42 @@ defmodule Hueworks.Control.Group.HomeAssistant do
   defp action_payload(:on, group), do: {"turn_on", %{"entity_id" => group.source_id}}
   defp action_payload(:off, group), do: {"turn_off", %{"entity_id" => group.source_id}}
 
+  defp action_payload({:set_state, desired}, group) when is_map(desired) do
+    power = Map.get(desired, :power) || Map.get(desired, "power")
+    brightness = value_or_nil(desired, [:brightness, "brightness"])
+    kelvin = value_or_nil(desired, [:kelvin, "kelvin", :temperature, "temperature"])
+
+    cond do
+      power in [:off, "off"] ->
+        {"turn_off", %{"entity_id" => group.source_id}}
+
+      power in [:on, "on"] or not is_nil(brightness) or not is_nil(kelvin) ->
+        payload =
+          %{"entity_id" => group.source_id}
+          |> maybe_put("brightness", brightness && percent_to_brightness(brightness))
+
+        payload =
+          case kelvin do
+            nil ->
+              payload
+
+            value ->
+              if group.extended_kelvin_range && value < 2700 do
+                {x, y} = extended_xy(value)
+                Map.put(payload, "xy_color", [x, y])
+              else
+                kelvin = Kelvin.map_for_control(group, value)
+                Map.put(payload, "color_temp_kelvin", round(kelvin))
+              end
+          end
+
+        {"turn_on", payload}
+
+      true ->
+        :ignore
+    end
+  end
+
   defp action_payload({:brightness, level}, group) do
     {"turn_on", %{"entity_id" => group.source_id, "brightness" => percent_to_brightness(level)}}
   end
@@ -38,6 +74,13 @@ defmodule Hueworks.Control.Group.HomeAssistant do
   end
 
   defp action_payload(_action, _group), do: :ignore
+
+  defp value_or_nil(desired, keys) do
+    Enum.find_value(keys, fn key -> Map.get(desired, key) end)
+  end
+
+  defp maybe_put(payload, _key, nil), do: payload
+  defp maybe_put(payload, key, value), do: Map.put(payload, key, value)
 
   defp percent_to_brightness(level) do
     level

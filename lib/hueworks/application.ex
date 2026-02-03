@@ -11,6 +11,8 @@ defmodule Hueworks.Application do
       Hueworks.Repo,
       {Phoenix.PubSub, name: Hueworks.PubSub},
       Hueworks.Control.State,
+      Hueworks.Control.DesiredState,
+      Hueworks.Control.Executor,
       Hueworks.Subscription.HueEventStream,
       Hueworks.Subscription.HomeAssistantEventStream,
       Hueworks.Subscription.CasetaEventStream,

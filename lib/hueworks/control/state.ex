@@ -7,6 +7,7 @@ defmodule Hueworks.Control.State do
 
   alias Hueworks.Control.Bootstrap.HomeAssistant
   alias Hueworks.Control.Bootstrap.Hue
+  alias Hueworks.Control.DesiredState
   alias Phoenix.PubSub
 
   @table :hueworks_control_state
@@ -96,10 +97,17 @@ defmodule Hueworks.Control.State do
     updated = Map.merge(current, attrs)
     :ets.insert(@table, {key, updated})
     broadcast_update(key, updated)
+    sync_desired(key, updated)
     updated
   end
 
   defp broadcast_update({type, id}, state) do
     PubSub.broadcast(Hueworks.PubSub, @topic, {:control_state, type, id, state})
   end
+
+  defp sync_desired({:light, id}, state) do
+    _ = DesiredState.sync(:light, id, state)
+  end
+
+  defp sync_desired(_key, _state), do: :ok
 end

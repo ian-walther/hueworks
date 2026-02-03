@@ -7,6 +7,7 @@ defmodule Hueworks.Control.Light do
 
   def on(light), do: dispatch(light, :on)
   def off(light), do: dispatch(light, :off)
+  def set_state(light, desired) when is_map(desired), do: dispatch(light, {:set_state, desired})
   def set_brightness(light, level), do: dispatch(light, {:brightness, level})
   def set_color_temp(light, kelvin), do: dispatch(light, {:color_temp, kelvin})
   def set_color(light, hs), do: dispatch(light, {:color, hs})

@@ -23,6 +23,25 @@ defmodule Hueworks.Control.Light.Caseta do
     build_command(light.source_id, "GoToLevel", %{"Level" => 0})
   end
 
+  defp action_payload({:set_state, desired}, light) when is_map(desired) do
+    power = Map.get(desired, :power) || Map.get(desired, "power")
+    brightness = Map.get(desired, :brightness) || Map.get(desired, "brightness")
+
+    cond do
+      power in [:off, "off"] ->
+        action_payload(:off, light)
+
+      not is_nil(brightness) ->
+        action_payload({:brightness, brightness}, light)
+
+      power in [:on, "on"] ->
+        action_payload(:on, light)
+
+      true ->
+        :ignore
+    end
+  end
+
   defp action_payload({:brightness, level}, light) do
     if supports_level?(light) do
       build_command(light.source_id, "GoToLevel", %{"Level" => Util.clamp(round(level), 0, 100)})

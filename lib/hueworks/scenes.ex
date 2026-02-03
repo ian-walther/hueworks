@@ -6,6 +6,7 @@ defmodule Hueworks.Scenes do
   import Ecto.Query, only: [from: 2]
 
   alias Hueworks.Repo
+  alias Hueworks.Control.DesiredState
   alias Hueworks.Schemas.{LightState, Scene, SceneComponent, SceneComponentLight}
 
   def list_scenes_for_room(room_id) do
@@ -153,6 +154,72 @@ defmodule Hueworks.Scenes do
   def delete_scene(scene) do
     Repo.delete(scene)
   end
+
+  def activate_scene(scene_id) when is_integer(scene_id) do
+    case Repo.get(Scene, scene_id) do
+      nil ->
+        {:error, :not_found}
+
+      scene ->
+        scene =
+          scene
+          |> Repo.preload(scene_components: [:lights, :light_state])
+
+        txn = DesiredState.begin(scene.id)
+
+        txn =
+          Enum.reduce(scene.scene_components, txn, fn component, txn ->
+            desired = desired_from_light_state(component.light_state)
+
+            Enum.reduce(component.lights, txn, fn light, txn ->
+              DesiredState.apply(txn, :light, light.id, desired)
+            end)
+          end)
+
+        result = DesiredState.commit(txn)
+
+        case result do
+          {:ok, diff, _updated} ->
+            plan = Hueworks.Control.Dispatcher.plan_room(scene.room_id, diff)
+            _ = Hueworks.Control.Executor.enqueue(plan)
+            result
+
+          _ ->
+            result
+        end
+    end
+  end
+
+  defp desired_from_light_state(%LightState{type: :off}), do: %{power: :off}
+
+  defp desired_from_light_state(%LightState{type: :manual, config: config}) do
+    base = %{power: :on}
+
+    base
+    |> maybe_put(:brightness, config, ["brightness"])
+    |> maybe_put(:kelvin, config, ["temperature", "kelvin"])
+  end
+
+  defp desired_from_light_state(_), do: %{}
+
+  defp maybe_put(attrs, key, config, keys) do
+    value =
+      Enum.find_value(keys, fn config_key ->
+        Map.get(config, config_key) ||
+          Map.get(config, map_key_atom(config_key))
+      end)
+
+    if is_nil(value) do
+      attrs
+    else
+      Map.put(attrs, key, value)
+    end
+  end
+
+  defp map_key_atom("brightness"), do: :brightness
+  defp map_key_atom("temperature"), do: :temperature
+  defp map_key_atom("kelvin"), do: :kelvin
+  defp map_key_atom(_), do: nil
 
   def replace_scene_components(%Scene{} = scene, components) when is_list(components) do
     Repo.transaction(fn ->

@@ -3,6 +3,7 @@ defmodule Hueworks.ScenesComponentsTest do
 
   alias Hueworks.Repo
   alias Hueworks.Scenes
+  alias Hueworks.Control.DesiredState
   alias Hueworks.Schemas.{Bridge, Light, LightState, Room, SceneComponent, SceneComponentLight}
 
   defp insert_room do
@@ -163,5 +164,27 @@ defmodule Hueworks.ScenesComponentsTest do
       )
 
     assert join_count == 1
+  end
+
+  test "activate_scene updates desired state for scene lights" do
+    room = insert_room()
+    bridge = insert_bridge()
+    light1 = insert_light(room, bridge, %{name: "Lamp"})
+    light2 = insert_light(room, bridge, %{name: "Ceiling"})
+
+    {:ok, state} =
+      Scenes.create_manual_light_state("Soft", %{"brightness" => "40", "temperature" => "3000"})
+
+    {:ok, scene} = Scenes.create_scene(%{name: "Chill", room_id: room.id})
+
+    {:ok, _} =
+      Scenes.replace_scene_components(scene, [
+        %{name: "Component 1", light_ids: [light1.id, light2.id], light_state_id: to_string(state.id)}
+      ])
+
+    {:ok, diff, _updated} = Scenes.activate_scene(scene.id)
+
+    assert diff[{:light, light1.id}][:brightness] == "40"
+    assert DesiredState.get(:light, light1.id)[:power] == :on
   end
 end

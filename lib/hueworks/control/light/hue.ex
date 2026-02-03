@@ -18,6 +18,40 @@ defmodule Hueworks.Control.Light.Hue do
   defp action_payload(:on), do: %{"on" => true}
   defp action_payload(:off), do: %{"on" => false}
 
+  defp action_payload({:set_state, desired}) when is_map(desired) do
+    power = Map.get(desired, :power) || Map.get(desired, "power")
+
+    case power do
+      :off ->
+        %{"on" => false}
+
+      "off" ->
+        %{"on" => false}
+
+      _ ->
+        brightness = maybe_value(desired, [:brightness, "brightness"])
+        kelvin = maybe_value(desired, [:kelvin, "kelvin", :temperature, "temperature"])
+        needs_on = power in [:on, "on"] or not is_nil(brightness) or not is_nil(kelvin)
+
+        payload = %{}
+        payload = maybe_put(payload, "on", needs_on)
+
+        payload =
+          case brightness do
+            nil -> payload
+            level -> maybe_put(payload, "bri", percent_to_bri(level))
+          end
+
+        payload =
+          case kelvin do
+            nil -> payload
+            value -> maybe_put(payload, "ct", kelvin_to_mired(value))
+          end
+
+        payload
+    end
+  end
+
   defp action_payload({:brightness, level}) do
     %{"on" => true, "bri" => percent_to_bri(level)}
   end
@@ -31,6 +65,13 @@ defmodule Hueworks.Control.Light.Hue do
   end
 
   defp action_payload(_action), do: %{}
+
+  defp maybe_value(desired, keys) do
+    Enum.find_value(keys, fn key -> Map.get(desired, key) end)
+  end
+
+  defp maybe_put(payload, _key, false), do: payload
+  defp maybe_put(payload, key, value), do: Map.put(payload, key, value)
 
   defp percent_to_bri(level) do
     level

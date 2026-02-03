@@ -12,3 +12,4 @@ config :hueworks, HueworksWeb.Endpoint,
 
 config :logger, level: :warning
 config :phoenix, :plug_init_mode, :runtime
+config :hueworks, :control_executor_enabled, false

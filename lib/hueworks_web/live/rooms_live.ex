@@ -109,6 +109,14 @@ defmodule HueworksWeb.RoomsLive do
                 <%= for scene <- room.scenes do %>
                   <div class="hw-room-item hw-room-item-row">
                     <span><%= scene.display_name || scene.name %></span>
+                    <button
+                      type="button"
+                      class="hw-button"
+                      phx-click="activate_scene"
+                      phx-value-id={scene.id}
+                    >
+                      Activate
+                    </button>
                     <span class="hw-room-item-actions">
                       <button
                         type="button"
@@ -399,6 +407,11 @@ defmodule HueworksWeb.RoomsLive do
         _ = Scenes.delete_scene(scene)
         {:noreply, refresh_rooms(socket)}
     end
+  end
+
+  def handle_event("activate_scene", %{"id" => id}, socket) do
+    _ = Scenes.activate_scene(String.to_integer(id))
+    {:noreply, socket}
   end
 
   def handle_event("update_room", %{"name" => name}, socket) do
