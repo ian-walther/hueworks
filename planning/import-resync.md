@@ -18,10 +18,7 @@ Make re-import safe and predictable while preserving user edits.
 - lib/hueworks/schemas/bridge_import.ex
 - test/hueworks/*
 
-## Acceptance Criteria
-- Re-import does not overwrite user edits
-- Newly discovered entities are added
-- Removed entities are handled consistently
+## Acceptance Criteria (Remaining)
 - Import history can be queried from DB
 
 ## Notes / Open Questions

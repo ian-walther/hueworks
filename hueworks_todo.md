@@ -2,10 +2,10 @@
 
 ## Project Status: Phase 0 - Foundation & Vertical Slice
 
-**Current State:** Import pipeline is functional with tests. Need to complete UI wizard, add test coverage, and implement core control functionality before moving to advanced features.
+**Current State:** Import pipeline is functional with tests and the UI wizard/review/apply flow is in place (including reimport). Core control batching is still not implemented.
 
 **Architecture Health:** ✅ Solid foundation, proper domain modeling, good test patterns established  
-**Test Coverage:** ⚠️ ~25% (Target: 80%+)  
+**Test Coverage:** ⚠️ Improving, still below target (see planning/test-coverage.md)  
 **Core Value Prop:** ❌ Group batching not yet implemented
 
 ---
@@ -13,7 +13,7 @@
 ## Critical Path: Foundation Completion
 
 ### 1. Test Coverage to 80%+ (HIGH PRIORITY) — [planning/test-coverage.md](planning/test-coverage.md)
-**Status:** ~25% coverage, need comprehensive testing before building more features
+**Status:** Improving but still below target; subscriptions + control integration still missing
 
 - See [planning/test-coverage.md](planning/test-coverage.md) for detailed test tasks.
 
@@ -21,11 +21,6 @@
 **Status:** Control layer exists but clients are stubs returning `:ok`
 
 - See [planning/control-batching.md](planning/control-batching.md) for detailed tasks.
-
-### 3. Bridge Configuration Wizard UI (CURRENT FOCUS) — [planning/import-review-ui.md](planning/import-review-ui.md)
-**Status:** Import pipeline works via CLI, needs user-friendly UI
-
-- See [planning/import-review-ui.md](planning/import-review-ui.md) for detailed tasks.
 
 ### 4. Database Performance & Integrity (MEDIUM PRIORITY) — [planning/db-integrity.md](planning/db-integrity.md)
 **Status:** Schema is functional but missing critical indices
@@ -59,11 +54,9 @@
   - [ ] Clear separation between native and HA-derived data
 
 ### Scene Definition & Activation
-**Status:** Schema exists, no activation logic
+**Status:** Scene activation not implemented
 
 - [ ] **Scene management UI**
-  - [ ] Create/edit/delete scenes
-  - [ ] Scene component definition (lights, states, transitions)
   - [ ] Scene organization within rooms
   - [ ] Scene preview/testing
   - [ ] Import scenes from bridges

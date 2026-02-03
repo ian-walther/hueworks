@@ -20,9 +20,11 @@ HueWorks is in active early development with a working import pipeline, LiveView
 
 - Multi-bridge import pipeline (Hue, Home Assistant, Caseta)
 - LiveView bridge setup wizard (add bridge, test credentials, import, review, apply)
+- Reimport workflow from config (reimport, delete entities, delete bridge)
 - Control UI for lights and groups (Hue + Home Assistant fully wired; Caseta lights only)
 - Event stream subscriptions (Hue SSE, Home Assistant WebSocket, Caseta LEAP) feeding in-memory state
-- Rooms + scenes CRUD UI (scene activation not implemented yet)
+- Rooms + scenes CRUD UI with scene builder modal (scene activation not implemented yet)
+- Manual light states (name + brightness + temperature) shared across scenes
 - Kelvin mapping helpers and per-entity override controls
 
 ## Features (Planned)
@@ -30,7 +32,7 @@ HueWorks is in active early development with a working import pipeline, LiveView
 - Multi-vendor bridge support (Philips Hue, Zigbee2MQTT, Lutron Caseta)
 - Command aggregation and optimization
 - Circadian rhythm lighting
-- Scene management
+- Scene activation and scheduling
 - Home Assistant integration
 - Physical switch support (Pico remotes)
 
@@ -65,7 +67,7 @@ Visit `http://localhost:4000` and use the UI:
 
 - `/config` to add a bridge and run the import wizard
 - `/lights` to control lights/groups and tune kelvin ranges
-- `/rooms` to manage room names and scenes
+- `/rooms` to manage room names and build scenes
 
 The `/explore` route is a placeholder.
 
@@ -93,10 +95,11 @@ If you want to orient quickly, these are the main flows and modules:
 - **Domain + schema**  
   `lib/hueworks/schemas/*`  
   `lib/hueworks/lights.ex`, `lib/hueworks/groups.ex`, `lib/hueworks/rooms.ex`
+  `lib/hueworks/scenes.ex`
 
 ## Import Pipeline Overview
 
-There are two ways to run imports: the UI wizard or the CLI mix tasks. Under the hood they share the same pipeline.
+There are two ways to run imports: the UI wizard or the CLI mix tasks. Under the hood they share the same pipeline. The UI includes a review step (create/skip/merge) before applying.
 
 **Pipeline steps**
 1) **Fetch raw data** from each bridge into a JSON blob.
