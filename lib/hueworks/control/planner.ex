@@ -1,4 +1,4 @@
-defmodule Hueworks.Control.Dispatcher do
+defmodule Hueworks.Control.Planner do
   @moduledoc """
   Plans optimized control actions from desired state diffs.
   """

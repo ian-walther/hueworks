@@ -38,7 +38,7 @@
             </option>
             <%= for room <- @rooms do %>
               <option value={room.id} selected={room.id == @group_room_filter}>
-                <%= room.display_name || room.name %>
+                <%= Hueworks.Util.display_name(room) %>
               </option>
             <% end %>
           </select>
@@ -61,7 +61,7 @@
             <div class="hw-card-title">
               <div>
                 <div class="hw-title-row">
-                  <h3><%= group.display_name || group.name %></h3>
+                  <h3><%= Hueworks.Util.display_name(group) %></h3>
                   <button
                     type="button"
                     class="hw-edit-button"
@@ -81,7 +81,7 @@
                   <%= if group.room_id do %>
                     <%= case Enum.find(@rooms, &(&1.id == group.room_id)) do %>
                       <% nil -> %>No Room Assigned
-                      <% room -> %><%= room.display_name || room.name %>
+                      <% room -> %><%= Hueworks.Util.display_name(room) %>
                     <% end %>
                   <% else %>
                     No Room Assigned
@@ -168,7 +168,7 @@
             </option>
             <%= for room <- @rooms do %>
               <option value={room.id} selected={room.id == @light_room_filter}>
-                <%= room.display_name || room.name %>
+                <%= Hueworks.Util.display_name(room) %>
               </option>
             <% end %>
           </select>
@@ -191,7 +191,7 @@
             <div class="hw-card-title">
               <div>
                 <div class="hw-title-row">
-                  <h3><%= light.display_name || light.name %></h3>
+                  <h3><%= Hueworks.Util.display_name(light) %></h3>
                   <button
                     type="button"
                     class="hw-edit-button"
@@ -211,7 +211,7 @@
                   <%= if light.room_id do %>
                     <%= case Enum.find(@rooms, &(&1.id == light.room_id)) do %>
                       <% nil -> %>No Room Assigned
-                      <% room -> %><%= room.display_name || room.name %>
+                      <% room -> %><%= Hueworks.Util.display_name(room) %>
                     <% end %>
                   <% else %>
                     No Room Assigned
@@ -300,7 +300,7 @@
           <option value="">Unassigned</option>
           <%= for room <- @rooms do %>
             <option value={room.id} selected={room.id == @edit_room_id}>
-              <%= room.display_name || room.name %>
+              <%= Hueworks.Util.display_name(room) %>
             </option>
           <% end %>
         </select>

@@ -18,13 +18,13 @@ defmodule Hueworks.Control.StateParser do
 
   def brightness_from_0_255(value) when is_number(value) do
     percent = round(value / 255 * 100)
-    %{brightness: Util.clamp(percent, 1, 100)}
+    %{brightness: Util.normalize_percent(percent)}
   end
 
   def brightness_from_0_255(_value), do: %{}
 
   def brightness_from_0_100(value) when is_number(value) do
-    %{brightness: Util.clamp(round(value), 1, 100)}
+    %{brightness: Util.normalize_percent(value)}
   end
 
   def brightness_from_0_100(_value), do: %{}

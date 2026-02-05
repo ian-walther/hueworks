@@ -639,12 +639,7 @@ defmodule HueworksWeb.SceneBuilderComponent do
     end
   end
 
-  defp display_name(%{display_name: display_name, name: name}) do
-    display_name || name
-  end
-
-  defp display_name(%{name: name}), do: name
-  defp display_name(_), do: "Unknown"
+  defp display_name(entity), do: Util.display_name(entity)
 
   defp selected_state_id(nil), do: nil
   defp selected_state_id(%{light_state_id: "off"}), do: nil
@@ -653,17 +648,7 @@ defmodule HueworksWeb.SceneBuilderComponent do
     parse_id(light_state_id)
   end
 
-  defp parse_id(nil), do: nil
-  defp parse_id(value) when is_integer(value), do: value
-
-  defp parse_id(value) when is_binary(value) do
-    case Integer.parse(value) do
-      {id, ""} -> id
-      _ -> nil
-    end
-  end
-
-  defp parse_id(_value), do: nil
+  defp parse_id(value), do: Hueworks.Util.parse_id(value)
 
   defp hydrate_light_state_edits(socket, component_id, state_id) do
     edits = socket.assigns.light_state_edits

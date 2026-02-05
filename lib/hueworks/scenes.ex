@@ -180,7 +180,7 @@ defmodule Hueworks.Scenes do
 
         case result do
           {:ok, diff, _updated} ->
-            plan = Hueworks.Control.Dispatcher.plan_room(scene.room_id, diff)
+            plan = Hueworks.Control.Planner.plan_room(scene.room_id, diff)
             _ = Hueworks.Control.Executor.enqueue(plan)
             result
 
@@ -302,15 +302,5 @@ defmodule Hueworks.Scenes do
     end
   end
 
-  defp parse_id(nil), do: nil
-  defp parse_id(value) when is_integer(value), do: value
-
-  defp parse_id(value) when is_binary(value) do
-    case Integer.parse(value) do
-      {id, ""} -> id
-      _ -> nil
-    end
-  end
-
-  defp parse_id(_value), do: nil
+defp parse_id(value), do: Hueworks.Util.parse_id(value)
 end

@@ -1,7 +1,7 @@
-defmodule Hueworks.Control.DispatcherTest do
+defmodule Hueworks.Control.PlannerTest do
   use Hueworks.DataCase, async: false
 
-  alias Hueworks.Control.{DesiredState, Dispatcher}
+  alias Hueworks.Control.{DesiredState, Planner}
   alias Hueworks.Repo
   alias Hueworks.Schemas.{Bridge, Group, GroupLight, Light, Room}
 
@@ -46,7 +46,7 @@ defmodule Hueworks.Control.DispatcherTest do
       {:light, light_b.id} => %{power: :on, brightness: 50, kelvin: 3000}
     }
 
-    actions = Dispatcher.plan_room(room.id, diff)
+    actions = Planner.plan_room(room.id, diff)
 
     assert [
              %{type: :group, id: group_id, desired: ^desired}
@@ -85,7 +85,7 @@ defmodule Hueworks.Control.DispatcherTest do
       {:light, light_b.id} => %{power: :on, brightness: 80, kelvin: 3200}
     }
 
-    actions = Dispatcher.plan_room(room.id, diff)
+    actions = Planner.plan_room(room.id, diff)
 
     assert Enum.all?(actions, &(&1.type == :light))
     assert Enum.map(actions, & &1.id) |> Enum.sort() == [light_a.id, light_b.id]
@@ -125,7 +125,7 @@ defmodule Hueworks.Control.DispatcherTest do
       {:light, light_b.id} => %{power: :on, brightness: 40, kelvin: 2700}
     }
 
-    actions = Dispatcher.plan_room(room.id, diff)
+    actions = Planner.plan_room(room.id, diff)
 
     assert Enum.all?(actions, &(&1.type == :light))
     assert Enum.map(actions, & &1.id) |> Enum.sort() == [light_a.id, light_b.id]

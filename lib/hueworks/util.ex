@@ -19,6 +19,13 @@ defmodule Hueworks.Util do
 
   def normalize_display_name(_display_name), do: nil
 
+  def display_name(%{display_name: display_name, name: name}) when is_binary(name) do
+    display_name || name
+  end
+
+  def display_name(%{name: name}) when is_binary(name), do: name
+  def display_name(_), do: "Unknown"
+
   def parse_optional_integer(nil), do: nil
   def parse_optional_integer(value) when is_integer(value), do: value
 
@@ -37,6 +44,8 @@ defmodule Hueworks.Util do
 
   def parse_optional_integer(_value), do: nil
 
+  def parse_id(value), do: parse_optional_integer(value)
+
   def parse_optional_bool(nil), do: nil
   def parse_optional_bool(value) when value in ["true", "false"], do: value == "true"
   def parse_optional_bool(value) when is_boolean(value), do: value
@@ -47,6 +56,34 @@ defmodule Hueworks.Util do
   def format_integer(_value), do: ""
 
   def normalize_kelvin(value), do: parse_optional_integer(value)
+
+  def normalize_percent(value, min \\ 1, max \\ 100) do
+    case to_number(value) do
+      nil -> nil
+      number -> clamp(round(number), min, max)
+    end
+  end
+
+  def normalize_kelvin_value(value, min \\ 1000, max \\ 6500) do
+    case to_number(value) do
+      nil -> nil
+      number -> clamp(round(number), min, max)
+    end
+  end
+
+  def normalize_hue_degrees(value, min \\ 0, max \\ 360) do
+    case to_number(value) do
+      nil -> nil
+      number -> clamp(round(number), min, max)
+    end
+  end
+
+  def normalize_saturation(value, min \\ 0, max \\ 100) do
+    case to_number(value) do
+      nil -> nil
+      number -> clamp(round(number), min, max)
+    end
+  end
 
   def normalize_host_input(value) when is_binary(value) do
     value
