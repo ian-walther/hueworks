@@ -117,7 +117,12 @@ defmodule HueworksWeb.SceneBuilderComponent do
               <div class="hw-row">
                 <form phx-change="update_light_state_form" phx-target={@myself} data-component-id={component.id}>
                   <input type="hidden" name="component_id" value={component.id} />
-                  <label class="hw-modal-label">Brightness</label>
+                  <div class="hw-row">
+                    <label class="hw-modal-label">Brightness</label>
+                    <span class="hw-slider-value">
+                      <%= slider_display(@light_state_edits, @light_states, component, "brightness", "%") %>
+                    </span>
+                  </div>
                   <input
                     type="range"
                     name="brightness"
@@ -126,7 +131,12 @@ defmodule HueworksWeb.SceneBuilderComponent do
                     max="100"
                     value={edit_value(@light_state_edits, @light_states, component, "brightness")}
                   />
-                  <label class="hw-modal-label">Temperature</label>
+                  <div class="hw-row">
+                    <label class="hw-modal-label">Temperature</label>
+                    <span class="hw-slider-value">
+                      <%= slider_display(@light_state_edits, @light_states, component, "temperature", "K") %>
+                    </span>
+                  </div>
                   <input
                     type="range"
                     name="temperature"
@@ -689,6 +699,15 @@ defmodule HueworksWeb.SceneBuilderComponent do
 
       value ->
         value
+    end
+  end
+
+  defp slider_display(edits, light_states, component, key, suffix) do
+    value = edit_value(edits, light_states, component, key)
+
+    case Util.to_number(value) do
+      nil -> "--"
+      number -> "#{round(number)}#{suffix}"
     end
   end
 

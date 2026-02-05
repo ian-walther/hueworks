@@ -20,7 +20,7 @@ defmodule Hueworks.Control.Executor do
 
   def enqueue(actions, opts \\ []) when is_list(actions) do
     if enabled?() do
-      server = Keyword.get(opts, :server, __MODULE__)
+      server = Keyword.get(opts, :server, default_server())
       mode = Keyword.get(opts, :mode, :replace)
       GenServer.call(server, {:enqueue, actions, mode})
     else
@@ -28,8 +28,13 @@ defmodule Hueworks.Control.Executor do
     end
   end
 
-  def stats(server \\ __MODULE__) do
-    GenServer.call(server, :stats)
+  def stats(server \\ nil) do
+    GenServer.call(server || default_server(), :stats)
+  end
+
+  def tick(server \\ nil, opts \\ []) do
+    force = Keyword.get(opts, :force, false)
+    GenServer.call(server || default_server(), {:tick, force})
   end
 
   @doc false
@@ -82,11 +87,17 @@ defmodule Hueworks.Control.Executor do
   end
 
   @impl true
+  def handle_call({:tick, force}, _from, state) do
+    {state, had_work, has_pending} = dispatch_tick(state, force)
+    {:reply, %{had_work: had_work, has_pending: has_pending}, state}
+  end
+
+  @impl true
   def handle_info(:tick, state) do
-    {state, had_work} = dispatch_tick(state)
+    {state, had_work, has_pending} = dispatch_tick(state)
 
     state =
-      if had_work do
+      if had_work or has_pending do
         schedule_next(state)
       else
         %{state | timer_ref: nil}
@@ -99,32 +110,60 @@ defmodule Hueworks.Control.Executor do
     Application.get_env(:hueworks, :control_executor_enabled, true)
   end
 
+  defp default_server do
+    Application.get_env(:hueworks, :control_executor_server, __MODULE__)
+  end
+
   defp enqueue_actions(state, actions, mode) do
     actions_by_bridge = Enum.group_by(actions, & &1.bridge_id)
 
     Enum.reduce(actions_by_bridge, state, fn {bridge_id, bridge_actions}, acc ->
-      normalized = Enum.map(bridge_actions, &normalize_action/1)
-      queue = Map.get(acc.queues, bridge_id, :queue.new())
+      now = acc.now_fn.(:millisecond)
+      normalized = Enum.map(bridge_actions, &normalize_action(&1, now))
+      
+      existing_queue = Map.get(acc.queues, bridge_id, :queue.new())
+
+      rate = Map.get(acc.bridge_rates, bridge_id) || acc.bridge_rate_fun.(bridge_id)
+      interval = interval_ms(rate)
 
       queue =
         case mode do
-          :append -> Enum.reduce(normalized, queue, &:queue.in/2)
+          :append -> Enum.reduce(normalized, existing_queue, &:queue.in/2)
           _ -> Enum.reduce(normalized, :queue.new(), &:queue.in/2)
         end
 
       queues = Map.put(acc.queues, bridge_id, queue)
-      bridge_rates =
-        Map.put_new_lazy(acc.bridge_rates, bridge_id, fn ->
-          acc.bridge_rate_fun.(bridge_id)
-        end)
-      %{acc | queues: queues, bridge_rates: bridge_rates}
+      bridge_rates = Map.put(acc.bridge_rates, bridge_id, rate)
+
+      should_reset_last_sent =
+        case mode do
+          :append -> :queue.is_empty(existing_queue)
+          _ -> true
+        end
+
+      last_sent =
+        if should_reset_last_sent do
+          Map.put(acc.last_sent, bridge_id, now - interval)
+        else
+          acc.last_sent
+        end
+
+      %{acc | queues: queues, bridge_rates: bridge_rates, last_sent: last_sent}
     end)
   end
 
-  defp normalize_action(action) do
+  defp normalize_action(action, now) do
     action
     |> Map.put_new(:attempts, 0)
-    |> Map.put_new(:not_before, 0)
+    |> Map.put_new(:not_before, now)
+    |> Map.update(:attempts, 0, fn
+      nil -> 0
+      value -> value
+    end)
+    |> Map.update(:not_before, now, fn
+      nil -> now
+      value -> value
+    end)
   end
 
   defp ensure_timer(%{timer_ref: nil} = state) do
@@ -155,7 +194,7 @@ defmodule Hueworks.Control.Executor do
     end
   end
 
-  defp dispatch_tick(state) do
+  defp dispatch_tick(state, force \\ false) do
     now = state.now_fn.(:millisecond)
 
     {queues, last_sent, had_work} =
@@ -163,18 +202,38 @@ defmodule Hueworks.Control.Executor do
                                                                             {queues_acc, last_acc, worked} ->
         rate = Map.get(state.bridge_rates, bridge_id) || default_rate()
         interval = interval_ms(rate)
-        last = Map.get(last_acc, bridge_id, 0)
+        last =
+          case Map.get(last_acc, bridge_id) do
+            nil -> now - interval
+            0 -> now - interval
+            value -> value
+          end
 
-        if :queue.is_empty(queue) or now - last < interval do
+        if :queue.is_empty(queue) or (not force and now - last < interval) do
           {queues_acc, last_acc, worked}
         else
-          case next_action(queue, now) do
-            {:none, updated_queue} ->
+          {action_result, updated_queue} =
+            if force do
+              case :queue.out(queue) do
+                {:empty, _} -> {:none, queue}
+                {{:value, action}, rest} -> {{:action, action}, rest}
+              end
+            else
+              case next_action(queue, now) do
+                {:none, rest} -> {:none, rest}
+                {:action, action, rest} -> {{:action, action}, rest}
+              end
+            end
+
+          case action_result do
+            :none ->
               {Map.put(queues_acc, bridge_id, updated_queue), last_acc, worked}
 
-            {:action, action, updated_queue} ->
+            {:action, action} ->
+              result = state.dispatch_fun.(action)
+
               {updated_queue, last_acc} =
-                case state.dispatch_fun.(action) do
+                case result do
                   :ok ->
                     {updated_queue, Map.put(last_acc, bridge_id, now)}
 
@@ -191,7 +250,11 @@ defmodule Hueworks.Control.Executor do
         end
       end)
 
-    {%{state | queues: queues, last_sent: last_sent}, had_work}
+    has_pending =
+      queues
+      |> Enum.any?(fn {_bridge_id, queue} -> not :queue.is_empty(queue) end)
+
+    {%{state | queues: queues, last_sent: last_sent}, had_work, has_pending}
   end
 
   defp default_dispatch(action), do: dispatch_action(action)
@@ -260,7 +323,9 @@ defmodule Hueworks.Control.Executor do
         {:none, queue}
 
       {{:value, action}, rest} ->
-        if action.not_before <= now do
+        not_before = action.not_before || now
+
+        if not_before <= now do
           {:action, action, rest}
         else
           {:none, :queue.in_r(action, rest)}
@@ -295,4 +360,5 @@ defmodule Hueworks.Control.Executor do
   defp interval_ms(rate) when is_integer(rate) and rate > 0 do
     max(trunc(1000 / rate), 1)
   end
+
 end

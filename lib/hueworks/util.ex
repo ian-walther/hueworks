@@ -5,6 +5,13 @@ defmodule Hueworks.Util do
     value |> max(min) |> min(max)
   end
 
+  def clamp(value, min, max) when is_binary(value) do
+    case to_number(value) do
+      nil -> value
+      number -> clamp(number, min, max)
+    end
+  end
+
   def normalize_display_name(display_name) when is_binary(display_name) do
     display_name = String.trim(display_name)
     if display_name == "", do: nil, else: display_name
