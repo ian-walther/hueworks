@@ -13,3 +13,5 @@ config :hueworks, HueworksWeb.Endpoint,
 config :logger, level: :warning
 config :phoenix, :plug_init_mode, :runtime
 config :hueworks, :control_executor_enabled, false
+config :hueworks, :circadian_poll_enabled, false
+config :hueworks, :circadian_poll_interval_ms, 60_000

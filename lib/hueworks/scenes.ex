@@ -6,6 +6,7 @@ defmodule Hueworks.Scenes do
   import Ecto.Query, only: [from: 2]
 
   alias Hueworks.Repo
+  alias Hueworks.ActiveScenes
   alias Hueworks.Control.DesiredState
   alias Hueworks.Schemas.{LightState, Scene, SceneComponent, SceneComponentLight}
 
@@ -161,46 +162,62 @@ defmodule Hueworks.Scenes do
         {:error, :not_found}
 
       scene ->
-        scene =
-          scene
-          |> Repo.preload(scene_components: [:lights, :light_state])
-
-        txn = DesiredState.begin(scene.id)
-
-        txn =
-          Enum.reduce(scene.scene_components, txn, fn component, txn ->
-            desired = desired_from_light_state(component.light_state)
-
-            Enum.reduce(component.lights, txn, fn light, txn ->
-              DesiredState.apply(txn, :light, light.id, desired)
-            end)
-          end)
-
-        result = DesiredState.commit(txn)
-
-        case result do
-          {:ok, diff, _updated} ->
-            plan = Hueworks.Control.Planner.plan_room(scene.room_id, diff)
-            _ = Hueworks.Control.Executor.enqueue(plan)
-            result
-
-          _ ->
-            result
-        end
+        _ = ActiveScenes.set_active(scene)
+        apply_scene(scene, brightness_override: false)
     end
   end
 
-  defp desired_from_light_state(%LightState{type: :off}), do: %{power: :off}
+  def apply_scene(%Scene{} = scene, opts \\ []) do
+    scene =
+      scene
+      |> Repo.preload(scene_components: [:lights, :light_state])
 
-  defp desired_from_light_state(%LightState{type: :manual, config: config}) do
+    brightness_override = Keyword.get(opts, :brightness_override, false)
+
+    txn = DesiredState.begin(scene.id)
+
+    txn =
+      Enum.reduce(scene.scene_components, txn, fn component, txn ->
+        desired = desired_from_light_state(component.light_state, brightness_override)
+
+        Enum.reduce(component.lights, txn, fn light, txn ->
+          DesiredState.apply(txn, :light, light.id, desired)
+        end)
+      end)
+
+    result = DesiredState.commit(txn)
+
+    case result do
+      {:ok, diff, _updated} ->
+        if map_size(diff) > 0 do
+          plan = Hueworks.Control.Planner.plan_room(scene.room_id, diff)
+          _ = Hueworks.Control.Executor.enqueue(plan)
+        end
+
+        result
+
+      _ ->
+        result
+    end
+  end
+
+  defp desired_from_light_state(%LightState{type: :off}, _brightness_override), do: %{power: :off}
+
+  defp desired_from_light_state(%LightState{type: :manual, config: config}, brightness_override) do
     base = %{power: :on}
 
+    base =
+      if brightness_override do
+        base
+      else
+        maybe_put(base, :brightness, config, ["brightness"])
+      end
+
     base
-    |> maybe_put(:brightness, config, ["brightness"])
     |> maybe_put(:kelvin, config, ["temperature", "kelvin"])
   end
 
-  defp desired_from_light_state(_), do: %{}
+  defp desired_from_light_state(_, _brightness_override), do: %{}
 
   defp maybe_put(attrs, key, config, keys) do
     value =

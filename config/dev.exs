@@ -27,3 +27,5 @@ config :logger, :console, format: "[$level] $message\n"
 config :phoenix, :stacktrace_depth, 20
 config :phoenix, :plug_init_mode, :runtime
 config :hueworks, :control_executor_enabled, true
+config :hueworks, :circadian_poll_enabled, true
+config :hueworks, :circadian_poll_interval_ms, 60_000

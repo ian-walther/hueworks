@@ -1,6 +1,7 @@
 defmodule HueworksWeb.LightsLive do
   use Phoenix.LiveView
 
+  alias Hueworks.ActiveScenes
   alias Hueworks.Control
   alias Hueworks.Control.State
   alias Hueworks.Groups
@@ -247,6 +248,7 @@ defmodule HueworksWeb.LightsLive do
          {:ok, parsed} <- Util.parse_level(level),
          :ok <- Control.Light.set_brightness(light, parsed) do
       State.put(:light, light.id, %{brightness: parsed})
+      _ = ActiveScenes.handle_manual_change(light.room_id, %{brightness: parsed})
 
       socket
       |> assign(
@@ -270,6 +272,7 @@ defmodule HueworksWeb.LightsLive do
          {:ok, parsed} <- Util.parse_kelvin(kelvin),
          :ok <- Control.Light.set_color_temp(light, parsed) do
       State.put(:light, light.id, %{kelvin: parsed})
+      _ = ActiveScenes.handle_manual_change(light.room_id, %{kelvin: parsed})
 
       socket
       |> assign(
@@ -293,6 +296,7 @@ defmodule HueworksWeb.LightsLive do
          {:ok, parsed} <- Util.parse_level(level),
          :ok <- Control.Group.set_brightness(group, parsed) do
       State.put(:group, group.id, %{brightness: parsed})
+      _ = ActiveScenes.handle_manual_change(group.room_id, %{brightness: parsed})
 
       socket
       |> assign(
@@ -316,6 +320,7 @@ defmodule HueworksWeb.LightsLive do
          {:ok, parsed} <- Util.parse_kelvin(kelvin),
          :ok <- Control.Group.set_color_temp(group, parsed) do
       State.put(:group, group.id, %{kelvin: parsed})
+      _ = ActiveScenes.handle_manual_change(group.room_id, %{kelvin: parsed})
 
       socket
       |> assign(
@@ -338,6 +343,7 @@ defmodule HueworksWeb.LightsLive do
     with {:ok, light} <- fetch_light(id),
          :ok <- apply_light_action(light, action) do
       State.put(:light, light.id, %{power: action})
+      _ = ActiveScenes.handle_manual_change(light.room_id, %{power: action})
 
       socket
       |> assign(
@@ -360,6 +366,7 @@ defmodule HueworksWeb.LightsLive do
     with {:ok, group} <- fetch_group(id),
          :ok <- apply_group_action(group, action) do
       State.put(:group, group.id, %{power: action})
+      _ = ActiveScenes.handle_manual_change(group.room_id, %{power: action})
 
       socket
       |> assign(

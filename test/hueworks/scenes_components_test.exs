@@ -187,4 +187,28 @@ defmodule Hueworks.ScenesComponentsTest do
     assert diff[{:light, light1.id}][:brightness] == "40"
     assert DesiredState.get(:light, light1.id)[:power] == :on
   end
+
+  test "apply_scene preserves brightness when override is enabled" do
+    room = insert_room()
+    bridge = insert_bridge()
+    light = insert_light(room, bridge, %{name: "Lamp"})
+
+    {:ok, state} =
+      Scenes.create_manual_light_state("Soft", %{"brightness" => "80", "temperature" => "3000"})
+
+    {:ok, scene} = Scenes.create_scene(%{name: "Chill", room_id: room.id})
+
+    {:ok, _} =
+      Scenes.replace_scene_components(scene, [
+        %{name: "Component 1", light_ids: [light.id], light_state_id: to_string(state.id)}
+      ])
+
+    _ = Hueworks.Control.State.put(:light, light.id, %{power: :on, brightness: "25", kelvin: "2500"})
+
+    {:ok, _diff, _updated} = Scenes.apply_scene(scene, brightness_override: true)
+
+    desired = DesiredState.get(:light, light.id)
+    assert desired[:brightness] == "25"
+    assert desired[:kelvin] == "3000"
+  end
 end
