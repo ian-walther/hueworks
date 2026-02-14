@@ -1,47 +1,117 @@
 # HueWorks
 
-Professional-grade lighting control for commodity smart bulbs.
+HueWorks is a local-first lighting control system for multi-bridge smart homes (Hue, Home Assistant, Caseta), with import/review workflows, unified state tracking, and scene-driven control execution.
 
-HueWorks brings Lutron HomeWorks-style functionality to commodity smart lighting systems, eliminating "popcorning" effects through intelligent command optimization and group coordination.
+## Current Status
 
-## Project Status
+HueWorks is in active development and already has working end-to-end flows for:
+- bridge setup and credential testing
+- import/reimport with review and apply
+- canonical linking across sources
+- live control UI for lights and groups
+- rooms + scenes CRUD and scene activation
+- event stream subscriptions feeding in-memory state
 
-**Phase 0: Foundations + Control UI**
+## What Works Today
 
-HueWorks is in active early development with a working import pipeline, LiveView setup wizard, and basic control UI. The core value prop (group batching to eliminate popcorning) is not implemented yet, but the schema, import flow, and control scaffolding are in place.
+- **Bridge setup wizard**: add bridge, validate credentials, import, review, apply  
+  `lib/hueworks_web/live/config/bridge_live.ex`  
+  `lib/hueworks_web/live/config/bridge_setup_live.ex`
+- **Import pipeline**: fetch → normalize → plan → materialize → link  
+  `lib/hueworks/import/pipeline.ex`  
+  `lib/hueworks/import/normalize/*.ex`  
+  `lib/hueworks/import/materialize.ex`  
+  `lib/hueworks/import/link.ex`
+- **Reimport behavior**: compares import vs DB state, supports selective deletion of unchecked entities  
+  `lib/hueworks/import/reimport_plan.ex`  
+  `lib/hueworks/bridges.ex`
+- **Control runtime**: desired state + planner + queued executor  
+  `lib/hueworks/control/desired_state.ex`  
+  `lib/hueworks/control/planner.ex`  
+  `lib/hueworks/control/executor.ex`
+- **Scene activation**: updates desired state and enqueues control actions  
+  `lib/hueworks/scenes.ex`
+- **Subscription layer**: Hue SSE, HA WebSocket, Caseta LEAP subscriptions  
+  `lib/hueworks/subscription/*`
+- **UI screens**:  
+  `/config`, `/lights`, `/rooms`
 
-## Core Vision
+## Architecture
 
-- **Problem**: Home Assistant's lighting control causes lights to turn on/off one at a time
-- **Solution**: Intelligent command batching, group detection, and hardware optimization
-- **Target**: Power users with 50+ bulbs who want professional lighting behavior without the professional price tag
+HueWorks currently has five primary layers:
 
-## Features (Current)
+1. **Bridge setup + import workflow (UI + pipeline)**
+- Configure bridge credentials and validate connectivity in LiveView.
+- Run import with review/apply (including reimport compare + selective deletion).
+- Core modules:
+  `lib/hueworks_web/live/config/bridge_live.ex`  
+  `lib/hueworks_web/live/config/bridge_setup_live.ex`  
+  `lib/hueworks/import/pipeline.ex`  
+  `lib/hueworks/import/materialize.ex`  
+  `lib/hueworks/import/reimport_plan.ex`  
+  `lib/hueworks/import/link.ex`
 
-- Multi-bridge import pipeline (Hue, Home Assistant, Caseta)
-- LiveView bridge setup wizard (add bridge, test credentials, import, review, apply)
-- Reimport workflow from config (reimport, delete entities, delete bridge)
-- Control UI for lights and groups (Hue + Home Assistant fully wired; Caseta lights only)
-- Event stream subscriptions (Hue SSE, Home Assistant WebSocket, Caseta LEAP) feeding in-memory state
-- Rooms + scenes CRUD UI with scene builder modal (scene activation not implemented yet)
-- Manual light states (name + brightness + temperature) shared across scenes
-- Kelvin mapping helpers and per-entity override controls
+2. **Domain + persistence layer**
+- Canonical entities in SQLite via Ecto: bridges, imports, lights, groups, rooms, scenes, active scenes.
+- Core modules:
+  `lib/hueworks/schemas/*`  
+  `lib/hueworks/repo.ex`  
+  `lib/hueworks/lights.ex`  
+  `lib/hueworks/groups.ex`  
+  `lib/hueworks/rooms.ex`  
+  `lib/hueworks/scenes.ex`  
+  `lib/hueworks/active_scenes.ex`
 
-## Features (Planned)
+3. **Control runtime**
+- In-memory physical state and desired state in ETS.
+- Scene apply updates desired state, planner builds actions, executor queues/dispatches by bridge.
+- Core modules:
+  `lib/hueworks/control/state.ex`  
+  `lib/hueworks/control/desired_state.ex`  
+  `lib/hueworks/control/planner.ex`  
+  `lib/hueworks/control/executor.ex`  
+  `lib/hueworks/control/light.ex`  
+  `lib/hueworks/control/group.ex`
 
-- Multi-vendor bridge support (Philips Hue, Zigbee2MQTT, Lutron Caseta)
-- Command aggregation and optimization
-- Circadian rhythm lighting
-- Scene activation and scheduling
-- Home Assistant integration
-- Physical switch support (Pico remotes)
+4. **Bridge adapters + subscriptions**
+- Dispatch clients and payload transformers for Hue, HA, and Caseta.
+- Background event stream processes keep in-memory state synchronized with bridge events.
+- Core modules:
+  `lib/hueworks/control/*_bridge.ex`  
+  `lib/hueworks/control/*_client.ex`  
+  `lib/hueworks/control/*_payload.ex`  
+  `lib/hueworks/subscription/hue_event_stream.ex`  
+  `lib/hueworks/subscription/home_assistant_event_stream.ex`  
+  `lib/hueworks/subscription/caseta_event_stream.ex`
 
-## Development Philosophy
+5. **Live UI layer**
+- `/lights`: live controls, filtering, per-entity config, manual override entrypoints.
+- `/rooms`: rooms CRUD, scene builder, scene activation.
+- `/config`: bridge lifecycle and import lifecycle.
+- Core modules:
+  `lib/hueworks_web/live/lights_live.ex`  
+  `lib/hueworks_web/live/rooms_live.ex`  
+  `lib/hueworks_web/live/config/config_live.ex`
 
-- Test-Driven Development from day one
-- Type specifications on all public functions
-- Test coverage is growing (import + kelvin paths have tests; control + contexts still need coverage)
-- Learn by building vertical slices first, then abstract
+### Runtime startup
+
+`Hueworks.Application` supervises Repo, PubSub, control state, desired state, executor, subscriptions, and endpoint:
+`lib/hueworks/application.ex`
+
+### Current control flow (scene activation path)
+
+1. Scene activated from `/rooms` UI.
+2. `Hueworks.Scenes.apply_scene/2` computes desired per-light state.
+3. `Hueworks.Control.Planner.plan_room/2` builds group/light action plan.
+4. `Hueworks.Control.Executor.enqueue/2` queues dispatch.
+5. Bridge-specific control modules send hardware/API commands.
+
+## Known Gaps
+
+- Caseta **group** dispatch is not implemented yet (`Control.Group` returns `{:error, :not_implemented}` for Caseta groups).
+- Caseta Pico events are connected but still stub-logged (no action mapping runtime yet).
+- HA group fan-out has known edge cases noted in code comments.
+- Cross-bridge orchestration behavior still needs tightening around the core "no popcorning" promise.
 
 ## Getting Started
 
@@ -49,104 +119,52 @@ HueWorks is in active early development with a working import pipeline, LiveView
 # Install dependencies
 mix deps.get
 
-# Create database, run migrations, and seed bridges
+# Create DB, migrate, and seed bridges from secrets.env
 mix ecto.reset
 
-# Optional: re-run seeds without resetting
-mix run priv/repo/seeds.exs
-
-# Set up and build assets
+# Build frontend assets
 mix assets.setup
 mix assets.build
 
-# Start the application
+# Start the app
 iex -S mix phx.server
 ```
 
-Visit `http://localhost:4000` and use the UI:
+Open `http://localhost:4000`:
+- `/config` for bridge setup/import/reimport
+- `/lights` for live light/group control and kelvin override settings
+- `/rooms` for rooms, scene builder, and scene activation
 
-- `/config` to add a bridge and run the import wizard
-- `/lights` to control lights/groups and tune kelvin ranges
-- `/rooms` to manage room names and build scenes
+## Credentials and Seeding
 
-The `/explore` route is a placeholder.
-
-## Architecture Tour
-
-If you want to orient quickly, these are the main flows and modules:
-
-- **Bridge setup + import wizard (UI)**: `/config` and `/config/bridge/:id/setup`  
-  `lib/hueworks_web/live/config/bridge_live.ex`  
-  `lib/hueworks_web/live/config/bridge_setup_live.ex`
-- **Import pipeline (core)**: fetch → normalize → plan → materialize → link  
-  `lib/hueworks/import/pipeline.ex`  
-  `lib/hueworks/import/normalize/*.ex`  
-  `lib/hueworks/import/materialize.ex`  
-  `lib/hueworks/import/link.ex`
-- **Control dispatch** (per-bridge implementations)  
-  `lib/hueworks/control/light.ex`  
-  `lib/hueworks/control/group.ex`
-- **Event subscriptions → in-memory state**  
-  `lib/hueworks/subscription/*`  
-  `lib/hueworks/control/state.ex`
-- **UI control screens**  
-  `lib/hueworks_web/live/lights_live.ex`  
-  `lib/hueworks_web/live/rooms_live.ex`
-- **Domain + schema**  
-  `lib/hueworks/schemas/*`  
-  `lib/hueworks/lights.ex`, `lib/hueworks/groups.ex`, `lib/hueworks/rooms.ex`
-  `lib/hueworks/scenes.ex`
-
-## Import Pipeline Overview
-
-There are two ways to run imports: the UI wizard or the CLI mix tasks. Under the hood they share the same pipeline. The UI includes a review step (create/skip/merge) before applying.
-
-**Pipeline steps**
-1) **Fetch raw data** from each bridge into a JSON blob.
-2) **Normalize** into a common shape (rooms, groups, lights, memberships).
-3) **Plan** a default review plan (what to create/skip/merge).
-4) **Materialize** into the database.
-5) **Link** canonical entities across imports (primarily HA ↔ Hue/Caseta).
-
-**CLI path (optional)**
-```bash
-mix export_bridge_imports
-mix normalize_bridge_imports
-mix materialize_bridge_imports
-mix link_bridge_imports
-```
-
-**Output files**
-- Raw files: `exports/*_raw_*.json`
-- Normalized files: `exports/*_normalized_*.json`
-
-## Bridge Credentials + Seeding Workflow
-
-Bridge records live in the database. You can either seed via `secrets.env` or use the UI wizard.
-
-1) Create `secrets.env` at the repo root:
+Create `secrets.env` in repo root:
 
 ```bash
 export HUE_API_KEY="..."
+export HUE_API_KEY_DOWNSTAIRS="..."
 export LUTRON_CERT_PATH="/path/to/bridge.crt"
 export LUTRON_KEY_PATH="/path/to/bridge.key"
 export LUTRON_CACERT_PATH="/path/to/bridge-ca.crt"
 export HA_TOKEN="..."
 ```
 
-2) Reset the DB (migrations + seeds):
+Then run:
 
 ```bash
 mix ecto.reset
 ```
 
-3) Optional: re-run seeds without resetting:
+or reseed only:
 
 ```bash
 mix seed_bridges
 ```
 
-4) Optional: run the CLI import pipeline:
+Caseta credentials can also be uploaded through the UI and are stored under `priv/credentials/caseta/`.
+
+## Optional CLI Import Flow
+
+The UI is the primary path, but CLI tasks are available:
 
 ```bash
 mix export_bridge_imports
@@ -155,19 +173,66 @@ mix materialize_bridge_imports
 mix link_bridge_imports
 ```
 
-Notes:
-- The UI setup wizard can do import + review + apply without any CLI steps.
-- Caseta credentials can also be uploaded via the UI and are stored under `priv/credentials/caseta/`.
+Output:
+- raw exports: `exports/*_raw_*.json`
+- normalized exports: `exports/*_normalized_*.json`
 
-## Mix Tasks
+## Mix Tasks and Commands
 
-- `mix backup_db` — Back up the SQLite database with a timestamp suffix.
-- `mix restore_db` — Restore the most recent SQLite database backup.
-- `mix seed_bridges` — Seed bridges from `secrets.env` with `import_complete=false`.
-- `mix export_bridge_imports` — Fetch raw bridge configuration and write JSON to `exports/`.
-- `mix normalize_bridge_imports` — Normalize raw bridge JSON into `exports/*_normalized_*.json`.
-- `mix materialize_bridge_imports` — Materialize normalized bridge JSON into the database.
-- `mix link_bridge_imports` — Link canonical entities across imports.
+### Common aliases
+
+```bash
+# one-time local bootstrap
+mix setup
+
+# create DB + run migrations
+mix ecto.setup
+
+# drop DB + recreate + migrate + seed
+mix ecto.reset
+
+# frontend tool install
+mix assets.setup
+
+# build assets for dev
+mix assets.build
+
+# minified asset build for deploy
+mix assets.deploy
+```
+
+### Bridge/import workflow
+
+```bash
+# seed bridge rows from secrets.env
+mix seed_bridges
+
+# export raw bridge payloads
+mix export_bridge_imports
+
+# normalize exported payloads
+mix normalize_bridge_imports
+
+# materialize normalized data into DB
+mix materialize_bridge_imports
+
+# link canonical entities across sources
+mix link_bridge_imports
+```
+
+### Quality and operations
+
+```bash
+# run test suite
+mix test
+
+# static analysis
+mix credo
+
+# backup / restore sqlite DB files
+mix backup_db
+mix restore_db
+```
 
 ## License
 

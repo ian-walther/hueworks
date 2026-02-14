@@ -1,26 +1,28 @@
-# DB Indices + Integrity
+# DB Integrity and Query Health (Remaining)
 
 ## Goal
-Add missing indices and harden schema integrity to avoid performance regressions.
+Address remaining schema/query risks now that baseline indices and FKs are in place.
 
-## Scope
-- Add listed indices on lights/groups/group_lights
-- Add foreign key constraints where missing
-- Document index strategy in migrations
+## Scope (Remaining)
+- Add targeted indices for high-frequency operational queries not yet covered (for example, import history/status lookups).
+- Audit delete/update paths for consistency between FK behavior and manual cleanup code.
+- Define migration review checklist for future schema changes (index impact, rollback, data safety).
 
-## Out of Scope (for now)
-- Major schema redesign
-- Soft-delete strategy decisions
+## Out of Scope
+- Full schema redesign.
+- Soft-delete model redesign.
 
-## Files to Touch (likely)
-- priv/repo/migrations/*
-- lib/hueworks/schemas/*
+## Files to Touch (Likely)
+- `priv/repo/migrations/*`
+- `lib/hueworks/schemas/*`
+- `lib/hueworks/bridges.ex`
+- `lib/hueworks/import/*`
 
 ## Acceptance Criteria
-- Indices exist for the hot query paths
-- FK constraints prevent orphaned records
-- Migrations include brief rationale comments
+- `EXPLAIN` on known hot queries shows index-backed plans.
+- Cleanup behavior is consistent (no orphan-prone edge paths between SQL FKs and app-level deletes).
+- New migration docs/checklist exist and are referenced from planning/readme docs.
 
-## Notes / Open Questions
-- Do we want cascade deletes or explicit cleanup?
-- Which metadata fields should be promoted to columns?
+## Open Questions
+- Keep current hard-delete semantics for unchecked reimport entities, or move to disable-first?
+- Which JSON metadata lookups are stable enough to promote to first-class columns?

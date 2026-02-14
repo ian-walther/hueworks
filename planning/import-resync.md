@@ -1,26 +1,33 @@
-# Import Resync / Idempotency
+# Import Reimport and Idempotency (Remaining)
 
 ## Goal
-Make re-import safe and predictable while preserving user edits.
+Finalize reimport semantics so behavior is predictable and documented under repeated imports.
 
-## Scope
-- Define upsert rules for re-imports
-- Preserve user edits (display_name, room_id, enabled)
-- Detect new/removed devices
-- Track import history and timestamps
+## Scope (Remaining)
+- Define and document deletion semantics for entities missing/unchecked during reimport.
+- Strengthen preservation rules for user-managed fields (`display_name`, `room_id`, `enabled`) under repeated imports.
+- Expose import history in a queryable/operator-friendly shape (not only raw blobs).
+- Clarify snapshot policy for `bridge_imports` records (mutable review state vs immutable import snapshots).
 
-## Out of Scope (for now)
-- Full diff UI or historical rollback
+## Out of Scope
+- Full visual diff UI.
+- Historical rollback/restore UI.
 
-## Files to Touch (likely)
-- lib/hueworks/import/materialize.ex
-- lib/hueworks/import/plan.ex
-- lib/hueworks/schemas/bridge_import.ex
-- test/hueworks/*
+## Files to Touch (Likely)
+- `lib/hueworks/import/materialize.ex`
+- `lib/hueworks/import/reimport_plan.ex`
+- `lib/hueworks/import/normalize_from_db.ex`
+- `lib/hueworks/schemas/bridge_import.ex`
+- `lib/hueworks_web/live/config/bridge_setup_live.ex`
+- `test/hueworks/import_reimport_plan_test.exs`
+- `test/hueworks/import_plan_application_test.exs`
 
-## Acceptance Criteria (Remaining)
-- Import history can be queried from DB
+## Acceptance Criteria
+- Reimport behavior is explicitly documented for checked, unchecked, and missing entities.
+- User-managed fields remain stable unless explicitly changed by user action.
+- Import history is queryable by bridge/time/status without reading raw blobs directly.
+- Tests cover repeated import cycles and deletion edge cases.
 
-## Notes / Open Questions
-- How do we represent deleted entities: disabled vs removed?
-- Should imports be immutable snapshots?
+## Open Questions
+- Should unchecked entities be disabled first, then hard-deleted in a later cleanup step?
+- Should `bridge_imports` represent immutable snapshots with separate review/application records?

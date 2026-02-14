@@ -1,30 +1,33 @@
-# Group Command Batching (Core Value Prop)
+# Control Coordination and No-Popcorning (Remaining)
 
 ## Goal
-Implement bridge-aware batching and coordinated execution to eliminate popcorning.
+Finish the remaining coordination work so scene/control execution is predictably synchronized across bridges and failures are explicit.
 
-## Scope
-- Batch commands by bridge for groups
-- Parallel execution across bridges
-- Timing coordination for visible consistency
-- Error handling for partial failures and offline bridges
+## Scope (Remaining)
+- Define and enforce cross-bridge dispatch timing expectations.
+- Formalize partial-failure behavior (result shape + UI surfacing path).
+- Ensure executor usage is consistent across call sites (`:append` vs `:replace` policy).
+- Close Caseta group-control gap so group planning behavior is uniform.
 
-## Out of Scope (for now)
-- Full planner/diff engine (planned architecture)
-- Advanced retries/circuit breakers beyond minimal handling
+## Out of Scope
+- Major planner redesign.
+- Circuit-breaker architecture and advanced resilience policy.
 
-## Files to Touch (likely)
-- lib/hueworks/control/*
-- lib/hueworks/groups/*
-- lib/hueworks/control/state.ex
-- test/hueworks/*
+## Files to Touch (Likely)
+- `lib/hueworks/control/executor.ex`
+- `lib/hueworks/control/planner.ex`
+- `lib/hueworks/control/group.ex`
+- `lib/hueworks/scenes.ex`
+- `lib/hueworks_web/live/lights_live.ex`
+- `test/hueworks/control_executor_queue_test.exs`
+- `test/hueworks_web/live/scene_activation_round_trip_test.exs`
 
 ## Acceptance Criteria
-- Group action results in single bridge call per bridge
-- Multiple bridges are executed in parallel
-- Partial failures are surfaced clearly without crashing
-- Tests cover batching behavior and failure handling
+- Cross-bridge scene apply behavior has a documented timing contract and tests.
+- Executor returns a structured result that distinguishes full success vs partial failure.
+- Caseta group control no longer returns `{:error, :not_implemented}`.
+- Regression tests cover mixed bridge/action scenarios.
 
-## Notes / Open Questions
-- Do we add a dedicated batching module or keep in control layer?
-- What should the error return shape be?
+## Open Questions
+- Should executor return per-action results synchronously or emit async events only?
+- Is best-effort apply acceptable when one bridge is unavailable, or should it fail-fast?
