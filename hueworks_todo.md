@@ -4,7 +4,24 @@ Forward-looking backlog only. Completed work has been removed.
 
 ## Now (Critical Path)
 
-### 1) Core control coordination and no-popcorning behavior
+### 1) Circadian prerequisites and adaptive circadian logic
+Reference: `planning/circadian-adaptation.md`
+- [ ] Implement circadian calculation module with HA-compatible calculation config keys.
+- [ ] Add circadian `light_state` apply path for both brightness and kelvin.
+- [ ] Enforce active-scene semantics:
+  - brightness override suppresses brightness only.
+  - manual temp/color changes disable active scene.
+  - manual brightness/power changes preserve active scene.
+  - manual power-off stays off until manual-on.
+  - manual power-on applies current circadian target immediately.
+- [ ] Add clamp-aware planner partitioning so exact-target and clamped-target lights split into separate grouped actions.
+- [ ] Add scene builder circadian configuration UI (distinct from existing manual/off controls).
+- [ ] Move `/lights` manual controls onto desired-state mutation + planner/executor pipeline (remove direct control path).
+- [ ] Add DB singleton for global solar config (`lat/lon/timezone`) and wire calculator reads.
+- [ ] Add deep circadian math tests and scene/planner/manual-control integration regressions.
+- [ ] Add basic observability for circadian ticks and apply outcomes.
+
+### 2) Core control coordination and no-popcorning behavior
 Reference: `planning/control-batching.md`
 - [ ] Ensure coordinated execution semantics for mixed actions in a room scene apply.
 - [ ] Validate cross-bridge timing behavior and define acceptable skew.
@@ -13,13 +30,13 @@ Reference: `planning/control-batching.md`
 - [ ] Add end-to-end tests proving expected behavior with 10+ light scene patterns.
 - [ ] Align and update `planning/control-batching.md` to reflect actual remaining work.
 
-### 2) Close known runtime gaps
+### 3) Close known runtime gaps
 - [ ] Implement Caseta group dispatch path in `Hueworks.Control.Group`.
 - [ ] Replace Caseta Pico stub event logging with real event handling + mapping entrypoint.
 - [ ] Resolve HA group fan-out edge cases currently noted in subscription code.
 - [ ] Add regression tests for all three items above.
 
-### 3) Subscription test coverage
+### 4) Subscription test coverage
 Reference: `planning/test-coverage.md`
 - [ ] Add parser + mapper tests for Hue SSE event handling.
 - [ ] Add Home Assistant websocket event-flow tests (auth, subscribe, state_changed).
@@ -28,12 +45,6 @@ Reference: `planning/test-coverage.md`
 - [ ] Update `planning/test-coverage.md` with concrete remaining test targets.
 
 ## Next
-
-### 4) Circadian and active-scene behavior hardening
-- [ ] Define expected circadian re-apply semantics for active scenes.
-- [ ] Add tests for `brightness_override` behavior under manual changes.
-- [ ] Add safeguards against redundant scene re-application churn.
-- [ ] Introduce basic observability (logs/metrics) for circadian ticks and apply outcomes.
 
 ### 5) Bridge credential lifecycle
 - [ ] Support editing bridge host/credentials safely without destructive re-setup.
