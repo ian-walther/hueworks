@@ -5,6 +5,7 @@ defmodule Hueworks.SceneActivationRoundTripTest do
 
   alias Hueworks.Control.Executor
   alias Hueworks.Repo
+
   alias Hueworks.Schemas.{
     Bridge,
     Group,
@@ -30,10 +31,7 @@ defmodule Hueworks.SceneActivationRoundTripTest do
 
     {:ok, _pid} =
       start_supervised(
-        {Executor,
-         name: server,
-         dispatch_fun: dispatch_fun,
-         bridge_rate_fun: fn _ -> 10 end}
+        {Executor, name: server, dispatch_fun: dispatch_fun, bridge_rate_fun: fn _ -> 10 end}
       )
 
     original_enabled = Application.get_env(:hueworks, :control_executor_enabled)
@@ -72,7 +70,10 @@ defmodule Hueworks.SceneActivationRoundTripTest do
         source: :hue,
         source_id: "1",
         bridge_id: bridge.id,
-        room_id: room.id
+        room_id: room.id,
+        supports_temp: true,
+        reported_min_kelvin: 2000,
+        reported_max_kelvin: 6500
       })
 
     light_2 =
@@ -82,7 +83,10 @@ defmodule Hueworks.SceneActivationRoundTripTest do
         source: :hue,
         source_id: "2",
         bridge_id: bridge.id,
-        room_id: room.id
+        room_id: room.id,
+        supports_temp: true,
+        reported_min_kelvin: 2000,
+        reported_max_kelvin: 6500
       })
 
     group =
@@ -140,7 +144,7 @@ defmodule Hueworks.SceneActivationRoundTripTest do
              %{
                type: :group,
                id: ^group_id,
-               desired: %{power: :on, brightness: "50", kelvin: "3000"}
+               desired: %{power: :on, brightness: "50", kelvin: 3000}
              }
            ] = actions
   end
@@ -167,7 +171,10 @@ defmodule Hueworks.SceneActivationRoundTripTest do
         source: :hue,
         source_id: "101",
         bridge_id: bridge.id,
-        room_id: room.id
+        room_id: room.id,
+        supports_temp: true,
+        reported_min_kelvin: 2000,
+        reported_max_kelvin: 6500
       })
 
     light_b =
@@ -177,7 +184,10 @@ defmodule Hueworks.SceneActivationRoundTripTest do
         source: :hue,
         source_id: "102",
         bridge_id: bridge.id,
-        room_id: room.id
+        room_id: room.id,
+        supports_temp: true,
+        reported_min_kelvin: 2000,
+        reported_max_kelvin: 6500
       })
 
     light_c =
@@ -187,7 +197,10 @@ defmodule Hueworks.SceneActivationRoundTripTest do
         source: :hue,
         source_id: "103",
         bridge_id: bridge.id,
-        room_id: room.id
+        room_id: room.id,
+        supports_temp: true,
+        reported_min_kelvin: 2000,
+        reported_max_kelvin: 6500
       })
 
     light_d =
@@ -197,7 +210,10 @@ defmodule Hueworks.SceneActivationRoundTripTest do
         source: :hue,
         source_id: "104",
         bridge_id: bridge.id,
-        room_id: room.id
+        room_id: room.id,
+        supports_temp: true,
+        reported_min_kelvin: 2000,
+        reported_max_kelvin: 6500
       })
 
     group_ab =
@@ -254,8 +270,15 @@ defmodule Hueworks.SceneActivationRoundTripTest do
         metadata: %{}
       })
 
-    Repo.insert!(%SceneComponentLight{scene_component_id: component_warm.id, light_id: light_a.id})
-    Repo.insert!(%SceneComponentLight{scene_component_id: component_warm.id, light_id: light_b.id})
+    Repo.insert!(%SceneComponentLight{
+      scene_component_id: component_warm.id,
+      light_id: light_a.id
+    })
+
+    Repo.insert!(%SceneComponentLight{
+      scene_component_id: component_warm.id,
+      light_id: light_b.id
+    })
 
     component_cool =
       Repo.insert!(%SceneComponent{
@@ -265,8 +288,15 @@ defmodule Hueworks.SceneActivationRoundTripTest do
         metadata: %{}
       })
 
-    Repo.insert!(%SceneComponentLight{scene_component_id: component_cool.id, light_id: light_c.id})
-    Repo.insert!(%SceneComponentLight{scene_component_id: component_cool.id, light_id: light_d.id})
+    Repo.insert!(%SceneComponentLight{
+      scene_component_id: component_cool.id,
+      light_id: light_c.id
+    })
+
+    Repo.insert!(%SceneComponentLight{
+      scene_component_id: component_cool.id,
+      light_id: light_d.id
+    })
 
     reset_states_for_lights([light_a.id, light_b.id, light_c.id, light_d.id])
 
@@ -285,12 +315,12 @@ defmodule Hueworks.SceneActivationRoundTripTest do
 
     assert Enum.any?(actions, fn action ->
              action.type == :group and action.id == group_ab.id and
-               action.desired == %{power: :on, brightness: "40", kelvin: "2400"}
+               action.desired == %{power: :on, brightness: "40", kelvin: 2400}
            end)
 
     assert Enum.any?(actions, fn action ->
              action.type == :group and action.id == group_cd.id and
-               action.desired == %{power: :on, brightness: "80", kelvin: "5000"}
+               action.desired == %{power: :on, brightness: "80", kelvin: 5000}
            end)
   end
 

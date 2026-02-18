@@ -79,7 +79,12 @@ defmodule Hueworks.Import.NormalizeTest do
     group = Enum.find(normalized.groups, &(&1.source_id == "light.office_group"))
     assert group.room_source_id == "office"
     assert group.classification == "ha_group"
-    assert Enum.any?(normalized.memberships.group_lights, &(&1.group_source_id == group.source_id))
+
+    assert Enum.any?(
+             normalized.memberships.group_lights,
+             &(&1.group_source_id == group.source_id)
+           )
+
     assert Enum.any?(normalized.memberships.room_groups, &(&1.group_source_id == group.source_id))
 
     mixed_group = Enum.find(normalized.groups, &(&1.source_id == "light.mixed_group"))
@@ -106,6 +111,82 @@ defmodule Hueworks.Import.NormalizeTest do
     assert light.capabilities.brightness
     refute light.capabilities.color
     assert light.identifiers["serial"] == "12345678"
+  end
+
+  test "aggregate_capabilities computes shared kelvin intersection for groups" do
+    capabilities_by_id = %{
+      "a" => %{
+        brightness: true,
+        color: true,
+        color_temp: true,
+        reported_kelvin_min: 2000,
+        reported_kelvin_max: 6535
+      },
+      "b" => %{
+        brightness: true,
+        color: false,
+        color_temp: true,
+        reported_kelvin_min: 2202,
+        reported_kelvin_max: 4504
+      }
+    }
+
+    aggregate = Normalize.aggregate_capabilities(["a", "b"], capabilities_by_id)
+
+    assert aggregate.brightness
+    assert aggregate.color
+    assert aggregate.color_temp
+    assert aggregate.reported_kelvin_min == 2202
+    assert aggregate.reported_kelvin_max == 4504
+  end
+
+  test "aggregate_capabilities clears kelvin range when no shared overlap exists" do
+    capabilities_by_id = %{
+      "a" => %{
+        brightness: true,
+        color: true,
+        color_temp: true,
+        reported_kelvin_min: 2000,
+        reported_kelvin_max: 2500
+      },
+      "b" => %{
+        brightness: true,
+        color: true,
+        color_temp: true,
+        reported_kelvin_min: 2700,
+        reported_kelvin_max: 4500
+      }
+    }
+
+    aggregate = Normalize.aggregate_capabilities(["a", "b"], capabilities_by_id)
+
+    assert aggregate.reported_kelvin_min == nil
+    assert aggregate.reported_kelvin_max == nil
+  end
+
+  test "aggregate_capabilities clears kelvin range when any member has no range" do
+    capabilities_by_id = %{
+      "a" => %{
+        brightness: true,
+        color: true,
+        color_temp: true,
+        reported_kelvin_min: 2000,
+        reported_kelvin_max: 6500
+      },
+      "b" => %{
+        brightness: true,
+        color: false,
+        color_temp: false,
+        reported_kelvin_min: nil,
+        reported_kelvin_max: nil
+      }
+    }
+
+    aggregate = Normalize.aggregate_capabilities(["a", "b"], capabilities_by_id)
+
+    assert aggregate.color_temp
+    assert aggregate.reported_kelvin_min == nil
+    assert aggregate.reported_kelvin_max == nil
   end
 
   defp load_fixture(name) do

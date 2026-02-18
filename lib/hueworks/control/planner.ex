@@ -6,15 +6,26 @@ defmodule Hueworks.Control.Planner do
   import Ecto.Query, only: [from: 2]
 
   alias Hueworks.Control.DesiredState
+  alias Hueworks.Kelvin
   alias Hueworks.Repo
   alias Hueworks.Schemas.{Group, GroupLight, Light}
+  alias Hueworks.Util
 
   def plan_room(room_id, diff) when is_integer(room_id) and is_map(diff) do
     room_lights =
       Repo.all(
         from(l in Light,
           where: l.room_id == ^room_id,
-          select: %{id: l.id, bridge_id: l.bridge_id}
+          select: %{
+            id: l.id,
+            bridge_id: l.bridge_id,
+            supports_temp: l.supports_temp,
+            reported_min_kelvin: l.reported_min_kelvin,
+            reported_max_kelvin: l.reported_max_kelvin,
+            actual_min_kelvin: l.actual_min_kelvin,
+            actual_max_kelvin: l.actual_max_kelvin,
+            extended_kelvin_range: l.extended_kelvin_range
+          }
         )
       )
 
@@ -23,6 +34,12 @@ defmodule Hueworks.Control.Planner do
     desired_by_light =
       Map.new(room_lights, fn light ->
         {light.id, DesiredState.get(:light, light.id)}
+      end)
+
+    effective_desired_by_light =
+      Map.new(room_lights, fn light ->
+        desired = Map.get(desired_by_light, light.id) || %{}
+        {light.id, effective_desired_for_light(desired, light)}
       end)
 
     diff_light_ids =
@@ -39,7 +56,7 @@ defmodule Hueworks.Control.Planner do
 
     diff_light_ids
     |> Enum.group_by(fn id ->
-      desired = Map.get(desired_by_light, id) || %{}
+      desired = Map.get(effective_desired_by_light, id) || %{}
       {desired_key(desired), desired, light_bridge(room_lights, id)}
     end)
     |> Enum.flat_map(fn {{_key, desired, bridge_id}, ids} ->
@@ -47,7 +64,8 @@ defmodule Hueworks.Control.Planner do
         room_lights
         |> Enum.filter(fn light ->
           light.bridge_id == bridge_id and
-            desired_key(Map.get(desired_by_light, light.id) || %{}) == desired_key(desired)
+            desired_key(Map.get(effective_desired_by_light, light.id) || %{}) ==
+              desired_key(desired)
         end)
         |> Enum.map(& &1.id)
         |> MapSet.new()
@@ -107,6 +125,7 @@ defmodule Hueworks.Control.Planner do
 
       group ->
         updated_remaining = MapSet.difference(remaining_diff, group.lights)
+
         {rest, final_remaining} =
           plan_groups(groups, candidate_set, updated_remaining, desired)
 
@@ -137,5 +156,69 @@ defmodule Hueworks.Control.Planner do
     desired
     |> Map.to_list()
     |> Enum.sort()
+  end
+
+  defp effective_desired_for_light(desired, light) when is_map(desired) do
+    case kelvin_value(desired) do
+      nil ->
+        desired
+
+      kelvin ->
+        if supports_temp?(light) do
+          {min_kelvin, max_kelvin} = Kelvin.derive_range(light)
+          clamped_kelvin = round(Util.clamp(kelvin, min_kelvin, max_kelvin))
+          put_kelvin(desired, clamped_kelvin)
+        else
+          drop_kelvin(desired)
+        end
+    end
+  end
+
+  defp effective_desired_for_light(_desired, _light), do: %{}
+
+  defp kelvin_value(desired) when is_map(desired) do
+    desired
+    |> Enum.find_value(fn
+      {key, value} when key in [:kelvin, "kelvin", :temperature, "temperature"] ->
+        Util.to_number(value)
+
+      _ ->
+        nil
+    end)
+    |> case do
+      nil -> nil
+      value -> round(value)
+    end
+  end
+
+  defp supports_temp?(light) when is_map(light) do
+    Map.get(light, :supports_temp) == true or Map.get(light, "supports_temp") == true
+  end
+
+  defp drop_kelvin(desired) do
+    desired
+    |> Map.delete(:kelvin)
+    |> Map.delete("kelvin")
+    |> Map.delete(:temperature)
+    |> Map.delete("temperature")
+  end
+
+  defp put_kelvin(desired, clamped_kelvin) do
+    keys =
+      desired
+      |> Map.keys()
+      |> Enum.filter(&(&1 in [:kelvin, "kelvin", :temperature, "temperature"]))
+
+    desired = drop_kelvin(desired)
+
+    case keys do
+      [] ->
+        Map.put(desired, :kelvin, clamped_kelvin)
+
+      _ ->
+        Enum.reduce(keys, desired, fn key, acc ->
+          Map.put(acc, key, clamped_kelvin)
+        end)
+    end
   end
 end

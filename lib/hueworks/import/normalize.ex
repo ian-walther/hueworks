@@ -45,32 +45,62 @@ defmodule Hueworks.Import.Normalize do
       end)
 
     members = Map.get(capabilities, :members, [])
+    {reported_min_kelvin, reported_max_kelvin} = shared_reported_kelvin_range(members)
 
     %{
       brightness: Enum.any?(members, & &1.brightness),
       color: Enum.any?(members, & &1.color),
       color_temp: Enum.any?(members, & &1.color_temp),
-      reported_kelvin_min: min_reported_kelvin(members),
-      reported_kelvin_max: max_reported_kelvin(members)
+      reported_kelvin_min: reported_min_kelvin,
+      reported_kelvin_max: reported_max_kelvin
     }
   end
 
   def min_reported_kelvin([]), do: nil
 
   def min_reported_kelvin(members) do
-    members
-    |> Enum.map(& &1.reported_kelvin_min)
-    |> Enum.filter(&is_number/1)
-    |> Enum.min(fn -> nil end)
+    case shared_reported_kelvin_range(members) do
+      {min_kelvin, _max_kelvin} -> min_kelvin
+    end
   end
 
   def max_reported_kelvin([]), do: nil
 
   def max_reported_kelvin(members) do
-    members
-    |> Enum.map(& &1.reported_kelvin_max)
-    |> Enum.filter(&is_number/1)
-    |> Enum.max(fn -> nil end)
+    case shared_reported_kelvin_range(members) do
+      {_min_kelvin, max_kelvin} -> max_kelvin
+    end
+  end
+
+  defp shared_reported_kelvin_range([]), do: {nil, nil}
+
+  defp shared_reported_kelvin_range(members) do
+    ranges =
+      Enum.map(members, fn member ->
+        min_kelvin = fetch(member, :reported_kelvin_min)
+        max_kelvin = fetch(member, :reported_kelvin_max)
+
+        if is_number(min_kelvin) and is_number(max_kelvin) do
+          {round(min_kelvin), round(max_kelvin)}
+        else
+          nil
+        end
+      end)
+
+    if Enum.any?(ranges, &is_nil/1) do
+      {nil, nil}
+    else
+      mins = Enum.map(ranges, fn {min_kelvin, _max_kelvin} -> min_kelvin end)
+      maxes = Enum.map(ranges, fn {_min_kelvin, max_kelvin} -> max_kelvin end)
+      shared_min = Enum.max(mins, fn -> nil end)
+      shared_max = Enum.min(maxes, fn -> nil end)
+
+      if is_number(shared_min) and is_number(shared_max) and shared_min <= shared_max do
+        {shared_min, shared_max}
+      else
+        {nil, nil}
+      end
+    end
   end
 
   def normalize_group_type("Room"), do: "room"

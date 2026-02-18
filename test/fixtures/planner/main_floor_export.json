@@ -1,0 +1,1327 @@
+{
+  "source": "bridge_imports.id=26",
+  "main_group_source_id": "light.main_floor",
+  "generated_at": "2026-02-01T16:37:08.091417Z",
+  "main_member_ids": [
+    "light.hue_color_lamp_1_7",
+    "light.hue_color_lamp_1_12",
+    "light.hue_filament_bulb_1",
+    "light.hue_color_downlight_6",
+    "light.hue_color_lamp_1_2",
+    "light.hue_color_lamp_1_6",
+    "light.hue_color_downlight_1_4",
+    "light.hue_color_lamp_2_3",
+    "light.hue_color_downlight_4",
+    "light.hue_color_downlight_1",
+    "light.hue_filament_bulb_2_2",
+    "light.hue_color_lamp_4_2",
+    "light.hue_color_downlight_1_2",
+    "light.hue_color_lamp_2_2",
+    "light.hue_color_lamp_1_8",
+    "light.hue_filament_bulb_3_2",
+    "light.hue_color_lamp_2",
+    "light.hue_color_lamp_4",
+    "light.hue_color_lamp_1",
+    "light.hue_color_downlight_1_3",
+    "light.hue_datura_bottom_2",
+    "light.hue_filament_bulb_3",
+    "light.hue_filament_bulb_4",
+    "light.hue_color_downlight_5",
+    "light.hue_color_downlight_2",
+    "light.end_table_globe",
+    "light.hue_color_lamp_1_3",
+    "light.hue_color_downlight_3",
+    "light.hue_color_lamp_3_2",
+    "light.hue_color_lamp_1_4",
+    "light.hue_datura_top_2",
+    "light.hue_color_lamp_1_5",
+    "light.hue_filament_bulb_2",
+    "light.hue_filament_bulb_1_2",
+    "light.hue_color_lamp_1_9"
+  ],
+  "lights": [
+    {
+      "source_id": "light.end_table_globe",
+      "name": "light.end_table_globe",
+      "capabilities": {
+        "brightness": false,
+        "color": false,
+        "color_temp": false,
+        "reported_kelvin_min": null,
+        "reported_kelvin_max": null
+      }
+    },
+    {
+      "source_id": "light.hue_color_lamp_1_2",
+      "name": "light.hue_color_lamp_1_2",
+      "capabilities": {
+        "brightness": false,
+        "color": false,
+        "color_temp": false,
+        "reported_kelvin_min": null,
+        "reported_kelvin_max": null
+      }
+    },
+    {
+      "source_id": "light.hue_color_downlight_1",
+      "name": "light.hue_color_downlight_1",
+      "capabilities": {
+        "brightness": false,
+        "color": false,
+        "color_temp": false,
+        "reported_kelvin_min": null,
+        "reported_kelvin_max": null
+      }
+    },
+    {
+      "source_id": "light.hue_color_downlight_1_2",
+      "name": "light.hue_color_downlight_1_2",
+      "capabilities": {
+        "brightness": false,
+        "color": false,
+        "color_temp": false,
+        "reported_kelvin_min": null,
+        "reported_kelvin_max": null
+      }
+    },
+    {
+      "source_id": "light.hue_color_downlight_1_3",
+      "name": "light.hue_color_downlight_1_3",
+      "capabilities": {
+        "brightness": false,
+        "color": false,
+        "color_temp": false,
+        "reported_kelvin_min": null,
+        "reported_kelvin_max": null
+      }
+    },
+    {
+      "source_id": "light.hue_color_downlight_1_4",
+      "name": "light.hue_color_downlight_1_4",
+      "capabilities": {
+        "brightness": false,
+        "color": false,
+        "color_temp": false,
+        "reported_kelvin_min": null,
+        "reported_kelvin_max": null
+      }
+    },
+    {
+      "source_id": "light.hue_color_downlight_2",
+      "name": "light.hue_color_downlight_2",
+      "capabilities": {
+        "brightness": false,
+        "color": false,
+        "color_temp": false,
+        "reported_kelvin_min": null,
+        "reported_kelvin_max": null
+      }
+    },
+    {
+      "source_id": "light.hue_color_downlight_3",
+      "name": "light.hue_color_downlight_3",
+      "capabilities": {
+        "brightness": false,
+        "color": false,
+        "color_temp": false,
+        "reported_kelvin_min": null,
+        "reported_kelvin_max": null
+      }
+    },
+    {
+      "source_id": "light.hue_color_downlight_4",
+      "name": "light.hue_color_downlight_4",
+      "capabilities": {
+        "brightness": false,
+        "color": false,
+        "color_temp": false,
+        "reported_kelvin_min": null,
+        "reported_kelvin_max": null
+      }
+    },
+    {
+      "source_id": "light.hue_color_downlight_5",
+      "name": "light.hue_color_downlight_5",
+      "capabilities": {
+        "brightness": false,
+        "color": false,
+        "color_temp": false,
+        "reported_kelvin_min": null,
+        "reported_kelvin_max": null
+      }
+    },
+    {
+      "source_id": "light.hue_color_downlight_6",
+      "name": "light.hue_color_downlight_6",
+      "capabilities": {
+        "brightness": false,
+        "color": false,
+        "color_temp": false,
+        "reported_kelvin_min": null,
+        "reported_kelvin_max": null
+      }
+    },
+    {
+      "source_id": "light.hue_color_lamp_4",
+      "name": "light.hue_color_lamp_4",
+      "capabilities": {
+        "brightness": false,
+        "color": false,
+        "color_temp": false,
+        "reported_kelvin_min": null,
+        "reported_kelvin_max": null
+      }
+    },
+    {
+      "source_id": "light.hue_color_lamp_4_2",
+      "name": "light.hue_color_lamp_4_2",
+      "capabilities": {
+        "brightness": false,
+        "color": false,
+        "color_temp": false,
+        "reported_kelvin_min": null,
+        "reported_kelvin_max": null
+      }
+    },
+    {
+      "source_id": "light.hue_color_lamp_2",
+      "name": "light.hue_color_lamp_2",
+      "capabilities": {
+        "brightness": false,
+        "color": false,
+        "color_temp": false,
+        "reported_kelvin_min": null,
+        "reported_kelvin_max": null
+      }
+    },
+    {
+      "source_id": "light.hue_color_lamp_3_2",
+      "name": "light.hue_color_lamp_3_2",
+      "capabilities": {
+        "brightness": false,
+        "color": false,
+        "color_temp": false,
+        "reported_kelvin_min": null,
+        "reported_kelvin_max": null
+      }
+    },
+    {
+      "source_id": "light.hue_filament_bulb_1",
+      "name": "light.hue_filament_bulb_1",
+      "capabilities": {
+        "brightness": false,
+        "color": false,
+        "color_temp": false,
+        "reported_kelvin_min": null,
+        "reported_kelvin_max": null
+      }
+    },
+    {
+      "source_id": "light.hue_filament_bulb_2",
+      "name": "light.hue_filament_bulb_2",
+      "capabilities": {
+        "brightness": false,
+        "color": false,
+        "color_temp": false,
+        "reported_kelvin_min": null,
+        "reported_kelvin_max": null
+      }
+    },
+    {
+      "source_id": "light.hue_filament_bulb_3",
+      "name": "light.hue_filament_bulb_3",
+      "capabilities": {
+        "brightness": false,
+        "color": false,
+        "color_temp": false,
+        "reported_kelvin_min": null,
+        "reported_kelvin_max": null
+      }
+    },
+    {
+      "source_id": "light.hue_filament_bulb_4",
+      "name": "light.hue_filament_bulb_4",
+      "capabilities": {
+        "brightness": false,
+        "color": false,
+        "color_temp": false,
+        "reported_kelvin_min": null,
+        "reported_kelvin_max": null
+      }
+    },
+    {
+      "source_id": "light.hue_filament_bulb_1_2",
+      "name": "light.hue_filament_bulb_1_2",
+      "capabilities": {
+        "brightness": false,
+        "color": false,
+        "color_temp": false,
+        "reported_kelvin_min": null,
+        "reported_kelvin_max": null
+      }
+    },
+    {
+      "source_id": "light.hue_filament_bulb_2_2",
+      "name": "light.hue_filament_bulb_2_2",
+      "capabilities": {
+        "brightness": false,
+        "color": false,
+        "color_temp": false,
+        "reported_kelvin_min": null,
+        "reported_kelvin_max": null
+      }
+    },
+    {
+      "source_id": "light.hue_filament_bulb_3_2",
+      "name": "light.hue_filament_bulb_3_2",
+      "capabilities": {
+        "brightness": false,
+        "color": false,
+        "color_temp": false,
+        "reported_kelvin_min": null,
+        "reported_kelvin_max": null
+      }
+    },
+    {
+      "source_id": "light.hue_color_lamp_2_3",
+      "name": "light.hue_color_lamp_2_3",
+      "capabilities": {
+        "brightness": false,
+        "color": false,
+        "color_temp": false,
+        "reported_kelvin_min": null,
+        "reported_kelvin_max": null
+      }
+    },
+    {
+      "source_id": "light.hue_color_lamp_1",
+      "name": "light.hue_color_lamp_1",
+      "capabilities": {
+        "brightness": false,
+        "color": false,
+        "color_temp": false,
+        "reported_kelvin_min": null,
+        "reported_kelvin_max": null
+      }
+    },
+    {
+      "source_id": "light.hue_color_lamp_1_3",
+      "name": "light.hue_color_lamp_1_3",
+      "capabilities": {
+        "brightness": false,
+        "color": false,
+        "color_temp": false,
+        "reported_kelvin_min": null,
+        "reported_kelvin_max": null
+      }
+    },
+    {
+      "source_id": "light.hue_color_lamp_1_4",
+      "name": "light.hue_color_lamp_1_4",
+      "capabilities": {
+        "brightness": false,
+        "color": false,
+        "color_temp": false,
+        "reported_kelvin_min": null,
+        "reported_kelvin_max": null
+      }
+    },
+    {
+      "source_id": "light.hue_color_lamp_1_5",
+      "name": "light.hue_color_lamp_1_5",
+      "capabilities": {
+        "brightness": false,
+        "color": false,
+        "color_temp": false,
+        "reported_kelvin_min": null,
+        "reported_kelvin_max": null
+      }
+    },
+    {
+      "source_id": "light.hue_color_lamp_1_6",
+      "name": "light.hue_color_lamp_1_6",
+      "capabilities": {
+        "brightness": false,
+        "color": false,
+        "color_temp": false,
+        "reported_kelvin_min": null,
+        "reported_kelvin_max": null
+      }
+    },
+    {
+      "source_id": "light.hue_color_lamp_2_2",
+      "name": "light.hue_color_lamp_2_2",
+      "capabilities": {
+        "brightness": false,
+        "color": false,
+        "color_temp": false,
+        "reported_kelvin_min": null,
+        "reported_kelvin_max": null
+      }
+    },
+    {
+      "source_id": "light.hue_color_lamp_1_7",
+      "name": "light.hue_color_lamp_1_7",
+      "capabilities": {
+        "brightness": false,
+        "color": false,
+        "color_temp": false,
+        "reported_kelvin_min": null,
+        "reported_kelvin_max": null
+      }
+    },
+    {
+      "source_id": "light.hue_color_lamp_1_8",
+      "name": "light.hue_color_lamp_1_8",
+      "capabilities": {
+        "brightness": false,
+        "color": false,
+        "color_temp": false,
+        "reported_kelvin_min": null,
+        "reported_kelvin_max": null
+      }
+    },
+    {
+      "source_id": "light.hue_color_lamp_1_9",
+      "name": "light.hue_color_lamp_1_9",
+      "capabilities": {
+        "brightness": false,
+        "color": false,
+        "color_temp": false,
+        "reported_kelvin_min": null,
+        "reported_kelvin_max": null
+      }
+    },
+    {
+      "source_id": "light.hue_color_lamp_1_12",
+      "name": "light.hue_color_lamp_1_12",
+      "capabilities": {
+        "brightness": true,
+        "color": true,
+        "color_temp": true,
+        "reported_kelvin_min": 2000,
+        "reported_kelvin_max": 6535
+      }
+    },
+    {
+      "source_id": "light.hue_datura_top_2",
+      "name": "light.hue_datura_top_2",
+      "capabilities": {
+        "brightness": true,
+        "color": true,
+        "color_temp": true,
+        "reported_kelvin_min": 2000,
+        "reported_kelvin_max": 6535
+      }
+    },
+    {
+      "source_id": "light.hue_datura_bottom_2",
+      "name": "light.hue_datura_bottom_2",
+      "capabilities": {
+        "brightness": true,
+        "color": true,
+        "color_temp": true,
+        "reported_kelvin_min": 2000,
+        "reported_kelvin_max": 6535
+      }
+    }
+  ],
+  "groups": [
+    {
+      "source_id": "light.foyer_lights",
+      "name": "Foyer Lights",
+      "classification": "ha_group",
+      "room_source_id": "foyer",
+      "capabilities": {
+        "brightness": true,
+        "color": false,
+        "color_temp": false,
+        "reported_kelvin_min": null,
+        "reported_kelvin_max": null
+      },
+      "members": [
+        "light.front_foyer_chandelier",
+        "light.front_foyer_table_lamp",
+        "light.foyer"
+      ]
+    },
+    {
+      "source_id": "light.hall_bath_lights",
+      "name": "Hall Bath Lights",
+      "classification": "ha_group",
+      "room_source_id": "hall_bath",
+      "capabilities": {
+        "brightness": true,
+        "color": false,
+        "color_temp": false,
+        "reported_kelvin_min": null,
+        "reported_kelvin_max": null
+      },
+      "members": [
+        "light.hall_bath_ceiling_light",
+        "light.hall_bath_vanity_lights"
+      ]
+    },
+    {
+      "source_id": "light.master_bath_lights",
+      "name": "Master Bath Lights",
+      "classification": "ha_group",
+      "room_source_id": "master_bathroom",
+      "capabilities": {
+        "brightness": true,
+        "color": false,
+        "color_temp": false,
+        "reported_kelvin_min": null,
+        "reported_kelvin_max": null
+      },
+      "members": [
+        "light.master_mathroom_ceiling_light",
+        "light.master_bathroom_shower_lights",
+        "light.master_bathroom_vanity_lights"
+      ]
+    },
+    {
+      "source_id": "light.bar_accent_lights",
+      "name": "Bar Accent Lights",
+      "classification": "ha_group",
+      "room_source_id": null,
+      "capabilities": {
+        "brightness": true,
+        "color": true,
+        "color_temp": true,
+        "reported_kelvin_min": 2000,
+        "reported_kelvin_max": 6493
+      },
+      "members": [
+        "light.bar_lower_accent_light",
+        "light.bar_upper_accent_light"
+      ]
+    },
+    {
+      "source_id": "light.office_accent_lights",
+      "name": "Office Accent Lights",
+      "classification": "ha_group",
+      "room_source_id": null,
+      "capabilities": {
+        "brightness": true,
+        "color": true,
+        "color_temp": true,
+        "reported_kelvin_min": 2000,
+        "reported_kelvin_max": 6493
+      },
+      "members": [
+        "light.office_cove_light",
+        "light.office_display_cabinet_light"
+      ]
+    },
+    {
+      "source_id": "light.kitchen_cabinet_lights_2",
+      "name": "Kitchen Cabinet Lights",
+      "classification": "ha_group",
+      "room_source_id": null,
+      "capabilities": {
+        "brightness": true,
+        "color": true,
+        "color_temp": true,
+        "reported_kelvin_min": 2000,
+        "reported_kelvin_max": 6493
+      },
+      "members": [
+        "light.kitchen_lower_cabinet_lights",
+        "light.kitchen_upper_cabinet_lights"
+      ]
+    },
+    {
+      "source_id": "light.master_bathroom_lights",
+      "name": "Master Bathroom Lights",
+      "classification": "ha_group",
+      "room_source_id": "master_bathroom",
+      "capabilities": {
+        "brightness": true,
+        "color": false,
+        "color_temp": false,
+        "reported_kelvin_min": null,
+        "reported_kelvin_max": null
+      },
+      "members": [
+        "light.master_mathroom_ceiling_light",
+        "light.master_bathroom_shower_lights",
+        "light.master_bathroom_vanity_lights"
+      ]
+    },
+    {
+      "source_id": "light.living_room_lamps",
+      "name": "light.living_room_lamps",
+      "classification": "hue_group",
+      "room_source_id": "living_room",
+      "capabilities": {
+        "brightness": true,
+        "color": true,
+        "color_temp": true,
+        "reported_kelvin_min": 2000,
+        "reported_kelvin_max": 6535
+      },
+      "members": [
+        "light.hue_color_lamp_2_2",
+        "light.hue_color_lamp_1_7",
+        "light.end_table_globe",
+        "light.hue_color_lamp_1_12",
+        "light.hue_color_lamp_1_3",
+        "light.hue_color_lamp_1_4",
+        "light.hue_color_lamp_1_6",
+        "light.hue_color_lamp_1"
+      ]
+    },
+    {
+      "source_id": "light.living_room",
+      "name": "Living Room Lights",
+      "classification": "hue_group",
+      "room_source_id": "living_room",
+      "capabilities": {
+        "brightness": true,
+        "color": true,
+        "color_temp": true,
+        "reported_kelvin_min": 2000,
+        "reported_kelvin_max": 6535
+      },
+      "members": [
+        "light.hue_color_lamp_2_2",
+        "light.hue_color_downlight_4",
+        "light.hue_color_lamp_1_7",
+        "light.hue_color_lamp_1_12",
+        "light.hue_color_lamp_1_3",
+        "light.end_table_globe",
+        "light.hue_color_downlight_6",
+        "light.hue_color_lamp_1_4",
+        "light.hue_color_downlight_3",
+        "light.hue_color_lamp_1_6",
+        "light.hue_color_downlight_1_4",
+        "light.hue_color_downlight_5",
+        "light.hue_color_lamp_1",
+        "light.hue_color_downlight_2"
+      ]
+    },
+    {
+      "source_id": "light.ians_office",
+      "name": "Office Lights",
+      "classification": "hue_group",
+      "room_source_id": "office",
+      "capabilities": {
+        "brightness": true,
+        "color": true,
+        "color_temp": true,
+        "reported_kelvin_min": 2000,
+        "reported_kelvin_max": 6535
+      },
+      "members": [
+        "light.hue_datura_top_1",
+        "light.hue_datura_bottom_1",
+        "light.hue_color_lamp_1_2",
+        "light.hue_color_lamp_1_5",
+        "light.hue_color_lamp_2_3",
+        "light.hue_color_lamp_1_9"
+      ]
+    },
+    {
+      "source_id": "light.kitchen_recessed_lights",
+      "name": "Kitchen Recessed Lights",
+      "classification": "hue_group",
+      "room_source_id": "kitchen",
+      "capabilities": {
+        "brightness": true,
+        "color": true,
+        "color_temp": true,
+        "reported_kelvin_min": 2000,
+        "reported_kelvin_max": 6535
+      },
+      "members": [
+        "light.hue_color_downlight_1",
+        "light.hue_color_downlight_1_2",
+        "light.hue_color_downlight_1_3"
+      ]
+    },
+    {
+      "source_id": "light.living_room_recessed_lights",
+      "name": "Living Room Ceiling Lights",
+      "classification": "hue_group",
+      "room_source_id": "living_room",
+      "capabilities": {
+        "brightness": true,
+        "color": true,
+        "color_temp": true,
+        "reported_kelvin_min": 2000,
+        "reported_kelvin_max": 6535
+      },
+      "members": [
+        "light.hue_color_downlight_6",
+        "light.hue_color_downlight_3",
+        "light.hue_color_downlight_1_4",
+        "light.hue_color_downlight_5",
+        "light.hue_color_downlight_4",
+        "light.hue_color_downlight_2"
+      ]
+    },
+    {
+      "source_id": "light.kitchen_hue",
+      "name": "Kitchen All Lights Hue",
+      "classification": "hue_group",
+      "room_source_id": "kitchen",
+      "capabilities": {
+        "brightness": true,
+        "color": true,
+        "color_temp": true,
+        "reported_kelvin_min": 2202,
+        "reported_kelvin_max": 4504
+      },
+      "members": [
+        "light.hue_color_lamp_1_8",
+        "light.hue_filament_bulb_2_2",
+        "light.hue_datura_bottom_2",
+        "light.hue_filament_bulb_3",
+        "light.hue_filament_bulb_1",
+        "light.hue_filament_bulb_3_2",
+        "light.hue_datura_top_2",
+        "light.hue_color_downlight_1_2",
+        "light.hue_color_lamp_4",
+        "light.hue_filament_bulb_2",
+        "light.hue_filament_bulb_1_2",
+        "light.hue_filament_bulb_4",
+        "light.hue_color_downlight_1",
+        "light.hue_color_downlight_1_3",
+        "light.hue_color_lamp_4_2"
+      ]
+    },
+    {
+      "source_id": "light.main_floor",
+      "name": "light.main_floor",
+      "classification": "hue_group",
+      "room_source_id": "main_floor",
+      "capabilities": {
+        "brightness": true,
+        "color": true,
+        "color_temp": true,
+        "reported_kelvin_min": 2000,
+        "reported_kelvin_max": 6535
+      },
+      "members": [
+        "light.hue_color_lamp_1_7",
+        "light.hue_color_lamp_1_12",
+        "light.hue_filament_bulb_1",
+        "light.hue_color_downlight_6",
+        "light.hue_color_lamp_1_2",
+        "light.hue_color_lamp_1_6",
+        "light.hue_color_downlight_1_4",
+        "light.hue_color_lamp_2_3",
+        "light.hue_color_downlight_4",
+        "light.hue_color_downlight_1",
+        "light.hue_filament_bulb_2_2",
+        "light.hue_color_lamp_4_2",
+        "light.hue_color_downlight_1_2",
+        "light.hue_color_lamp_2_2",
+        "light.hue_color_lamp_1_8",
+        "light.hue_filament_bulb_3_2",
+        "light.hue_color_lamp_2",
+        "light.hue_color_lamp_4",
+        "light.hue_color_lamp_1",
+        "light.hue_color_downlight_1_3",
+        "light.hue_datura_bottom_2",
+        "light.hue_filament_bulb_3",
+        "light.hue_filament_bulb_4",
+        "light.hue_color_downlight_5",
+        "light.hue_color_downlight_2",
+        "light.end_table_globe",
+        "light.hue_color_lamp_1_3",
+        "light.hue_color_downlight_3",
+        "light.hue_color_lamp_3_2",
+        "light.hue_color_lamp_1_4",
+        "light.hue_datura_top_2",
+        "light.hue_color_lamp_1_5",
+        "light.hue_filament_bulb_2",
+        "light.hue_filament_bulb_1_2",
+        "light.hue_color_lamp_1_9"
+      ]
+    },
+    {
+      "source_id": "light.office_overhead",
+      "name": "Office Ceiling Light",
+      "classification": "hue_group",
+      "room_source_id": "office",
+      "capabilities": {
+        "brightness": true,
+        "color": true,
+        "color_temp": true,
+        "reported_kelvin_min": 2000,
+        "reported_kelvin_max": 6535
+      },
+      "members": [
+        "light.hue_datura_top_1",
+        "light.hue_datura_bottom_1"
+      ]
+    },
+    {
+      "source_id": "light.studio",
+      "name": "Studio Lights",
+      "classification": "hue_group",
+      "room_source_id": "studio",
+      "capabilities": {
+        "brightness": true,
+        "color": true,
+        "color_temp": true,
+        "reported_kelvin_min": 2000,
+        "reported_kelvin_max": 6535
+      },
+      "members": [
+        "light.studio_desk_lamp",
+        "light.hue_color_lamp_5_7",
+        "light.studio_ceiling_bulb_1",
+        "light.studio_tall_lamp",
+        "light.hue_color_candle_1",
+        "light.studio_ceiling_bulb_2",
+        "light.studio_globe_lamp"
+      ]
+    },
+    {
+      "source_id": "light.guest_room",
+      "name": "Guest Room Lights",
+      "classification": "hue_group",
+      "room_source_id": "guest_room",
+      "capabilities": {
+        "brightness": true,
+        "color": true,
+        "color_temp": true,
+        "reported_kelvin_min": 2000,
+        "reported_kelvin_max": 6535
+      },
+      "members": [
+        "light.hue_color_lamp_5_2",
+        "light.hue_color_lamp_6_4",
+        "light.hue_color_lamp_5_6",
+        "light.hue_color_lamp_5_3",
+        "light.hue_color_lamp_6_2"
+      ]
+    },
+    {
+      "source_id": "light.master_sitting_area",
+      "name": "Master Bedroom Sitting Area Lights",
+      "classification": "hue_group",
+      "room_source_id": "master_bedroom",
+      "capabilities": {
+        "brightness": true,
+        "color": true,
+        "color_temp": true,
+        "reported_kelvin_min": 2000,
+        "reported_kelvin_max": 6535
+      },
+      "members": [
+        "light.hue_color_lamp_6_3",
+        "light.hue_color_lamp_5_4",
+        "light.hue_color_lamp_5_5"
+      ]
+    },
+    {
+      "source_id": "light.bar",
+      "name": "Bar Ceiling Light",
+      "classification": "hue_group",
+      "room_source_id": "bar",
+      "capabilities": {
+        "brightness": true,
+        "color": true,
+        "color_temp": true,
+        "reported_kelvin_min": 2000,
+        "reported_kelvin_max": 6535
+      },
+      "members": [
+        "light.hue_color_lamp_3_2",
+        "light.hue_color_lamp_2"
+      ]
+    },
+    {
+      "source_id": "light.master_bedroom",
+      "name": "Master Bedroom Lights",
+      "classification": "hue_group",
+      "room_source_id": "master_bedroom",
+      "capabilities": {
+        "brightness": true,
+        "color": true,
+        "color_temp": true,
+        "reported_kelvin_min": 2000,
+        "reported_kelvin_max": 6535
+      },
+      "members": [
+        "light.hue_color_lamp_5_13",
+        "light.hue_color_lamp_6_10",
+        "light.hue_color_lamp_5_12",
+        "light.hue_color_lamp_6_5",
+        "light.hue_color_lamp_5_8",
+        "light.hue_color_lamp_6_9"
+      ]
+    },
+    {
+      "source_id": "light.kitchen_hanging",
+      "name": "Kitchen Hanging Lights Hue Lights",
+      "classification": "hue_group",
+      "room_source_id": "kitchen",
+      "capabilities": {
+        "brightness": true,
+        "color": false,
+        "color_temp": true,
+        "reported_kelvin_min": 2202,
+        "reported_kelvin_max": 4504
+      },
+      "members": [
+        "light.hue_filament_bulb_3",
+        "light.hue_filament_bulb_1",
+        "light.hue_filament_bulb_3_2",
+        "light.hue_filament_bulb_2",
+        "light.hue_filament_bulb_1_2",
+        "light.hue_filament_bulb_4",
+        "light.hue_filament_bulb_2_2"
+      ]
+    },
+    {
+      "source_id": "light.kitchen_ceiling",
+      "name": "Kitchen Ceiling Lights",
+      "classification": "hue_group",
+      "room_source_id": "kitchen",
+      "capabilities": {
+        "brightness": true,
+        "color": true,
+        "color_temp": true,
+        "reported_kelvin_min": 2000,
+        "reported_kelvin_max": 6535
+      },
+      "members": [
+        "light.hue_color_lamp_1_8",
+        "light.hue_color_downlight_1_3",
+        "light.hue_color_lamp_4",
+        "light.hue_color_downlight_1",
+        "light.hue_color_downlight_1_2",
+        "light.hue_color_lamp_4_2"
+      ]
+    },
+    {
+      "source_id": "light.main_floor_ceiling",
+      "name": "light.main_floor_ceiling",
+      "classification": "hue_group",
+      "room_source_id": "main_floor",
+      "capabilities": {
+        "brightness": true,
+        "color": true,
+        "color_temp": true,
+        "reported_kelvin_min": 2000,
+        "reported_kelvin_max": 6535
+      },
+      "members": [
+        "light.hue_color_downlight_1_3",
+        "light.hue_datura_bottom_2",
+        "light.hue_color_downlight_6",
+        "light.hue_color_lamp_2",
+        "light.hue_color_downlight_1",
+        "light.hue_color_downlight_3",
+        "light.hue_color_lamp_3_2",
+        "light.hue_datura_top_2",
+        "light.hue_color_downlight_2",
+        "light.hue_color_downlight_1_4",
+        "light.hue_color_lamp_4",
+        "light.hue_color_downlight_5",
+        "light.hue_color_downlight_4",
+        "light.hue_color_downlight_1_2",
+        "light.hue_color_lamp_4_2"
+      ]
+    },
+    {
+      "source_id": "light.main_floor_other",
+      "name": "light.main_floor_other",
+      "classification": "hue_group",
+      "room_source_id": "main_floor",
+      "capabilities": {
+        "brightness": true,
+        "color": true,
+        "color_temp": true,
+        "reported_kelvin_min": 2000,
+        "reported_kelvin_max": 6535
+      },
+      "members": [
+        "light.hue_filament_bulb_3",
+        "light.end_table_globe",
+        "light.hue_filament_bulb_1",
+        "light.hue_filament_bulb_3_2",
+        "light.hue_color_lamp_1_2",
+        "light.hue_filament_bulb_2",
+        "light.hue_filament_bulb_1_2",
+        "light.hue_filament_bulb_4",
+        "light.hue_filament_bulb_2_2"
+      ]
+    },
+    {
+      "source_id": "light.office_lamps",
+      "name": "Office Lamps",
+      "classification": "hue_group",
+      "room_source_id": "office",
+      "capabilities": {
+        "brightness": true,
+        "color": true,
+        "color_temp": true,
+        "reported_kelvin_min": 2000,
+        "reported_kelvin_max": 6535
+      },
+      "members": [
+        "light.hue_color_lamp_2_3",
+        "light.hue_color_lamp_1_2",
+        "light.hue_color_lamp_1_9",
+        "light.hue_color_lamp_1_5"
+      ]
+    },
+    {
+      "source_id": "light.studio_ceiling",
+      "name": "Studio Ceiling Lights",
+      "classification": "hue_group",
+      "room_source_id": "studio",
+      "capabilities": {
+        "brightness": true,
+        "color": true,
+        "color_temp": true,
+        "reported_kelvin_min": 2000,
+        "reported_kelvin_max": 6535
+      },
+      "members": [
+        "light.studio_ceiling_bulb_2",
+        "light.hue_color_lamp_5_7",
+        "light.studio_ceiling_bulb_1",
+        "light.studio_tall_lamp"
+      ]
+    },
+    {
+      "source_id": "light.studio_lamps",
+      "name": "light.studio_lamps",
+      "classification": "hue_group",
+      "room_source_id": "studio",
+      "capabilities": {
+        "brightness": true,
+        "color": true,
+        "color_temp": true,
+        "reported_kelvin_min": 2000,
+        "reported_kelvin_max": 6535
+      },
+      "members": [
+        "light.studio_globe_lamp",
+        "light.studio_desk_lamp",
+        "light.hue_color_candle_1"
+      ]
+    },
+    {
+      "source_id": "light.guest_room_ceiling",
+      "name": "Guest Room Ceiling Lights",
+      "classification": "hue_group",
+      "room_source_id": "guest_room",
+      "capabilities": {
+        "brightness": true,
+        "color": true,
+        "color_temp": true,
+        "reported_kelvin_min": 2000,
+        "reported_kelvin_max": 6535
+      },
+      "members": [
+        "light.hue_color_lamp_5_6",
+        "light.hue_color_lamp_5_3",
+        "light.hue_color_lamp_6_4"
+      ]
+    },
+    {
+      "source_id": "light.guest_room_lamps",
+      "name": "light.guest_room_lamps",
+      "classification": "hue_group",
+      "room_source_id": "guest_room",
+      "capabilities": {
+        "brightness": true,
+        "color": true,
+        "color_temp": true,
+        "reported_kelvin_min": 2000,
+        "reported_kelvin_max": 6535
+      },
+      "members": [
+        "light.hue_color_lamp_6_2",
+        "light.hue_color_lamp_5_2"
+      ]
+    },
+    {
+      "source_id": "light.master_bedroom_ceiling",
+      "name": "Master Bedroom Ceiling Lights",
+      "classification": "hue_group",
+      "room_source_id": "master_bedroom",
+      "capabilities": {
+        "brightness": true,
+        "color": true,
+        "color_temp": true,
+        "reported_kelvin_min": 2000,
+        "reported_kelvin_max": 6535
+      },
+      "members": [
+        "light.hue_color_lamp_6_5",
+        "light.hue_color_lamp_5_8"
+      ]
+    },
+    {
+      "source_id": "light.master_bedroom_lamps",
+      "name": "light.master_bedroom_lamps",
+      "classification": "hue_group",
+      "room_source_id": "master_bedroom",
+      "capabilities": {
+        "brightness": true,
+        "color": true,
+        "color_temp": true,
+        "reported_kelvin_min": 2000,
+        "reported_kelvin_max": 6535
+      },
+      "members": [
+        "light.hue_color_lamp_6_9",
+        "light.hue_color_lamp_6_10",
+        "light.hue_color_lamp_5_13",
+        "light.hue_color_lamp_5_12"
+      ]
+    },
+    {
+      "source_id": "light.hallway",
+      "name": "light.hallway",
+      "classification": "hue_group",
+      "room_source_id": "upstairs_hallway",
+      "capabilities": {
+        "brightness": true,
+        "color": true,
+        "color_temp": true,
+        "reported_kelvin_min": 2000,
+        "reported_kelvin_max": 6535
+      },
+      "members": [
+        "light.hue_color_lamp_6_7",
+        "light.hue_color_lamp_6_6",
+        "light.hue_color_lamp_5_9",
+        "light.hue_color_lamp_6_8",
+        "light.hue_color_lamp_5_11",
+        "light.hue_color_lamp_5_10"
+      ]
+    },
+    {
+      "source_id": "light.master_bed_all",
+      "name": "Master Bedroom All Lights",
+      "classification": "hue_group",
+      "room_source_id": "master_bedroom",
+      "capabilities": {
+        "brightness": true,
+        "color": true,
+        "color_temp": true,
+        "reported_kelvin_min": 2000,
+        "reported_kelvin_max": 6535
+      },
+      "members": [
+        "light.hue_color_lamp_5_13",
+        "light.hue_color_lamp_6_10",
+        "light.hue_color_lamp_6_5",
+        "light.hue_color_lamp_5_12",
+        "light.hue_color_lamp_5_4",
+        "light.hue_color_lamp_5_8",
+        "light.hue_color_lamp_6_9",
+        "light.hue_color_lamp_6_3",
+        "light.hue_color_lamp_5_5"
+      ]
+    },
+    {
+      "source_id": "light.dining_ceiling",
+      "name": "Kitchen Dining Ceiling Lights",
+      "classification": "hue_group",
+      "room_source_id": "kitchen",
+      "capabilities": {
+        "brightness": true,
+        "color": true,
+        "color_temp": true,
+        "reported_kelvin_min": 2000,
+        "reported_kelvin_max": 6535
+      },
+      "members": [
+        "light.hue_color_lamp_4_2",
+        "light.hue_color_lamp_1_8",
+        "light.hue_color_lamp_4"
+      ]
+    },
+    {
+      "source_id": "light.dining_table_light",
+      "name": "Dining Table Lights",
+      "classification": "hue_group",
+      "room_source_id": "kitchen",
+      "capabilities": {
+        "brightness": true,
+        "color": false,
+        "color_temp": true,
+        "reported_kelvin_min": 2202,
+        "reported_kelvin_max": 4504
+      },
+      "members": [
+        "light.hue_filament_bulb_4",
+        "light.hue_filament_bulb_1",
+        "light.hue_filament_bulb_3",
+        "light.hue_filament_bulb_2"
+      ]
+    },
+    {
+      "source_id": "light.kitchen_pendant_lights",
+      "name": "light.kitchen_pendant_lights",
+      "classification": "hue_group",
+      "room_source_id": "kitchen",
+      "capabilities": {
+        "brightness": true,
+        "color": false,
+        "color_temp": true,
+        "reported_kelvin_min": 2202,
+        "reported_kelvin_max": 4504
+      },
+      "members": [
+        "light.hue_filament_bulb_2_2",
+        "light.hue_filament_bulb_3_2",
+        "light.hue_filament_bulb_1_2"
+      ]
+    },
+    {
+      "source_id": "light.cooking_lights",
+      "name": "light.cooking_lights",
+      "classification": "hue_group",
+      "room_source_id": "kitchen",
+      "capabilities": {
+        "brightness": true,
+        "color": true,
+        "color_temp": true,
+        "reported_kelvin_min": 2202,
+        "reported_kelvin_max": 4504
+      },
+      "members": [
+        "light.hue_color_downlight_1_3",
+        "light.hue_datura_bottom_2",
+        "light.hue_filament_bulb_3_2",
+        "light.hue_datura_top_2",
+        "light.hue_filament_bulb_1_2",
+        "light.hue_color_downlight_1",
+        "light.hue_color_downlight_1_2",
+        "light.hue_filament_bulb_2_2"
+      ]
+    },
+    {
+      "source_id": "light.dining_lights",
+      "name": "light.dining_lights",
+      "classification": "hue_group",
+      "room_source_id": "kitchen",
+      "capabilities": {
+        "brightness": true,
+        "color": true,
+        "color_temp": true,
+        "reported_kelvin_min": 2202,
+        "reported_kelvin_max": 4504
+      },
+      "members": [
+        "light.hue_color_lamp_1_8",
+        "light.hue_filament_bulb_3",
+        "light.hue_filament_bulb_1",
+        "light.hue_color_lamp_4",
+        "light.hue_filament_bulb_2",
+        "light.hue_filament_bulb_4",
+        "light.hue_color_lamp_4_2"
+      ]
+    },
+    {
+      "source_id": "light.garage",
+      "name": "Garage Lights",
+      "classification": "hue_group",
+      "room_source_id": "garage",
+      "capabilities": {
+        "brightness": true,
+        "color": true,
+        "color_temp": true,
+        "reported_kelvin_min": 2000,
+        "reported_kelvin_max": 6535
+      },
+      "members": [
+        "light.hue_color_lamp_4_4",
+        "light.hue_color_lamp_4_3",
+        "light.hue_color_lamp_1_10",
+        "light.hue_color_lamp_6",
+        "light.hue_color_lamp_2_4",
+        "light.hue_color_lamp_2_5",
+        "light.hue_color_lamp_3_3",
+        "light.hue_color_lamp_5",
+        "light.hue_color_lamp_7",
+        "light.hue_color_lamp_3"
+      ]
+    },
+    {
+      "source_id": "light.garage_ceiling",
+      "name": "light.garage_ceiling",
+      "classification": "hue_group",
+      "room_source_id": "garage",
+      "capabilities": {
+        "brightness": true,
+        "color": true,
+        "color_temp": true,
+        "reported_kelvin_min": 2000,
+        "reported_kelvin_max": 6535
+      },
+      "members": [
+        "light.hue_color_lamp_4_4",
+        "light.hue_color_lamp_4_3",
+        "light.hue_color_lamp_3_3",
+        "light.hue_color_lamp_6",
+        "light.hue_color_lamp_2_5",
+        "light.hue_color_lamp_1_10",
+        "light.hue_color_lamp_5",
+        "light.hue_color_lamp_7"
+      ]
+    },
+    {
+      "source_id": "light.garage_lamps_2",
+      "name": "light.garage_lamps_2",
+      "classification": "hue_group",
+      "room_source_id": "garage",
+      "capabilities": {
+        "brightness": true,
+        "color": true,
+        "color_temp": true,
+        "reported_kelvin_min": 2000,
+        "reported_kelvin_max": 6535
+      },
+      "members": [
+        "light.hue_color_lamp_2_4",
+        "light.hue_color_lamp_3"
+      ]
+    },
+    {
+      "source_id": "light.foyer",
+      "name": "light.foyer",
+      "classification": "hue_group",
+      "room_source_id": "foyer",
+      "capabilities": {
+        "brightness": true,
+        "color": true,
+        "color_temp": true,
+        "reported_kelvin_min": 2000,
+        "reported_kelvin_max": 6535
+      },
+      "members": [
+        "light.hue_color_lamp_1_11"
+      ]
+    },
+    {
+      "source_id": "light.pantry",
+      "name": "light.pantry",
+      "classification": "hue_group",
+      "room_source_id": null,
+      "capabilities": {
+        "brightness": true,
+        "color": true,
+        "color_temp": true,
+        "reported_kelvin_min": 2000,
+        "reported_kelvin_max": 6535
+      },
+      "members": [
+        "light.hue_datura_bottom_2",
+        "light.hue_datura_top_2"
+      ]
+    }
+  ]
+}
