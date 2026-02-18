@@ -6,7 +6,12 @@ config :hueworks, Hueworks.Repo,
   pool_size: 5
 
 config :hueworks,
-  ecto_repos: [Hueworks.Repo]
+  ecto_repos: [Hueworks.Repo],
+  global_solar_config: %{
+    latitude: nil,
+    longitude: nil,
+    timezone: "Etc/UTC"
+  }
 
 # Configure Phoenix endpoint
 config :hueworks, HueworksWeb.Endpoint,
@@ -23,7 +28,8 @@ config :hueworks, HueworksWeb.Endpoint,
 config :esbuild,
   version: "0.17.11",
   hueworks: [
-    args: ~w(js/app.js --bundle --target=es2017 --outdir=../priv/static/assets --external:/fonts/* --external:/images/*),
+    args:
+      ~w(js/app.js --bundle --target=es2017 --outdir=../priv/static/assets --external:/fonts/* --external:/images/*),
     cd: Path.expand("../assets", __DIR__),
     env: %{"NODE_PATH" => Path.expand("../deps", __DIR__)}
   ]

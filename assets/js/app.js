@@ -42,6 +42,36 @@ Hooks.TempSlider = {
   }
 }
 
+Hooks.GeoLocate = {
+  mounted() {
+    this.el.addEventListener("click", () => {
+      if (!navigator.geolocation) {
+        this.pushEvent("geolocation_error", { message: "Geolocation is not supported in this browser." })
+        return
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          this.pushEvent("geolocation_success", {
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude
+          })
+        },
+        (error) => {
+          let message = "Unable to fetch location."
+          if (error && error.message) message = error.message
+          this.pushEvent("geolocation_error", { message })
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 15000,
+          maximumAge: 300000
+        }
+      )
+    })
+  }
+}
+
 let liveSocket = new LiveSocket("/live", Socket, {
   params: { _csrf_token: csrfToken },
   hooks: Hooks

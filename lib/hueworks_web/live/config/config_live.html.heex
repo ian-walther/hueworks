@@ -2,9 +2,66 @@
   <div class="hw-topbar">
     <div>
       <h1 class="hw-title">Config</h1>
-      <p class="hw-subtitle">Bridge configuration UI coming soon.</p>
+      <p class="hw-subtitle">Bridge and global configuration.</p>
     </div>
   </div>
+
+  <section class="hw-panel">
+    <div class="hw-panel-header">
+      <h2>Global Solar Settings</h2>
+    </div>
+
+    <%= if @settings_status do %>
+      <p class="hw-muted"><%= @settings_status %></p>
+    <% end %>
+
+    <%= if @settings_error do %>
+      <p class="hw-error"><%= @settings_error %></p>
+    <% end %>
+
+    <form class="hw-form" phx-change="update_global_solar" phx-submit="save_global_solar">
+      <label class="hw-modal-label" for="global_timezone">Timezone</label>
+      <select id="global_timezone" name="timezone" class="hw-select">
+        <%= for timezone <- @timezones do %>
+          <option value={timezone} selected={timezone == @timezone}><%= timezone %></option>
+        <% end %>
+      </select>
+
+      <div class="hw-modal-actions">
+        <button type="button" class="hw-button" id="locate-btn" phx-hook="GeoLocate">
+          Use Current Location
+        </button>
+      </div>
+
+      <label class="hw-modal-label" for="global_latitude">Latitude</label>
+      <input
+        id="global_latitude"
+        name="latitude"
+        type="text"
+        inputmode="decimal"
+        value={@latitude}
+        class="hw-modal-input"
+        placeholder="37.7749"
+        autocomplete="off"
+      />
+
+      <label class="hw-modal-label" for="global_longitude">Longitude</label>
+      <input
+        id="global_longitude"
+        name="longitude"
+        type="text"
+        inputmode="decimal"
+        value={@longitude}
+        class="hw-modal-input"
+        placeholder="-122.4194"
+        autocomplete="off"
+      />
+
+      <div class="hw-modal-actions">
+        <button type="submit" class="hw-button hw-button-on">Save Global Settings</button>
+      </div>
+    </form>
+  </section>
 
   <section class="hw-panel">
     <div class="hw-panel-header">

@@ -2,11 +2,12 @@ defmodule Hueworks.ContextsTest do
   use Hueworks.DataCase, async: false
 
   alias Hueworks.Repo
+  alias Hueworks.AppSettings
   alias Hueworks.Lights
   alias Hueworks.Groups
   alias Hueworks.Rooms
   alias Hueworks.Scenes
-  alias Hueworks.Schemas.{Bridge, Group, GroupLight, Light, Room}
+  alias Hueworks.Schemas.{AppSetting, Bridge, Group, GroupLight, Light, Room}
 
   defp insert_bridge(attrs) do
     defaults = %{
@@ -162,5 +163,80 @@ defmodule Hueworks.ContextsTest do
 
     assert {:ok, _} = Scenes.delete_scene(scene_b)
     assert Scenes.get_scene(scene_b.id) == nil
+  end
+
+  test "AppSettings.get_global returns app-config fallback when no DB row exists" do
+    Repo.delete_all(AppSetting)
+
+    previous = Application.get_env(:hueworks, :global_solar_config)
+
+    Application.put_env(:hueworks, :global_solar_config, %{
+      latitude: 41.0,
+      longitude: -87.0,
+      timezone: "America/Chicago"
+    })
+
+    on_exit(fn ->
+      Application.put_env(:hueworks, :global_solar_config, previous)
+    end)
+
+    settings = AppSettings.get_global()
+
+    assert settings.scope == "global"
+    assert settings.latitude == 41.0
+    assert settings.longitude == -87.0
+    assert settings.timezone == "America/Chicago"
+  end
+
+  test "AppSettings.upsert_global inserts and updates singleton row" do
+    Repo.delete_all(AppSetting)
+
+    assert {:ok, inserted} =
+             AppSettings.upsert_global(%{
+               latitude: 37.7749,
+               longitude: -122.4194,
+               timezone: "America/Los_Angeles"
+             })
+
+    assert inserted.scope == "global"
+
+    assert {:ok, updated} =
+             AppSettings.upsert_global(%{
+               latitude: 40.7128,
+               longitude: -74.0060,
+               timezone: "America/New_York"
+             })
+
+    assert updated.id == inserted.id
+    assert updated.latitude == 40.7128
+    assert updated.longitude == -74.006
+    assert updated.timezone == "America/New_York"
+    assert Repo.aggregate(AppSetting, :count) == 1
+  end
+
+  test "AppSettings.upsert_global validates ranges and timezone" do
+    Repo.delete_all(AppSetting)
+    previous = Application.get_env(:hueworks, :global_solar_config)
+
+    Application.put_env(:hueworks, :global_solar_config, %{
+      latitude: nil,
+      longitude: nil,
+      timezone: nil
+    })
+
+    on_exit(fn ->
+      Application.put_env(:hueworks, :global_solar_config, previous)
+    end)
+
+    assert {:error, changeset} =
+             AppSettings.upsert_global(%{
+               latitude: 200,
+               longitude: 300,
+               timezone: ""
+             })
+
+    assert changeset.errors[:latitude] != nil
+    assert changeset.errors[:longitude] != nil
+    assert changeset.errors[:timezone] != nil
   end
 end
