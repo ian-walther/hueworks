@@ -1,12 +1,14 @@
 defmodule HueworksWeb.LightsLive do
   use Phoenix.LiveView
+  import Ecto.Query, only: [from: 2]
 
   alias Hueworks.ActiveScenes
-  alias Hueworks.Control
-  alias Hueworks.Control.State
+  alias Hueworks.Control.{DesiredState, Executor, Planner, State}
+  alias Hueworks.Repo
   alias Hueworks.Groups
   alias Hueworks.Lights
   alias Hueworks.Rooms
+  alias Hueworks.Schemas.GroupLight
   alias HueworksWeb.FilterPrefs
   alias Hueworks.Util
 
@@ -246,20 +248,10 @@ defmodule HueworksWeb.LightsLive do
   defp dispatch_action(socket, "light", id, {:brightness, level}) do
     with {:ok, light} <- fetch_light(id),
          {:ok, parsed} <- Util.parse_level(level),
-         :ok <- Control.Light.set_brightness(light, parsed) do
-      State.put(:light, light.id, %{brightness: parsed})
+         {:ok, _diff} <- apply_manual_updates(light.room_id, [light.id], %{brightness: parsed}) do
       _ = ActiveScenes.handle_manual_change(light.room_id, %{brightness: parsed})
 
       socket
-      |> assign(
-        :light_state,
-        Map.update(
-          socket.assigns.light_state,
-          light.id,
-          %{brightness: parsed},
-          &merge_state(&1, %{brightness: parsed})
-        )
-      )
       |> assign(status: "BRIGHTNESS light #{light.name} -> #{parsed}%")
     else
       {:error, reason} ->
@@ -270,20 +262,10 @@ defmodule HueworksWeb.LightsLive do
   defp dispatch_action(socket, "light", id, {:color_temp, kelvin}) do
     with {:ok, light} <- fetch_light(id),
          {:ok, parsed} <- Util.parse_kelvin(kelvin),
-         :ok <- Control.Light.set_color_temp(light, parsed) do
-      State.put(:light, light.id, %{kelvin: parsed})
+         {:ok, _diff} <- apply_manual_updates(light.room_id, [light.id], %{kelvin: parsed}) do
       _ = ActiveScenes.handle_manual_change(light.room_id, %{kelvin: parsed})
 
       socket
-      |> assign(
-        :light_state,
-        Map.update(
-          socket.assigns.light_state,
-          light.id,
-          %{kelvin: parsed},
-          &merge_state(&1, %{kelvin: parsed})
-        )
-      )
       |> assign(status: "TEMP light #{light.name} -> #{parsed}K")
     else
       {:error, reason} ->
@@ -294,22 +276,16 @@ defmodule HueworksWeb.LightsLive do
   defp dispatch_action(socket, "group", id, {:brightness, level}) do
     with {:ok, group} <- fetch_group(id),
          {:ok, parsed} <- Util.parse_level(level),
-         :ok <- Control.Group.set_brightness(group, parsed) do
-      State.put(:group, group.id, %{brightness: parsed})
+         light_ids when light_ids != [] <- group_light_ids(group.id),
+         {:ok, _diff} <- apply_manual_updates(group.room_id, light_ids, %{brightness: parsed}) do
       _ = ActiveScenes.handle_manual_change(group.room_id, %{brightness: parsed})
 
       socket
-      |> assign(
-        :group_state,
-        Map.update(
-          socket.assigns.group_state,
-          group.id,
-          %{brightness: parsed},
-          &merge_state(&1, %{brightness: parsed})
-        )
-      )
       |> assign(status: "BRIGHTNESS group #{group.name} -> #{parsed}%")
     else
+      [] ->
+        assign(socket, status: "ERROR group #{id}: no_members")
+
       {:error, reason} ->
         assign(socket, status: "ERROR group #{id}: #{Util.format_reason(reason)}")
     end
@@ -318,22 +294,16 @@ defmodule HueworksWeb.LightsLive do
   defp dispatch_action(socket, "group", id, {:color_temp, kelvin}) do
     with {:ok, group} <- fetch_group(id),
          {:ok, parsed} <- Util.parse_kelvin(kelvin),
-         :ok <- Control.Group.set_color_temp(group, parsed) do
-      State.put(:group, group.id, %{kelvin: parsed})
+         light_ids when light_ids != [] <- group_light_ids(group.id),
+         {:ok, _diff} <- apply_manual_updates(group.room_id, light_ids, %{kelvin: parsed}) do
       _ = ActiveScenes.handle_manual_change(group.room_id, %{kelvin: parsed})
 
       socket
-      |> assign(
-        :group_state,
-        Map.update(
-          socket.assigns.group_state,
-          group.id,
-          %{kelvin: parsed},
-          &merge_state(&1, %{kelvin: parsed})
-        )
-      )
       |> assign(status: "TEMP group #{group.name} -> #{parsed}K")
     else
+      [] ->
+        assign(socket, status: "ERROR group #{id}: no_members")
+
       {:error, reason} ->
         assign(socket, status: "ERROR group #{id}: #{Util.format_reason(reason)}")
     end
@@ -341,20 +311,10 @@ defmodule HueworksWeb.LightsLive do
 
   defp dispatch_action(socket, "light", id, action) do
     with {:ok, light} <- fetch_light(id),
-         :ok <- apply_light_action(light, action) do
-      State.put(:light, light.id, %{power: action})
+         {:ok, _diff} <- apply_manual_updates(light.room_id, [light.id], %{power: action}) do
       _ = ActiveScenes.handle_manual_change(light.room_id, %{power: action})
 
       socket
-      |> assign(
-        :light_state,
-        Map.update(
-          socket.assigns.light_state,
-          light.id,
-          %{power: action},
-          &merge_state(&1, %{power: action})
-        )
-      )
       |> assign(status: "#{action_label(action)} light #{light.name}")
     else
       {:error, reason} ->
@@ -364,22 +324,16 @@ defmodule HueworksWeb.LightsLive do
 
   defp dispatch_action(socket, "group", id, action) do
     with {:ok, group} <- fetch_group(id),
-         :ok <- apply_group_action(group, action) do
-      State.put(:group, group.id, %{power: action})
+         light_ids when light_ids != [] <- group_light_ids(group.id),
+         {:ok, _diff} <- apply_manual_updates(group.room_id, light_ids, %{power: action}) do
       _ = ActiveScenes.handle_manual_change(group.room_id, %{power: action})
 
       socket
-      |> assign(
-        :group_state,
-        Map.update(
-          socket.assigns.group_state,
-          group.id,
-          %{power: action},
-          &merge_state(&1, %{power: action})
-        )
-      )
       |> assign(status: "#{action_label(action)} group #{group.name}")
     else
+      [] ->
+        assign(socket, status: "ERROR group #{id}: no_members")
+
       {:error, reason} ->
         assign(socket, status: "ERROR group #{id}: #{Util.format_reason(reason)}")
     end
@@ -528,11 +482,84 @@ defmodule HueworksWeb.LightsLive do
     |> Map.new()
   end
 
-  defp apply_light_action(light, :on), do: Control.Light.on(light)
-  defp apply_light_action(light, :off), do: Control.Light.off(light)
+  defp apply_manual_updates(room_id, light_ids, desired_update)
+       when is_list(light_ids) and is_map(desired_update) do
+    txn = DesiredState.begin(:manual_ui)
 
-  defp apply_group_action(group, :on), do: Control.Group.on(group)
-  defp apply_group_action(group, :off), do: Control.Group.off(group)
+    txn =
+      Enum.reduce(light_ids, txn, fn light_id, acc ->
+        DesiredState.apply(acc, :light, light_id, desired_update)
+      end)
+
+    case DesiredState.commit(txn) do
+      {:ok, diff, _updated} ->
+        _ = enqueue_diff(room_id, diff)
+        {:ok, diff}
+
+      other ->
+        other
+    end
+  end
+
+  defp enqueue_diff(_room_id, diff) when map_size(diff) == 0, do: :ok
+
+  defp enqueue_diff(room_id, diff) when is_integer(room_id) and is_map(diff) do
+    plan = Planner.plan_room(room_id, diff)
+    _ = Executor.enqueue(plan)
+    :ok
+  end
+
+  defp enqueue_diff(_room_id, diff) when is_map(diff) do
+    light_ids =
+      diff
+      |> Map.keys()
+      |> Enum.flat_map(fn
+        {:light, id} when is_integer(id) -> [id]
+        {"light", id} when is_integer(id) -> [id]
+        _ -> []
+      end)
+      |> Enum.uniq()
+
+    bridge_by_light_id =
+      Repo.all(
+        from(l in Hueworks.Schemas.Light,
+          where: l.id in ^light_ids,
+          select: {l.id, l.bridge_id}
+        )
+      )
+      |> Map.new()
+
+    plan =
+      diff
+      |> Enum.flat_map(fn
+        {{:light, id}, desired} when is_integer(id) and is_map(desired) ->
+          case Map.get(bridge_by_light_id, id) do
+            nil -> []
+            bridge_id -> [%{type: :light, id: id, bridge_id: bridge_id, desired: desired}]
+          end
+
+        {{"light", id}, desired} when is_integer(id) and is_map(desired) ->
+          case Map.get(bridge_by_light_id, id) do
+            nil -> []
+            bridge_id -> [%{type: :light, id: id, bridge_id: bridge_id, desired: desired}]
+          end
+
+        _ ->
+          []
+      end)
+
+    _ = Executor.enqueue(plan)
+    :ok
+  end
+
+  defp group_light_ids(group_id) when is_integer(group_id) do
+    Repo.all(
+      from(gl in GroupLight,
+        where: gl.group_id == ^group_id,
+        select: gl.light_id
+      )
+    )
+  end
 
   defp fetch_light(id) do
     case Integer.parse(id) do
