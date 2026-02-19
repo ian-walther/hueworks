@@ -52,4 +52,15 @@ defmodule Hueworks.ActiveScenesTest do
 
     refute Repo.get_by(ActiveScene, room_id: room.id)
   end
+
+  test "handle_manual_change marks brightness override for power changes" do
+    room = insert_room()
+    scene = insert_scene(room, "Chill")
+    {:ok, _} = ActiveScenes.set_active(scene)
+
+    :ok = ActiveScenes.handle_manual_change(room.id, %{power: :off})
+
+    active = Repo.get_by(ActiveScene, room_id: room.id)
+    assert active.brightness_override
+  end
 end

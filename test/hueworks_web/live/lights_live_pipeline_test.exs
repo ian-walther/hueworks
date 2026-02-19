@@ -190,6 +190,63 @@ defmodule Hueworks.LightsLivePipelineTest do
     assert physical_group[:kelvin] != 2400
   end
 
+  test "manual light toggle can be used repeatedly without reload",
+       %{
+         conn: conn,
+         actions_agent: actions_agent,
+         executor_server: executor_server
+       } do
+    room = Repo.insert!(%Room{name: "Office"})
+
+    bridge =
+      Repo.insert!(%Bridge{
+        name: "Hue Bridge",
+        type: :hue,
+        host: "192.168.1.82",
+        credentials: %{"api_key" => "test"}
+      })
+
+    light =
+      Repo.insert!(%Light{
+        name: "Office Lamp",
+        display_name: "Office Lamp",
+        source: :hue,
+        source_id: "light-office",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        supports_temp: true,
+        reported_min_kelvin: 2000,
+        reported_max_kelvin: 6500
+      })
+
+    clear_light_states(light.id)
+
+    {:ok, view, _html} = live(conn, "/lights")
+
+    view
+    |> element("button[phx-click='toggle'][phx-value-type='light'][phx-value-id='#{light.id}']")
+    |> render_click()
+
+    drain_executor(executor_server)
+
+    view
+    |> element("button[phx-click='toggle'][phx-value-type='light'][phx-value-id='#{light.id}']")
+    |> render_click()
+
+    drain_executor(executor_server)
+
+    actions = Agent.get(actions_agent, & &1)
+
+    assert [
+             %{type: :light, id: first_id, desired: %{power: :on}},
+             %{type: :light, id: second_id, desired: %{power: :off}}
+           ] = actions
+
+    assert first_id == light.id
+    assert second_id == light.id
+    assert DesiredState.get(:light, light.id) == %{power: :off}
+  end
+
   defp drain_executor(server, attempts \\ 5)
 
   defp drain_executor(_server, 0), do: :ok

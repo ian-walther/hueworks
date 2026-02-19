@@ -71,19 +71,19 @@ defmodule Hueworks.ActiveScenes do
   def handle_manual_change(nil, _attrs), do: :ok
 
   def handle_manual_change(room_id, attrs) when is_integer(room_id) and is_map(attrs) do
-    if brightness_only?(attrs) do
+    if brightness_or_power_only?(attrs) do
       set_brightness_override(room_id, true)
     else
       clear_for_room(room_id)
     end
   end
 
-  defp brightness_only?(attrs) do
+  defp brightness_or_power_only?(attrs) do
     keys = Map.keys(attrs)
 
     keys != [] and
       Enum.all?(keys, fn key ->
-        key in [:brightness, "brightness"]
+        key in [:brightness, "brightness", :power, "power"]
       end)
   end
 end

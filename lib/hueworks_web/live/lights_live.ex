@@ -252,6 +252,7 @@ defmodule HueworksWeb.LightsLive do
       _ = ActiveScenes.handle_manual_change(light.room_id, %{brightness: parsed})
 
       socket
+      |> update_light_state_assign(light.id, %{brightness: parsed})
       |> assign(status: "BRIGHTNESS light #{light.name} -> #{parsed}%")
     else
       {:error, reason} ->
@@ -266,6 +267,7 @@ defmodule HueworksWeb.LightsLive do
       _ = ActiveScenes.handle_manual_change(light.room_id, %{kelvin: parsed})
 
       socket
+      |> update_light_state_assign(light.id, %{kelvin: parsed})
       |> assign(status: "TEMP light #{light.name} -> #{parsed}K")
     else
       {:error, reason} ->
@@ -281,6 +283,7 @@ defmodule HueworksWeb.LightsLive do
       _ = ActiveScenes.handle_manual_change(group.room_id, %{brightness: parsed})
 
       socket
+      |> update_group_state_assign(group.id, %{brightness: parsed})
       |> assign(status: "BRIGHTNESS group #{group.name} -> #{parsed}%")
     else
       [] ->
@@ -299,6 +302,7 @@ defmodule HueworksWeb.LightsLive do
       _ = ActiveScenes.handle_manual_change(group.room_id, %{kelvin: parsed})
 
       socket
+      |> update_group_state_assign(group.id, %{kelvin: parsed})
       |> assign(status: "TEMP group #{group.name} -> #{parsed}K")
     else
       [] ->
@@ -315,6 +319,7 @@ defmodule HueworksWeb.LightsLive do
       _ = ActiveScenes.handle_manual_change(light.room_id, %{power: action})
 
       socket
+      |> update_light_state_assign(light.id, %{power: action})
       |> assign(status: "#{action_label(action)} light #{light.name}")
     else
       {:error, reason} ->
@@ -329,6 +334,7 @@ defmodule HueworksWeb.LightsLive do
       _ = ActiveScenes.handle_manual_change(group.room_id, %{power: action})
 
       socket
+      |> update_group_state_assign(group.id, %{power: action})
       |> assign(status: "#{action_label(action)} group #{group.name}")
     else
       [] ->
@@ -484,6 +490,11 @@ defmodule HueworksWeb.LightsLive do
 
   defp apply_manual_updates(room_id, light_ids, desired_update)
        when is_list(light_ids) and is_map(desired_update) do
+    previous_desired =
+      Map.new(light_ids, fn light_id ->
+        {light_id, DesiredState.get(:light, light_id) || %{}}
+      end)
+
     txn = DesiredState.begin(:manual_ui)
 
     txn =
@@ -492,13 +503,27 @@ defmodule HueworksWeb.LightsLive do
       end)
 
     case DesiredState.commit(txn) do
-      {:ok, diff, _updated} ->
-        _ = enqueue_diff(room_id, diff)
-        {:ok, diff}
+      {:ok, _physical_diff, _updated} ->
+        desired_diff = desired_change_diff(light_ids, previous_desired)
+        _ = enqueue_diff(room_id, desired_diff)
+        {:ok, desired_diff}
 
       other ->
         other
     end
+  end
+
+  defp desired_change_diff(light_ids, previous_desired) do
+    Enum.reduce(light_ids, %{}, fn light_id, acc ->
+      previous = Map.get(previous_desired, light_id, %{})
+      current = DesiredState.get(:light, light_id) || %{}
+
+      if previous == current do
+        acc
+      else
+        Map.put(acc, {:light, light_id}, current)
+      end
+    end)
   end
 
   defp enqueue_diff(_room_id, diff) when map_size(diff) == 0, do: :ok
@@ -625,6 +650,24 @@ defmodule HueworksWeb.LightsLive do
 
   defp merge_state(existing, updates) do
     Map.merge(existing, updates)
+  end
+
+  defp update_light_state_assign(socket, light_id, attrs)
+       when is_integer(light_id) and is_map(attrs) do
+    assign(
+      socket,
+      :light_state,
+      Map.update(socket.assigns.light_state, light_id, attrs, &merge_state(&1, attrs))
+    )
+  end
+
+  defp update_group_state_assign(socket, group_id, attrs)
+       when is_integer(group_id) and is_map(attrs) do
+    assign(
+      socket,
+      :group_state,
+      Map.update(socket.assigns.group_state, group_id, attrs, &merge_state(&1, attrs))
+    )
   end
 
   defp get_state_value(state_map, id, key, fallback) do
