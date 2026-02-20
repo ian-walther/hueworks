@@ -2,6 +2,10 @@ import Config
 
 # Runtime configuration (can read from environment variables)
 if config_env() == :prod do
+  if System.get_env("PHX_SERVER") do
+    config :hueworks, HueworksWeb.Endpoint, server: true
+  end
+
   database_path =
     System.get_env("DATABASE_PATH") ||
       raise """

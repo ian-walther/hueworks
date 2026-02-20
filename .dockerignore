@@ -1,0 +1,13 @@
+.git
+.gitignore
+_build
+deps
+node_modules
+tmp
+cover
+exports
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+secrets.env
