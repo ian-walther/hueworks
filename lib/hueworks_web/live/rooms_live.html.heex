@@ -72,16 +72,20 @@
               </div>
               <div class="hw-room-list">
                 <%= for scene <- room.scenes do %>
+                  <% active? = Map.get(@active_scene_by_room, room.id) == scene.id %>
                   <div class="hw-room-item hw-room-item-row">
                     <span><%= Hueworks.Util.display_name(scene) %></span>
                     <button
                       type="button"
-                      class="hw-button"
+                      class={if active?, do: "hw-button hw-button-off", else: "hw-button"}
                       phx-click="activate_scene"
                       phx-value-id={scene.id}
                     >
-                      Activate
+                      <%= if active?, do: "Deactivate", else: "Activate" %>
                     </button>
+                    <%= if active? do %>
+                      <span class="hw-muted">Active</span>
+                    <% end %>
                     <span class="hw-room-item-actions">
                       <button
                         type="button"

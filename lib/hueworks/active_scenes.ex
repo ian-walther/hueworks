@@ -8,6 +8,8 @@ defmodule Hueworks.ActiveScenes do
   alias Hueworks.Repo
   alias Hueworks.Schemas.{ActiveScene, Scene}
 
+  @default_pending_grace_ms 3_000
+
   def list_active_scenes do
     Repo.all(from(a in ActiveScene, select: a))
   end
@@ -18,12 +20,14 @@ defmodule Hueworks.ActiveScenes do
 
   def set_active(%Scene{} = scene) do
     now = DateTime.utc_now()
+    pending_until = DateTime.add(now, pending_grace_ms(), :millisecond)
 
     attrs = %{
       room_id: scene.room_id,
       scene_id: scene.id,
       brightness_override: false,
-      last_applied_at: now
+      last_applied_at: now,
+      pending_until: pending_until
     }
 
     %ActiveScene{}
@@ -34,6 +38,7 @@ defmodule Hueworks.ActiveScenes do
           scene_id: scene.id,
           brightness_override: false,
           last_applied_at: now,
+          pending_until: pending_until,
           updated_at: now
         ]
       ],
@@ -41,8 +46,23 @@ defmodule Hueworks.ActiveScenes do
     )
   end
 
+  def pending_for_room?(room_id, now \\ DateTime.utc_now()) when is_integer(room_id) do
+    case get_for_room(room_id) do
+      %ActiveScene{pending_until: %DateTime{} = pending_until} ->
+        DateTime.compare(pending_until, now) == :gt
+
+      _ ->
+        false
+    end
+  end
+
   def clear_for_room(room_id) do
     Repo.delete_all(from(a in ActiveScene, where: a.room_id == ^room_id))
+    :ok
+  end
+
+  def deactivate_scene(scene_id) when is_integer(scene_id) do
+    Repo.delete_all(from(a in ActiveScene, where: a.scene_id == ^scene_id))
     :ok
   end
 
@@ -85,5 +105,9 @@ defmodule Hueworks.ActiveScenes do
       Enum.all?(keys, fn key ->
         key in [:brightness, "brightness", :power, "power"]
       end)
+  end
+
+  defp pending_grace_ms do
+    Application.get_env(:hueworks, :scene_activation_pending_ms, @default_pending_grace_ms)
   end
 end

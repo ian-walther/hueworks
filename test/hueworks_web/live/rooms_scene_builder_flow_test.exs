@@ -7,6 +7,7 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
   alias Hueworks.Repo
 
   alias Hueworks.Schemas.{
+    ActiveScene,
     Bridge,
     Group,
     GroupLight,
@@ -87,6 +88,58 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
              |> render_click()
 
     assert to == "/rooms/#{room.id}/scenes/#{scene.id}/edit"
+  end
+
+  test "rooms page shows active scenes and toggles activate button to deactivate", %{conn: conn} do
+    room = insert_room()
+    {:ok, scene} = Hueworks.Scenes.create_scene(%{name: "Chill", room_id: room.id})
+
+    {:ok, view, _html} = live(conn, "/rooms")
+
+    assert has_element?(
+             view,
+             "#room-#{room.id} button[phx-click='activate_scene'][phx-value-id='#{scene.id}']",
+             "Activate"
+           )
+
+    view
+    |> element("#room-#{room.id} button[phx-click='activate_scene'][phx-value-id='#{scene.id}']")
+    |> render_click()
+
+    assert has_element?(
+             view,
+             "#room-#{room.id} button[phx-click='activate_scene'][phx-value-id='#{scene.id}']",
+             "Deactivate"
+           )
+
+    assert has_element?(view, "#room-#{room.id} .hw-muted", "Active")
+    assert Repo.get_by!(ActiveScene, room_id: room.id).scene_id == scene.id
+  end
+
+  test "clicking deactivate removes active_scene entry", %{conn: conn} do
+    room = insert_room()
+    {:ok, scene} = Hueworks.Scenes.create_scene(%{name: "Chill", room_id: room.id})
+    {:ok, _} = Hueworks.ActiveScenes.set_active(scene)
+
+    {:ok, view, _html} = live(conn, "/rooms")
+
+    assert has_element?(
+             view,
+             "#room-#{room.id} button[phx-click='activate_scene'][phx-value-id='#{scene.id}']",
+             "Deactivate"
+           )
+
+    view
+    |> element("#room-#{room.id} button[phx-click='activate_scene'][phx-value-id='#{scene.id}']")
+    |> render_click()
+
+    assert has_element?(
+             view,
+             "#room-#{room.id} button[phx-click='activate_scene'][phx-value-id='#{scene.id}']",
+             "Activate"
+           )
+
+    refute Repo.get_by(ActiveScene, room_id: room.id)
   end
 
   test "creates a scene with components, lights, and manual light state via the UI", %{conn: conn} do

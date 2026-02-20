@@ -23,12 +23,16 @@ defmodule Hueworks.ActiveScenesTest do
     active = Repo.get_by(ActiveScene, room_id: room.id)
     assert active.scene_id == scene1.id
     refute active.brightness_override
+    assert %DateTime{} = active.pending_until
+    assert DateTime.compare(active.pending_until, DateTime.utc_now()) == :gt
 
     {:ok, _} = ActiveScenes.set_active(scene2)
 
     active = Repo.get_by(ActiveScene, room_id: room.id)
     assert active.scene_id == scene2.id
     refute active.brightness_override
+    assert %DateTime{} = active.pending_until
+    assert DateTime.compare(active.pending_until, DateTime.utc_now()) == :gt
     assert Repo.aggregate(ActiveScene, :count) == 1
   end
 
@@ -62,5 +66,15 @@ defmodule Hueworks.ActiveScenesTest do
 
     active = Repo.get_by(ActiveScene, room_id: room.id)
     assert active.brightness_override
+  end
+
+  test "deactivate_scene removes active row for that scene" do
+    room = insert_room()
+    scene = insert_scene(room, "Chill")
+    {:ok, _} = ActiveScenes.set_active(scene)
+
+    :ok = ActiveScenes.deactivate_scene(scene.id)
+
+    refute Repo.get_by(ActiveScene, room_id: room.id)
   end
 end

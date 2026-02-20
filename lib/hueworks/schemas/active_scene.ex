@@ -5,6 +5,7 @@ defmodule Hueworks.Schemas.ActiveScene do
   schema "active_scenes" do
     field(:brightness_override, :boolean, default: false)
     field(:last_applied_at, :utc_datetime_usec)
+    field(:pending_until, :utc_datetime_usec)
 
     belongs_to(:room, Hueworks.Schemas.Room)
     belongs_to(:scene, Hueworks.Schemas.Scene)
@@ -14,7 +15,7 @@ defmodule Hueworks.Schemas.ActiveScene do
 
   def changeset(active_scene, attrs) do
     active_scene
-    |> cast(attrs, [:room_id, :scene_id, :brightness_override, :last_applied_at])
+    |> cast(attrs, [:room_id, :scene_id, :brightness_override, :last_applied_at, :pending_until])
     |> validate_required([:room_id, :scene_id])
   end
 end

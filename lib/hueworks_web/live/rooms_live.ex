@@ -1,6 +1,7 @@
 defmodule HueworksWeb.RoomsLive do
   use Phoenix.LiveView
 
+  alias Hueworks.ActiveScenes
   alias Hueworks.Rooms
   alias Hueworks.Scenes
 
@@ -8,6 +9,7 @@ defmodule HueworksWeb.RoomsLive do
     {:ok,
      assign(socket,
        rooms: Rooms.list_rooms_with_children(),
+       active_scene_by_room: active_scene_map(),
        modal_open: false,
        edit_mode: :new,
        edit_room_id: nil,
@@ -77,8 +79,21 @@ defmodule HueworksWeb.RoomsLive do
   end
 
   def handle_event("activate_scene", %{"id" => id}, socket) do
-    _ = Scenes.activate_scene(String.to_integer(id))
-    {:noreply, socket}
+    with scene_id when is_integer(scene_id) <- Hueworks.Util.parse_id(id),
+         %{} = scene <- Scenes.get_scene(scene_id) do
+      case ActiveScenes.get_for_room(scene.room_id) do
+        %{scene_id: ^scene_id} ->
+          _ = ActiveScenes.clear_for_room(scene.room_id)
+
+        _ ->
+          _ = Scenes.activate_scene(scene_id)
+      end
+
+      {:noreply, assign(socket, active_scene_by_room: active_scene_map())}
+    else
+      _ ->
+        {:noreply, socket}
+    end
   end
 
   def handle_event("update_room", %{"name" => name}, socket) do
@@ -131,10 +146,16 @@ defmodule HueworksWeb.RoomsLive do
   defp refresh_rooms(socket) do
     assign(socket,
       rooms: Rooms.list_rooms_with_children(),
+      active_scene_by_room: active_scene_map(),
       modal_open: false,
       edit_mode: :new,
       edit_room_id: nil,
       edit_name: ""
     )
+  end
+
+  defp active_scene_map do
+    ActiveScenes.list_active_scenes()
+    |> Map.new(fn active -> {active.room_id, active.scene_id} end)
   end
 end

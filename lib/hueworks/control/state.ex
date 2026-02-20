@@ -8,6 +8,9 @@ defmodule Hueworks.Control.State do
   alias Hueworks.Control.Bootstrap.HomeAssistant
   alias Hueworks.Control.Bootstrap.Hue
   alias Hueworks.Control.DesiredState
+  alias Hueworks.ActiveScenes
+  alias Hueworks.Repo
+  alias Hueworks.Schemas.Light
   alias Phoenix.PubSub
 
   @table :hueworks_control_state
@@ -95,6 +98,7 @@ defmodule Hueworks.Control.State do
       end
 
     updated = Map.merge(current, attrs)
+    maybe_deactivate_scene_on_external_change(key, updated)
     :ets.insert(@table, {key, updated})
     broadcast_update(key, updated)
     sync_desired(key, updated)
@@ -110,4 +114,47 @@ defmodule Hueworks.Control.State do
   end
 
   defp sync_desired(_key, _state), do: :ok
+
+  defp maybe_deactivate_scene_on_external_change({:light, light_id}, updated) do
+    desired = DesiredState.get(:light, light_id) || %{}
+
+    if desired != %{} and diverged_from_desired?(desired, updated) do
+      case Repo.get(Light, light_id) do
+        %Light{room_id: room_id} when is_integer(room_id) ->
+          if ActiveScenes.pending_for_room?(room_id) do
+            :ok
+          else
+            _ = ActiveScenes.clear_for_room(room_id)
+          end
+
+          :ok
+
+        _ ->
+          :ok
+      end
+    else
+      :ok
+    end
+  end
+
+  defp maybe_deactivate_scene_on_external_change(_key, _updated), do: :ok
+
+  defp diverged_from_desired?(desired, updated) do
+    Enum.any?(desired, fn {key, desired_value} ->
+      updated_value = Map.get(updated, key)
+      values_equal?(key, desired_value, updated_value) == false
+    end)
+  end
+
+  defp values_equal?(_key, desired, updated) when desired == updated, do: true
+
+  defp values_equal?(key, desired, updated) when key in [:brightness, :kelvin] do
+    case {Hueworks.Util.to_number(desired), Hueworks.Util.to_number(updated)} do
+      {nil, _} -> desired == updated
+      {_, nil} -> desired == updated
+      {a, b} -> round(a) == round(b)
+    end
+  end
+
+  defp values_equal?(_key, desired, updated), do: desired == updated
 end
