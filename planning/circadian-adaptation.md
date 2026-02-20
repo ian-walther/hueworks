@@ -104,6 +104,27 @@ Required semantics:
 ## Config Model (Circadian `light_state.config`)
 Initial requirement: mirror HA Adaptive Lighting key names for calculation-related settings.
 
+Confirmed v1 circadian keys:
+- `min_brightness`
+- `max_brightness`
+- `min_color_temp`
+- `max_color_temp`
+- `sunrise_time`
+- `min_sunrise_time`
+- `max_sunrise_time`
+- `sunrise_offset`
+- `sunset_time`
+- `min_sunset_time`
+- `max_sunset_time`
+- `sunset_offset`
+- `brightness_mode`
+- `brightness_mode_time_dark`
+- `brightness_mode_time_light`
+
+Explicitly excluded in v1:
+- all `sleep_*` options
+- `prefer_rgb_color` and other RGB/color-mode options
+
 Implementation steps:
 - Define allowed key list and types.
 - Validate and normalize values at create/update time.

@@ -14,8 +14,7 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
     Room,
     Scene,
     SceneComponent,
-    SceneComponentLight,
-    LightState
+    SceneComponentLight
   }
 
   defp insert_room do
@@ -63,7 +62,34 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
     Repo.insert!(%GroupLight{group_id: group.id, light_id: light.id})
   end
 
-  test "creates a scene with components, lights, and light state via the UI", %{conn: conn} do
+  test "rooms page add-scene action navigates to scene editor", %{conn: conn} do
+    room = insert_room()
+
+    {:ok, view, _html} = live(conn, "/rooms")
+
+    assert {:error, {:live_redirect, %{to: to}}} =
+             view
+             |> element("#room-#{room.id} .hw-card-title button[phx-click='open_scene_new']")
+             |> render_click()
+
+    assert to == "/rooms/#{room.id}/scenes/new"
+  end
+
+  test "rooms page edit-scene action navigates to scene editor", %{conn: conn} do
+    room = insert_room()
+    {:ok, scene} = Hueworks.Scenes.create_scene(%{name: "Chill", room_id: room.id})
+
+    {:ok, view, _html} = live(conn, "/rooms")
+
+    assert {:error, {:live_redirect, %{to: to}}} =
+             view
+             |> element("#room-#{room.id} [phx-click='open_scene_edit']")
+             |> render_click()
+
+    assert to == "/rooms/#{room.id}/scenes/#{scene.id}/edit"
+  end
+
+  test "creates a scene with components, lights, and manual light state via the UI", %{conn: conn} do
     room = insert_room()
     bridge = insert_bridge()
     light1 = insert_light(room, bridge, %{name: "Lamp"})
@@ -72,11 +98,7 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
     insert_group_light(group, light1)
     insert_group_light(group, light2)
 
-    {:ok, view, _html} = live(conn, "/rooms")
-
-    view
-    |> element("#room-#{room.id} .hw-card-title button[phx-click='open_scene_new']")
-    |> render_click()
+    {:ok, view, _html} = live(conn, "/rooms/#{room.id}/scenes/new")
 
     view
     |> form("form[phx-change='select_light_state'][data-component-id='1']", %{
@@ -88,6 +110,14 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
     view
     |> form("form[phx-change='select_light_state_name'][data-component-id='1']", %{
       "name" => "Warm"
+    })
+    |> render_change()
+
+    view
+    |> form("form[phx-change='update_light_state_form'][data-component-id='1']", %{
+      "component_id" => "1",
+      "brightness" => "55",
+      "temperature" => "3000"
     })
     |> render_change()
 
@@ -109,9 +139,10 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
     |> form("form[phx-change='update_scene']", %{"name" => "Chill"})
     |> render_change()
 
-    view
-    |> element("button[phx-click='save_scene']")
-    |> render_click()
+    assert {:error, {:live_redirect, %{to: "/rooms"}}} =
+             view
+             |> element("button[phx-click='save_scene']")
+             |> render_click()
 
     scene =
       Repo.one(from(s in Scene, where: s.room_id == ^room.id and s.name == "Chill"))
@@ -131,6 +162,8 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
 
     assert scene_component.light_state.type == :manual
     assert scene_component.light_state.name == "Warm"
+    assert scene_component.light_state.config["brightness"] == "55"
+    assert scene_component.light_state.config["temperature"] == "3000"
 
     join_count =
       Repo.aggregate(
@@ -143,7 +176,6 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
       )
 
     assert join_count == 2
-    assert Repo.aggregate(LightState, :count) >= 1
   end
 
   test "editing a scene updates components and light state via the UI", %{conn: conn} do
@@ -163,11 +195,7 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
         %{name: "Component 1", light_ids: [light1.id], light_state_id: to_string(state.id)}
       ])
 
-    {:ok, view, _html} = live(conn, "/rooms")
-
-    view
-    |> element("#room-#{room.id} [phx-click='open_scene_edit']")
-    |> render_click()
+    {:ok, view, _html} = live(conn, "/rooms/#{room.id}/scenes/#{scene.id}/edit")
 
     view
     |> form("form[phx-change='select_light'][data-component-id='1']", %{
@@ -193,6 +221,14 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
     |> render_change()
 
     view
+    |> form("form[phx-change='update_light_state_form'][data-component-id='1']", %{
+      "component_id" => "1",
+      "brightness" => "70",
+      "temperature" => "3600"
+    })
+    |> render_change()
+
+    view
     |> element("button[phx-click='save_light_state_name'][phx-value-component_id='1']")
     |> render_click()
 
@@ -200,9 +236,10 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
     |> form("form[phx-change='update_scene']", %{"name" => "Chill Updated"})
     |> render_change()
 
-    view
-    |> element("button[phx-click='save_scene']")
-    |> render_click()
+    assert {:error, {:live_redirect, %{to: "/rooms"}}} =
+             view
+             |> element("button[phx-click='save_scene']")
+             |> render_click()
 
     updated =
       Repo.one(
@@ -223,9 +260,11 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
              Enum.sort([light1.id, light2.id])
 
     assert scene_component.light_state.name == "Bright"
+    assert scene_component.light_state.config["brightness"] == "70"
+    assert scene_component.light_state.config["temperature"] == "3600"
   end
 
-  test "creating a manual light state keeps the scene modal open", %{conn: conn} do
+  test "circadian state form persists all circadian config inputs", %{conn: conn} do
     room = insert_room()
     bridge = insert_bridge()
     light1 = insert_light(room, bridge, %{name: "Lamp"})
@@ -234,22 +273,49 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
     insert_group_light(group, light1)
     insert_group_light(group, light2)
 
-    {:ok, view, _html} = live(conn, "/rooms")
+    {:ok, view, _html} = live(conn, "/rooms/#{room.id}/scenes/new")
 
     view
-    |> element("#room-#{room.id} .hw-card-title button[phx-click='open_scene_new']")
+    |> form("form[phx-change='select_group'][data-component-id='1']", %{
+      "group_id" => Integer.to_string(group.id)
+    })
+    |> render_change()
+
+    view
+    |> element("button[phx-click='add_group'][phx-value-component_id='1']")
     |> render_click()
 
     view
     |> form("form[phx-change='select_light_state'][data-component-id='1']", %{
       "component_id" => "1",
-      "light_state_id" => "new"
+      "light_state_id" => "new_circadian"
+    })
+    |> render_change()
+
+    view
+    |> form("form[phx-change='update_light_state_form'][data-component-id='1']", %{
+      "component_id" => "1",
+      "min_brightness" => "5",
+      "max_brightness" => "95",
+      "min_color_temp" => "2100",
+      "max_color_temp" => "5000",
+      "sunrise_time" => "06:30:00",
+      "min_sunrise_time" => "05:45:00",
+      "max_sunrise_time" => "07:00:00",
+      "sunrise_offset" => "-900",
+      "sunset_time" => "19:30:00",
+      "min_sunset_time" => "18:45:00",
+      "max_sunset_time" => "20:15:00",
+      "sunset_offset" => "1200",
+      "brightness_mode" => "linear",
+      "brightness_mode_time_dark" => "1200",
+      "brightness_mode_time_light" => "5400"
     })
     |> render_change()
 
     view
     |> form("form[phx-change='select_light_state_name'][data-component-id='1']", %{
-      "name" => "Soft"
+      "name" => "Circadian Day"
     })
     |> render_change()
 
@@ -257,96 +323,42 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
     |> element("button[phx-click='save_light_state_name'][phx-value-component_id='1']")
     |> render_click()
 
-    html = render(view)
-
-    assert html =~ "Add Scene"
-    assert html =~ "hw-modal-backdrop"
-  end
-
-  test "deleting a manual light state removes it from the dropdown list", %{conn: conn} do
-    room = insert_room()
-    bridge = insert_bridge()
-    light1 = insert_light(room, bridge, %{name: "Lamp"})
-    light2 = insert_light(room, bridge, %{name: "Ceiling"})
-    group = insert_group(room, bridge, %{name: "All"})
-    insert_group_light(group, light1)
-    insert_group_light(group, light2)
-
-    {:ok, view, _html} = live(conn, "/rooms")
-
     view
-    |> element("#room-#{room.id} .hw-card-title button[phx-click='open_scene_new']")
-    |> render_click()
-
-    view
-    |> form("form[phx-change='select_light_state'][data-component-id='1']", %{
-      "component_id" => "1",
-      "light_state_id" => "new"
-    })
+    |> form("form[phx-change='update_scene']", %{"name" => "Circadian Scene"})
     |> render_change()
 
-    view
-    |> form("form[phx-change='select_light_state_name'][data-component-id='1']", %{
-      "name" => "Temp"
-    })
-    |> render_change()
+    assert {:error, {:live_redirect, %{to: "/rooms"}}} =
+             view
+             |> element("button[phx-click='save_scene']")
+             |> render_click()
 
-    view
-    |> element("button[phx-click='save_light_state_name'][phx-value-component_id='1']")
-    |> render_click()
+    scene =
+      Repo.one(from(s in Scene, where: s.room_id == ^room.id and s.name == "Circadian Scene"))
 
-    state_id =
-      Repo.one(from(ls in LightState, where: ls.name == "Temp", select: ls.id))
+    component =
+      Repo.one(
+        from(sc in SceneComponent, where: sc.scene_id == ^scene.id, preload: [:light_state])
+      )
 
-    view
-    |> form("form[phx-change='select_light_state'][data-component-id='1']", %{
-      "component_id" => "1",
-      "light_state_id" => Integer.to_string(state_id)
-    })
-    |> render_change()
+    state = component.light_state
+    assert state.type == :circadian
+    assert state.name == "Circadian Day"
 
-    view
-    |> element("button[phx-click='delete_light_state'][phx-value-component_id='1']")
-    |> render_click()
-
-    refute has_element?(view, "select[name='light_state_id'] option[value='#{state_id}']")
-  end
-
-  test "deleting a light state used only by the current scene is allowed", %{conn: conn} do
-    room = insert_room()
-    bridge = insert_bridge()
-    light1 = insert_light(room, bridge, %{name: "Lamp"})
-    light2 = insert_light(room, bridge, %{name: "Ceiling"})
-    group = insert_group(room, bridge, %{name: "All"})
-    insert_group_light(group, light1)
-    insert_group_light(group, light2)
-
-    {:ok, state} = Hueworks.Scenes.create_manual_light_state("Solo")
-    {:ok, scene} = Hueworks.Scenes.create_scene(%{name: "Chill", room_id: room.id})
-
-    {:ok, _} =
-      Hueworks.Scenes.replace_scene_components(scene, [
-        %{
-          name: "Component 1",
-          light_ids: [light1.id, light2.id],
-          light_state_id: to_string(state.id)
-        }
-      ])
-
-    {:ok, view, _html} = live(conn, "/rooms")
-
-    view
-    |> element("#room-#{room.id} [phx-click='open_scene_edit']")
-    |> render_click()
-
-    view
-    |> element("button[phx-click='delete_light_state'][phx-value-component_id='1']")
-    |> render_click()
-
-    refute has_element?(view, ".hw-error", "Light state is in use by other scenes.")
-    refute has_element?(view, "select[name='light_state_id'] option[value='#{state.id}']")
-    assert has_element?(view, "select[name='light_state_id'] option[value='off'][selected]")
-    refute Hueworks.Repo.get(Hueworks.Schemas.LightState, state.id)
+    assert state.config["min_brightness"] == 5
+    assert state.config["max_brightness"] == 95
+    assert state.config["min_color_temp"] == 2100
+    assert state.config["max_color_temp"] == 5000
+    assert state.config["sunrise_time"] == "06:30:00"
+    assert state.config["min_sunrise_time"] == "05:45:00"
+    assert state.config["max_sunrise_time"] == "07:00:00"
+    assert state.config["sunrise_offset"] == -900
+    assert state.config["sunset_time"] == "19:30:00"
+    assert state.config["min_sunset_time"] == "18:45:00"
+    assert state.config["max_sunset_time"] == "20:15:00"
+    assert state.config["sunset_offset"] == 1200
+    assert state.config["brightness_mode"] == "linear"
+    assert state.config["brightness_mode_time_dark"] == 1200
+    assert state.config["brightness_mode_time_light"] == 5400
   end
 
   test "saving a scene with off light state succeeds", %{conn: conn} do
@@ -358,11 +370,7 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
     insert_group_light(group, light1)
     insert_group_light(group, light2)
 
-    {:ok, view, _html} = live(conn, "/rooms")
-
-    view
-    |> element("#room-#{room.id} .hw-card-title button[phx-click='open_scene_new']")
-    |> render_click()
+    {:ok, view, _html} = live(conn, "/rooms/#{room.id}/scenes/new")
 
     view
     |> form("form[phx-change='select_group'][data-component-id='1']", %{
@@ -378,9 +386,10 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
     |> form("form[phx-change='update_scene']", %{"name" => "Off Scene"})
     |> render_change()
 
-    view
-    |> element("button[phx-click='save_scene']")
-    |> render_click()
+    assert {:error, {:live_redirect, %{to: "/rooms"}}} =
+             view
+             |> element("button[phx-click='save_scene']")
+             |> render_click()
 
     scene =
       Repo.one(from(s in Scene, where: s.room_id == ^room.id and s.name == "Off Scene"))
@@ -394,107 +403,14 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
     assert scene_component.light_state_id == off.id
   end
 
-  test "delete light state defaults to off and still allows save after reopening modal", %{
-    conn: conn
-  } do
+  test "deleting a light state used only by the current scene is allowed", %{conn: conn} do
     room = insert_room()
     bridge = insert_bridge()
     light1 = insert_light(room, bridge, %{name: "Lamp"})
     light2 = insert_light(room, bridge, %{name: "Ceiling"})
-    group = insert_group(room, bridge, %{name: "All"})
-    insert_group_light(group, light1)
-    insert_group_light(group, light2)
-
-    {:ok, view, _html} = live(conn, "/rooms")
-
-    view
-    |> element("#room-#{room.id} .hw-card-title button[phx-click='open_scene_new']")
-    |> render_click()
-
-    view
-    |> form("form[phx-change='select_light_state'][data-component-id='1']", %{
-      "component_id" => "1",
-      "light_state_id" => "new"
-    })
-    |> render_change()
-
-    view
-    |> form("form[phx-change='select_light_state_name'][data-component-id='1']", %{
-      "name" => "Temp"
-    })
-    |> render_change()
-
-    view
-    |> element("button[phx-click='save_light_state_name'][phx-value-component_id='1']")
-    |> render_click()
-
-    state_id =
-      Repo.one(from(ls in LightState, where: ls.name == "Temp", select: ls.id))
-
-    view
-    |> form("form[phx-change='select_light_state'][data-component-id='1']", %{
-      "component_id" => "1",
-      "light_state_id" => Integer.to_string(state_id)
-    })
-    |> render_change()
-
-    view
-    |> element("button[phx-click='delete_light_state'][phx-value-component_id='1']")
-    |> render_click()
-
-    view
-    |> form("form[phx-change='select_group'][data-component-id='1']", %{
-      "group_id" => Integer.to_string(group.id)
-    })
-    |> render_change()
-
-    view
-    |> element("button[phx-click='add_group'][phx-value-component_id='1']")
-    |> render_click()
-
-    view
-    |> element(".hw-modal-close")
-    |> render_click()
-
-    view
-    |> element("#room-#{room.id} .hw-card-title button[phx-click='open_scene_new']")
-    |> render_click()
-
-    view
-    |> form("form[phx-change='select_group'][data-component-id='1']", %{
-      "group_id" => Integer.to_string(group.id)
-    })
-    |> render_change()
-
-    view
-    |> element("button[phx-click='add_group'][phx-value-component_id='1']")
-    |> render_click()
-
-    view
-    |> form("form[phx-change='update_scene']", %{"name" => "After Delete"})
-    |> render_change()
-
-    view
-    |> element("button[phx-click='save_scene']")
-    |> render_click()
-
-    scene =
-      Repo.one(from(s in Scene, where: s.room_id == ^room.id and s.name == "After Delete"))
-
-    assert scene
-  end
-
-  test "editing an existing scene allows deleting its light state and saving", %{conn: conn} do
-    room = insert_room()
-    bridge = insert_bridge()
-    light1 = insert_light(room, bridge, %{name: "Lamp"})
-    light2 = insert_light(room, bridge, %{name: "Ceiling"})
-    group = insert_group(room, bridge, %{name: "All"})
-    insert_group_light(group, light1)
-    insert_group_light(group, light2)
 
     {:ok, state} = Hueworks.Scenes.create_manual_light_state("Solo")
-    {:ok, scene} = Hueworks.Scenes.create_scene(%{name: "Existing", room_id: room.id})
+    {:ok, scene} = Hueworks.Scenes.create_scene(%{name: "Chill", room_id: room.id})
 
     {:ok, _} =
       Hueworks.Scenes.replace_scene_components(scene, [
@@ -505,71 +421,16 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
         }
       ])
 
-    {:ok, view, _html} = live(conn, "/rooms")
-
-    view
-    |> element("#room-#{room.id} [phx-click='open_scene_edit']")
-    |> render_click()
+    {:ok, view, _html} = live(conn, "/rooms/#{room.id}/scenes/#{scene.id}/edit")
 
     view
     |> element("button[phx-click='delete_light_state'][phx-value-component_id='1']")
     |> render_click()
 
-    view
-    |> form("form[phx-change='update_scene']", %{"name" => "Existing"})
-    |> render_change()
-
-    view
-    |> element("button[phx-click='save_scene']")
-    |> render_click()
-
-    updated = Repo.get(Scene, scene.id)
-    assert updated
-
-    scene_component =
-      Repo.one(from(sc in SceneComponent, where: sc.scene_id == ^scene.id))
-
-    off = Hueworks.Scenes.get_or_create_off_state()
-    assert scene_component.light_state_id == off.id
-  end
-
-  test "editing an existing scene can save without changes", %{conn: conn} do
-    room = insert_room()
-    bridge = insert_bridge()
-    light1 = insert_light(room, bridge, %{name: "Lamp"})
-    light2 = insert_light(room, bridge, %{name: "Ceiling"})
-    group = insert_group(room, bridge, %{name: "All"})
-    insert_group_light(group, light1)
-    insert_group_light(group, light2)
-
-    {:ok, state} = Hueworks.Scenes.create_manual_light_state("Solo")
-    {:ok, scene} = Hueworks.Scenes.create_scene(%{name: "Existing", room_id: room.id})
-
-    {:ok, _} =
-      Hueworks.Scenes.replace_scene_components(scene, [
-        %{
-          name: "Component 1",
-          light_ids: [light1.id, light2.id],
-          light_state_id: to_string(state.id)
-        }
-      ])
-
-    {:ok, view, _html} = live(conn, "/rooms")
-
-    view
-    |> element("#room-#{room.id} [phx-click='open_scene_edit']")
-    |> render_click()
-
-    view
-    |> form("form[phx-change='update_scene']", %{"name" => "Existing"})
-    |> render_change()
-
-    view
-    |> element("button[phx-click='save_scene']")
-    |> render_click()
-
-    refute has_element?(view, ".hw-modal-backdrop")
-    assert Repo.get(Scene, scene.id)
+    refute has_element?(view, ".hw-error", "Light state is in use by other scenes.")
+    refute has_element?(view, "select[name='light_state_id'] option[value='#{state.id}']")
+    assert has_element?(view, "select[name='light_state_id'] option[value='off'][selected]")
+    refute Hueworks.Repo.get(Hueworks.Schemas.LightState, state.id)
   end
 
   test "saving with unassigned lights shows a validation error banner", %{conn: conn} do
@@ -578,11 +439,7 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
     _light1 = insert_light(room, bridge, %{name: "Lamp"})
     _light2 = insert_light(room, bridge, %{name: "Ceiling"})
 
-    {:ok, view, _html} = live(conn, "/rooms")
-
-    view
-    |> element("#room-#{room.id} .hw-card-title button[phx-click='open_scene_new']")
-    |> render_click()
+    {:ok, view, _html} = live(conn, "/rooms/#{room.id}/scenes/new")
 
     view
     |> form("form[phx-change='update_scene']", %{"name" => "Blocked"})
@@ -595,23 +452,19 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
     assert has_element?(view, ".hw-error", "Assign all lights once before saving.")
   end
 
-  test "scene modal uses a click save button instead of nested save form", %{conn: conn} do
+  test "scene editor uses a click save button instead of nested save form", %{conn: conn} do
     room = insert_room()
     bridge = insert_bridge()
     _light1 = insert_light(room, bridge, %{name: "Lamp"})
     _light2 = insert_light(room, bridge, %{name: "Ceiling"})
 
-    {:ok, view, _html} = live(conn, "/rooms")
-
-    view
-    |> element("#room-#{room.id} .hw-card-title button[phx-click='open_scene_new']")
-    |> render_click()
+    {:ok, view, _html} = live(conn, "/rooms/#{room.id}/scenes/new")
 
     refute has_element?(view, "form[phx-submit='save_scene']")
     assert has_element?(view, "button[phx-click='save_scene']")
   end
 
-  test "sliders initialize after saving a new light state on an off component", %{conn: conn} do
+  test "manual sliders initialize when reopening edit page", %{conn: conn} do
     room = insert_room()
     bridge = insert_bridge()
     light1 = insert_light(room, bridge, %{name: "Lamp"})
@@ -620,11 +473,7 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
     insert_group_light(group, light1)
     insert_group_light(group, light2)
 
-    {:ok, view, _html} = live(conn, "/rooms")
-
-    view
-    |> element("#room-#{room.id} .hw-card-title button[phx-click='open_scene_new']")
-    |> render_click()
+    {:ok, view, _html} = live(conn, "/rooms/#{room.id}/scenes/new")
 
     view
     |> form("form[phx-change='select_group'][data-component-id='1']", %{
@@ -635,13 +484,6 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
     view
     |> element("button[phx-click='add_group'][phx-value-component_id='1']")
     |> render_click()
-
-    view
-    |> form("form[phx-change='select_light_state'][data-component-id='1']", %{
-      "component_id" => "1",
-      "light_state_id" => "new"
-    })
-    |> render_change()
 
     view
     |> form("form[phx-change='select_light_state'][data-component-id='1']", %{
@@ -672,18 +514,16 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
     |> form("form[phx-change='update_scene']", %{"name" => "Slider Scene"})
     |> render_change()
 
-    view
-    |> element("button[phx-click='save_scene']")
-    |> render_click()
+    assert {:error, {:live_redirect, %{to: "/rooms"}}} =
+             view
+             |> element("button[phx-click='save_scene']")
+             |> render_click()
 
     scene = Repo.one(from(s in Scene, where: s.room_id == ^room.id and s.name == "Slider Scene"))
     assert scene
 
-    view
-    |> element("#room-#{room.id} [phx-click='open_scene_edit']")
-    |> render_click()
-
-    html = render(view)
+    {:ok, edit_view, _html} = live(conn, "/rooms/#{room.id}/scenes/#{scene.id}/edit")
+    html = render(edit_view)
 
     assert html =~ ~r/name=\"brightness\"[^>]*value=\"65\"/
     assert html =~ ~r/name=\"temperature\"[^>]*value=\"3100\"/

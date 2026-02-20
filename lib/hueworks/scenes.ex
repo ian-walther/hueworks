@@ -23,23 +23,42 @@ defmodule Hueworks.Scenes do
     )
   end
 
-  def create_manual_light_state(name, config \\ %{}) do
+  def list_editable_light_states do
+    Repo.all(
+      from(ls in LightState,
+        where: ls.type in [:manual, :circadian],
+        order_by: [asc: ls.name, asc: ls.id]
+      )
+    )
+  end
+
+  def create_light_state(name, type, config \\ %{})
+
+  def create_light_state(name, type, config)
+      when type in [:manual, :circadian] do
     %LightState{}
     |> LightState.changeset(%{
       name: name,
-      type: :manual,
+      type: type,
       config: config || %{}
     })
     |> Repo.insert()
   end
 
-  def update_manual_light_state(id, attrs) do
+  def create_light_state(_name, _type, _config), do: {:error, :invalid_type}
+
+  def update_light_state(id, attrs) when is_integer(id) and is_map(attrs) do
     case Repo.get(LightState, id) do
       nil ->
         {:error, :not_found}
 
-      %LightState{type: :manual} = state ->
-        config = Map.merge(state.config || %{}, Map.get(attrs, :config, %{}))
+      %LightState{type: type} = state when type in [:manual, :circadian] ->
+        config =
+          Map.merge(
+            state.config || %{},
+            Map.get(attrs, :config) || Map.get(attrs, "config") || %{}
+          )
+
         merged_attrs = Map.merge(%{name: state.name, type: state.type, config: config}, attrs)
 
         state
@@ -51,16 +70,16 @@ defmodule Hueworks.Scenes do
     end
   end
 
-  def duplicate_manual_light_state(id) do
+  def duplicate_light_state(id) when is_integer(id) do
     case Repo.get(LightState, id) do
       nil ->
         {:error, :not_found}
 
-      %LightState{type: :manual} = state ->
+      %LightState{type: type} = state when type in [:manual, :circadian] ->
         %LightState{}
         |> LightState.changeset(%{
           name: "#{state.name} Copy",
-          type: :manual,
+          type: state.type,
           config: Map.new(state.config || %{})
         })
         |> Repo.insert()
@@ -70,14 +89,14 @@ defmodule Hueworks.Scenes do
     end
   end
 
-  def delete_manual_light_state(id, opts \\ []) do
+  def delete_light_state(id, opts \\ []) do
     scene_id = Keyword.get(opts, :scene_id)
 
     case Repo.get(LightState, id) do
       nil ->
         {:error, :not_found}
 
-      %LightState{type: :manual} = state ->
+      %LightState{type: type} = state when type in [:manual, :circadian] ->
         in_use =
           Repo.aggregate(
             from(sc in SceneComponent, where: sc.light_state_id == ^state.id),
@@ -121,6 +140,13 @@ defmodule Hueworks.Scenes do
         {:error, :invalid_type}
     end
   end
+
+  def create_manual_light_state(name, config \\ %{}),
+    do: create_light_state(name, :manual, config)
+
+  def update_manual_light_state(id, attrs), do: update_light_state(id, attrs)
+  def duplicate_manual_light_state(id), do: duplicate_light_state(id)
+  def delete_manual_light_state(id, opts \\ []), do: delete_light_state(id, opts)
 
   def get_or_create_off_state do
     case Repo.one(from(ls in LightState, where: ls.type == :off, limit: 1)) do
@@ -319,5 +345,5 @@ defmodule Hueworks.Scenes do
     end
   end
 
-defp parse_id(value), do: Hueworks.Util.parse_id(value)
+  defp parse_id(value), do: Hueworks.Util.parse_id(value)
 end

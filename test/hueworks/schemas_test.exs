@@ -2,6 +2,7 @@ defmodule Hueworks.SchemasTest do
   use Hueworks.DataCase, async: false
 
   alias Hueworks.Repo
+
   alias Hueworks.Schemas.{
     Bridge,
     BridgeImport,
@@ -73,7 +74,12 @@ defmodule Hueworks.SchemasTest do
 
     {:error, dupe} =
       %Bridge{}
-      |> Bridge.changeset(%{type: :hue, name: "Dupe", host: "10.0.0.1", credentials: %{"api_key" => "x"}})
+      |> Bridge.changeset(%{
+        type: :hue,
+        name: "Dupe",
+        host: "10.0.0.1",
+        credentials: %{"api_key" => "x"}
+      })
       |> Repo.insert()
 
     refute dupe.valid?
@@ -184,6 +190,55 @@ defmodule Hueworks.SchemasTest do
     errors = errors_on(changeset)
     assert errors[:name] == ["can't be blank"]
     assert errors[:type] == ["can't be blank"]
+  end
+
+  test "light_state circadian config is normalized and validated" do
+    changeset =
+      LightState.changeset(%LightState{}, %{
+        name: "Circadian",
+        type: :circadian,
+        config: %{
+          min_brightness: "15",
+          max_brightness: "90",
+          brightness_mode: "tanh",
+          sunrise_time: "06:45"
+        }
+      })
+
+    assert changeset.valid?
+    assert get_change(changeset, :config)["min_brightness"] == 15
+    assert get_change(changeset, :config)["max_brightness"] == 90
+    assert get_change(changeset, :config)["brightness_mode"] == "tanh"
+    assert get_change(changeset, :config)["sunrise_time"] == "06:45:00"
+  end
+
+  test "light_state circadian rejects unsupported config keys" do
+    changeset =
+      LightState.changeset(%LightState{}, %{
+        name: "Circadian",
+        type: :circadian,
+        config: %{
+          sleep_brightness: 1,
+          prefer_rgb_color: true
+        }
+      })
+
+    refute changeset.valid?
+    errors = errors_on(changeset)
+    assert "sleep_brightness is not supported" in errors[:config]
+    assert "prefer_rgb_color is not supported" in errors[:config]
+  end
+
+  test "light_state manual config is unchanged by circadian validation" do
+    changeset =
+      LightState.changeset(%LightState{}, %{
+        name: "Manual",
+        type: :manual,
+        config: %{"temperature" => "3000", "custom" => "ok"}
+      })
+
+    assert changeset.valid?
+    assert get_change(changeset, :config) == %{"temperature" => "3000", "custom" => "ok"}
   end
 
   test "scene_component_light requires scene_component_id and light_id" do

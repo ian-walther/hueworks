@@ -176,47 +176,4 @@
       </div>
     <% end %>
 
-    <%= if @scene_modal_open do %>
-      <div class="hw-modal-backdrop">
-        <div class="hw-modal" phx-click-away="close_scene_modal">
-          <div class="hw-modal-header">
-            <h3><%= if @scene_mode == :edit, do: "Edit Scene", else: "Add Scene" %></h3>
-            <button type="button" class="hw-modal-close" phx-click="close_scene_modal" aria-label="Close">
-              ×
-            </button>
-          </div>
-          <div>
-            <%= if @scene_save_error do %>
-              <p class="hw-error"><%= @scene_save_error %></p>
-            <% end %>
-            <form phx-change="update_scene">
-              <label class="hw-modal-label" for="scene_name">Name</label>
-              <input
-                id="scene_name"
-                name="name"
-                type="text"
-                value={@scene_name}
-                class="hw-modal-input"
-                autocomplete="off"
-              />
-            </form>
-            <.live_component
-              module={HueworksWeb.SceneBuilderComponent}
-              id="scene-builder"
-              room_lights={@scene_room_lights}
-              groups={@scene_room_groups}
-              components={@scene_components}
-              light_states={@scene_light_states}
-              scene_id={@scene_id}
-            />
-            <div class="hw-modal-actions">
-              <button type="button" class="hw-button hw-button-off" phx-click="close_scene_modal">
-                Cancel
-              </button>
-              <button type="button" class="hw-button hw-button-on" phx-click="save_scene">Save</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    <% end %>
     

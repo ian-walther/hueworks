@@ -1,0 +1,44 @@
+<div class="hw-shell">
+  <div class="hw-topbar">
+    <div>
+      <h1 class="hw-title"><%= if @scene_mode == :edit, do: "Edit Scene", else: "Add Scene" %></h1>
+      <p class="hw-subtitle">Room: <%= @room_name %></p>
+    </div>
+    <div class="hw-actions">
+      <a class="hw-button hw-button-off" href="/rooms">Back to Rooms</a>
+    </div>
+  </div>
+
+  <section class="hw-panel">
+    <%= if @scene_save_error do %>
+      <p class="hw-error"><%= @scene_save_error %></p>
+    <% end %>
+
+    <form phx-change="update_scene">
+      <label class="hw-modal-label" for="scene_name">Name</label>
+      <input
+        id="scene_name"
+        name="name"
+        type="text"
+        value={@scene_name}
+        class="hw-modal-input"
+        autocomplete="off"
+      />
+    </form>
+
+    <.live_component
+      module={HueworksWeb.SceneBuilderComponent}
+      id="scene-builder"
+      room_lights={@scene_room_lights}
+      groups={@scene_room_groups}
+      components={@scene_components}
+      light_states={@scene_light_states}
+      scene_id={@scene_id}
+    />
+
+    <div class="hw-modal-actions">
+      <a class="hw-button hw-button-off" href="/rooms">Cancel</a>
+      <button type="button" class="hw-button hw-button-on" phx-click="save_scene">Save</button>
+    </div>
+  </section>
+</div>

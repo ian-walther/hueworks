@@ -1,8 +1,36 @@
 defmodule HueworksWeb.SceneBuilderComponent do
   use Phoenix.LiveComponent
 
+  alias Hueworks.Circadian.Config, as: CircadianConfig
   alias Hueworks.Scenes.Builder
   alias Hueworks.Util
+
+  @new_manual_state_id "new"
+  @new_manual_state_alias "new_manual"
+  @new_circadian_state_id "new_circadian"
+  @off_state_id "off"
+
+  @manual_keys ["brightness", "temperature"]
+
+  @circadian_numeric_fields [
+    {"min_brightness", "Min Brightness (%)", 1, 100, 1},
+    {"max_brightness", "Max Brightness (%)", 1, 100, 1},
+    {"min_color_temp", "Min Color Temp (K)", 1000, 10000, 50},
+    {"max_color_temp", "Max Color Temp (K)", 1000, 10000, 50},
+    {"sunrise_offset", "Sunrise Offset (s)", -86400, 86400, 60},
+    {"sunset_offset", "Sunset Offset (s)", -86400, 86400, 60},
+    {"brightness_mode_time_dark", "Brightness Ramp Dark (s)", 0, 86_400, 60},
+    {"brightness_mode_time_light", "Brightness Ramp Light (s)", 0, 86_400, 60}
+  ]
+
+  @circadian_time_fields [
+    {"sunrise_time", "Sunrise Time"},
+    {"min_sunrise_time", "Min Sunrise Time"},
+    {"max_sunrise_time", "Max Sunrise Time"},
+    {"sunset_time", "Sunset Time"},
+    {"min_sunset_time", "Min Sunset Time"},
+    {"max_sunset_time", "Max Sunset Time"}
+  ]
 
   def mount(socket) do
     {:ok,
@@ -69,16 +97,29 @@ defmodule HueworksWeb.SceneBuilderComponent do
             <form phx-change="select_light_state" phx-target={@myself} data-component-id={component.id}>
               <input type="hidden" name="component_id" value={component.id} />
               <select class="hw-select" name="light_state_id">
-                <option value="new" selected={component.light_state_id == "new"}>New</option>
-                <option value="off" selected={component.light_state_id == "off"}>Off</option>
+                <option
+                  value="new"
+                  selected={to_string(component.light_state_id) in ["new", "new_manual"]}
+                >
+                  New Manual
+                </option>
+                <option
+                  value="new_circadian"
+                  selected={to_string(component.light_state_id) == "new_circadian"}
+                >
+                  New Circadian
+                </option>
+                <option value="off" selected={to_string(component.light_state_id) == "off"}>
+                  Off
+                </option>
                 <%= for state <- @light_states do %>
                   <option value={state.id} selected={to_string(state.id) == to_string(component.light_state_id)}>
-                    <%= state.name %>
+                    <%= state_option_label(state) %>
                   </option>
                 <% end %>
               </select>
             </form>
-            <%= if component.light_state_id not in ["off"] do %>
+            <%= if light_state_mode(component, @light_states) != :off do %>
               <div class="hw-row">
                 <button
                   type="button"
@@ -86,7 +127,7 @@ defmodule HueworksWeb.SceneBuilderComponent do
                   phx-click="edit_light_state"
                   phx-target={@myself}
                   phx-value-component_id={component.id}
-                  disabled={component.light_state_id in ["new"]}
+                  disabled={new_state_id?(component.light_state_id)}
                 >
                   Edit
                 </button>
@@ -96,7 +137,7 @@ defmodule HueworksWeb.SceneBuilderComponent do
                   phx-click="duplicate_light_state"
                   phx-target={@myself}
                   phx-value-component_id={component.id}
-                  disabled={component.light_state_id in ["new"]}
+                  disabled={new_state_id?(component.light_state_id)}
                 >
                   Duplicate
                 </button>
@@ -106,14 +147,14 @@ defmodule HueworksWeb.SceneBuilderComponent do
                   phx-click="delete_light_state"
                   phx-target={@myself}
                   phx-value-component_id={component.id}
-                  disabled={component.light_state_id in ["new"]}
+                  disabled={new_state_id?(component.light_state_id)}
                 >
                   Delete
                 </button>
                 <span class="hw-muted">Edits affect all scenes using this state.</span>
               </div>
             <% end %>
-            <%= if component.light_state_id != "off" do %>
+            <%= if light_state_mode(component, @light_states) == :manual do %>
               <div class="hw-row">
                 <form phx-change="update_light_state_form" phx-target={@myself} data-component-id={component.id}>
                   <input type="hidden" name="component_id" value={component.id} />
@@ -147,7 +188,51 @@ defmodule HueworksWeb.SceneBuilderComponent do
                   />
                 </form>
               </div>
+            <% end %>
 
+            <%= if light_state_mode(component, @light_states) == :circadian do %>
+              <div class="hw-row">
+                <form phx-change="update_light_state_form" phx-target={@myself} data-component-id={component.id}>
+                  <input type="hidden" name="component_id" value={component.id} />
+
+                  <label class="hw-modal-label">Brightness Mode</label>
+                  <% brightness_mode = edit_value(@light_state_edits, @light_states, component, "brightness_mode") %>
+                  <select class="hw-select" name="brightness_mode">
+                    <option value="default" selected={brightness_mode == "default"}>default</option>
+                    <option value="linear" selected={brightness_mode == "linear"}>linear</option>
+                    <option value="tanh" selected={brightness_mode == "tanh"}>tanh</option>
+                  </select>
+
+                  <%= for {key, label, min, max, step} <- circadian_numeric_fields() do %>
+                    <label class="hw-modal-label" for={"#{component.id}-#{key}"}><%= label %></label>
+                    <input
+                      id={"#{component.id}-#{key}"}
+                      type="number"
+                      class="hw-modal-input"
+                      name={key}
+                      min={min}
+                      max={max}
+                      step={step}
+                      value={edit_value(@light_state_edits, @light_states, component, key)}
+                    />
+                  <% end %>
+
+                  <%= for {key, label} <- circadian_time_fields() do %>
+                    <label class="hw-modal-label" for={"#{component.id}-#{key}"}><%= label %></label>
+                    <input
+                      id={"#{component.id}-#{key}"}
+                      type="time"
+                      class="hw-modal-input"
+                      name={key}
+                      step="1"
+                      value={time_input_value(edit_value(@light_state_edits, @light_states, component, key))}
+                    />
+                  <% end %>
+                </form>
+              </div>
+            <% end %>
+
+            <%= if light_state_mode(component, @light_states) != :off do %>
               <div class="hw-row">
                 <label class="hw-modal-label">Light state name</label>
                 <form phx-change="select_light_state_name" phx-target={@myself} data-component-id={component.id}>
@@ -286,7 +371,7 @@ defmodule HueworksWeb.SceneBuilderComponent do
             name: "Component #{next_id}",
             light_ids: [],
             group_ids: [],
-            light_state_id: "off"
+            light_state_id: @off_state_id
           }
         ]
 
@@ -315,6 +400,7 @@ defmodule HueworksWeb.SceneBuilderComponent do
         socket
       ) do
     component_id = parse_id(id)
+    state_id = normalize_new_state_id(state_id)
     edits = hydrate_light_state_edits(socket, component_id, state_id)
     names = hydrate_light_state_name(socket, component_id, state_id)
 
@@ -354,87 +440,111 @@ defmodule HueworksWeb.SceneBuilderComponent do
         Map.get(socket.assigns.light_state_names, component_id)
 
     component = Enum.find(socket.assigns.components, &(&1.id == component_id))
+    mode = light_state_mode(component, socket.assigns.light_states)
+    edits = Map.get(socket.assigns.light_state_edits, component_id, %{})
+    state_id = selected_state_id(component)
 
-    if component && component.light_state_id not in ["off", "new"] do
-      state_id = selected_state_id(component)
-      edits = Map.get(socket.assigns.light_state_edits, component_id, %{})
+    cond do
+      mode == :off ->
+        {:noreply, assign(socket, light_state_error: "Select a non-off state before saving.")}
 
-      case Hueworks.Scenes.update_manual_light_state(state_id, %{name: name, config: edits}) do
-        {:ok, updated} ->
-          light_states =
-            Enum.map(socket.assigns.light_states, fn state ->
-              if state.id == updated.id, do: updated, else: state
-            end)
+      is_integer(state_id) ->
+        case Hueworks.Scenes.update_light_state(state_id, %{name: name, config: edits}) do
+          {:ok, updated} ->
+            light_states =
+              Enum.map(socket.assigns.light_states, fn state ->
+                if state.id == updated.id, do: updated, else: state
+              end)
 
-          light_state_names =
-            Map.put(socket.assigns.light_state_names, component_id, updated.name)
+            light_state_names =
+              Map.put(socket.assigns.light_state_names, component_id, updated.name)
 
-          socket =
-            socket
-            |> assign(
-              light_states: light_states,
-              light_state_error: nil,
-              light_state_names: light_state_names,
-              light_state_dirty: Map.put(socket.assigns.light_state_dirty, component_id, false)
-            )
-            |> refresh_builder()
+            socket =
+              socket
+              |> assign(
+                light_states: light_states,
+                light_state_error: nil,
+                light_state_names: light_state_names,
+                light_state_dirty: Map.put(socket.assigns.light_state_dirty, component_id, false)
+              )
+              |> refresh_builder()
 
-          notify_light_states(socket)
-          {:noreply, socket}
+            notify_light_states(socket)
+            {:noreply, socket}
 
-        {:error, %Ecto.Changeset{} = changeset} ->
-          {:noreply, assign(socket, light_state_error: Util.format_changeset_error(changeset))}
+          {:error, %Ecto.Changeset{} = changeset} ->
+            {:noreply, assign(socket, light_state_error: Util.format_changeset_error(changeset))}
 
-        {:error, _reason} ->
-          {:noreply, assign(socket, light_state_error: "Unable to update light state name.")}
-      end
-    else
-      edits = Map.get(socket.assigns.light_state_edits, component_id, %{})
+          {:error, _reason} ->
+            {:noreply, assign(socket, light_state_error: "Unable to update light state name.")}
+        end
 
-      case Hueworks.Scenes.create_manual_light_state(name, edits) do
-        {:ok, state} ->
-          edits = hydrate_light_state_edits(socket, component_id, to_string(state.id))
-          names = hydrate_light_state_name(socket, component_id, to_string(state.id))
+      mode in [:manual, :circadian] ->
+        case Hueworks.Scenes.create_light_state(name, mode, edits) do
+          {:ok, state} ->
+            edits = hydrate_light_state_edits(socket, component_id, to_string(state.id))
+            names = hydrate_light_state_name(socket, component_id, to_string(state.id))
 
-          components =
-            Enum.map(socket.assigns.components, fn component ->
-              if component.id == component_id do
-                %{component | light_state_id: to_string(state.id)}
-              else
-                component
-              end
-            end)
+            components =
+              Enum.map(socket.assigns.components, fn component ->
+                if component.id == component_id do
+                  %{component | light_state_id: to_string(state.id)}
+                else
+                  component
+                end
+              end)
 
-          socket =
-            socket
-            |> assign(
-              light_states: socket.assigns.light_states ++ [state],
-              components: components,
-              light_state_error: nil,
-              light_state_names: names,
-              light_state_edits: edits,
-              light_state_dirty: Map.put(socket.assigns.light_state_dirty, component_id, false)
-            )
-            |> refresh_builder()
+            socket =
+              socket
+              |> assign(
+                light_states: socket.assigns.light_states ++ [state],
+                components: components,
+                light_state_error: nil,
+                light_state_names: names,
+                light_state_edits: edits,
+                light_state_dirty: Map.put(socket.assigns.light_state_dirty, component_id, false)
+              )
+              |> refresh_builder()
 
-          notify_parent(socket)
-          notify_light_states(socket)
-          {:noreply, socket}
+            notify_parent(socket)
+            notify_light_states(socket)
+            {:noreply, socket}
 
-        {:error, changeset} ->
-          {:noreply, assign(socket, light_state_error: Util.format_changeset_error(changeset))}
-      end
+          {:error, changeset} ->
+            {:noreply, assign(socket, light_state_error: Util.format_changeset_error(changeset))}
+        end
+
+      true ->
+        {:noreply, assign(socket, light_state_error: "Unable to save light state.")}
     end
   end
 
   def handle_event("update_light_state_form", %{"component_id" => id} = params, socket) do
     component_id = parse_id(id)
     current = Map.get(socket.assigns.light_state_edits, component_id, %{})
+    component = Enum.find(socket.assigns.components, &(&1.id == component_id))
+    mode = light_state_mode(component, socket.assigns.light_states)
 
     edits =
-      current
-      |> Map.put("brightness", Map.get(params, "brightness"))
-      |> Map.put("temperature", Map.get(params, "temperature"))
+      case mode do
+        :manual ->
+          current
+          |> Map.put("brightness", Map.get(params, "brightness"))
+          |> Map.put("temperature", Map.get(params, "temperature"))
+
+        :circadian ->
+          circadian_form_keys()
+          |> Enum.reduce(current, fn key, acc ->
+            if Map.has_key?(params, key) do
+              Map.put(acc, key, Map.get(params, key))
+            else
+              acc
+            end
+          end)
+
+        _ ->
+          current
+      end
 
     {:noreply,
      assign(socket,
@@ -449,20 +559,24 @@ defmodule HueworksWeb.SceneBuilderComponent do
     state_id = selected_state_id(component)
     edits = Map.get(socket.assigns.light_state_edits, component_id, %{})
 
-    case Hueworks.Scenes.update_manual_light_state(state_id, %{config: edits}) do
-      {:ok, updated} ->
-        light_states =
-          Enum.map(socket.assigns.light_states, fn state ->
-            if state.id == updated.id, do: updated, else: state
-          end)
+    if is_integer(state_id) do
+      case Hueworks.Scenes.update_light_state(state_id, %{config: edits}) do
+        {:ok, updated} ->
+          light_states =
+            Enum.map(socket.assigns.light_states, fn state ->
+              if state.id == updated.id, do: updated, else: state
+            end)
 
-        {:noreply, assign(socket, light_states: light_states, light_state_error: nil)}
+          {:noreply, assign(socket, light_states: light_states, light_state_error: nil)}
 
-      {:error, %Ecto.Changeset{} = changeset} ->
-        {:noreply, assign(socket, light_state_error: Util.format_changeset_error(changeset))}
+        {:error, %Ecto.Changeset{} = changeset} ->
+          {:noreply, assign(socket, light_state_error: Util.format_changeset_error(changeset))}
 
-      {:error, _reason} ->
-        {:noreply, assign(socket, light_state_error: "Unable to update light state.")}
+        {:error, _reason} ->
+          {:noreply, assign(socket, light_state_error: "Unable to update light state.")}
+      end
+    else
+      {:noreply, assign(socket, light_state_error: "Select an existing light state to edit.")}
     end
   end
 
@@ -471,37 +585,42 @@ defmodule HueworksWeb.SceneBuilderComponent do
     component = Enum.find(socket.assigns.components, &(&1.id == component_id))
     state_id = selected_state_id(component)
 
-    case Hueworks.Scenes.duplicate_manual_light_state(state_id) do
-      {:ok, state} ->
-        components =
-          Enum.map(socket.assigns.components, fn component ->
-            if component.id == component_id do
-              %{component | light_state_id: to_string(state.id)}
-            else
-              component
-            end
-          end)
+    if is_integer(state_id) do
+      case Hueworks.Scenes.duplicate_light_state(state_id) do
+        {:ok, state} ->
+          components =
+            Enum.map(socket.assigns.components, fn component ->
+              if component.id == component_id do
+                %{component | light_state_id: to_string(state.id)}
+              else
+                component
+              end
+            end)
 
-        edits = hydrate_light_state_edits(socket, component_id, to_string(state.id))
-        names = hydrate_light_state_name(socket, component_id, to_string(state.id))
+          edits = hydrate_light_state_edits(socket, component_id, to_string(state.id))
+          names = hydrate_light_state_name(socket, component_id, to_string(state.id))
 
-        socket =
-          socket
-          |> assign(
-            components: components,
-            light_states: socket.assigns.light_states ++ [state],
-            light_state_edits: edits,
-            light_state_error: nil,
-            light_state_names: names
-          )
-          |> refresh_builder()
+          socket =
+            socket
+            |> assign(
+              components: components,
+              light_states: socket.assigns.light_states ++ [state],
+              light_state_edits: edits,
+              light_state_error: nil,
+              light_state_names: names
+            )
+            |> refresh_builder()
 
-        notify_parent(socket)
-        notify_light_states(socket)
-        {:noreply, socket}
+          notify_parent(socket)
+          notify_light_states(socket)
+          {:noreply, socket}
 
-      {:error, _reason} ->
-        {:noreply, assign(socket, light_state_error: "Unable to duplicate light state.")}
+        {:error, _reason} ->
+          {:noreply, assign(socket, light_state_error: "Unable to duplicate light state.")}
+      end
+    else
+      {:noreply,
+       assign(socket, light_state_error: "Select an existing light state to duplicate.")}
     end
   end
 
@@ -510,40 +629,44 @@ defmodule HueworksWeb.SceneBuilderComponent do
     component = Enum.find(socket.assigns.components, &(&1.id == component_id))
     state_id = selected_state_id(component)
 
-    case Hueworks.Scenes.delete_manual_light_state(state_id, scene_id: socket.assigns.scene_id) do
-      {:ok, _} ->
-        light_states = Enum.reject(socket.assigns.light_states, &(&1.id == state_id))
+    if is_integer(state_id) do
+      case Hueworks.Scenes.delete_light_state(state_id, scene_id: socket.assigns.scene_id) do
+        {:ok, _} ->
+          light_states = Enum.reject(socket.assigns.light_states, &(&1.id == state_id))
 
-        components =
-          Enum.map(socket.assigns.components, fn component ->
-            if component.id == component_id do
-              %{component | light_state_id: "off"}
-            else
-              component
-            end
-          end)
+          components =
+            Enum.map(socket.assigns.components, fn component ->
+              if component.id == component_id do
+                %{component | light_state_id: @off_state_id}
+              else
+                component
+              end
+            end)
 
-        socket =
-          socket
-          |> assign(
-            components: components,
-            light_states: light_states,
-            light_state_error: nil,
-            light_state_edits: Map.delete(socket.assigns.light_state_edits, component_id),
-            light_state_names: Map.put(socket.assigns.light_state_names, component_id, ""),
-            light_state_dirty: Map.delete(socket.assigns.light_state_dirty, component_id)
-          )
-          |> refresh_builder()
+          socket =
+            socket
+            |> assign(
+              components: components,
+              light_states: light_states,
+              light_state_error: nil,
+              light_state_edits: Map.delete(socket.assigns.light_state_edits, component_id),
+              light_state_names: Map.put(socket.assigns.light_state_names, component_id, ""),
+              light_state_dirty: Map.delete(socket.assigns.light_state_dirty, component_id)
+            )
+            |> refresh_builder()
 
-        notify_parent(socket)
-        notify_light_states(socket)
-        {:noreply, socket}
+          notify_parent(socket)
+          notify_light_states(socket)
+          {:noreply, socket}
 
-      {:error, :in_use} ->
-        {:noreply, assign(socket, light_state_error: "Light state is in use by other scenes.")}
+        {:error, :in_use} ->
+          {:noreply, assign(socket, light_state_error: "Light state is in use by other scenes.")}
 
-      {:error, _reason} ->
-        {:noreply, assign(socket, light_state_error: "Unable to delete light state.")}
+        {:error, _reason} ->
+          {:noreply, assign(socket, light_state_error: "Unable to delete light state.")}
+      end
+    else
+      {:noreply, assign(socket, light_state_error: "Select an existing light state to delete.")}
     end
   end
 
@@ -606,8 +729,19 @@ defmodule HueworksWeb.SceneBuilderComponent do
 
     components =
       case components do
-        [] -> [%{id: 1, name: "Component 1", light_ids: [], group_ids: [], light_state_id: "off"}]
-        _ -> components
+        [] ->
+          [
+            %{
+              id: 1,
+              name: "Component 1",
+              light_ids: [],
+              group_ids: [],
+              light_state_id: @off_state_id
+            }
+          ]
+
+        _ ->
+          components
       end
 
     socket = refresh_builder(assign(socket, components: components))
@@ -642,7 +776,11 @@ defmodule HueworksWeb.SceneBuilderComponent do
   defp display_name(entity), do: Util.display_name(entity)
 
   defp selected_state_id(nil), do: nil
-  defp selected_state_id(%{light_state_id: "off"}), do: nil
+  defp selected_state_id(%{light_state_id: state_id}) when state_id in [@off_state_id], do: nil
+
+  defp selected_state_id(%{light_state_id: state_id})
+       when state_id in [@new_manual_state_id, @new_manual_state_alias, @new_circadian_state_id],
+       do: nil
 
   defp selected_state_id(%{light_state_id: light_state_id}) do
     parse_id(light_state_id)
@@ -650,22 +788,76 @@ defmodule HueworksWeb.SceneBuilderComponent do
 
   defp parse_id(value), do: Hueworks.Util.parse_id(value)
 
+  defp new_state_id?(state_id) do
+    to_string(state_id) in [
+      @new_manual_state_id,
+      @new_manual_state_alias,
+      @new_circadian_state_id
+    ]
+  end
+
+  defp light_state_mode(nil, _light_states), do: :off
+
+  defp light_state_mode(component, light_states) do
+    case normalize_new_state_id(Map.get(component, :light_state_id)) do
+      @off_state_id ->
+        :off
+
+      state_id when state_id in [@new_manual_state_id, @new_manual_state_alias] ->
+        :manual
+
+      @new_circadian_state_id ->
+        :circadian
+
+      state_id ->
+        case Enum.find(light_states, &(&1.id == parse_id(state_id))) do
+          nil -> :off
+          state -> state.type
+        end
+    end
+  end
+
+  defp normalize_new_state_id(state_id) when state_id in [@new_manual_state_alias],
+    do: @new_manual_state_id
+
+  defp normalize_new_state_id(state_id), do: to_string(state_id)
+
+  defp state_option_label(%{type: :circadian, name: name}), do: "#{name} (circadian)"
+  defp state_option_label(%{type: :manual, name: name}), do: "#{name} (manual)"
+  defp state_option_label(%{name: name}), do: name
+
   defp hydrate_light_state_edits(socket, component_id, state_id) do
     edits = socket.assigns.light_state_edits
-    selected_id = parse_id(state_id)
+    normalized_state_id = normalize_new_state_id(state_id)
+    selected_id = parse_id(normalized_state_id)
 
     updated =
-      case Enum.find(socket.assigns.light_states, &(&1.id == selected_id)) do
-        nil ->
-          Map.get(edits, component_id, %{})
+      cond do
+        normalized_state_id in [@new_manual_state_id, @new_manual_state_alias] ->
+          Map.take(Map.get(edits, component_id, %{}), @manual_keys)
 
-        state ->
-          config = state.config || %{}
+        normalized_state_id == @new_circadian_state_id ->
+          circadian_default_edits()
 
-          %{
-            "brightness" => Map.get(config, "brightness") || Map.get(config, :brightness) || "",
-            "temperature" => Map.get(config, "temperature") || Map.get(config, :temperature) || ""
-          }
+        true ->
+          case Enum.find(socket.assigns.light_states, &(&1.id == selected_id)) do
+            nil ->
+              Map.get(edits, component_id, %{})
+
+            state ->
+              config = state.config || %{}
+
+              case state.type do
+                :circadian ->
+                  merge_circadian_defaults(config)
+
+                _ ->
+                  %{
+                    "brightness" => config_lookup(config, "brightness") || "",
+                    "temperature" => config_lookup(config, "temperature") || ""
+                  }
+              end
+          end
       end
 
     Map.put(edits, component_id, updated)
@@ -705,17 +897,98 @@ defmodule HueworksWeb.SceneBuilderComponent do
     end
   end
 
-  defp config_value(config, "brightness") do
-    Map.get(config, "brightness") || Map.get(config, :brightness) || ""
-  end
-
-  defp config_value(config, "temperature") do
-    Map.get(config, "temperature") || Map.get(config, :temperature) || ""
-  end
-
   defp config_value(config, key) do
-    Map.get(config, key) || ""
+    case config_lookup(config, key) do
+      nil -> ""
+      value -> value
+    end
   end
+
+  defp circadian_form_keys do
+    CircadianConfig.supported_keys()
+  end
+
+  defp circadian_numeric_fields, do: @circadian_numeric_fields
+  defp circadian_time_fields, do: @circadian_time_fields
+
+  defp circadian_default_edits do
+    CircadianConfig.defaults()
+    |> Enum.map(fn {key, value} -> {key, stringify_config_value(value)} end)
+    |> Map.new()
+  end
+
+  defp merge_circadian_defaults(config) do
+    defaults = circadian_default_edits()
+
+    config
+    |> Enum.reduce(defaults, fn {key, value}, acc ->
+      normalized_key =
+        case key do
+          atom when is_atom(atom) -> Atom.to_string(atom)
+          binary when is_binary(binary) -> binary
+          other -> to_string(other)
+        end
+
+      if normalized_key in circadian_form_keys() do
+        Map.put(acc, normalized_key, stringify_config_value(value))
+      else
+        acc
+      end
+    end)
+  end
+
+  defp stringify_config_value(nil), do: ""
+  defp stringify_config_value(value) when is_binary(value), do: value
+  defp stringify_config_value(value) when is_integer(value), do: Integer.to_string(value)
+  defp stringify_config_value(value) when is_float(value), do: Float.to_string(value)
+  defp stringify_config_value(value), do: to_string(value)
+
+  defp config_lookup(config, key) do
+    Map.get(config, key) ||
+      case key_to_atom(key) do
+        nil -> nil
+        atom -> Map.get(config, atom)
+      end
+  end
+
+  defp key_to_atom("brightness"), do: :brightness
+  defp key_to_atom("temperature"), do: :temperature
+  defp key_to_atom("min_brightness"), do: :min_brightness
+  defp key_to_atom("max_brightness"), do: :max_brightness
+  defp key_to_atom("min_color_temp"), do: :min_color_temp
+  defp key_to_atom("max_color_temp"), do: :max_color_temp
+  defp key_to_atom("sunrise_time"), do: :sunrise_time
+  defp key_to_atom("min_sunrise_time"), do: :min_sunrise_time
+  defp key_to_atom("max_sunrise_time"), do: :max_sunrise_time
+  defp key_to_atom("sunrise_offset"), do: :sunrise_offset
+  defp key_to_atom("sunset_time"), do: :sunset_time
+  defp key_to_atom("min_sunset_time"), do: :min_sunset_time
+  defp key_to_atom("max_sunset_time"), do: :max_sunset_time
+  defp key_to_atom("sunset_offset"), do: :sunset_offset
+  defp key_to_atom("brightness_mode"), do: :brightness_mode
+  defp key_to_atom("brightness_mode_time_dark"), do: :brightness_mode_time_dark
+  defp key_to_atom("brightness_mode_time_light"), do: :brightness_mode_time_light
+  defp key_to_atom(_), do: nil
+
+  defp time_input_value(nil), do: ""
+  defp time_input_value(""), do: ""
+
+  defp time_input_value(value) when is_binary(value) do
+    value
+    |> String.trim()
+    |> case do
+      <<hour::binary-size(2), ?:, minute::binary-size(2), ?:, second::binary-size(2)>> ->
+        "#{hour}:#{minute}:#{second}"
+
+      <<hour::binary-size(2), ?:, minute::binary-size(2)>> ->
+        "#{hour}:#{minute}:00"
+
+      other ->
+        other
+    end
+  end
+
+  defp time_input_value(value), do: stringify_config_value(value)
 
   defp hydrate_light_state_edits_for_components(socket) do
     edits = socket.assigns.light_state_edits
@@ -732,7 +1005,7 @@ defmodule HueworksWeb.SceneBuilderComponent do
           Map.has_key?(acc, component_id) ->
             acc
 
-          Map.get(component, :light_state_id) in [nil, "off", :off] ->
+          Map.get(component, :light_state_id) in [nil, @off_state_id, :off] ->
             acc
 
           true ->
@@ -768,7 +1041,7 @@ defmodule HueworksWeb.SceneBuilderComponent do
           end
 
         updated_edits =
-          if normalized == "off" do
+          if normalized == @off_state_id do
             Map.delete(edits, Map.get(component, :id))
           else
             edits
@@ -782,7 +1055,7 @@ defmodule HueworksWeb.SceneBuilderComponent do
 
   defp hydrate_light_state_name(socket, component_id, state_id) do
     name =
-      if to_string(state_id) == "new" do
+      if normalize_new_state_id(state_id) in [@new_manual_state_id, @new_circadian_state_id] do
         ""
       else
         state = Enum.find(socket.assigns.light_states, &(&1.id == parse_id(state_id)))
@@ -820,13 +1093,19 @@ defmodule HueworksWeb.SceneBuilderComponent do
     if state, do: state.name, else: ""
   end
 
-  defp normalize_light_state_id(nil, _ids), do: "off"
-  defp normalize_light_state_id("off", _ids), do: "off"
-  defp normalize_light_state_id("new", _ids), do: "new"
-  defp normalize_light_state_id(:off, _ids), do: "off"
+  defp normalize_light_state_id(nil, _ids), do: @off_state_id
+
+  defp normalize_light_state_id(state_id, _ids) when state_id in [@off_state_id, :off],
+    do: @off_state_id
+
+  defp normalize_light_state_id(state_id, _ids)
+       when state_id in [@new_manual_state_id, @new_manual_state_alias], do: @new_manual_state_id
+
+  defp normalize_light_state_id(state_id, _ids) when state_id in [@new_circadian_state_id],
+    do: @new_circadian_state_id
 
   defp normalize_light_state_id(state_id, ids) do
     state_id = to_string(state_id)
-    if MapSet.member?(ids, state_id), do: state_id, else: "off"
+    if MapSet.member?(ids, state_id), do: state_id, else: @off_state_id
   end
 end

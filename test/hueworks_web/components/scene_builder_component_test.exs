@@ -2,6 +2,7 @@ defmodule Hueworks.SceneBuilderComponentTest do
   use HueworksWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
+  alias Hueworks.Repo
   alias Hueworks.Scenes
 
   defmodule TestLive do
@@ -17,7 +18,7 @@ defmodule Hueworks.SceneBuilderComponentTest do
         %{id: 10, name: "All", light_ids: [1, 2]}
       ]
 
-      light_states = Scenes.list_manual_light_states()
+      light_states = Scenes.list_editable_light_states()
 
       {:ok, assign(socket, room_lights: room_lights, groups: groups, light_states: light_states)}
     end
@@ -137,7 +138,7 @@ defmodule Hueworks.SceneBuilderComponentTest do
     html = render(view)
 
     assert html =~ "option value=\"#{state.id}\" selected"
-    assert html =~ ~r/>\s*Soft\s*</
+    assert html =~ ~r/>\s*Soft \(manual\)\s*</
   end
 
   test "creating a manual light state adds it to the dropdown and selects it", %{conn: conn} do
@@ -162,7 +163,7 @@ defmodule Hueworks.SceneBuilderComponentTest do
 
     html = render(view)
 
-    assert html =~ ~r/>\s*Warm\s*</
+    assert html =~ ~r/>\s*Warm \(manual\)\s*</
     assert html =~ "selected"
   end
 
@@ -275,7 +276,7 @@ defmodule Hueworks.SceneBuilderComponentTest do
           %{id: 11, name: "Work", light_ids: [1], canonical_group_id: 55}
         ]
 
-        light_states = Hueworks.Scenes.list_manual_light_states()
+        light_states = Hueworks.Scenes.list_editable_light_states()
 
         {:ok,
          assign(socket, room_lights: room_lights, groups: groups, light_states: light_states)}
@@ -314,7 +315,7 @@ defmodule Hueworks.SceneBuilderComponentTest do
         %{id: 1, name: "Component 1", light_ids: [], group_ids: [], light_state_id: state_id}
       ]
 
-      light_states = Hueworks.Scenes.list_manual_light_states()
+      light_states = Hueworks.Scenes.list_editable_light_states()
 
       {:ok,
        assign(socket,
@@ -515,5 +516,107 @@ defmodule Hueworks.SceneBuilderComponentTest do
     refute has_element?(view, "button", "Edit")
     refute has_element?(view, "button", "Duplicate")
     refute has_element?(view, "button", "Delete")
+  end
+
+  test "selected circadian light state renders all circadian inputs", %{conn: conn} do
+    {:ok, state} =
+      Scenes.create_light_state("Circadian", :circadian, %{
+        "brightness_mode" => "linear",
+        "min_brightness" => 10,
+        "max_brightness" => 80,
+        "min_color_temp" => 2200,
+        "max_color_temp" => 5000,
+        "sunrise_time" => "06:30:00",
+        "sunset_time" => "19:30:00",
+        "sunrise_offset" => 0,
+        "sunset_offset" => 0,
+        "brightness_mode_time_dark" => 1200,
+        "brightness_mode_time_light" => 3600
+      })
+
+    {:ok, view, _html} =
+      live_isolated(conn, SliderInitLive, session: %{"state_id" => to_string(state.id)})
+
+    assert has_element?(view, "select[name='brightness_mode']")
+
+    for key <- [
+          "min_brightness",
+          "max_brightness",
+          "min_color_temp",
+          "max_color_temp",
+          "sunrise_time",
+          "min_sunrise_time",
+          "max_sunrise_time",
+          "sunrise_offset",
+          "sunset_time",
+          "min_sunset_time",
+          "max_sunset_time",
+          "sunset_offset",
+          "brightness_mode_time_dark",
+          "brightness_mode_time_light"
+        ] do
+      assert has_element?(view, "input[name='#{key}']")
+    end
+  end
+
+  test "creating a circadian light state saves all circadian form fields", %{conn: conn} do
+    {:ok, view, _html} = live_isolated(conn, TestLive)
+
+    view
+    |> form("form[phx-change='select_light_state'][data-component-id='1']", %{
+      "component_id" => "1",
+      "light_state_id" => "new_circadian"
+    })
+    |> render_change()
+
+    view
+    |> form("form[phx-change='update_light_state_form'][data-component-id='1']", %{
+      "component_id" => "1",
+      "min_brightness" => "5",
+      "max_brightness" => "95",
+      "min_color_temp" => "2100",
+      "max_color_temp" => "5000",
+      "sunrise_time" => "06:30:00",
+      "min_sunrise_time" => "05:45:00",
+      "max_sunrise_time" => "07:00:00",
+      "sunrise_offset" => "-900",
+      "sunset_time" => "19:30:00",
+      "min_sunset_time" => "18:45:00",
+      "max_sunset_time" => "20:15:00",
+      "sunset_offset" => "1200",
+      "brightness_mode" => "linear",
+      "brightness_mode_time_dark" => "1200",
+      "brightness_mode_time_light" => "5400"
+    })
+    |> render_change()
+
+    view
+    |> form("form[phx-change='select_light_state_name'][data-component-id='1']", %{
+      "name" => "Circadian A"
+    })
+    |> render_change()
+
+    view
+    |> element("button[phx-click='save_light_state_name'][phx-value-component_id='1']")
+    |> render_click()
+
+    state = Repo.get_by!(Hueworks.Schemas.LightState, name: "Circadian A")
+    assert state.type == :circadian
+
+    assert state.config["min_brightness"] == 5
+    assert state.config["max_brightness"] == 95
+    assert state.config["min_color_temp"] == 2100
+    assert state.config["max_color_temp"] == 5000
+    assert state.config["sunrise_time"] == "06:30:00"
+    assert state.config["min_sunrise_time"] == "05:45:00"
+    assert state.config["max_sunrise_time"] == "07:00:00"
+    assert state.config["sunrise_offset"] == -900
+    assert state.config["sunset_time"] == "19:30:00"
+    assert state.config["min_sunset_time"] == "18:45:00"
+    assert state.config["max_sunset_time"] == "20:15:00"
+    assert state.config["sunset_offset"] == 1200
+    assert state.config["brightness_mode"] == "linear"
+    assert state.config["brightness_mode_time_dark"] == 1200
+    assert state.config["brightness_mode_time_light"] == 5400
   end
 end
