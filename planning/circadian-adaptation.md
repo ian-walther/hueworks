@@ -1,4 +1,4 @@
-# Circadian Prerequisites and Adaptive Logic (Planned)
+# Circadian Prerequisites and Adaptive Logic
 
 ## Goal
 Implement adaptive circadian scene behavior with near-parity to Home Assistant Adaptive Lighting calculation settings, while preserving HueWorks control-pipeline consistency and scene semantics.
@@ -23,11 +23,12 @@ Implement adaptive circadian scene behavior with near-parity to Home Assistant A
 ## Scope
 - Add a dedicated circadian calculation module reusable by poller and manual-on handling.
 - Implement `LightState.type == :circadian` apply path in scene execution.
-- Add circadian settings model/validation in `light_states.config`.
-- Add circadian editing UI in scene builder (distinct from manual/off UI).
-- Update planner behavior to support clamp-aware grouping partitions.
-- Route manual UI controls through desired-state pipeline (not direct control mutation path).
-- Add deep tests for circadian calculations and regression tests for scene/manual behavior.
+- Finalize manual power semantics while a scene is active:
+  - manual `power: off` stays off until manual-on.
+  - manual `power: on` applies current circadian target immediately.
+- Wire circadian calculations to global solar config loaded from `AppSettings`.
+- Add deep tests for circadian calculations and targeted scene/manual regressions.
+- Add basic observability for circadian ticks and apply outcomes.
 
 ## Out of Scope
 - Per-room/per-scene geolocation and timezone overrides.
@@ -35,20 +36,20 @@ Implement adaptive circadian scene behavior with near-parity to Home Assistant A
 - Small-delta skip optimization.
 - Legacy-data migration tooling.
 
-## Current-State Gaps (Audit)
-- Poller exists and reapplies active scenes:
+## Integration Targets
+- Circadian compute engine integrated with:
   - `lib/hueworks/control/circadian_poller.ex`
-- Active scene tracking and brightness override exist:
+  - `lib/hueworks/scenes.ex`
+- Active-scene semantics integrated with:
   - `lib/hueworks/active_scenes.ex`
   - `lib/hueworks/schemas/active_scene.ex`
-- `:circadian` state type exists in schema:
+- Circadian configuration path integrated with:
+  - `lib/hueworks/circadian/config.ex`
   - `lib/hueworks/schemas/light_state.ex`
-- Missing:
-  - Circadian compute engine.
-  - Circadian branch in scene apply (`Scenes.desired_from_light_state/2` currently handles only `:off` and `:manual`).
-  - Circadian UI in scene builder.
-  - Clamp-aware group partition planning.
-  - Desired-state-only pathway for manual UI controls.
+  - `lib/hueworks_web/live/scene_builder_component.ex`
+- Global solar config input integrated with:
+  - `lib/hueworks/app_settings.ex`
+  - `lib/hueworks_web/live/config/config_live.ex`
 
 ## Design Overview
 
@@ -79,25 +80,7 @@ Extend `Scenes.apply_scene/2` to support circadian light states:
 - Keep lights with no temp support on brightness-only circadian behavior.
 - Clamp values to target entity range before planning.
 
-### 3) Planner Partitioning for Clamp-Aware Grouping
-Current planner groups by exact desired map. To support mixed kelvin support/range:
-- First normalize desired per light (including clamp/capability omission).
-- Then group by normalized desired and bridge.
-- Greedy group selection runs per partition, so:
-  - lights supporting exact target can group together.
-  - clamped/unsupported lights are partitioned separately.
-
-This avoids issuing one shared group temp where members require different effective temps.
-
-### 4) Manual Control Pipeline Unification
-Current `/lights` path sends direct device commands and mutates state directly.
-Target behavior:
-- manual UI actions become desired-state mutations + planner/executor dispatch.
-- physical state updates come from normal event/state reconciliation, not direct side-channel mutation.
-
-Required semantics:
-- brightness/manual power change does not clear active scene.
-- manual temperature/color change clears active scene.
+### 3) Manual Power Semantics
 - manual power-on while active circadian scene triggers immediate circadian apply for only that toggled entity.
 - manual power-off remains off until manual-on.
 
@@ -125,60 +108,44 @@ Explicitly excluded in v1:
 - all `sleep_*` options
 - `prefer_rgb_color` and other RGB/color-mode options
 
-Implementation steps:
-- Define allowed key list and types.
-- Validate and normalize values at create/update time.
-- Persist raw keys in `config` map; store normalized numeric forms used by calculator.
+Implementation notes:
+- Keep config key parity with HA Adaptive Lighting settings listed above.
+- Use normalized config values in circadian calculation.
 
 ## Global Solar Config
-Introduce a global settings source (DB singleton, with app config fallback during transition):
+Global settings source:
 - `latitude`
 - `longitude`
 - `timezone`
 
-Potential shape:
-- new singleton table (example `app_settings`) with one row.
-- helper context for load/update/cache.
+Implementation notes:
+- Use this source as the runtime input for circadian calculation/apply.
 
 ## Files Likely to Change
 - `lib/hueworks/scenes.ex`
 - `lib/hueworks/control/circadian_poller.ex`
 - `lib/hueworks/active_scenes.ex`
-- `lib/hueworks/control/planner.ex`
-- `lib/hueworks_web/live/scene_builder_component.ex`
-- `lib/hueworks_web/live/rooms_live.ex`
-- `lib/hueworks_web/live/lights_live.ex`
-- `lib/hueworks/schemas/light_state.ex`
+- `lib/hueworks/circadian/config.ex`
+- `lib/hueworks/app_settings.ex`
 - `lib/hueworks/schemas/active_scene.ex` (if override semantics need extension)
-- `priv/repo/migrations/*` (global settings singleton)
-- new circadian module(s), e.g.:
+- new circadian compute module(s), e.g.:
   - `lib/hueworks/circadian.ex`
-  - `lib/hueworks/circadian/config.ex`
 
 ## Testing Plan
 - Unit tests:
   - circadian calculations across time boundaries/day phases
-  - HA-compatible config key parsing/validation
-  - clamp behavior for supported, unsupported, and mixed ranges
+  - calculator behavior with app settings (`lat/lon/timezone`) inputs
 - Scene integration tests:
   - active circadian scene reapply on poll
-  - brightness override suppresses brightness only
-  - temp manual change disables active scene
-  - brightness/power manual change preserves active scene
   - manual power-off remains off until manual-on
   - manual power-on applies current circadian targets immediately
-- Planner tests:
-  - partitioned grouping for exact-target vs clamped-target subsets
-  - no mixed-kelvin group action when outcomes differ
 
-## Phased Execution Plan
-1. Add circadian calculator + config schema validation + tests.
-2. Add circadian apply path in scenes and poller integration.
-3. Add clamp-aware planner partitioning.
-4. Add scene builder circadian UI.
-5. Refactor `/lights` manual control path into desired-state pipeline.
-6. Add DB singleton global solar config.
-7. Expand integration/regression coverage and observability.
+## Execution Plan
+1. Add circadian calculation engine and unit tests.
+2. Add `:circadian` apply path in `Scenes.apply_scene/2`.
+3. Wire calculator inputs from `AppSettings` global solar config.
+4. Finalize active-scene manual power semantics for off-latch and manual-on immediate apply.
+5. Add integration regressions and observability.
 
 ## Observability
 - Structured log events for:
@@ -194,5 +161,3 @@ Potential shape:
 ## Open Questions (Needs Follow-up)
 - Global settings lifecycle:
   - Is app-config fallback acceptable only for development, or required in production too?
-- HA key parity:
-  - Confirm exact list of calculation keys to include in v1 (all calculation-related keys, excluding HA automation/entity wiring keys).

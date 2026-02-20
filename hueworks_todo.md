@@ -6,59 +6,76 @@ Forward-looking backlog only. Completed work has been removed.
 
 ### 1) Circadian prerequisites and adaptive circadian logic
 Reference: `planning/circadian-adaptation.md`
-- [ ] Implement circadian calculation module with HA-compatible calculation config keys.
+- [ ] Implement circadian calculation module (using the existing HA-compatible config model).
 - [ ] Add circadian `light_state` apply path for both brightness and kelvin.
 - [ ] Enforce active-scene semantics:
-  - brightness override suppresses brightness only.
-  - manual temp/color changes disable active scene.
-  - manual brightness/power changes preserve active scene.
   - manual power-off stays off until manual-on.
   - manual power-on applies current circadian target immediately.
-- [ ] Add clamp-aware planner partitioning so exact-target and clamped-target lights split into separate grouped actions.
-- [ ] Add scene builder circadian configuration UI (distinct from existing manual/off controls).
-- [ ] Move `/lights` manual controls onto desired-state mutation + planner/executor pipeline (remove direct control path).
-- [ ] Add DB singleton for global solar config (`lat/lon/timezone`) and wire calculator reads.
-- [ ] Add deep circadian math tests and scene/planner/manual-control integration regressions.
+- [ ] Wire circadian calculator reads to global solar config from `AppSettings`.
+- [ ] Add deep circadian math tests and targeted scene integration regressions.
 - [ ] Add basic observability for circadian ticks and apply outcomes.
 
-### 2) Core control coordination and no-popcorning behavior
+### 2) External scene mapping (Home Assistant -> HueWorks)
+Reference: `planning/external-scenes.md`
+- [ ] Add generic external scene model (`external_scenes`) with source-scoped identity.
+- [ ] Add scene mapping model linking external scenes to HueWorks scenes.
+- [ ] Extend HA import/resync to include `scene.*` entities.
+- [ ] Add UI to review/sync external scenes and manage mappings.
+- [ ] Subscribe to HA scene activation events and trigger mapped HueWorks scenes.
+- [ ] Add tests for sync, mapping resolution, and activation event flow.
+
+### 3) Production deployment baseline (Docker)
+Reference: `planning/prod-deploy.md`
+- [ ] Finalize Docker runtime contract (env vars, volumes, ports).
+- [ ] Add release migration workflow for deploys/upgrades.
+- [ ] Add compose-based baseline deployment path.
+- [ ] Add backup/restore and upgrade runbook docs.
+- [ ] Add production smoke-check checklist.
+
+### 4) Zigbee2MQTT bridge integration
+Reference: `planning/z2m-bridge.md`
+- [ ] Add Z2M bridge setup + credential validation flow in `/config`.
+- [ ] Add Z2M import/fetch + normalize + materialize path for light entities.
+- [ ] Add Z2M MQTT subscription flow for physical state updates.
+- [ ] Add Z2M control adapter for planner/executor dispatch.
+- [ ] Add capability/range normalization for Z2M devices (especially strip drivers).
+- [ ] Add end-to-end tests for Z2M import + control + subscription flows.
+
+### 5) Core control coordination and no-popcorning behavior
 Reference: `planning/control-batching.md`
 - [ ] Ensure coordinated execution semantics for mixed actions in a room scene apply.
 - [ ] Validate cross-bridge timing behavior and define acceptable skew.
 - [ ] Add explicit failure surface for partial bridge failures during scene apply.
 - [ ] Decide and document executor mode defaults (`:append` vs `:replace`) per call path.
 - [ ] Add end-to-end tests proving expected behavior with 10+ light scene patterns.
-- [ ] Align and update `planning/control-batching.md` to reflect actual remaining work.
 
-### 3) Close known runtime gaps
+### 6) Close known runtime gaps
 - [ ] Implement Caseta group dispatch path in `Hueworks.Control.Group`.
 - [ ] Replace Caseta Pico stub event logging with real event handling + mapping entrypoint.
 - [ ] Resolve HA group fan-out edge cases currently noted in subscription code.
 - [ ] Add regression tests for all three items above.
 
-### 4) Subscription test coverage
+### 7) Subscription test coverage
 Reference: `planning/test-coverage.md`
 - [ ] Add parser + mapper tests for Hue SSE event handling.
 - [ ] Add Home Assistant websocket event-flow tests (auth, subscribe, state_changed).
 - [ ] Add Caseta LEAP connection/event parsing tests.
 - [ ] Add failure/reconnect tests for all subscription supervisors.
-- [ ] Update `planning/test-coverage.md` with concrete remaining test targets.
 
 ## Next
 
-### 5) Bridge credential lifecycle
+### 8) Bridge credential lifecycle
 - [ ] Support editing bridge host/credentials safely without destructive re-setup.
 - [ ] Re-test credentials from UI after edit and gate save on validation.
 - [ ] Add migration-safe credential update flow for Caseta cert/key paths.
 
-### 6) Reimport and idempotency polish
+### 9) Reimport and idempotency polish
 Reference: `planning/import-resync.md`
 - [ ] Finalize and document deletion semantics (disabled vs removed) during reimport.
 - [ ] Persist/import history queries for operator-facing visibility.
 - [ ] Add stronger tests around preserving user edits during reimport.
-- [ ] Update `planning/import-resync.md` to match the current implementation and remaining gaps.
 
-### 6.5) DB integrity and query health follow-up
+### 9.5) DB integrity and query health follow-up
 Reference: `planning/db-integrity.md`
 - [ ] Verify import-history/status query paths and add any missing targeted indices.
 - [ ] Audit FK behavior vs manual cleanup code for consistency.
@@ -66,24 +83,24 @@ Reference: `planning/db-integrity.md`
 
 ## Later
 
-### 7) Room assignment intelligence
+### 10) Room assignment intelligence
 - [ ] Extract room derivation into a dedicated module.
 - [ ] Add confidence scoring and suggested assignment review.
 - [ ] Improve unassigned/cross-bridge room handling UX.
 
-### 8) Scene UX improvements
+### 11) Scene UX improvements
 - [ ] Scene preview/dry-run mode before apply.
 - [ ] Scene activation history and error summaries in UI.
 - [ ] Bulk scene operations per room.
 
-### 9) Security and operations
+### 12) Security and operations
 - [ ] Add security hardening planning doc once scope is finalized.
 - [ ] Encrypt bridge credentials at rest.
 - [ ] Harden file permissions and backup handling for secrets/material.
 - [ ] Add deployment/runbook docs for restore and recovery procedures.
 
-### 10) Product expansion
-- [ ] Additional bridge integrations (first target: Zigbee2MQTT).
+### 13) Product expansion
+- [ ] Additional bridge integrations beyond Zigbee2MQTT.
 - [ ] Public API surface (WebSocket/REST) for external control.
 - [ ] Multi-user/auth model for non-single-operator deployments.
 

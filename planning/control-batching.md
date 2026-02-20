@@ -1,9 +1,9 @@
-# Control Coordination and No-Popcorning (Remaining)
+# Control Coordination and No-Popcorning
 
 ## Goal
-Finish the remaining coordination work so scene/control execution is predictably synchronized across bridges and failures are explicit.
+Ensure coordination behavior so scene/control execution is predictably synchronized across bridges and failures are explicit.
 
-## Scope (Remaining)
+## Scope
 - Define and enforce cross-bridge dispatch timing expectations.
 - Formalize partial-failure behavior (result shape + UI surfacing path).
 - Ensure executor usage is consistent across call sites (`:append` vs `:replace` policy).

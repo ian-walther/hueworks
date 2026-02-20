@@ -1,9 +1,9 @@
-# Import Reimport and Idempotency (Remaining)
+# Import Reimport and Idempotency
 
 ## Goal
 Finalize reimport semantics so behavior is predictable and documented under repeated imports.
 
-## Scope (Remaining)
+## Scope
 - Define and document deletion semantics for entities missing/unchecked during reimport.
 - Strengthen preservation rules for user-managed fields (`display_name`, `room_id`, `enabled`) under repeated imports.
 - Expose import history in a queryable/operator-friendly shape (not only raw blobs).

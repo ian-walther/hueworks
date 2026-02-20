@@ -1,9 +1,9 @@
-# Coverage Expansion (Remaining)
+# Coverage Expansion
 
 ## Goal
 Increase confidence in runtime behavior that is currently weakly tested, especially subscriptions and bridge edge cases.
 
-## Scope (Remaining)
+## Scope
 - Subscription/event-stream tests:
   Hue SSE parser/mapper, HA websocket flow, Caseta LEAP parsing/reconnect behavior.
 - Control integration tests for failure paths:

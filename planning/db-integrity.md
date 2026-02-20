@@ -1,9 +1,9 @@
-# DB Integrity and Query Health (Remaining)
+# DB Integrity and Query Health
 
 ## Goal
-Address remaining schema/query risks now that baseline indices and FKs are in place.
+Address schema/query risks with clear integrity and query-performance standards.
 
-## Scope (Remaining)
+## Scope
 - Add targeted indices for high-frequency operational queries not yet covered (for example, import history/status lookups).
 - Audit delete/update paths for consistency between FK behavior and manual cleanup code.
 - Define migration review checklist for future schema changes (index impact, rollback, data safety).
