@@ -69,11 +69,11 @@ defmodule Hueworks.Subscription.Z2MHandlerTest do
     {:ok, state} =
       Handler.handle_message(
         ["zigbee2mqtt", "kitchen_strip"],
-        Jason.encode!(%{"state" => "ON", "brightness" => 127, "color_temp" => 250}),
+        Jason.encode!(%{"state" => "ON", "brightness" => 78, "color_temp" => 250}),
         state
       )
 
-    assert State.get(:light, light_a.id) == %{power: :on, brightness: 50, kelvin: 4000}
+    assert State.get(:light, light_a.id) == %{power: :on, brightness: 31, kelvin: 4000}
 
     {:ok, _state} =
       Handler.handle_message(

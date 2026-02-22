@@ -36,7 +36,6 @@ defmodule Hueworks.Control.StateParser do
     percent =
       cond do
         value <= 1 -> round(value * 100)
-        value <= 100 -> round(value)
         true -> round(value / 254 * 100)
       end
 
@@ -44,6 +43,21 @@ defmodule Hueworks.Control.StateParser do
   end
 
   def brightness_from_z2m(_value), do: %{}
+
+  def brightness_from_z2m_attrs(attrs) when is_map(attrs) do
+    cond do
+      is_number(attrs["brightness_percent"]) ->
+        brightness_from_0_100(attrs["brightness_percent"])
+
+      is_number(attrs["brightness"]) ->
+        brightness_from_z2m(attrs["brightness"])
+
+      true ->
+        %{}
+    end
+  end
+
+  def brightness_from_z2m_attrs(_attrs), do: %{}
 
   def kelvin_from_mired(mired) when is_number(mired) and mired > 0 do
     %{kelvin: round(1_000_000 / mired)}

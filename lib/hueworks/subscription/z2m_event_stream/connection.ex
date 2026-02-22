@@ -192,7 +192,7 @@ defmodule Hueworks.Subscription.Z2MEventStream.Connection do
     defp build_state(payload, entity) do
       %{}
       |> Map.merge(StateParser.power_map(payload["state"] || payload["power"]))
-      |> Map.merge(StateParser.brightness_from_z2m(payload["brightness"]))
+      |> Map.merge(StateParser.brightness_from_z2m_attrs(payload))
       |> Map.merge(StateParser.kelvin_from_z2m_attrs(payload, entity))
     end
 

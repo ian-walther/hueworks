@@ -9,9 +9,14 @@ defmodule Hueworks.Control.StateParserTest do
     assert StateParser.power_map("OFF") == %{power: :off}
   end
 
-  test "brightness_from_z2m supports 0-254 and 0-100 ranges" do
+  test "brightness_from_z2m treats brightness values as 0-254 scale" do
     assert StateParser.brightness_from_z2m(127) == %{brightness: 50}
-    assert StateParser.brightness_from_z2m(55) == %{brightness: 55}
+    assert StateParser.brightness_from_z2m(78) == %{brightness: 31}
+  end
+
+  test "brightness_from_z2m_attrs prefers explicit brightness_percent when present" do
+    attrs = %{"brightness" => 78, "brightness_percent" => 31}
+    assert StateParser.brightness_from_z2m_attrs(attrs) == %{brightness: 31}
   end
 
   test "kelvin_from_z2m_attrs handles mired and kelvin payloads" do
