@@ -122,9 +122,10 @@ defmodule Hueworks.Util do
   def parse_source_filter("hue"), do: {:ok, :hue}
   def parse_source_filter("ha"), do: {:ok, :ha}
   def parse_source_filter("caseta"), do: {:ok, :caseta}
+  def parse_source_filter("z2m"), do: {:ok, :z2m}
   def parse_source_filter(_), do: :error
 
-  def parse_filter(filter) when filter in ["hue", "ha", "caseta"], do: filter
+  def parse_filter(filter) when filter in ["hue", "ha", "caseta", "z2m"], do: filter
   def parse_filter(_filter), do: "all"
 
   def parse_room_filter(nil), do: "all"
@@ -157,6 +158,7 @@ defmodule Hueworks.Util do
   def default_bridge_name("hue"), do: "Hue Bridge"
   def default_bridge_name("ha"), do: "Home Assistant"
   def default_bridge_name("caseta"), do: "Caseta Bridge"
+  def default_bridge_name("z2m"), do: "Zigbee2MQTT"
   def default_bridge_name(_type), do: "Bridge"
 
   def format_changeset_error(changeset) do

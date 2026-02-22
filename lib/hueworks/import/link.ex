@@ -25,7 +25,7 @@ defmodule Hueworks.Import.Link do
     non_ha_lights =
       Repo.all(
         from(l in Light,
-          where: l.source in [:hue, :caseta] and is_nil(l.canonical_light_id)
+          where: l.source in [:hue, :caseta, :z2m] and is_nil(l.canonical_light_id)
         )
       )
 
@@ -45,13 +45,21 @@ defmodule Hueworks.Import.Link do
         end
       end)
 
+    ieee_index =
+      Enum.reduce(non_ha_lights, %{}, fn light, acc ->
+        case identifier(light, "ieee") do
+          nil -> acc
+          ieee -> Map.put(acc, ieee, light.id)
+        end
+      end)
+
     Repo.all(
       from(l in Light,
         where: l.bridge_id == ^bridge_id and l.source == :ha and is_nil(l.canonical_light_id)
       )
     )
     |> Enum.each(fn light ->
-      canonical_id = canonical_light_for(light, mac_index, serial_index)
+      canonical_id = canonical_light_for(light, mac_index, serial_index, ieee_index)
 
       if is_integer(canonical_id) do
         light
@@ -63,13 +71,15 @@ defmodule Hueworks.Import.Link do
     end)
   end
 
-  defp canonical_light_for(light, mac_index, serial_index) do
+  defp canonical_light_for(light, mac_index, serial_index, ieee_index) do
     mac = identifier(light, "mac")
     serial = identifier(light, "serial")
+    ieee = identifier(light, "ieee")
 
     cond do
       is_binary(mac) and Map.has_key?(mac_index, mac) -> Map.get(mac_index, mac)
       is_binary(serial) and Map.has_key?(serial_index, serial) -> Map.get(serial_index, serial)
+      is_binary(ieee) and Map.has_key?(ieee_index, ieee) -> Map.get(ieee_index, ieee)
       true -> nil
     end
   end
@@ -87,7 +97,7 @@ defmodule Hueworks.Import.Link do
         from(gl in GroupLight,
           join: g in Group,
           on: g.id == gl.group_id,
-          where: g.source in [:hue, :caseta] and is_nil(g.canonical_group_id),
+          where: g.source in [:hue, :caseta, :z2m] and is_nil(g.canonical_group_id),
           select: {gl.group_id, gl.light_id}
         )
       )

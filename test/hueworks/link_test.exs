@@ -9,9 +9,10 @@ defmodule Hueworks.Import.LinkTest do
     :ok = Ecto.Adapters.SQL.Sandbox.checkout(Repo)
   end
 
-  test "links HA lights and groups to canonical Hue/Caseta entities" do
+  test "links HA lights and groups to canonical Hue/Caseta/Z2M entities" do
     hue_bridge = insert_bridge(:hue, "10.0.0.10")
     caseta_bridge = insert_bridge(:caseta, "10.0.0.11")
+    z2m_bridge = insert_bridge(:z2m, "10.0.0.13")
     ha_bridge = insert_bridge(:ha, "10.0.0.12")
 
     hue_light =
@@ -26,6 +27,12 @@ defmodule Hueworks.Import.LinkTest do
         metadata: %{"identifiers" => %{"serial" => "12345"}}
       })
 
+    z2m_light =
+      insert_light(z2m_bridge, %{
+        source_id: "kitchen.strip",
+        metadata: %{"identifiers" => %{"ieee" => "0x00124b0029abc001"}}
+      })
+
     ha_light_hue =
       insert_light(ha_bridge, %{
         source_id: "light.hue",
@@ -38,6 +45,12 @@ defmodule Hueworks.Import.LinkTest do
         metadata: %{"identifiers" => %{"serial" => "12345"}}
       })
 
+    ha_light_z2m =
+      insert_light(ha_bridge, %{
+        source_id: "light.z2m",
+        metadata: %{"identifiers" => %{"ieee" => "0x00124b0029abc001"}}
+      })
+
     hue_group = insert_group(hue_bridge, "group.hue")
     ha_group = insert_group(ha_bridge, "group.ha")
 
@@ -48,6 +61,7 @@ defmodule Hueworks.Import.LinkTest do
 
     assert Repo.get(Light, ha_light_hue.id).canonical_light_id == hue_light.id
     assert Repo.get(Light, ha_light_caseta.id).canonical_light_id == caseta_light.id
+    assert Repo.get(Light, ha_light_z2m.id).canonical_light_id == z2m_light.id
     assert Repo.get(Group, ha_group.id).canonical_group_id == hue_group.id
   end
 

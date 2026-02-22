@@ -3,7 +3,7 @@ defmodule Hueworks.Schemas.Bridge do
   import Ecto.Changeset
 
   schema "bridges" do
-    field(:type, Ecto.Enum, values: [:hue, :caseta, :ha])
+    field(:type, Ecto.Enum, values: [:hue, :caseta, :ha, :z2m])
     field(:name, :string)
     field(:host, :string)
     field(:credentials, :map)

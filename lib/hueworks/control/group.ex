@@ -3,8 +3,16 @@ defmodule Hueworks.Control.Group do
   Dispatcher for group control commands.
   """
 
-  alias Hueworks.Control.{HomeAssistantPayload, HuePayload}
-  alias Hueworks.Control.{HomeAssistantBridge, HomeAssistantClient, HueBridge, HueClient}
+  alias Hueworks.Control.{HomeAssistantPayload, HuePayload, Z2MPayload}
+
+  alias Hueworks.Control.{
+    HomeAssistantBridge,
+    HomeAssistantClient,
+    HueBridge,
+    HueClient,
+    Z2MBridge,
+    Z2MClient
+  }
 
   def on(group), do: dispatch(group, :on)
   def off(group), do: dispatch(group, :off)
@@ -32,6 +40,17 @@ defmodule Hueworks.Control.Group do
     with {:ok, host, token} <- HomeAssistantBridge.credentials_for(group),
          {service, payload} <- HomeAssistantPayload.action_payload(action, group),
          {:ok, _resp} <- HomeAssistantClient.request(host, token, service, payload) do
+      :ok
+    else
+      {:error, _} = error -> error
+      :ignore -> :ok
+    end
+  end
+
+  defp dispatch(%{source: :z2m} = group, action) do
+    with {:ok, config} <- Z2MBridge.connection_for(group),
+         payload <- Z2MPayload.action_payload(action, group),
+         :ok <- Z2MClient.request(config, group, payload) do
       :ok
     else
       {:error, _} = error -> error

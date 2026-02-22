@@ -113,6 +113,34 @@ defmodule Hueworks.Import.NormalizeTest do
     assert light.identifiers["serial"] == "12345678"
   end
 
+  test "normalizes Zigbee2MQTT raw data into lights and groups" do
+    raw = load_fixture("z2m_raw.json")
+
+    bridge = %Bridge{id: 4, type: :z2m, name: "Z2M", host: "10.0.0.4"}
+    normalized = Normalize.normalize(bridge, raw)
+
+    assert normalized.rooms == []
+    assert length(normalized.lights) == 2
+
+    strip = Enum.find(normalized.lights, &(&1.source_id == "kitchen_table_strip"))
+    assert strip.classification == "light"
+    assert strip.capabilities.brightness
+    assert strip.capabilities.color_temp
+    assert strip.capabilities.reported_kelvin_min == 2203
+    assert strip.capabilities.reported_kelvin_max == 6536
+    assert strip.identifiers["ieee"] == "0x00124b0029abc001"
+
+    group = Enum.find(normalized.groups, &(&1.source_id == "all_main"))
+    assert group.classification == "group"
+    assert group.capabilities.brightness
+    assert group.capabilities.color_temp
+
+    assert Enum.any?(normalized.memberships.group_lights, fn membership ->
+             membership.group_source_id == "all_main" and
+               membership.light_source_id == "garage_spot"
+           end)
+  end
+
   test "aggregate_capabilities computes shared kelvin intersection for groups" do
     capabilities_by_id = %{
       "a" => %{

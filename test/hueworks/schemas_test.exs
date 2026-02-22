@@ -96,6 +96,44 @@ defmodule Hueworks.SchemasTest do
     assert errors[:imported_at] == ["can't be blank"]
   end
 
+  test "schemas accept z2m source/type values" do
+    bridge_changeset =
+      Bridge.changeset(%Bridge{}, %{
+        type: :z2m,
+        name: "Z2M",
+        host: "10.0.0.90",
+        credentials: %{"broker_port" => 1883}
+      })
+
+    assert bridge_changeset.valid?
+
+    bridge = insert_bridge(%{type: :z2m, host: "10.0.0.91", name: "Z2M"})
+
+    light_changeset =
+      Light.changeset(%Light{}, %{
+        name: "Z2M Light",
+        source: :z2m,
+        source_id: "strip.kitchen",
+        bridge_id: bridge.id,
+        actual_min_kelvin: 2100,
+        actual_max_kelvin: 6100
+      })
+
+    assert light_changeset.valid?
+
+    group_changeset =
+      Group.changeset(%Group{}, %{
+        name: "Z2M Group",
+        source: :z2m,
+        source_id: "group.kitchen",
+        bridge_id: bridge.id,
+        actual_min_kelvin: 2100,
+        actual_max_kelvin: 6100
+      })
+
+    assert group_changeset.valid?
+  end
+
   test "light requires core fields and forbids self canonical reference" do
     changeset = Light.changeset(%Light{}, %{})
     errors = errors_on(changeset)
@@ -113,7 +151,7 @@ defmodule Hueworks.SchemasTest do
     assert errors[:canonical_light_id] == ["cannot reference itself"]
   end
 
-  test "light actual kelvin is only supported for HA sources" do
+  test "light actual kelvin is only supported for HA/Z2M sources" do
     bridge = insert_bridge(%{type: :hue})
 
     changeset =
@@ -126,8 +164,8 @@ defmodule Hueworks.SchemasTest do
       })
 
     errors = errors_on(changeset)
-    assert errors[:actual_min_kelvin] == ["only supported for HA entities"]
-    assert errors[:actual_max_kelvin] == ["only supported for HA entities"]
+    assert errors[:actual_min_kelvin] == ["only supported for HA and Z2M entities"]
+    assert errors[:actual_max_kelvin] == ["only supported for HA and Z2M entities"]
   end
 
   test "group requires core fields and forbids self references" do
@@ -149,7 +187,7 @@ defmodule Hueworks.SchemasTest do
     assert errors_on(changeset)[:canonical_group_id] == ["cannot reference itself"]
   end
 
-  test "group actual kelvin is only supported for HA sources" do
+  test "group actual kelvin is only supported for HA/Z2M sources" do
     bridge = insert_bridge(%{type: :hue})
 
     changeset =
@@ -162,8 +200,8 @@ defmodule Hueworks.SchemasTest do
       })
 
     errors = errors_on(changeset)
-    assert errors[:actual_min_kelvin] == ["only supported for HA entities"]
-    assert errors[:actual_max_kelvin] == ["only supported for HA entities"]
+    assert errors[:actual_min_kelvin] == ["only supported for HA and Z2M entities"]
+    assert errors[:actual_max_kelvin] == ["only supported for HA and Z2M entities"]
   end
 
   test "room requires name" do

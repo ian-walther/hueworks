@@ -48,6 +48,20 @@ defmodule Hueworks.Import.JsonShapeTest do
     assert normalized.lights == []
   end
 
+  test "normalize handles unexpected Z2M shapes without crashing" do
+    raw = %{
+      "devices" => %{"bad" => true},
+      "groups" => %{"bad" => true}
+    }
+
+    bridge = %Bridge{id: 13, type: :z2m, name: "Z2M", host: "10.0.0.13"}
+    normalized = Normalize.normalize(bridge, raw)
+
+    assert normalized.rooms == []
+    assert normalized.lights == []
+    assert normalized.groups == []
+  end
+
   test "materialize tolerates invalid room_source_id references" do
     bridge =
       %Bridge{}

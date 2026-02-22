@@ -7,7 +7,7 @@ defmodule Hueworks.Kelvin do
 
   def mapping_supported?(entity) do
     source = get_field(entity, :source)
-    source == :ha or source == "ha"
+    source in [:ha, "ha", :z2m, "z2m"]
   end
 
   def derive_range(entity) do

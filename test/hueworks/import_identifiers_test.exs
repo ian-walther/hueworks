@@ -29,6 +29,15 @@ defmodule Hueworks.Import.IdentifiersTest do
     }
 
     assert Identifiers.light_external_id(caseta_light) == "caseta-123"
+
+    z2m_light = %{
+      source: :z2m,
+      source_id: "kitchen_strip",
+      metadata: %{"ieee_address" => "0x00124b0029abc001"},
+      identifiers: %{"ieee" => "0x00124b0029abc001"}
+    }
+
+    assert Identifiers.light_external_id(z2m_light) == "0x00124b0029abc001"
   end
 
   test "group_external_id falls back to source_id" do
@@ -39,5 +48,13 @@ defmodule Hueworks.Import.IdentifiersTest do
     }
 
     assert Identifiers.group_external_id(hue_group) == "group-1"
+
+    z2m_group = %{
+      source: :z2m,
+      source_id: "kitchen_group",
+      metadata: %{"id" => 15}
+    }
+
+    assert Identifiers.group_external_id(z2m_group) == "15"
   end
 end

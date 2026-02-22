@@ -34,4 +34,10 @@ defmodule Hueworks.KelvinTest do
     extended = Map.put(entity, :extended_kelvin_range, true)
     assert Kelvin.derive_range(extended) == {2000, 6500}
   end
+
+  test "mapping_supported includes HA and Z2M sources" do
+    assert Kelvin.mapping_supported?(%{source: :ha})
+    assert Kelvin.mapping_supported?(%{source: :z2m})
+    refute Kelvin.mapping_supported?(%{source: :hue})
+  end
 end

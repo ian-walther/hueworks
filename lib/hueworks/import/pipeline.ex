@@ -53,4 +53,8 @@ defmodule Hueworks.Import.Pipeline do
   defp do_fetch_raw(%Bridge{type: :ha} = bridge) do
     Hueworks.Import.Fetch.HomeAssistant.fetch_for_bridge(bridge)
   end
+
+  defp do_fetch_raw(%Bridge{type: :z2m} = bridge) do
+    Hueworks.Import.Fetch.Z2M.fetch_for_bridge(bridge)
+  end
 end

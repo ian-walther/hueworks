@@ -28,6 +28,7 @@
             <option value="hue" selected={@group_filter == "hue"}>Hue</option>
             <option value="ha" selected={@group_filter == "ha"}>HA</option>
             <option value="caseta" selected={@group_filter == "caseta"}>Caseta</option>
+            <option value="z2m" selected={@group_filter == "z2m"}>Z2M</option>
           </select>
         </form>
         <form class="hw-filter" phx-change="set_group_room_filter">
@@ -158,6 +159,7 @@
             <option value="hue" selected={@light_filter == "hue"}>Hue</option>
             <option value="ha" selected={@light_filter == "ha"}>HA</option>
             <option value="caseta" selected={@light_filter == "caseta"}>Caseta</option>
+            <option value="z2m" selected={@light_filter == "z2m"}>Z2M</option>
           </select>
         </form>
         <form class="hw-filter" phx-change="set_light_room_filter">

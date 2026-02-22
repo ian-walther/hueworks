@@ -5,7 +5,7 @@ defmodule Hueworks.Schemas.Light do
   schema "lights" do
     field(:name, :string)
     field(:display_name, :string)
-    field(:source, Ecto.Enum, values: [:hue, :caseta, :ha])
+    field(:source, Ecto.Enum, values: [:hue, :caseta, :ha, :z2m])
     field(:source_id, :string)
     belongs_to(:bridge, Hueworks.Schemas.Bridge)
     belongs_to(:room, Hueworks.Schemas.Room)
@@ -66,10 +66,10 @@ defmodule Hueworks.Schemas.Light do
     actual_min = get_field(changeset, :actual_min_kelvin)
     actual_max = get_field(changeset, :actual_max_kelvin)
 
-    if source && source != :ha && (not is_nil(actual_min) or not is_nil(actual_max)) do
+    if source && source not in [:ha, :z2m] && (not is_nil(actual_min) or not is_nil(actual_max)) do
       changeset
-      |> add_error(:actual_min_kelvin, "only supported for HA entities")
-      |> add_error(:actual_max_kelvin, "only supported for HA entities")
+      |> add_error(:actual_min_kelvin, "only supported for HA and Z2M entities")
+      |> add_error(:actual_max_kelvin, "only supported for HA and Z2M entities")
     else
       changeset
     end

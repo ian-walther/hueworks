@@ -7,6 +7,7 @@ defmodule Hueworks.Control.State do
 
   alias Hueworks.Control.Bootstrap.HomeAssistant
   alias Hueworks.Control.Bootstrap.Hue
+  alias Hueworks.Control.Bootstrap.Z2M
   alias Hueworks.Control.DesiredState
   alias Hueworks.ActiveScenes
   alias Hueworks.Repo
@@ -87,6 +88,7 @@ defmodule Hueworks.Control.State do
     Task.start(fn ->
       Hue.run()
       HomeAssistant.run()
+      Z2M.run()
     end)
   end
 

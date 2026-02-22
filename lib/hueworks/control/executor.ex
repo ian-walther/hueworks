@@ -9,7 +9,7 @@ defmodule Hueworks.Control.Executor do
   alias Hueworks.Repo
   alias Hueworks.Schemas.Bridge
 
-  @default_rates %{hue: 10, ha: 5, caseta: 5}
+  @default_rates %{hue: 10, ha: 5, caseta: 5, z2m: 5}
   @default_max_retries 3
   @default_backoff_ms 250
 
@@ -120,7 +120,7 @@ defmodule Hueworks.Control.Executor do
     Enum.reduce(actions_by_bridge, state, fn {bridge_id, bridge_actions}, acc ->
       now = acc.now_fn.(:millisecond)
       normalized = Enum.map(bridge_actions, &normalize_action(&1, now))
-      
+
       existing_queue = Map.get(acc.queues, bridge_id, :queue.new())
 
       rate = Map.get(acc.bridge_rates, bridge_id) || acc.bridge_rate_fun.(bridge_id)
@@ -199,9 +199,11 @@ defmodule Hueworks.Control.Executor do
 
     {queues, last_sent, had_work} =
       Enum.reduce(state.queues, {state.queues, state.last_sent, false}, fn {bridge_id, queue},
-                                                                            {queues_acc, last_acc, worked} ->
+                                                                           {queues_acc, last_acc,
+                                                                            worked} ->
         rate = Map.get(state.bridge_rates, bridge_id) || default_rate()
         interval = interval_ms(rate)
+
         last =
           case Map.get(last_acc, bridge_id) do
             nil -> now - interval
@@ -360,5 +362,4 @@ defmodule Hueworks.Control.Executor do
   defp interval_ms(rate) when is_integer(rate) and rate > 0 do
     max(trunc(1000 / rate), 1)
   end
-
 end

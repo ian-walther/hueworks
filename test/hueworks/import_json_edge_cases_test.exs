@@ -65,6 +65,36 @@ defmodule Hueworks.Import.JsonEdgeCasesTest do
     assert light.room_source_id == nil
   end
 
+  test "normalize tolerates partial Z2M payloads" do
+    raw = %{
+      "devices" => [
+        %{
+          "friendly_name" => "z2m.one",
+          "definition" => %{
+            "exposes" => [
+              %{
+                "type" => "light",
+                "features" => [
+                  %{"name" => "brightness", "property" => "brightness"}
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "groups" => []
+    }
+
+    bridge = %Bridge{id: 4, type: :z2m, name: "Z2M", host: "10.0.0.4"}
+    normalized = Normalize.normalize(bridge, raw)
+
+    assert length(normalized.lights) == 1
+    [light] = normalized.lights
+    assert light.source_id == "z2m.one"
+    assert light.capabilities.brightness
+    refute light.capabilities.color_temp
+  end
+
   test "materialize skips entities missing source_id" do
     bridge =
       %Bridge{}

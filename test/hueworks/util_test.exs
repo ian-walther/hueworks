@@ -15,4 +15,13 @@ defmodule Hueworks.UtilTest do
     assert Util.display_name(%{name: "Lamp"}) == "Lamp"
     assert Util.display_name(%{}) == "Unknown"
   end
+
+  test "source filter parsing supports z2m" do
+    assert Util.parse_source_filter("z2m") == {:ok, :z2m}
+    assert Util.parse_filter("z2m") == "z2m"
+  end
+
+  test "default bridge name supports z2m" do
+    assert Util.default_bridge_name("z2m") == "Zigbee2MQTT"
+  end
 end

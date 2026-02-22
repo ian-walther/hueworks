@@ -15,6 +15,7 @@ defmodule Hueworks.Import.Normalize do
       :hue -> Hueworks.Import.Normalize.Hue.normalize(bridge, raw_blob, opts)
       :ha -> Hueworks.Import.Normalize.HomeAssistant.normalize(bridge, raw_blob, opts)
       :caseta -> Hueworks.Import.Normalize.Caseta.normalize(bridge, raw_blob, opts)
+      :z2m -> Hueworks.Import.Normalize.Z2M.normalize(bridge, raw_blob, opts)
     end
   end
 

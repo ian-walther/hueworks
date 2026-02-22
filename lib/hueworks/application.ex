@@ -18,6 +18,7 @@ defmodule Hueworks.Application do
         Hueworks.Subscription.HueEventStream,
         Hueworks.Subscription.HomeAssistantEventStream,
         Hueworks.Subscription.CasetaEventStream,
+        Hueworks.Subscription.Z2MEventStream,
         HueworksWeb.FilterPrefs,
         HueworksWeb.Endpoint
         # Exploration modules will be started manually in iex for now

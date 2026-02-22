@@ -29,6 +29,15 @@ defmodule Hueworks.Import.Identifiers do
           Normalize.fetch(identifiers, "serial") ||
           source_id
 
+      :z2m ->
+        Normalize.normalize_source_id(
+          Normalize.fetch(metadata, :ieee_address) ||
+            Normalize.fetch(metadata, "ieee_address") ||
+            Normalize.fetch(identifiers, :ieee) ||
+            Normalize.fetch(identifiers, "ieee") ||
+            source_id
+        )
+
       _ ->
         source_id
     end
@@ -50,17 +59,26 @@ defmodule Hueworks.Import.Identifiers do
           Normalize.fetch(metadata, "device_id") ||
           source_id
 
+      :z2m ->
+        Normalize.normalize_source_id(
+          Normalize.fetch(metadata, :id) ||
+            Normalize.fetch(metadata, "id") ||
+            source_id
+        )
+
       _ ->
         source_id
     end
   end
 
   defp normalize_source(source) when is_atom(source), do: source
+
   defp normalize_source(source) when is_binary(source) do
     case source do
       "hue" -> :hue
       "ha" -> :ha
       "caseta" -> :caseta
+      "z2m" -> :z2m
       _ -> source
     end
   end

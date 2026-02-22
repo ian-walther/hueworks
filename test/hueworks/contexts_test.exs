@@ -97,7 +97,27 @@ defmodule Hueworks.ContextsTest do
     assert updated.actual_max_kelvin == 5000
   end
 
-  test "Lights.update_display_name rejects actual kelvin for non-HA" do
+  test "Lights.update_display_name allows Z2M kelvin overrides" do
+    z2m_bridge =
+      insert_bridge(%{
+        type: :z2m,
+        host: "10.0.0.121",
+        credentials: %{"broker_port" => 1883}
+      })
+
+    z2m_light = insert_light(z2m_bridge, %{source: :z2m, source_id: "kitchen.strip"})
+
+    {:ok, updated} =
+      Lights.update_display_name(z2m_light, %{
+        actual_min_kelvin: "2100",
+        actual_max_kelvin: 6100
+      })
+
+    assert updated.actual_min_kelvin == 2100
+    assert updated.actual_max_kelvin == 6100
+  end
+
+  test "Lights.update_display_name rejects actual kelvin for non-HA/Z2M sources" do
     bridge = insert_bridge(%{host: "10.0.0.13"})
     light = insert_light(bridge, %{source: :hue, source_id: "1"})
 

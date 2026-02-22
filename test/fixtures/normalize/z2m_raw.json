@@ -1,0 +1,69 @@
+{
+  "broker_host": "10.0.0.40",
+  "devices": [
+    {
+      "friendly_name": "kitchen_table_strip",
+      "ieee_address": "0x00124b0029abc001",
+      "type": "Router",
+      "definition": {
+        "vendor": "GLEDOPTO",
+        "model": "GL-C-008",
+        "description": "Strip Controller",
+        "exposes": [
+          {
+            "type": "light",
+            "features": [
+              {"name": "state", "property": "state", "type": "binary"},
+              {"name": "brightness", "property": "brightness", "type": "numeric", "value_min": 0, "value_max": 254},
+              {"name": "color_temp", "property": "color_temp", "type": "numeric", "value_min": 153, "value_max": 454}
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "friendly_name": "garage_spot",
+      "ieee_address": "0x00124b0029abc002",
+      "type": "EndDevice",
+      "definition": {
+        "vendor": "IKEA",
+        "model": "BULB",
+        "description": "Bulb",
+        "exposes": [
+          {
+            "type": "light",
+            "features": [
+              {"name": "state", "property": "state", "type": "binary"},
+              {"name": "brightness", "property": "brightness", "type": "numeric", "value_min": 1, "value_max": 254}
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "friendly_name": "coordinator",
+      "ieee_address": "0x0000000000000000",
+      "type": "Coordinator",
+      "definition": {
+        "exposes": []
+      }
+    }
+  ],
+  "groups": [
+    {
+      "id": 1,
+      "friendly_name": "kitchen_table_group",
+      "members": [
+        {"ieee_address": "0x00124b0029abc001"}
+      ]
+    },
+    {
+      "id": 2,
+      "friendly_name": "all_main",
+      "members": [
+        "kitchen_table_strip",
+        "garage_spot"
+      ]
+    }
+  ]
+}

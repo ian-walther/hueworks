@@ -14,6 +14,10 @@ defmodule HueworksWeb.BridgeLive do
         type: "hue",
         hue_api_key: "",
         ha_token: "",
+        z2m_broker_port: "1883",
+        z2m_username: "",
+        z2m_password: "",
+        z2m_base_topic: "zigbee2mqtt",
         caseta_cert_path: "",
         caseta_key_path: "",
         caseta_cacert_path: "",
@@ -70,6 +74,24 @@ defmodule HueworksWeb.BridgeLive do
        caseta_key_path: Map.get(params, "caseta_key_path", socket.assigns.caseta_key_path),
        caseta_cacert_path:
          Map.get(params, "caseta_cacert_path", socket.assigns.caseta_cacert_path),
+       test_status: :idle,
+       test_error: nil,
+       test_bridge_name: nil
+     )}
+  end
+
+  def handle_event("update_bridge", %{"type" => "z2m"} = params, socket) do
+    host = Util.normalize_host_input(Map.get(params, "host", socket.assigns.host))
+
+    {:noreply,
+     assign(socket,
+       host: host,
+       type: Map.get(params, "type", socket.assigns.type),
+       z2m_broker_port: Map.get(params, "z2m_broker_port", socket.assigns.z2m_broker_port),
+       z2m_username: Map.get(params, "z2m_username", socket.assigns.z2m_username),
+       z2m_password: Map.get(params, "z2m_password", socket.assigns.z2m_password),
+       z2m_base_topic: Map.get(params, "z2m_base_topic", socket.assigns.z2m_base_topic),
+       caseta_staged_paths: %{},
        test_status: :idle,
        test_error: nil,
        test_bridge_name: nil
@@ -180,6 +202,22 @@ defmodule HueworksWeb.BridgeLive do
     end
   end
 
+  defp test_bridge(%{assigns: %{type: "z2m"}} = socket) do
+    opts = %{
+      "broker_port" => socket.assigns.z2m_broker_port,
+      "username" => socket.assigns.z2m_username,
+      "password" => socket.assigns.z2m_password
+    }
+
+    case Hueworks.ConnectionTest.Z2M.test(socket.assigns.host, opts) do
+      {:ok, name} ->
+        {:noreply, assign(socket, test_status: :ok, test_error: nil, test_bridge_name: name)}
+
+      {:error, message} ->
+        {:noreply, assign(socket, test_status: :error, test_error: message)}
+    end
+  end
+
   defp test_bridge(socket) do
     {:noreply, socket}
   end
@@ -209,6 +247,16 @@ defmodule HueworksWeb.BridgeLive do
       |> maybe_missing(caseta_entry_missing?(socket, :caseta_cert), "caseta_cert")
       |> maybe_missing(caseta_entry_missing?(socket, :caseta_key), "caseta_key")
       |> maybe_missing(caseta_entry_missing?(socket, :caseta_cacert), "caseta_cacert")
+
+    missing_message(missing)
+  end
+
+  defp validate_required_fields(%{assigns: %{type: "z2m"}} = socket) do
+    missing =
+      []
+      |> maybe_missing(socket.assigns.host == "", "host")
+      |> maybe_missing(invalid_port?(socket.assigns.z2m_broker_port), "z2m_broker_port")
+      |> maybe_missing(String.trim(socket.assigns.z2m_base_topic) == "", "z2m_base_topic")
 
     missing_message(missing)
   end
@@ -305,6 +353,15 @@ defmodule HueworksWeb.BridgeLive do
     save_caseta_uploads(host, staged)
   end
 
+  defp build_credentials(%{assigns: %{type: "z2m"}} = socket) do
+    %{
+      "broker_port" => normalize_port(socket.assigns.z2m_broker_port),
+      "username" => normalize_optional(socket.assigns.z2m_username),
+      "password" => normalize_optional(socket.assigns.z2m_password),
+      "base_topic" => normalize_base_topic(socket.assigns.z2m_base_topic)
+    }
+  end
+
   defp build_credentials(_socket), do: %{}
 
   defp save_caseta_uploads(host, staged) do
@@ -331,4 +388,32 @@ defmodule HueworksWeb.BridgeLive do
         dest
     end
   end
+
+  defp normalize_port(value) do
+    case Util.parse_optional_integer(value) do
+      port when is_integer(port) and port > 0 and port <= 65_535 -> port
+      _ -> 1883
+    end
+  end
+
+  defp invalid_port?(value) do
+    case Util.parse_optional_integer(value) do
+      port when is_integer(port) and port > 0 and port <= 65_535 -> false
+      _ -> true
+    end
+  end
+
+  defp normalize_optional(value) when is_binary(value) do
+    value = String.trim(value)
+    if value == "", do: nil, else: value
+  end
+
+  defp normalize_optional(_value), do: nil
+
+  defp normalize_base_topic(value) when is_binary(value) do
+    value = String.trim(value)
+    if value == "", do: "zigbee2mqtt", else: value
+  end
+
+  defp normalize_base_topic(_value), do: "zigbee2mqtt"
 end

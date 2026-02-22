@@ -16,6 +16,7 @@
         <option value="hue" selected={@type == "hue"}>Hue</option>
         <option value="ha" selected={@type == "ha"}>Home Assistant</option>
         <option value="caseta" selected={@type == "caseta"}>Caseta</option>
+        <option value="z2m" selected={@type == "z2m"}>Zigbee2MQTT</option>
       </select>
 
       <label class="hw-modal-label" for="bridge_host">IP Address</label>
@@ -80,6 +81,50 @@
         <%= if @caseta_cacert_path != "" do %>
           <p class="hw-muted">Current: <%= @caseta_cacert_path %></p>
         <% end %>
+      <% end %>
+
+      <%= if @type == "z2m" do %>
+        <label class="hw-modal-label" for="z2m_broker_port">MQTT Port</label>
+        <input
+          id="z2m_broker_port"
+          name="z2m_broker_port"
+          type="number"
+          value={@z2m_broker_port}
+          class="hw-modal-input"
+          min="1"
+          max="65535"
+          autocomplete="off"
+        />
+
+        <label class="hw-modal-label" for="z2m_username">MQTT Username (optional)</label>
+        <input
+          id="z2m_username"
+          name="z2m_username"
+          type="text"
+          value={@z2m_username}
+          class="hw-modal-input"
+          autocomplete="off"
+        />
+
+        <label class="hw-modal-label" for="z2m_password">MQTT Password (optional)</label>
+        <input
+          id="z2m_password"
+          name="z2m_password"
+          type="password"
+          value={@z2m_password}
+          class="hw-modal-input"
+          autocomplete="new-password"
+        />
+
+        <label class="hw-modal-label" for="z2m_base_topic">Base Topic</label>
+        <input
+          id="z2m_base_topic"
+          name="z2m_base_topic"
+          type="text"
+          value={@z2m_base_topic}
+          class="hw-modal-input"
+          autocomplete="off"
+        />
       <% end %>
 
       <div class="hw-modal-actions">

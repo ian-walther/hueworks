@@ -247,6 +247,42 @@ defmodule Hueworks.LightsLivePipelineTest do
     assert DesiredState.get(:light, light.id) == %{power: :off}
   end
 
+  test "z2m light edit modal shows actual kelvin override fields", %{conn: conn} do
+    room = Repo.insert!(%Room{name: "Dining"})
+
+    bridge =
+      Repo.insert!(%Bridge{
+        name: "Z2M Bridge",
+        type: :z2m,
+        host: "192.168.1.83",
+        credentials: %{"broker_port" => 1883}
+      })
+
+    light =
+      Repo.insert!(%Light{
+        name: "Dining Strip",
+        display_name: "Dining Strip",
+        source: :z2m,
+        source_id: "dining.strip",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        supports_temp: true,
+        reported_min_kelvin: 2000,
+        reported_max_kelvin: 6500
+      })
+
+    {:ok, view, _html} = live(conn, "/lights")
+
+    view
+    |> element("#light-#{light.id} button[aria-label='Edit light name']")
+    |> render_click()
+
+    rendered = render(view)
+
+    assert rendered =~ "Actual min kelvin"
+    assert rendered =~ "Actual max kelvin"
+  end
+
   defp drain_executor(server, attempts \\ 5)
 
   defp drain_executor(_server, 0), do: :ok

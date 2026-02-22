@@ -22,8 +22,9 @@ defmodule Hueworks.Import.EdgeCasesTest do
     bridge_hue = %Bridge{id: 1, type: :hue, name: "Hue", host: "10.0.0.1"}
     bridge_ha = %Bridge{id: 2, type: :ha, name: "HA", host: "10.0.0.2"}
     bridge_caseta = %Bridge{id: 3, type: :caseta, name: "Caseta", host: "10.0.0.3"}
+    bridge_z2m = %Bridge{id: 4, type: :z2m, name: "Z2M", host: "10.0.0.4"}
 
-    for bridge <- [bridge_hue, bridge_ha, bridge_caseta] do
+    for bridge <- [bridge_hue, bridge_ha, bridge_caseta, bridge_z2m] do
       normalized = Normalize.normalize(bridge, %{})
       assert normalized.schema_version == 1
       assert normalized.rooms == []
