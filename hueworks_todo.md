@@ -32,16 +32,7 @@ Reference: `planning/prod-deploy.md`
 - [ ] Add backup/restore and upgrade runbook docs.
 - [ ] Add production smoke-check checklist.
 
-### 4) Zigbee2MQTT bridge integration
-Reference: `planning/z2m-bridge.md`
-- [ ] Add Z2M bridge setup + credential validation flow in `/config`.
-- [ ] Add Z2M import/fetch + normalize + materialize path for light entities.
-- [ ] Add Z2M MQTT subscription flow for physical state updates.
-- [ ] Add Z2M control adapter for planner/executor dispatch.
-- [ ] Add capability/range normalization for Z2M devices (especially strip drivers).
-- [ ] Add end-to-end tests for Z2M import + control + subscription flows.
-
-### 5) Core control coordination and no-popcorning behavior
+### 4) Core control coordination and no-popcorning behavior
 Reference: `planning/control-batching.md`
 - [ ] Ensure coordinated execution semantics for mixed actions in a room scene apply.
 - [ ] Validate cross-bridge timing behavior and define acceptable skew.
@@ -49,13 +40,13 @@ Reference: `planning/control-batching.md`
 - [ ] Decide and document executor mode defaults (`:append` vs `:replace`) per call path.
 - [ ] Add end-to-end tests proving expected behavior with 10+ light scene patterns.
 
-### 6) Close known runtime gaps
+### 5) Close known runtime gaps
 - [ ] Implement Caseta group dispatch path in `Hueworks.Control.Group`.
 - [ ] Replace Caseta Pico stub event logging with real event handling + mapping entrypoint.
 - [ ] Resolve HA group fan-out edge cases currently noted in subscription code.
 - [ ] Add regression tests for all three items above.
 
-### 7) Subscription test coverage
+### 6) Subscription test coverage
 Reference: `planning/test-coverage.md`
 - [ ] Add parser + mapper tests for Hue SSE event handling.
 - [ ] Add Home Assistant websocket event-flow tests (auth, subscribe, state_changed).
@@ -64,18 +55,18 @@ Reference: `planning/test-coverage.md`
 
 ## Next
 
-### 8) Bridge credential lifecycle
+### 7) Bridge credential lifecycle
 - [ ] Support editing bridge host/credentials safely without destructive re-setup.
 - [ ] Re-test credentials from UI after edit and gate save on validation.
 - [ ] Add migration-safe credential update flow for Caseta cert/key paths.
 
-### 9) Reimport and idempotency polish
+### 8) Reimport and idempotency polish
 Reference: `planning/import-resync.md`
 - [ ] Finalize and document deletion semantics (disabled vs removed) during reimport.
 - [ ] Persist/import history queries for operator-facing visibility.
 - [ ] Add stronger tests around preserving user edits during reimport.
 
-### 9.5) DB integrity and query health follow-up
+### 8.5) DB integrity and query health follow-up
 Reference: `planning/db-integrity.md`
 - [ ] Verify import-history/status query paths and add any missing targeted indices.
 - [ ] Audit FK behavior vs manual cleanup code for consistency.
@@ -83,23 +74,23 @@ Reference: `planning/db-integrity.md`
 
 ## Later
 
-### 10) Room assignment intelligence
+### 9) Room assignment intelligence
 - [ ] Extract room derivation into a dedicated module.
 - [ ] Add confidence scoring and suggested assignment review.
 - [ ] Improve unassigned/cross-bridge room handling UX.
 
-### 11) Scene UX improvements
+### 10) Scene UX improvements
 - [ ] Scene preview/dry-run mode before apply.
 - [ ] Scene activation history and error summaries in UI.
 - [ ] Bulk scene operations per room.
 
-### 12) Security and operations
+### 11) Security and operations
 - [ ] Add security hardening planning doc once scope is finalized.
 - [ ] Encrypt bridge credentials at rest.
 - [ ] Harden file permissions and backup handling for secrets/material.
 - [ ] Add deployment/runbook docs for restore and recovery procedures.
 
-### 13) Product expansion
+### 12) Product expansion
 - [ ] Additional bridge integrations beyond Zigbee2MQTT.
 - [ ] Public API surface (WebSocket/REST) for external control.
 - [ ] Multi-user/auth model for non-single-operator deployments.
