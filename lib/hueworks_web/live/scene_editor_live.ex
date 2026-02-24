@@ -14,7 +14,8 @@ defmodule HueworksWeb.SceneEditorLive do
     name: "Component 1",
     light_ids: [],
     group_ids: [],
-    light_state_id: "off"
+    light_state_id: "new",
+    light_defaults: %{}
   }
 
   def mount(_params, _session, socket) do
@@ -156,8 +157,24 @@ defmodule HueworksWeb.SceneEditorLive do
 
     case Scenes.create_scene(attrs) do
       {:ok, scene} ->
-        _ = Scenes.replace_scene_components(scene, socket.assigns.scene_components)
-        {:noreply, push_navigate(socket, to: "/rooms")}
+        case Scenes.replace_scene_components(scene, socket.assigns.scene_components) do
+          {:ok, _} ->
+            {:noreply, push_navigate(socket, to: "/rooms")}
+
+          {:error, :invalid_light_state} ->
+            _ = Scenes.delete_scene(scene)
+
+            {:noreply,
+             assign(
+               socket,
+               scene_save_error:
+                 "Each component must use a saved manual or circadian light state before saving."
+             )}
+
+          {:error, _} ->
+            _ = Scenes.delete_scene(scene)
+            {:noreply, assign(socket, scene_save_error: "Unable to save scene components.")}
+        end
 
       {:error, _changeset} ->
         {:noreply, assign(socket, scene_save_error: "Scene name is required.")}
@@ -179,8 +196,21 @@ defmodule HueworksWeb.SceneEditorLive do
 
         case Scenes.update_scene(scene, attrs) do
           {:ok, updated} ->
-            _ = Scenes.replace_scene_components(updated, socket.assigns.scene_components)
-            {:noreply, push_navigate(socket, to: "/rooms")}
+            case Scenes.replace_scene_components(updated, socket.assigns.scene_components) do
+              {:ok, _} ->
+                {:noreply, push_navigate(socket, to: "/rooms")}
+
+              {:error, :invalid_light_state} ->
+                {:noreply,
+                 assign(
+                   socket,
+                   scene_save_error:
+                     "Each component must use a saved manual or circadian light state before saving."
+                 )}
+
+              {:error, _} ->
+                {:noreply, assign(socket, scene_save_error: "Unable to save scene components.")}
+            end
 
           {:error, _changeset} ->
             {:noreply, assign(socket, scene_save_error: "Scene name is required.")}
@@ -199,17 +229,24 @@ defmodule HueworksWeb.SceneEditorLive do
   defp load_scene_components(scene) do
     scene =
       scene
-      |> Repo.preload(scene_components: [:lights, :light_state])
+      |> Repo.preload(scene_components: [:lights, :light_state, :scene_component_lights])
 
     components =
       Enum.map(scene.scene_components, fn component ->
+        light_defaults =
+          component.scene_component_lights
+          |> Enum.reduce(%{}, fn join, acc ->
+            Map.put(acc, join.light_id, join.default_power != false)
+          end)
+
         %{
           id: component.id,
           name: component.name || "Component",
           light_ids: Enum.map(component.lights, & &1.id),
           group_ids: [],
           light_state_id: to_string(component.light_state_id),
-          light_state_config: component.light_state && component.light_state.config
+          light_state_config: component.light_state && component.light_state.config,
+          light_defaults: light_defaults
         }
       end)
 

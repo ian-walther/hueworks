@@ -39,12 +39,13 @@ defmodule Hueworks.ScenesComponentsTest do
     bridge = insert_bridge()
     light1 = insert_light(room, bridge, %{name: "Lamp"})
     light2 = insert_light(room, bridge, %{name: "Ceiling"})
+    {:ok, state} = Scenes.create_manual_light_state("Soft")
 
     {:ok, scene} = Scenes.create_scene(%{name: "Chill", room_id: room.id})
 
     components = [
-      %{name: "Component 1", light_ids: [light1.id]},
-      %{name: "Component 2", light_ids: [light2.id]}
+      %{name: "Component 1", light_ids: [light1.id], light_state_id: to_string(state.id)},
+      %{name: "Component 2", light_ids: [light2.id], light_state_id: to_string(state.id)}
     ]
 
     {:ok, _} = Scenes.replace_scene_components(scene, components)
@@ -57,26 +58,17 @@ defmodule Hueworks.ScenesComponentsTest do
     assert Enum.any?(scene_components, fn sc -> Enum.map(sc.lights, & &1.id) == [light2.id] end)
   end
 
-  test "replace_scene_components uses the off light state when none specified" do
+  test "replace_scene_components returns an error when no light state is specified" do
     room = insert_room()
     bridge = insert_bridge()
     light = insert_light(room, bridge, %{name: "Lamp"})
 
     {:ok, scene} = Scenes.create_scene(%{name: "Chill", room_id: room.id})
 
-    {:ok, _} =
-      Scenes.replace_scene_components(scene, [%{name: "Component 1", light_ids: [light.id]}])
-
-    scene_component =
-      Repo.one(
-        from(sc in SceneComponent,
-          where: sc.scene_id == ^scene.id,
-          preload: [:light_state]
-        )
-      )
-
-    assert scene_component.light_state.type == :off
-    assert scene_component.light_state.name == "Off"
+    assert {:error, :invalid_light_state} =
+             Scenes.replace_scene_components(scene, [
+               %{name: "Component 1", light_ids: [light.id]}
+             ])
   end
 
   test "replace_scene_components uses selected manual light states without creating new ones" do
@@ -110,6 +102,7 @@ defmodule Hueworks.ScenesComponentsTest do
     light = insert_light(room, bridge, %{name: "Lamp"})
 
     {:ok, state} = Scenes.create_manual_light_state("Soft")
+    {:ok, other_state} = Scenes.create_manual_light_state("Warm")
     {:ok, scene} = Scenes.create_scene(%{name: "Chill", room_id: room.id})
 
     {:ok, _} =
@@ -119,20 +112,18 @@ defmodule Hueworks.ScenesComponentsTest do
 
     {:ok, _} =
       Scenes.replace_scene_components(scene, [
-        %{name: "Component 1", light_ids: [light.id], light_state_id: "off"}
+        %{name: "Component 1", light_ids: [light.id], light_state_id: to_string(other_state.id)}
       ])
 
     assert Repo.get(LightState, state.id)
   end
 
-  test "list_manual_light_states excludes off states" do
+  test "list_manual_light_states returns manual states" do
     {:ok, _state} = Scenes.create_manual_light_state("Bright")
-    _ = Scenes.get_or_create_off_state()
 
     names = Scenes.list_manual_light_states() |> Enum.map(& &1.name)
 
     assert "Bright" in names
-    refute "Off" in names
   end
 
   test "replace_scene_components removes old join rows" do
@@ -140,17 +131,22 @@ defmodule Hueworks.ScenesComponentsTest do
     bridge = insert_bridge()
     light1 = insert_light(room, bridge, %{name: "Lamp"})
     light2 = insert_light(room, bridge, %{name: "Ceiling"})
+    {:ok, state} = Scenes.create_manual_light_state("Soft")
 
     {:ok, scene} = Scenes.create_scene(%{name: "Chill", room_id: room.id})
 
     {:ok, _} =
       Scenes.replace_scene_components(scene, [
-        %{name: "Component 1", light_ids: [light1.id, light2.id]}
+        %{
+          name: "Component 1",
+          light_ids: [light1.id, light2.id],
+          light_state_id: to_string(state.id)
+        }
       ])
 
     {:ok, _} =
       Scenes.replace_scene_components(scene, [
-        %{name: "Component 1", light_ids: [light1.id]}
+        %{name: "Component 1", light_ids: [light1.id], light_state_id: to_string(state.id)}
       ])
 
     join_count =
@@ -166,6 +162,40 @@ defmodule Hueworks.ScenesComponentsTest do
     assert join_count == 1
   end
 
+  test "replace_scene_components persists per-light default power values" do
+    room = insert_room()
+    bridge = insert_bridge()
+    light1 = insert_light(room, bridge, %{name: "Lamp"})
+    light2 = insert_light(room, bridge, %{name: "Ceiling"})
+
+    {:ok, state} = Scenes.create_manual_light_state("Soft")
+    {:ok, scene} = Scenes.create_scene(%{name: "Chill", room_id: room.id})
+
+    {:ok, _} =
+      Scenes.replace_scene_components(scene, [
+        %{
+          name: "Component 1",
+          light_ids: [light1.id, light2.id],
+          light_state_id: to_string(state.id),
+          light_defaults: %{light1.id => true, light2.id => false}
+        }
+      ])
+
+    persisted_defaults =
+      Repo.all(
+        from(scl in SceneComponentLight,
+          join: sc in SceneComponent,
+          on: sc.id == scl.scene_component_id,
+          where: sc.scene_id == ^scene.id,
+          select: {scl.light_id, scl.default_power}
+        )
+      )
+      |> Map.new()
+
+    assert persisted_defaults[light1.id] == true
+    assert persisted_defaults[light2.id] == false
+  end
+
   test "activate_scene updates desired state for scene lights" do
     room = insert_room()
     bridge = insert_bridge()
@@ -179,7 +209,11 @@ defmodule Hueworks.ScenesComponentsTest do
 
     {:ok, _} =
       Scenes.replace_scene_components(scene, [
-        %{name: "Component 1", light_ids: [light1.id, light2.id], light_state_id: to_string(state.id)}
+        %{
+          name: "Component 1",
+          light_ids: [light1.id, light2.id],
+          light_state_id: to_string(state.id)
+        }
       ])
 
     {:ok, diff, _updated} = Scenes.activate_scene(scene.id)
@@ -203,12 +237,57 @@ defmodule Hueworks.ScenesComponentsTest do
         %{name: "Component 1", light_ids: [light.id], light_state_id: to_string(state.id)}
       ])
 
-    _ = Hueworks.Control.State.put(:light, light.id, %{power: :on, brightness: "25", kelvin: "2500"})
+    _ =
+      Hueworks.Control.State.put(:light, light.id, %{power: :on, brightness: "25", kelvin: "2500"})
 
     {:ok, _diff, _updated} = Scenes.apply_scene(scene, brightness_override: true)
 
     desired = DesiredState.get(:light, light.id)
     assert desired[:brightness] == "25"
     assert desired[:kelvin] == "3000"
+  end
+
+  test "apply_scene uses per-light default power while keeping shared manual values" do
+    room = insert_room()
+    bridge = insert_bridge()
+    light1 = insert_light(room, bridge, %{name: "Lamp"})
+    light2 = insert_light(room, bridge, %{name: "Ceiling"})
+
+    {:ok, state} =
+      Scenes.create_manual_light_state("Soft", %{"brightness" => "40", "temperature" => "3000"})
+
+    {:ok, scene} = Scenes.create_scene(%{name: "Chill", room_id: room.id})
+
+    {:ok, _} =
+      Scenes.replace_scene_components(scene, [
+        %{
+          name: "Component 1",
+          light_ids: [light1.id, light2.id],
+          light_state_id: to_string(state.id),
+          light_defaults: %{light1.id => true, light2.id => false}
+        }
+      ])
+
+    _ = Hueworks.Control.State.put(:light, light1.id, %{power: :off})
+
+    _ =
+      Hueworks.Control.State.put(:light, light2.id, %{
+        power: :on,
+        brightness: "25",
+        kelvin: "2500"
+      })
+
+    {:ok, _diff, _updated} = Scenes.apply_scene(scene)
+
+    desired_light1 = DesiredState.get(:light, light1.id)
+    desired_light2 = DesiredState.get(:light, light2.id)
+
+    assert desired_light1[:power] == :on
+    assert desired_light1[:brightness] == "40"
+    assert desired_light1[:kelvin] == "3000"
+
+    assert desired_light2[:power] == :off
+    refute Map.has_key?(desired_light2, :brightness)
+    refute Map.has_key?(desired_light2, :kelvin)
   end
 end

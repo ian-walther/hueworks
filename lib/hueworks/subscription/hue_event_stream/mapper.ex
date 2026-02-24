@@ -32,6 +32,7 @@ defmodule Hueworks.Subscription.HueEventStream.Mapper do
          %{id: db_id} <- Map.get(state.groups_by_id, v1_id) do
       attrs = event_state_from_group(resource)
       State.put(:group, db_id, attrs)
+      maybe_update_lights_from_group(state, db_id, attrs)
     else
       _ -> :ok
     end
@@ -152,6 +153,18 @@ defmodule Hueworks.Subscription.HueEventStream.Mapper do
                 :ok
             end
         end
+      end)
+    end
+  end
+
+  defp maybe_update_lights_from_group(state, group_id, attrs) do
+    if attrs == %{} do
+      :ok
+    else
+      state.group_lights
+      |> Map.get(group_id, [])
+      |> Enum.each(fn light_id ->
+        State.put(:light, light_id, attrs)
       end)
     end
   end

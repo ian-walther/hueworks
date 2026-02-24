@@ -284,6 +284,16 @@ defmodule Hueworks.SchemasTest do
     errors = errors_on(changeset)
     assert errors[:scene_component_id] == ["can't be blank"]
     assert errors[:light_id] == ["can't be blank"]
+
+    valid_changeset =
+      SceneComponentLight.changeset(%SceneComponentLight{}, %{
+        scene_component_id: 1,
+        light_id: 2,
+        default_power: false
+      })
+
+    assert valid_changeset.valid?
+    assert get_change(valid_changeset, :default_power) == false
   end
 
   test "group_light requires group_id and light_id" do

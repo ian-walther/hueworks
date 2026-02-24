@@ -8,7 +8,6 @@ defmodule HueworksWeb.SceneBuilderComponent do
   @new_manual_state_id "new"
   @new_manual_state_alias "new_manual"
   @new_circadian_state_id "new_circadian"
-  @off_state_id "off"
 
   @manual_keys ["brightness", "temperature"]
 
@@ -36,7 +35,14 @@ defmodule HueworksWeb.SceneBuilderComponent do
     {:ok,
      assign(socket,
        components: [
-         %{id: 1, name: "Component 1", light_ids: [], group_ids: [], light_state_id: "off"}
+         %{
+           id: 1,
+           name: "Component 1",
+           light_ids: [],
+           group_ids: [],
+           light_state_id: @new_manual_state_id,
+           light_defaults: %{}
+         }
        ],
        room_lights: [],
        groups: [],
@@ -59,6 +65,7 @@ defmodule HueworksWeb.SceneBuilderComponent do
       |> assign_new(:light_state_names, fn -> %{} end)
       |> assign_new(:light_state_edits, fn -> %{} end)
       |> assign_new(:light_state_dirty, fn -> %{} end)
+      |> normalize_component_light_defaults()
       |> normalize_component_light_states()
       |> hydrate_light_state_edits_for_components()
       |> hydrate_light_state_names_for_components()
@@ -109,9 +116,6 @@ defmodule HueworksWeb.SceneBuilderComponent do
                 >
                   New Circadian
                 </option>
-                <option value="off" selected={to_string(component.light_state_id) == "off"}>
-                  Off
-                </option>
                 <%= for state <- @light_states do %>
                   <option value={state.id} selected={to_string(state.id) == to_string(component.light_state_id)}>
                     <%= state_option_label(state) %>
@@ -119,41 +123,39 @@ defmodule HueworksWeb.SceneBuilderComponent do
                 <% end %>
               </select>
             </form>
-            <%= if light_state_mode(component, @light_states) != :off do %>
-              <div class="hw-row">
-                <button
-                  type="button"
-                  class="hw-button"
-                  phx-click="edit_light_state"
-                  phx-target={@myself}
-                  phx-value-component_id={component.id}
-                  disabled={new_state_id?(component.light_state_id)}
-                >
-                  Edit
-                </button>
-                <button
-                  type="button"
-                  class="hw-button"
-                  phx-click="duplicate_light_state"
-                  phx-target={@myself}
-                  phx-value-component_id={component.id}
-                  disabled={new_state_id?(component.light_state_id)}
-                >
-                  Duplicate
-                </button>
-                <button
-                  type="button"
-                  class="hw-button hw-button-off"
-                  phx-click="delete_light_state"
-                  phx-target={@myself}
-                  phx-value-component_id={component.id}
-                  disabled={new_state_id?(component.light_state_id)}
-                >
-                  Delete
-                </button>
-                <span class="hw-muted">Edits affect all scenes using this state.</span>
-              </div>
-            <% end %>
+            <div class="hw-row">
+              <button
+                type="button"
+                class="hw-button"
+                phx-click="edit_light_state"
+                phx-target={@myself}
+                phx-value-component_id={component.id}
+                disabled={new_state_id?(component.light_state_id)}
+              >
+                Edit
+              </button>
+              <button
+                type="button"
+                class="hw-button"
+                phx-click="duplicate_light_state"
+                phx-target={@myself}
+                phx-value-component_id={component.id}
+                disabled={new_state_id?(component.light_state_id)}
+              >
+                Duplicate
+              </button>
+              <button
+                type="button"
+                class="hw-button hw-button-off"
+                phx-click="delete_light_state"
+                phx-target={@myself}
+                phx-value-component_id={component.id}
+                disabled={new_state_id?(component.light_state_id)}
+              >
+                Delete
+              </button>
+              <span class="hw-muted">Edits affect all scenes using this state.</span>
+            </div>
             <%= if light_state_mode(component, @light_states) == :manual do %>
               <div class="hw-row">
                 <form phx-change="update_light_state_form" phx-target={@myself} data-component-id={component.id}>
@@ -232,36 +234,34 @@ defmodule HueworksWeb.SceneBuilderComponent do
               </div>
             <% end %>
 
-            <%= if light_state_mode(component, @light_states) != :off do %>
-              <div class="hw-row">
-                <label class="hw-modal-label">Light state name</label>
-                <form phx-change="select_light_state_name" phx-target={@myself} data-component-id={component.id}>
-                  <input type="hidden" name="component_id" value={component.id} />
-                  <input
-                    type="text"
-                    name="name"
-                    class="hw-modal-input"
-                    autocomplete="off"
-                    value={Map.get(@light_state_names, component.id, "")}
-                  />
-                </form>
-                <button
-                  type="button"
-                  class="hw-button"
-                  phx-click="save_light_state_name"
-                  phx-target={@myself}
-                  phx-value-component_id={component.id}
-                >
-                  Save state
-                </button>
-                <%= if Map.get(@light_state_dirty, component.id, false) do %>
-                  <span class="hw-muted">(unsaved changes)</span>
-                <% end %>
-                <%= if @light_state_error do %>
-                  <p class="hw-error"><%= @light_state_error %></p>
-                <% end %>
-              </div>
-            <% end %>
+            <div class="hw-row">
+              <label class="hw-modal-label">Light state name</label>
+              <form phx-change="select_light_state_name" phx-target={@myself} data-component-id={component.id}>
+                <input type="hidden" name="component_id" value={component.id} />
+                <input
+                  type="text"
+                  name="name"
+                  class="hw-modal-input"
+                  autocomplete="off"
+                  value={Map.get(@light_state_names, component.id, "")}
+                />
+              </form>
+              <button
+                type="button"
+                class="hw-button"
+                phx-click="save_light_state_name"
+                phx-target={@myself}
+                phx-value-component_id={component.id}
+              >
+                Save state
+              </button>
+              <%= if Map.get(@light_state_dirty, component.id, false) do %>
+                <span class="hw-muted">(unsaved changes)</span>
+              <% end %>
+              <%= if @light_state_error do %>
+                <p class="hw-error"><%= @light_state_error %></p>
+              <% end %>
+            </div>
           </div>
 
           <%= if @builder.available_lights != [] do %>
@@ -318,6 +318,16 @@ defmodule HueworksWeb.SceneBuilderComponent do
                 <span><%= light_name(@room_lights, light_id) %></span>
                 <button
                   type="button"
+                  class="hw-button"
+                  phx-click="toggle_light_default_power"
+                  phx-target={@myself}
+                  phx-value-component_id={component.id}
+                  phx-value-light_id={light_id}
+                >
+                  <%= if light_default_power(component, light_id), do: "On by default", else: "Off by default" %>
+                </button>
+                <button
+                  type="button"
                   class="hw-edit-button hw-delete-button"
                   phx-click="remove_light"
                   phx-target={@myself}
@@ -371,7 +381,8 @@ defmodule HueworksWeb.SceneBuilderComponent do
             name: "Component #{next_id}",
             light_ids: [],
             group_ids: [],
-            light_state_id: @off_state_id
+            light_state_id: @new_manual_state_id,
+            light_defaults: %{}
           }
         ]
 
@@ -445,9 +456,6 @@ defmodule HueworksWeb.SceneBuilderComponent do
     state_id = selected_state_id(component)
 
     cond do
-      mode == :off ->
-        {:noreply, assign(socket, light_state_error: "Select a non-off state before saving.")}
-
       is_integer(state_id) ->
         case Hueworks.Scenes.update_light_state(state_id, %{name: name, config: edits}) do
           {:ok, updated} ->
@@ -637,7 +645,7 @@ defmodule HueworksWeb.SceneBuilderComponent do
           components =
             Enum.map(socket.assigns.components, fn component ->
               if component.id == component_id do
-                %{component | light_state_id: @off_state_id}
+                %{component | light_state_id: @new_manual_state_id}
               else
                 component
               end
@@ -671,12 +679,22 @@ defmodule HueworksWeb.SceneBuilderComponent do
   end
 
   def handle_event("add_light", %{"component_id" => id}, socket) do
+    component_id = parse_id(id)
     light_id = Map.get(socket.assigns[:selections] || %{}, {:light, parse_id(id)})
 
     components =
       Enum.map(socket.assigns.components, fn component ->
-        if component.id == parse_id(id) and is_integer(light_id) do
-          %{component | light_ids: Enum.uniq(component.light_ids ++ [light_id])}
+        if component.id == component_id and is_integer(light_id) do
+          defaults =
+            component
+            |> Map.get(:light_defaults, %{})
+            |> Map.put(light_id, true)
+
+          %{
+            component
+            | light_ids: Enum.uniq(component.light_ids ++ [light_id]),
+              light_defaults: defaults
+          }
         else
           component
         end
@@ -688,15 +706,23 @@ defmodule HueworksWeb.SceneBuilderComponent do
   end
 
   def handle_event("add_group", %{"component_id" => id}, socket) do
+    component_id = parse_id(id)
     group_id = Map.get(socket.assigns[:selections] || %{}, {:group, parse_id(id)})
     group = Enum.find(socket.assigns.groups, &(&1.id == group_id))
 
     components =
       Enum.map(socket.assigns.components, fn component ->
-        if component.id == parse_id(id) and group do
+        if component.id == component_id and group do
           light_ids = Enum.uniq(component.light_ids ++ group.light_ids)
           group_ids = Enum.uniq(component.group_ids ++ [group_id])
-          %{component | light_ids: light_ids, group_ids: group_ids}
+
+          defaults =
+            Enum.reduce(group.light_ids, Map.get(component, :light_defaults, %{}), fn light_id,
+                                                                                      acc ->
+              Map.put_new(acc, light_id, true)
+            end)
+
+          %{component | light_ids: light_ids, group_ids: group_ids, light_defaults: defaults}
         else
           component
         end
@@ -708,10 +734,21 @@ defmodule HueworksWeb.SceneBuilderComponent do
   end
 
   def handle_event("remove_light", %{"component_id" => id, "light_id" => light_id}, socket) do
+    parsed_light_id = parse_id(light_id)
+
     components =
       Enum.map(socket.assigns.components, fn component ->
         if component.id == parse_id(id) do
-          %{component | light_ids: List.delete(component.light_ids, parse_id(light_id))}
+          defaults =
+            component
+            |> Map.get(:light_defaults, %{})
+            |> Map.delete(parsed_light_id)
+
+          %{
+            component
+            | light_ids: List.delete(component.light_ids, parsed_light_id),
+              light_defaults: defaults
+          }
         else
           component
         end
@@ -736,13 +773,38 @@ defmodule HueworksWeb.SceneBuilderComponent do
               name: "Component 1",
               light_ids: [],
               group_ids: [],
-              light_state_id: @off_state_id
+              light_state_id: @new_manual_state_id,
+              light_defaults: %{}
             }
           ]
 
         _ ->
           components
       end
+
+    socket = refresh_builder(assign(socket, components: components))
+    notify_parent(socket)
+    {:noreply, socket}
+  end
+
+  def handle_event(
+        "toggle_light_default_power",
+        %{"component_id" => component_id, "light_id" => light_id},
+        socket
+      ) do
+    parsed_component_id = parse_id(component_id)
+    parsed_light_id = parse_id(light_id)
+
+    components =
+      Enum.map(socket.assigns.components, fn component ->
+        if component.id == parsed_component_id and is_integer(parsed_light_id) do
+          defaults = Map.get(component, :light_defaults, %{})
+          current = Map.get(defaults, parsed_light_id, true)
+          %{component | light_defaults: Map.put(defaults, parsed_light_id, not current)}
+        else
+          component
+        end
+      end)
 
     socket = refresh_builder(assign(socket, components: components))
     notify_parent(socket)
@@ -773,10 +835,16 @@ defmodule HueworksWeb.SceneBuilderComponent do
     end
   end
 
+  defp light_default_power(component, light_id) do
+    component
+    |> Map.get(:light_defaults, %{})
+    |> Map.get(light_id, true)
+    |> normalize_default_power_value()
+  end
+
   defp display_name(entity), do: Util.display_name(entity)
 
   defp selected_state_id(nil), do: nil
-  defp selected_state_id(%{light_state_id: state_id}) when state_id in [@off_state_id], do: nil
 
   defp selected_state_id(%{light_state_id: state_id})
        when state_id in [@new_manual_state_id, @new_manual_state_alias, @new_circadian_state_id],
@@ -796,13 +864,10 @@ defmodule HueworksWeb.SceneBuilderComponent do
     ]
   end
 
-  defp light_state_mode(nil, _light_states), do: :off
+  defp light_state_mode(nil, _light_states), do: :manual
 
   defp light_state_mode(component, light_states) do
     case normalize_new_state_id(Map.get(component, :light_state_id)) do
-      @off_state_id ->
-        :off
-
       state_id when state_id in [@new_manual_state_id, @new_manual_state_alias] ->
         :manual
 
@@ -811,7 +876,7 @@ defmodule HueworksWeb.SceneBuilderComponent do
 
       state_id ->
         case Enum.find(light_states, &(&1.id == parse_id(state_id))) do
-          nil -> :off
+          nil -> :manual
           state -> state.type
         end
     end
@@ -1005,7 +1070,7 @@ defmodule HueworksWeb.SceneBuilderComponent do
           Map.has_key?(acc, component_id) ->
             acc
 
-          Map.get(component, :light_state_id) in [nil, @off_state_id, :off] ->
+          Map.get(component, :light_state_id) in [nil] ->
             acc
 
           true ->
@@ -1018,6 +1083,24 @@ defmodule HueworksWeb.SceneBuilderComponent do
       end)
 
     assign(socket, light_state_edits: updated)
+  end
+
+  defp normalize_component_light_defaults(socket) do
+    components =
+      Enum.map(socket.assigns.components, fn component ->
+        light_ids = Map.get(component, :light_ids, [])
+
+        defaults =
+          component
+          |> Map.get(:light_defaults, %{})
+          |> normalize_light_defaults_map()
+          |> keep_defaults_for_light_ids(light_ids)
+          |> ensure_defaults_for_light_ids(light_ids)
+
+        Map.put(component, :light_defaults, defaults)
+      end)
+
+    assign(socket, components: components)
   end
 
   defp normalize_component_light_states(socket) do
@@ -1040,12 +1123,7 @@ defmodule HueworksWeb.SceneBuilderComponent do
             %{component | light_state_id: normalized}
           end
 
-        updated_edits =
-          if normalized == @off_state_id do
-            Map.delete(edits, Map.get(component, :id))
-          else
-            edits
-          end
+        updated_edits = edits
 
         {[updated_component | acc], updated_edits}
       end)
@@ -1093,10 +1171,7 @@ defmodule HueworksWeb.SceneBuilderComponent do
     if state, do: state.name, else: ""
   end
 
-  defp normalize_light_state_id(nil, _ids), do: @off_state_id
-
-  defp normalize_light_state_id(state_id, _ids) when state_id in [@off_state_id, :off],
-    do: @off_state_id
+  defp normalize_light_state_id(nil, _ids), do: @new_manual_state_id
 
   defp normalize_light_state_id(state_id, _ids)
        when state_id in [@new_manual_state_id, @new_manual_state_alias], do: @new_manual_state_id
@@ -1106,6 +1181,34 @@ defmodule HueworksWeb.SceneBuilderComponent do
 
   defp normalize_light_state_id(state_id, ids) do
     state_id = to_string(state_id)
-    if MapSet.member?(ids, state_id), do: state_id, else: @off_state_id
+    if MapSet.member?(ids, state_id), do: state_id, else: @new_manual_state_id
   end
+
+  defp normalize_light_defaults_map(defaults) when is_map(defaults) do
+    Enum.reduce(defaults, %{}, fn {key, value}, acc ->
+      case parse_id(key) do
+        nil -> acc
+        light_id -> Map.put(acc, light_id, normalize_default_power_value(value))
+      end
+    end)
+  end
+
+  defp normalize_light_defaults_map(_defaults), do: %{}
+
+  defp keep_defaults_for_light_ids(defaults, light_ids) do
+    allowed_ids = MapSet.new(light_ids)
+
+    defaults
+    |> Enum.filter(fn {light_id, _} -> MapSet.member?(allowed_ids, light_id) end)
+    |> Map.new()
+  end
+
+  defp ensure_defaults_for_light_ids(defaults, light_ids) do
+    Enum.reduce(light_ids, defaults, fn light_id, acc -> Map.put_new(acc, light_id, true) end)
+  end
+
+  defp normalize_default_power_value(value) when value in [true, "true", 1, "1", :on, "on"],
+    do: true
+
+  defp normalize_default_power_value(_value), do: false
 end

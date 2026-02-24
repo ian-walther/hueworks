@@ -189,6 +189,12 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
     |> render_click()
 
     view
+    |> element(
+      "button[phx-click='toggle_light_default_power'][phx-value-component_id='1'][phx-value-light_id='#{light1.id}']"
+    )
+    |> render_click()
+
+    view
     |> form("form[phx-change='update_scene']", %{"name" => "Chill"})
     |> render_change()
 
@@ -229,6 +235,20 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
       )
 
     assert join_count == 2
+
+    default_power_by_light =
+      Repo.all(
+        from(scl in SceneComponentLight,
+          join: sc in SceneComponent,
+          on: sc.id == scl.scene_component_id,
+          where: sc.scene_id == ^scene.id,
+          select: {scl.light_id, scl.default_power}
+        )
+      )
+      |> Map.new()
+
+    assert default_power_by_light[light1.id] == false
+    assert default_power_by_light[light2.id] == true
   end
 
   test "editing a scene updates components and light state via the UI", %{conn: conn} do
@@ -414,7 +434,7 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
     assert state.config["brightness_mode_time_light"] == 5400
   end
 
-  test "saving a scene with off light state succeeds", %{conn: conn} do
+  test "saving a scene without a saved light state shows a validation error", %{conn: conn} do
     room = insert_room()
     bridge = insert_bridge()
     light1 = insert_light(room, bridge, %{name: "Lamp"})
@@ -439,24 +459,20 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
     |> form("form[phx-change='update_scene']", %{"name" => "Off Scene"})
     |> render_change()
 
-    assert {:error, {:live_redirect, %{to: "/rooms"}}} =
-             view
-             |> element("button[phx-click='save_scene']")
-             |> render_click()
+    view
+    |> element("button[phx-click='save_scene']")
+    |> render_click()
 
-    scene =
-      Repo.one(from(s in Scene, where: s.room_id == ^room.id and s.name == "Off Scene"))
+    assert has_element?(
+             view,
+             ".hw-error",
+             "Each component must use a saved manual or circadian light state before saving."
+           )
 
-    assert scene
-
-    scene_component =
-      Repo.one(from(sc in SceneComponent, where: sc.scene_id == ^scene.id))
-
-    off = Hueworks.Scenes.get_or_create_off_state()
-    assert scene_component.light_state_id == off.id
+    refute Repo.one(from(s in Scene, where: s.room_id == ^room.id and s.name == "Off Scene"))
   end
 
-  test "deleting a light state used only by the current scene is allowed", %{conn: conn} do
+  test "deleting a light state currently used by a scene is blocked", %{conn: conn} do
     room = insert_room()
     bridge = insert_bridge()
     light1 = insert_light(room, bridge, %{name: "Lamp"})
@@ -480,10 +496,8 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
     |> element("button[phx-click='delete_light_state'][phx-value-component_id='1']")
     |> render_click()
 
-    refute has_element?(view, ".hw-error", "Light state is in use by other scenes.")
-    refute has_element?(view, "select[name='light_state_id'] option[value='#{state.id}']")
-    assert has_element?(view, "select[name='light_state_id'] option[value='off'][selected]")
-    refute Hueworks.Repo.get(Hueworks.Schemas.LightState, state.id)
+    assert has_element?(view, ".hw-error", "Light state is in use by other scenes.")
+    assert Hueworks.Repo.get(Hueworks.Schemas.LightState, state.id)
   end
 
   test "saving with unassigned lights shows a validation error banner", %{conn: conn} do

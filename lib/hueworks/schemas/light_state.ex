@@ -6,7 +6,7 @@ defmodule Hueworks.Schemas.LightState do
 
   schema "light_states" do
     field(:name, :string)
-    field(:type, Ecto.Enum, values: [:off, :manual, :circadian])
+    field(:type, Ecto.Enum, values: [:manual, :circadian])
     field(:config, :map, default: %{})
 
     has_many(:scene_components, Hueworks.Schemas.SceneComponent)

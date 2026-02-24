@@ -324,6 +324,210 @@ defmodule Hueworks.SceneActivationRoundTripTest do
            end)
   end
 
+  test "default-off light in a manual component dispatches an explicit off action", %{
+    conn: conn,
+    actions_agent: actions_agent,
+    executor_server: executor_server
+  } do
+    room = Repo.insert!(%Room{name: "Kitchen"})
+
+    bridge =
+      Repo.insert!(%Bridge{
+        name: "Hue Bridge",
+        type: :hue,
+        host: "192.168.1.9",
+        credentials: %{"api_key" => "test"}
+      })
+
+    light_on =
+      Repo.insert!(%Light{
+        name: "Counter",
+        display_name: "Counter",
+        source: :hue,
+        source_id: "301",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        supports_temp: true,
+        reported_min_kelvin: 2000,
+        reported_max_kelvin: 6500
+      })
+
+    light_off =
+      Repo.insert!(%Light{
+        name: "Accent",
+        display_name: "Accent",
+        source: :hue,
+        source_id: "302",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        supports_temp: true,
+        reported_min_kelvin: 2000,
+        reported_max_kelvin: 6500
+      })
+
+    group =
+      Repo.insert!(%Group{
+        name: "Kitchen Group",
+        display_name: "Kitchen Group",
+        source: :hue,
+        source_id: "401",
+        bridge_id: bridge.id,
+        room_id: room.id
+      })
+
+    Repo.insert!(%GroupLight{group_id: group.id, light_id: light_on.id})
+    Repo.insert!(%GroupLight{group_id: group.id, light_id: light_off.id})
+
+    light_state =
+      Repo.insert!(%LightState{
+        name: "Warm",
+        type: :manual,
+        config: %{"brightness" => "45", "temperature" => "2800"}
+      })
+
+    scene =
+      Repo.insert!(%Scene{
+        name: "Evening",
+        room_id: room.id,
+        metadata: %{}
+      })
+
+    component =
+      Repo.insert!(%SceneComponent{
+        name: "Component 1",
+        scene_id: scene.id,
+        light_state_id: light_state.id,
+        metadata: %{}
+      })
+
+    Repo.insert!(%SceneComponentLight{
+      scene_component_id: component.id,
+      light_id: light_on.id,
+      default_power: true
+    })
+
+    Repo.insert!(%SceneComponentLight{
+      scene_component_id: component.id,
+      light_id: light_off.id,
+      default_power: false
+    })
+
+    if :ets.whereis(:hueworks_control_state) != :undefined do
+      :ets.insert(:hueworks_control_state, {{:light, light_on.id}, %{power: :off}})
+
+      :ets.insert(
+        :hueworks_control_state,
+        {{:light, light_off.id}, %{power: :on, brightness: 30}}
+      )
+    end
+
+    if :ets.whereis(:hueworks_desired_state) != :undefined do
+      :ets.delete(:hueworks_desired_state, {:light, light_on.id})
+      :ets.delete(:hueworks_desired_state, {:light, light_off.id})
+    end
+
+    {:ok, view, _html} = live(conn, "/rooms")
+
+    view
+    |> element("button[phx-click=\"activate_scene\"][phx-value-id=\"#{scene.id}\"]")
+    |> render_click()
+
+    drain_executor(executor_server)
+
+    actions = Agent.get(actions_agent, & &1)
+
+    assert Enum.any?(actions, fn action ->
+             action.type == :light and action.id == light_on.id and
+               action.desired[:power] == :on and action.desired[:brightness] == "45" and
+               action.desired[:kelvin] == 2800
+           end)
+
+    assert Enum.any?(actions, fn action ->
+             action.type == :light and action.id == light_off.id and
+               action.desired[:power] == :off
+           end)
+  end
+
+  test "scene activation still dispatches off for default-off lights when state tables already say off",
+       %{
+         conn: conn,
+         actions_agent: actions_agent,
+         executor_server: executor_server
+       } do
+    room = Repo.insert!(%Room{name: "Hallway"})
+
+    bridge =
+      Repo.insert!(%Bridge{
+        name: "Hue Bridge",
+        type: :hue,
+        host: "192.168.1.10",
+        credentials: %{"api_key" => "test"}
+      })
+
+    light =
+      Repo.insert!(%Light{
+        name: "Niche",
+        display_name: "Niche",
+        source: :hue,
+        source_id: "501",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        supports_temp: true,
+        reported_min_kelvin: 2000,
+        reported_max_kelvin: 6500
+      })
+
+    light_state =
+      Repo.insert!(%LightState{
+        name: "Warm",
+        type: :manual,
+        config: %{"brightness" => "45", "temperature" => "2800"}
+      })
+
+    scene =
+      Repo.insert!(%Scene{
+        name: "Night",
+        room_id: room.id,
+        metadata: %{}
+      })
+
+    component =
+      Repo.insert!(%SceneComponent{
+        name: "Component 1",
+        scene_id: scene.id,
+        light_state_id: light_state.id,
+        metadata: %{}
+      })
+
+    Repo.insert!(%SceneComponentLight{
+      scene_component_id: component.id,
+      light_id: light.id,
+      default_power: false
+    })
+
+    if :ets.whereis(:hueworks_control_state) != :undefined do
+      :ets.insert(:hueworks_control_state, {{:light, light.id}, %{power: :off}})
+    end
+
+    if :ets.whereis(:hueworks_desired_state) != :undefined do
+      :ets.insert(:hueworks_desired_state, {{:light, light.id}, %{power: :off}})
+    end
+
+    {:ok, view, _html} = live(conn, "/rooms")
+
+    view
+    |> element("button[phx-click=\"activate_scene\"][phx-value-id=\"#{scene.id}\"]")
+    |> render_click()
+
+    drain_executor(executor_server)
+
+    actions = Agent.get(actions_agent, & &1)
+
+    assert Enum.any?(actions, fn action ->
+             action.type == :light and action.id == light.id and action.desired[:power] == :off
+           end)
+  end
+
   defp drain_executor(server, attempts \\ 5)
 
   defp drain_executor(_server, 0), do: :ok

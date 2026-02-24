@@ -124,6 +124,36 @@ defmodule Hueworks.SceneBuilderComponentTest do
     assert html =~ "All lights assigned."
   end
 
+  test "assigned light default power can be toggled in the component list", %{conn: conn} do
+    {:ok, view, _html} = live_isolated(conn, TestLive)
+
+    view
+    |> form("form[phx-change='select_light'][data-component-id='1']", %{"light_id" => "1"})
+    |> render_change()
+
+    view
+    |> element("button[phx-click='add_light'][phx-value-component_id='1']")
+    |> render_click()
+
+    assert has_element?(
+             view,
+             "button[phx-click='toggle_light_default_power'][phx-value-component_id='1'][phx-value-light_id='1']",
+             "On by default"
+           )
+
+    view
+    |> element(
+      "button[phx-click='toggle_light_default_power'][phx-value-component_id='1'][phx-value-light_id='1']"
+    )
+    |> render_click()
+
+    assert has_element?(
+             view,
+             "button[phx-click='toggle_light_default_power'][phx-value-component_id='1'][phx-value-light_id='1']",
+             "Off by default"
+           )
+  end
+
   test "selecting a manual light state updates the component dropdown", %{conn: conn} do
     {:ok, state} = Scenes.create_manual_light_state("Soft")
     {:ok, view, _html} = live_isolated(conn, TestLive)
@@ -378,7 +408,7 @@ defmodule Hueworks.SceneBuilderComponentTest do
         groups = [%{id: 10, name: "All", light_ids: [1, 2]}]
 
         components = [
-          %{id: 1, name: "Component 1", light_ids: [1, 2], group_ids: [10], light_state_id: "off"}
+          %{id: 1, name: "Component 1", light_ids: [1, 2], group_ids: [10], light_state_id: "new"}
         ]
 
         {:ok,
@@ -464,19 +494,19 @@ defmodule Hueworks.SceneBuilderComponentTest do
     assert html =~ ~r/option value=\"new\"/
   end
 
-  test "off selection hides sliders and name input", %{conn: conn} do
+  test "new manual selection shows sliders and name input", %{conn: conn} do
     {:ok, view, _html} = live_isolated(conn, TestLive)
 
-    assert has_element?(view, "select[name='light_state_id'] option[value='off'][selected]")
-    refute has_element?(view, "label", "Brightness")
-    refute has_element?(view, "label", "Temperature")
-    refute has_element?(view, "label", "Light state name")
-    refute has_element?(view, "button", "Edit")
-    refute has_element?(view, "button", "Duplicate")
-    refute has_element?(view, "button", "Delete")
+    assert has_element?(view, "select[name='light_state_id'] option[value='new'][selected]")
+    assert has_element?(view, "label", "Brightness")
+    assert has_element?(view, "label", "Temperature")
+    assert has_element?(view, "label", "Light state name")
+    assert has_element?(view, "button", "Edit")
+    assert has_element?(view, "button", "Duplicate")
+    assert has_element?(view, "button", "Delete")
   end
 
-  test "missing light state defaults to off and disables delete", %{conn: conn} do
+  test "missing light state defaults to new manual and disables edit actions", %{conn: conn} do
     defmodule MissingStateLive do
       use Phoenix.LiveView
 
@@ -512,10 +542,10 @@ defmodule Hueworks.SceneBuilderComponentTest do
     end
 
     {:ok, view, _html} = live_isolated(conn, MissingStateLive)
-    assert has_element?(view, "select[name='light_state_id'] option[value='off'][selected]")
-    refute has_element?(view, "button", "Edit")
-    refute has_element?(view, "button", "Duplicate")
-    refute has_element?(view, "button", "Delete")
+    assert has_element?(view, "select[name='light_state_id'] option[value='new'][selected]")
+    assert has_element?(view, "button[phx-click='edit_light_state'][disabled]")
+    assert has_element?(view, "button[phx-click='duplicate_light_state'][disabled]")
+    assert has_element?(view, "button[phx-click='delete_light_state'][disabled]")
   end
 
   test "selected circadian light state renders all circadian inputs", %{conn: conn} do

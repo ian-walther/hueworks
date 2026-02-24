@@ -90,7 +90,7 @@ defmodule Hueworks.Scenes do
   end
 
   def delete_light_state(id, opts \\ []) do
-    scene_id = Keyword.get(opts, :scene_id)
+    _scene_id = Keyword.get(opts, :scene_id)
 
     case Repo.get(LightState, id) do
       nil ->
@@ -107,31 +107,6 @@ defmodule Hueworks.Scenes do
           in_use == 0 ->
             Repo.delete(state)
 
-          is_integer(scene_id) ->
-            current_scene_count =
-              Repo.aggregate(
-                from(sc in SceneComponent,
-                  where: sc.light_state_id == ^state.id and sc.scene_id == ^scene_id
-                ),
-                :count
-              )
-
-            if current_scene_count == in_use do
-              off = get_or_create_off_state()
-
-              _ =
-                Repo.update_all(
-                  from(sc in SceneComponent,
-                    where: sc.light_state_id == ^state.id and sc.scene_id == ^scene_id
-                  ),
-                  set: [light_state_id: off.id]
-                )
-
-              Repo.delete(state)
-            else
-              {:error, :in_use}
-            end
-
           true ->
             {:error, :in_use}
         end
@@ -147,22 +122,6 @@ defmodule Hueworks.Scenes do
   def update_manual_light_state(id, attrs), do: update_light_state(id, attrs)
   def duplicate_manual_light_state(id), do: duplicate_light_state(id)
   def delete_manual_light_state(id, opts \\ []), do: delete_light_state(id, opts)
-
-  def get_or_create_off_state do
-    case Repo.one(from(ls in LightState, where: ls.type == :off, limit: 1)) do
-      nil ->
-        %LightState{}
-        |> LightState.changeset(%{
-          name: "Off",
-          type: :off,
-          config: %{}
-        })
-        |> Repo.insert!()
-
-      state ->
-        state
-    end
-  end
 
   def create_scene(attrs) do
     %Scene{}
@@ -189,25 +148,34 @@ defmodule Hueworks.Scenes do
 
       scene ->
         _ = ActiveScenes.set_active(scene)
-        apply_scene(scene, brightness_override: false)
+        apply_scene(scene, brightness_override: false, force_apply: true)
     end
   end
 
   def apply_scene(%Scene{} = scene, opts \\ []) do
     scene =
       scene
-      |> Repo.preload(scene_components: [:lights, :light_state])
+      |> Repo.preload(scene_components: [:lights, :light_state, :scene_component_lights])
 
     brightness_override = Keyword.get(opts, :brightness_override, false)
+    force_apply = Keyword.get(opts, :force_apply, false)
 
     txn = DesiredState.begin(scene.id)
 
     txn =
       Enum.reduce(scene.scene_components, txn, fn component, txn ->
         desired = desired_from_light_state(component.light_state, brightness_override)
+        default_power_by_light = component_default_power_map(component)
 
         Enum.reduce(component.lights, txn, fn light, txn ->
-          DesiredState.apply(txn, :light, light.id, desired)
+          light_desired =
+            maybe_apply_default_power(
+              desired,
+              component.light_state,
+              Map.get(default_power_by_light, light.id, true)
+            )
+
+          DesiredState.apply(txn, :light, light.id, light_desired)
         end)
       end)
 
@@ -215,8 +183,10 @@ defmodule Hueworks.Scenes do
 
     case result do
       {:ok, diff, _updated} ->
-        if map_size(diff) > 0 do
-          plan = Hueworks.Control.Planner.plan_room(scene.room_id, diff)
+        plan_diff = if force_apply, do: txn.changes, else: diff
+
+        if map_size(plan_diff) > 0 do
+          plan = Hueworks.Control.Planner.plan_room(scene.room_id, plan_diff)
           _ = Hueworks.Control.Executor.enqueue(plan)
         end
 
@@ -226,8 +196,6 @@ defmodule Hueworks.Scenes do
         result
     end
   end
-
-  defp desired_from_light_state(%LightState{type: :off}, _brightness_override), do: %{power: :off}
 
   defp desired_from_light_state(%LightState{type: :manual, config: config}, brightness_override) do
     base = %{power: :on}
@@ -244,6 +212,21 @@ defmodule Hueworks.Scenes do
   end
 
   defp desired_from_light_state(_, _brightness_override), do: %{}
+
+  defp maybe_apply_default_power(desired, %LightState{type: type}, default_power)
+       when type in [:manual, :circadian] do
+    Map.put(desired, :power, if(default_power, do: :on, else: :off))
+  end
+
+  defp maybe_apply_default_power(desired, _light_state, _default_power), do: desired
+
+  defp component_default_power_map(component) do
+    component
+    |> Map.get(:scene_component_lights, [])
+    |> Enum.reduce(%{}, fn join, acc ->
+      Map.put(acc, join.light_id, join.default_power != false)
+    end)
+  end
 
   defp maybe_put(attrs, key, config, keys) do
     value =
@@ -266,58 +249,39 @@ defmodule Hueworks.Scenes do
 
   def replace_scene_components(%Scene{} = scene, components) when is_list(components) do
     Repo.transaction(fn ->
-      old_light_state_ids =
-        Repo.all(
-          from(sc in SceneComponent,
-            where: sc.scene_id == ^scene.id,
-            select: sc.light_state_id
-          )
-        )
-
       Repo.delete_all(from(sc in SceneComponent, where: sc.scene_id == ^scene.id))
 
-      Enum.each(components, fn component ->
-        light_state = resolve_component_light_state(component)
+      Enum.reduce_while(components, :ok, fn component, _acc ->
+        case resolve_component_light_state(component) do
+          {:error, reason} ->
+            Repo.rollback(reason)
 
-        scene_component =
-          %SceneComponent{}
-          |> SceneComponent.changeset(%{
-            name: Map.get(component, :name),
-            scene_id: scene.id,
-            light_state_id: light_state.id,
-            metadata: %{}
-          })
-          |> Repo.insert!()
+          {:ok, light_state} ->
+            scene_component =
+              %SceneComponent{}
+              |> SceneComponent.changeset(%{
+                name: Map.get(component, :name),
+                scene_id: scene.id,
+                light_state_id: light_state.id,
+                metadata: %{}
+              })
+              |> Repo.insert!()
 
-        light_ids = Map.get(component, :light_ids, [])
+            light_ids = Map.get(component, :light_ids, [])
 
-        Enum.each(light_ids, fn light_id ->
-          %SceneComponentLight{}
-          |> SceneComponentLight.changeset(%{
-            scene_component_id: scene_component.id,
-            light_id: light_id
-          })
-          |> Repo.insert()
-        end)
+            Enum.each(light_ids, fn light_id ->
+              %SceneComponentLight{}
+              |> SceneComponentLight.changeset(%{
+                scene_component_id: scene_component.id,
+                light_id: light_id,
+                default_power: component_light_default_power(component, light_id)
+              })
+              |> Repo.insert!()
+            end)
+
+            {:cont, :ok}
+        end
       end)
-
-      cleanup_light_states(old_light_state_ids)
-    end)
-  end
-
-  defp cleanup_light_states(light_state_ids) do
-    light_state_ids
-    |> Enum.uniq()
-    |> Enum.each(fn light_state_id ->
-      count =
-        Repo.aggregate(
-          from(sc in SceneComponent, where: sc.light_state_id == ^light_state_id),
-          :count
-        )
-
-      if count == 0 and off_light_state?(light_state_id) do
-        Repo.delete_all(from(ls in LightState, where: ls.id == ^light_state_id))
-      end
     end)
   end
 
@@ -325,25 +289,58 @@ defmodule Hueworks.Scenes do
     state_id = Map.get(component, :light_state_id)
 
     cond do
-      state_id in [nil, "off", :off] ->
-        get_or_create_off_state()
+      state_id in [nil, "new", "new_manual", "new_circadian"] ->
+        {:error, :invalid_light_state}
 
       true ->
         state_id
         |> parse_id()
         |> case do
-          nil -> get_or_create_off_state()
-          id -> Repo.get(LightState, id) || get_or_create_off_state()
+          nil ->
+            {:error, :invalid_light_state}
+
+          id ->
+            case Repo.get(LightState, id) do
+              %LightState{} = state when state.type in [:manual, :circadian] ->
+                {:ok, state}
+
+              _ ->
+                {:error, :invalid_light_state}
+            end
         end
     end
   end
 
-  defp off_light_state?(light_state_id) do
-    case Repo.get(LightState, light_state_id) do
-      %LightState{type: :off} -> true
-      _ -> false
+  defp component_light_default_power(component, light_id) do
+    defaults =
+      Map.get(component, :light_defaults) ||
+        Map.get(component, "light_defaults") ||
+        %{}
+
+    defaults
+    |> light_default_lookup(light_id)
+    |> parse_default_power()
+  end
+
+  defp light_default_lookup(defaults, light_id) when is_map(defaults) do
+    cond do
+      Map.has_key?(defaults, light_id) ->
+        Map.get(defaults, light_id)
+
+      Map.has_key?(defaults, to_string(light_id)) ->
+        Map.get(defaults, to_string(light_id))
+
+      true ->
+        nil
     end
   end
+
+  defp light_default_lookup(_defaults, _light_id), do: nil
+
+  defp parse_default_power(value) when value in [nil, true, "true", 1, "1", :on, "on"],
+    do: true
+
+  defp parse_default_power(_value), do: false
 
   defp parse_id(value), do: Hueworks.Util.parse_id(value)
 end
