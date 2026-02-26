@@ -23,28 +23,37 @@ defmodule Hueworks.DesiredStateTest do
       DesiredState.begin("scene-1")
       |> DesiredState.apply(:light, 1, %{power: :off, brightness: 10, kelvin: 4000})
 
-    {:ok, diff, _updated} = DesiredState.commit(txn)
+    {:ok, %{intent_diff: intent_diff, reconcile_diff: reconcile_diff, updated: _updated}} =
+      DesiredState.commit(txn)
 
-    assert diff[{:light, 1}] == %{power: :off}
+    assert intent_diff[{:light, 1}] == %{power: :off}
+    assert reconcile_diff[{:light, 1}] == %{power: :off}
     assert DesiredState.get(:light, 1) == %{power: :off}
   end
 
-  test "desired state mirrors physical state updates for now" do
-    _ = PhysicalState.put(:light, 2, %{power: :on, brightness: 25})
+  test "physical state updates do not overwrite desired state" do
+    _ = DesiredState.put(:light, 2, %{power: :on, brightness: 60, kelvin: 3000})
 
-    assert DesiredState.get(:light, 2) == %{power: :on, brightness: 25}
+    if :ets.whereis(:hueworks_control_state) != :undefined do
+      :ets.insert(:hueworks_control_state, {{:light, 2}, %{power: :on, brightness: 25}})
+    end
+
+    assert DesiredState.get(:light, 2) == %{power: :on, brightness: 60, kelvin: 3000}
   end
 
-  test "commit returns diffs for changed values" do
+  test "commit returns intent and reconcile diffs" do
     _ = PhysicalState.put(:light, 3, %{power: :on, brightness: 10, kelvin: 3000})
+    _ = DesiredState.put(:light, 3, %{power: :on, brightness: 20, kelvin: 3000})
 
     txn =
       DesiredState.begin("scene-2")
       |> DesiredState.apply(:light, 3, %{brightness: 80})
 
-    {:ok, diff, _updated} = DesiredState.commit(txn)
+    {:ok, %{intent_diff: intent_diff, reconcile_diff: reconcile_diff, updated: _updated}} =
+      DesiredState.commit(txn)
 
-    assert diff[{:light, 3}] == %{brightness: 80}
+    assert intent_diff[{:light, 3}] == %{brightness: 80}
+    assert reconcile_diff[{:light, 3}] == %{brightness: 80}
   end
 
   test "commit treats numeric strings and numeric values as equal for brightness and kelvin" do
@@ -54,8 +63,10 @@ defmodule Hueworks.DesiredStateTest do
       DesiredState.begin("scene-3")
       |> DesiredState.apply(:light, 4, %{power: :on, brightness: "27", kelvin: "2000"})
 
-    {:ok, diff, _updated} = DesiredState.commit(txn)
+    {:ok, %{intent_diff: intent_diff, reconcile_diff: reconcile_diff, updated: _updated}} =
+      DesiredState.commit(txn)
 
-    assert diff == %{}
+    assert intent_diff[{:light, 4}] == %{power: :on, brightness: "27", kelvin: "2000"}
+    assert reconcile_diff == %{}
   end
 end

@@ -162,20 +162,7 @@ defmodule Hueworks.Scenes do
     # TODO: replace this temporary fallback with HA-provided occupancy input.
     occupied = Keyword.get(opts, :occupied, true)
     force_apply = Keyword.get(opts, :force_apply, false)
-    diff_mode = Keyword.get(opts, :diff_mode, :physical)
-    occupancy_only = Keyword.get(opts, :occupancy_only, false)
     trace = Keyword.get(opts, :trace)
-
-    previous_desired_by_light =
-      if occupancy_only or diff_mode == :desired do
-        scene
-        |> scene_light_ids()
-        |> Map.new(fn light_id ->
-          {light_id, DesiredState.get(:light, light_id) || %{}}
-        end)
-      else
-        %{}
-      end
 
     log_trace(
       trace,
@@ -184,9 +171,7 @@ defmodule Hueworks.Scenes do
       scene_id: scene.id,
       occupied: occupied,
       brightness_override: brightness_override,
-      force_apply: force_apply,
-      diff_mode: diff_mode,
-      occupancy_only: occupancy_only
+      force_apply: force_apply
     )
 
     txn = DesiredState.begin(scene.id)
@@ -197,23 +182,13 @@ defmodule Hueworks.Scenes do
         default_power_by_light = component_default_power_map(component)
 
         Enum.reduce(component.lights, txn, fn light, txn ->
-          full_desired =
+          light_desired =
             maybe_apply_default_power(
               desired,
               component.light_state,
               Map.get(default_power_by_light, light.id, :force_on),
               occupied
             )
-
-          light_desired =
-            if occupancy_only do
-              occupancy_toggle_desired(
-                Map.get(previous_desired_by_light, light.id, %{}),
-                full_desired
-              )
-            else
-              full_desired
-            end
 
           DesiredState.apply(txn, :light, light.id, light_desired)
         end)
@@ -222,20 +197,8 @@ defmodule Hueworks.Scenes do
     result = DesiredState.commit(txn)
 
     case result do
-      {:ok, diff, _updated} ->
-        desired_diff = desired_change_diff(txn.changes, previous_desired_by_light)
-
-        plan_diff =
-          cond do
-            force_apply ->
-              txn.changes
-
-            diff_mode == :desired ->
-              desired_diff
-
-            true ->
-              diff
-          end
+      {:ok, %{intent_diff: intent_diff, updated: updated}} ->
+        plan_diff = if force_apply, do: txn.changes, else: intent_diff
 
         log_trace(trace, "apply_scene_diff", diff_size: map_size(plan_diff))
 
@@ -261,7 +224,7 @@ defmodule Hueworks.Scenes do
           log_trace(trace, "plan_enqueued", actions_total: length(traced_plan))
         end
 
-        result
+        {:ok, plan_diff, updated}
 
       _ ->
         result
@@ -327,80 +290,6 @@ defmodule Hueworks.Scenes do
   defp map_key_atom("temperature"), do: :temperature
   defp map_key_atom("kelvin"), do: :kelvin
   defp map_key_atom(_), do: nil
-
-  defp scene_light_ids(scene) do
-    scene
-    |> Map.get(:scene_components, [])
-    |> Enum.flat_map(fn component ->
-      component
-      |> Map.get(:lights, [])
-      |> Enum.map(& &1.id)
-    end)
-    |> Enum.uniq()
-  end
-
-  defp desired_change_diff(changes, previous_desired_by_light) when is_map(changes) do
-    Enum.reduce(changes, %{}, fn
-      {{:light, light_id}, desired}, acc ->
-        previous = Map.get(previous_desired_by_light, light_id, %{})
-
-        if desired == previous do
-          acc
-        else
-          Map.put(acc, {:light, light_id}, desired)
-        end
-
-      {key, desired}, acc ->
-        Map.put(acc, key, desired)
-    end)
-  end
-
-  defp occupancy_toggle_desired(current_desired, target_desired) when is_map(target_desired) do
-    case normalize_power(power_value(target_desired)) do
-      :off ->
-        %{power: :off}
-
-      :on ->
-        case normalize_power(power_value(current_desired)) do
-          :off ->
-            target_desired
-
-          :on ->
-            if map_size(current_desired || %{}) == 0 do
-              target_desired
-            else
-              put_power(current_desired, :on)
-            end
-
-          _ ->
-            target_desired
-        end
-
-      _ ->
-        target_desired
-    end
-  end
-
-  defp occupancy_toggle_desired(_current_desired, target_desired), do: target_desired
-
-  defp power_value(desired) when is_map(desired) do
-    Map.get(desired, :power) || Map.get(desired, "power")
-  end
-
-  defp power_value(_desired), do: nil
-
-  defp normalize_power(:on), do: :on
-  defp normalize_power("on"), do: :on
-  defp normalize_power(:off), do: :off
-  defp normalize_power("off"), do: :off
-  defp normalize_power(_), do: nil
-
-  defp put_power(desired, power) when is_map(desired) do
-    desired
-    |> Map.delete(:power)
-    |> Map.delete("power")
-    |> Map.put(:power, power)
-  end
 
   def replace_scene_components(%Scene{} = scene, components) when is_list(components) do
     Repo.transaction(fn ->

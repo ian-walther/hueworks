@@ -38,10 +38,6 @@ defmodule Hueworks.Control.DesiredState do
     GenServer.call(__MODULE__, {:put, type, id, attrs})
   end
 
-  def sync(type, id, attrs) when is_map(attrs) do
-    GenServer.call(__MODULE__, {:sync, type, id, attrs})
-  end
-
   def begin(scene_id) do
     %Transaction{scene_id: scene_id, changes: %{}}
   end
@@ -54,35 +50,45 @@ defmodule Hueworks.Control.DesiredState do
   end
 
   def commit(%Transaction{} = txn) do
-    {diff, updated} =
-      Enum.reduce(txn.changes, {%{}, %{}}, fn {{type, id}, desired}, {diff_acc, updated_acc} ->
+    {intent_diff, reconcile_diff, updated} =
+      Enum.reduce(txn.changes, {%{}, %{}, %{}}, fn
+                                                    {{type, id}, desired},
+                                                    {intent_acc, reconcile_acc, updated_acc} ->
+        previous_desired = get(type, id) || %{}
         _ = put(type, id, desired)
         physical = PhysicalState.get(type, id) || %{}
-        delta = diff_state(physical, desired)
 
-        diff_acc =
-          if delta == %{} do
-            diff_acc
+        intent_delta = diff_state(previous_desired, desired)
+        reconcile_delta = diff_state(physical, desired)
+
+        intent_acc =
+          if intent_delta == %{} do
+            intent_acc
           else
-            Map.put(diff_acc, {type, id}, delta)
+            Map.put(intent_acc, {type, id}, intent_delta)
           end
 
-        {diff_acc, Map.put(updated_acc, {type, id}, desired)}
+        reconcile_acc =
+          if reconcile_delta == %{} do
+            reconcile_acc
+          else
+            Map.put(reconcile_acc, {type, id}, reconcile_delta)
+          end
+
+        {intent_acc, reconcile_acc, Map.put(updated_acc, {type, id}, desired)}
       end)
 
-    {:ok, diff, updated}
+    {:ok,
+     %{
+       intent_diff: intent_diff,
+       reconcile_diff: reconcile_diff,
+       updated: updated
+     }}
   end
 
   @impl true
   def handle_call({:put, type, id, attrs}, _from, state) do
     updated = normalize_desired(Map.merge(get(type, id) || %{}, attrs))
-    :ets.insert(@table, {{type, id}, updated})
-    {:reply, updated, state}
-  end
-
-  @impl true
-  def handle_call({:sync, type, id, attrs}, _from, state) do
-    updated = normalize_desired(attrs)
     :ets.insert(@table, {{type, id}, updated})
     {:reply, updated, state}
   end
@@ -108,13 +114,32 @@ defmodule Hueworks.Control.DesiredState do
   defp diff_state(physical, desired) do
     desired
     |> Enum.reduce(%{}, fn {key, value}, acc ->
-      if values_equal?(key, value, Map.get(physical, key)) do
+      if values_equal?(key, value, value_or_alias(physical, key)) do
         acc
       else
         Map.put(acc, key, value)
       end
     end)
   end
+
+  defp value_or_alias(state, key) when is_map(state) do
+    key_aliases(key)
+    |> Enum.find_value(fn alias_key ->
+      Map.get(state, alias_key)
+    end)
+  end
+
+  defp value_or_alias(_state, _key), do: nil
+
+  defp key_aliases(:kelvin), do: [:kelvin, "kelvin", :temperature, "temperature"]
+  defp key_aliases("kelvin"), do: [:kelvin, "kelvin", :temperature, "temperature"]
+  defp key_aliases(:temperature), do: [:temperature, "temperature", :kelvin, "kelvin"]
+  defp key_aliases("temperature"), do: [:temperature, "temperature", :kelvin, "kelvin"]
+  defp key_aliases(:brightness), do: [:brightness, "brightness"]
+  defp key_aliases("brightness"), do: [:brightness, "brightness"]
+  defp key_aliases(:power), do: [:power, "power"]
+  defp key_aliases("power"), do: [:power, "power"]
+  defp key_aliases(key), do: [key]
 
   defp values_equal?(_key, desired, physical) when desired == physical, do: true
 

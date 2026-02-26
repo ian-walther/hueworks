@@ -103,19 +103,12 @@ defmodule Hueworks.Control.State do
     maybe_deactivate_scene_on_external_change(key, updated)
     :ets.insert(@table, {key, updated})
     broadcast_update(key, updated)
-    sync_desired(key, updated)
     updated
   end
 
   defp broadcast_update({type, id}, state) do
     PubSub.broadcast(Hueworks.PubSub, @topic, {:control_state, type, id, state})
   end
-
-  defp sync_desired({:light, id}, state) do
-    _ = DesiredState.sync(:light, id, state)
-  end
-
-  defp sync_desired(_key, _state), do: :ok
 
   defp maybe_deactivate_scene_on_external_change({:light, light_id}, updated) do
     desired = DesiredState.get(:light, light_id) || %{}

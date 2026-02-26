@@ -116,8 +116,6 @@ defmodule HueworksWeb.RoomsLive do
             Scenes.apply_scene(scene,
               brightness_override: active_scene.brightness_override,
               occupied: next_occupied,
-              diff_mode: :desired,
-              occupancy_only: true,
               trace: trace
             )
 
@@ -133,8 +131,6 @@ defmodule HueworksWeb.RoomsLive do
             Scenes.apply_scene(scene,
               brightness_override: false,
               occupied: next_occupied,
-              diff_mode: :desired,
-              occupancy_only: true,
               trace: trace
             )
       end

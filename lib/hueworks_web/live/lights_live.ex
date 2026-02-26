@@ -490,11 +490,6 @@ defmodule HueworksWeb.LightsLive do
 
   defp apply_manual_updates(room_id, light_ids, desired_update)
        when is_list(light_ids) and is_map(desired_update) do
-    previous_desired =
-      Map.new(light_ids, fn light_id ->
-        {light_id, DesiredState.get(:light, light_id) || %{}}
-      end)
-
     txn = DesiredState.begin(:manual_ui)
 
     txn =
@@ -503,27 +498,13 @@ defmodule HueworksWeb.LightsLive do
       end)
 
     case DesiredState.commit(txn) do
-      {:ok, _physical_diff, _updated} ->
-        desired_diff = desired_change_diff(light_ids, previous_desired)
-        _ = enqueue_diff(room_id, desired_diff)
-        {:ok, desired_diff}
+      {:ok, %{intent_diff: intent_diff}} ->
+        _ = enqueue_diff(room_id, intent_diff)
+        {:ok, intent_diff}
 
       other ->
         other
     end
-  end
-
-  defp desired_change_diff(light_ids, previous_desired) do
-    Enum.reduce(light_ids, %{}, fn light_id, acc ->
-      previous = Map.get(previous_desired, light_id, %{})
-      current = DesiredState.get(:light, light_id) || %{}
-
-      if previous == current do
-        acc
-      else
-        Map.put(acc, {:light, light_id}, current)
-      end
-    end)
   end
 
   defp enqueue_diff(_room_id, diff) when map_size(diff) == 0, do: :ok
