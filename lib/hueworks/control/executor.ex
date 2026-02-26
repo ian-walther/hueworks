@@ -4,6 +4,7 @@ defmodule Hueworks.Control.Executor do
   """
 
   use GenServer
+  require Logger
 
   alias Hueworks.Control.{Group, Light}
   alias Hueworks.Repo
@@ -232,7 +233,11 @@ defmodule Hueworks.Control.Executor do
               {Map.put(queues_acc, bridge_id, updated_queue), last_acc, worked}
 
             {:action, action} ->
+              dispatch_started_ms = now
+              maybe_log_dispatch_start(action, dispatch_started_ms, :queue.len(updated_queue))
               result = state.dispatch_fun.(action)
+              dispatch_completed_ms = state.now_fn.(:millisecond)
+              maybe_log_dispatch_end(action, result, dispatch_started_ms, dispatch_completed_ms)
 
               {updated_queue, last_acc} =
                 case result do
@@ -361,5 +366,48 @@ defmodule Hueworks.Control.Executor do
 
   defp interval_ms(rate) when is_integer(rate) and rate > 0 do
     max(trunc(1000 / rate), 1)
+  end
+
+  defp maybe_log_dispatch_start(action, dispatch_started_ms, queue_len_after_pop) do
+    case Map.get(action, :trace_id) do
+      nil ->
+        :ok
+
+      trace_id ->
+        queue_delay_ms = queue_delay_ms(action, dispatch_started_ms)
+
+        Logger.info(
+          "[occ-trace #{trace_id}] dispatch_start type=#{action.type} id=#{action.id} bridge_id=#{action.bridge_id} queue_delay_ms=#{queue_delay_ms} queue_len_after_pop=#{queue_len_after_pop} desired=#{inspect(action.desired)}"
+        )
+    end
+  end
+
+  defp maybe_log_dispatch_end(action, result, dispatch_started_ms, dispatch_completed_ms) do
+    case Map.get(action, :trace_id) do
+      nil ->
+        :ok
+
+      trace_id ->
+        dispatch_ms = dispatch_completed_ms - dispatch_started_ms
+        total_elapsed_ms = total_elapsed_ms(action, dispatch_completed_ms)
+
+        Logger.info(
+          "[occ-trace #{trace_id}] dispatch_end type=#{action.type} id=#{action.id} result=#{inspect(result)} dispatch_ms=#{dispatch_ms} total_elapsed_ms=#{total_elapsed_ms}"
+        )
+    end
+  end
+
+  defp queue_delay_ms(action, dispatch_started_ms) do
+    case Map.get(action, :enqueued_at_ms) do
+      value when is_integer(value) -> dispatch_started_ms - value
+      _ -> 0
+    end
+  end
+
+  defp total_elapsed_ms(action, dispatch_completed_ms) do
+    case Map.get(action, :trace_started_at_ms) do
+      value when is_integer(value) -> dispatch_completed_ms - value
+      _ -> nil
+    end
   end
 end

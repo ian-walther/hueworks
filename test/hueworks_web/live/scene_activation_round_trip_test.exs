@@ -3,7 +3,10 @@ defmodule Hueworks.SceneActivationRoundTripTest do
 
   import Phoenix.LiveViewTest
 
+  alias Hueworks.ActiveScenes
+  alias Hueworks.Control.DesiredState
   alias Hueworks.Control.Executor
+  alias Hueworks.Control.State
   alias Hueworks.Repo
 
   alias Hueworks.Schemas.{
@@ -525,6 +528,111 @@ defmodule Hueworks.SceneActivationRoundTripTest do
 
     assert Enum.any?(actions, fn action ->
              action.type == :light and action.id == light.id and action.desired[:power] == :off
+           end)
+  end
+
+  test "occupancy toggle only dispatches follow_occupancy power changes, not force_on reassertions",
+       %{
+         conn: conn,
+         actions_agent: actions_agent,
+         executor_server: executor_server
+       } do
+    room = Repo.insert!(%Room{name: "Occupancy Test"})
+
+    bridge =
+      Repo.insert!(%Bridge{
+        name: "Hue Bridge",
+        type: :hue,
+        host: "192.168.1.11",
+        credentials: %{"api_key" => "test"}
+      })
+
+    force_on_light =
+      Repo.insert!(%Light{
+        name: "Always On",
+        display_name: "Always On",
+        source: :hue,
+        source_id: "601",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        supports_temp: true,
+        reported_min_kelvin: 2000,
+        reported_max_kelvin: 6500
+      })
+
+    follow_light =
+      Repo.insert!(%Light{
+        name: "Follow",
+        display_name: "Follow",
+        source: :hue,
+        source_id: "602",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        supports_temp: true,
+        reported_min_kelvin: 2000,
+        reported_max_kelvin: 6500
+      })
+
+    light_state =
+      Repo.insert!(%LightState{
+        name: "Warm",
+        type: :manual,
+        config: %{"brightness" => "45", "temperature" => "2800"}
+      })
+
+    scene =
+      Repo.insert!(%Scene{
+        name: "Night",
+        room_id: room.id,
+        metadata: %{}
+      })
+
+    component =
+      Repo.insert!(%SceneComponent{
+        name: "Component 1",
+        scene_id: scene.id,
+        light_state_id: light_state.id,
+        metadata: %{}
+      })
+
+    Repo.insert!(%SceneComponentLight{
+      scene_component_id: component.id,
+      light_id: force_on_light.id,
+      default_power: :force_on
+    })
+
+    Repo.insert!(%SceneComponentLight{
+      scene_component_id: component.id,
+      light_id: follow_light.id,
+      default_power: :follow_occupancy
+    })
+
+    {:ok, _} = ActiveScenes.set_active(scene)
+
+    _ = DesiredState.put(:light, force_on_light.id, %{power: :on, brightness: "45", kelvin: "2800"})
+    _ = DesiredState.put(:light, follow_light.id, %{power: :on, brightness: "45", kelvin: "2800"})
+
+    _ = State.put(:light, force_on_light.id, %{power: :on, brightness: 10, kelvin: 4000})
+    _ = State.put(:light, follow_light.id, %{power: :on, brightness: 45, kelvin: 2800})
+
+    {:ok, view, _html} = live(conn, "/rooms")
+
+    view
+    |> element(
+      "#room-#{room.id} button[phx-click='toggle_occupancy'][phx-value-room_id='#{room.id}']"
+    )
+    |> render_click()
+
+    drain_executor(executor_server)
+
+    actions = Agent.get(actions_agent, & &1)
+
+    assert Enum.any?(actions, fn action ->
+             action.type == :light and action.id == follow_light.id and action.desired[:power] == :off
+           end)
+
+    refute Enum.any?(actions, fn action ->
+             action.type == :light and action.id == force_on_light.id
            end)
   end
 

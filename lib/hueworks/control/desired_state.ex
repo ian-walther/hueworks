@@ -108,11 +108,24 @@ defmodule Hueworks.Control.DesiredState do
   defp diff_state(physical, desired) do
     desired
     |> Enum.reduce(%{}, fn {key, value}, acc ->
-      if Map.get(physical, key) == value do
+      if values_equal?(key, value, Map.get(physical, key)) do
         acc
       else
         Map.put(acc, key, value)
       end
     end)
   end
+
+  defp values_equal?(_key, desired, physical) when desired == physical, do: true
+
+  defp values_equal?(key, desired, physical)
+       when key in [:brightness, "brightness", :kelvin, "kelvin", :temperature, "temperature"] do
+    case {Hueworks.Util.to_number(desired), Hueworks.Util.to_number(physical)} do
+      {nil, _} -> desired == physical
+      {_, nil} -> desired == physical
+      {a, b} -> round(a) == round(b)
+    end
+  end
+
+  defp values_equal?(_key, desired, physical), do: desired == physical
 end

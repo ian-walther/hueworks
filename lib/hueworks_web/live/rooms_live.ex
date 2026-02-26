@@ -106,6 +106,7 @@ defmodule HueworksWeb.RoomsLive do
       active = ActiveScenes.get_for_room(room_id)
       current_occupied = current_occupied_for_room(socket, room_id, active)
       next_occupied = not current_occupied
+      trace = occupancy_trace(room_id, scene_id, current_occupied, next_occupied)
 
       case active do
         %{} = active_scene ->
@@ -114,7 +115,10 @@ defmodule HueworksWeb.RoomsLive do
           _ =
             Scenes.apply_scene(scene,
               brightness_override: active_scene.brightness_override,
-              occupied: next_occupied
+              occupied: next_occupied,
+              diff_mode: :desired,
+              occupancy_only: true,
+              trace: trace
             )
 
           _ = ActiveScenes.mark_applied(active_scene)
@@ -124,7 +128,15 @@ defmodule HueworksWeb.RoomsLive do
           # recreate the active row so this toggle remains usable.
           _ = ActiveScenes.set_active(scene)
           _ = ActiveScenes.set_occupied(room_id, next_occupied)
-          _ = Scenes.apply_scene(scene, brightness_override: false, occupied: next_occupied)
+
+          _ =
+            Scenes.apply_scene(scene,
+              brightness_override: false,
+              occupied: next_occupied,
+              diff_mode: :desired,
+              occupancy_only: true,
+              trace: trace
+            )
       end
 
       {:noreply, assign(socket, active_scene_assigns())}
@@ -219,5 +231,17 @@ defmodule HueworksWeb.RoomsLive do
 
   defp current_occupied_for_room(_socket, _room_id, %{} = active) do
     Map.get(active, :occupied, true)
+  end
+
+  defp occupancy_trace(room_id, scene_id, from_occupied, to_occupied) do
+    %{
+      trace_id: "occ-#{room_id}-#{System.unique_integer([:positive])}",
+      source: "rooms_live.toggle_occupancy",
+      room_id: room_id,
+      scene_id: scene_id,
+      from_occupied: from_occupied,
+      to_occupied: to_occupied,
+      started_at_ms: System.monotonic_time(:millisecond)
+    }
   end
 end

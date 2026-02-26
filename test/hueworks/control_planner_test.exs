@@ -400,6 +400,41 @@ defmodule Hueworks.Control.PlannerTest do
     end)
   end
 
+  test "plan_room skips actions when effective desired already matches physical state" do
+    room = Repo.insert!(%Room{name: "Clamp Match"})
+
+    bridge =
+      Repo.insert!(%Bridge{
+        name: "Hue",
+        type: :hue,
+        host: "bridge-clamp-match",
+        credentials: %{}
+      })
+
+    light_a =
+      insert_light(room, bridge, "A", reported_min_kelvin: 2200, reported_max_kelvin: 4500)
+
+    light_b =
+      insert_light(room, bridge, "B", reported_min_kelvin: 2200, reported_max_kelvin: 4500)
+
+    desired = %{power: :on, brightness: 65, kelvin: 2000}
+
+    DesiredState.put(:light, light_a.id, desired)
+    DesiredState.put(:light, light_b.id, desired)
+
+    if :ets.whereis(:hueworks_control_state) != :undefined do
+      :ets.insert(:hueworks_control_state, {{:light, light_a.id}, %{power: :on, brightness: 65, kelvin: 2200}})
+      :ets.insert(:hueworks_control_state, {{:light, light_b.id}, %{power: :on, brightness: 65, kelvin: 2200}})
+    end
+
+    diff = %{
+      {:light, light_a.id} => desired,
+      {:light, light_b.id} => desired
+    }
+
+    assert Planner.plan_room(room.id, diff) == []
+  end
+
   defp insert_light(room, bridge, name, opts \\ []) do
     Repo.insert!(%Light{
       name: name,

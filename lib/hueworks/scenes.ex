@@ -4,6 +4,7 @@ defmodule Hueworks.Scenes do
   """
 
   import Ecto.Query, only: [from: 2]
+  require Logger
 
   alias Hueworks.Repo
   alias Hueworks.ActiveScenes
@@ -161,6 +162,32 @@ defmodule Hueworks.Scenes do
     # TODO: replace this temporary fallback with HA-provided occupancy input.
     occupied = Keyword.get(opts, :occupied, true)
     force_apply = Keyword.get(opts, :force_apply, false)
+    diff_mode = Keyword.get(opts, :diff_mode, :physical)
+    occupancy_only = Keyword.get(opts, :occupancy_only, false)
+    trace = Keyword.get(opts, :trace)
+
+    previous_desired_by_light =
+      if occupancy_only or diff_mode == :desired do
+        scene
+        |> scene_light_ids()
+        |> Map.new(fn light_id ->
+          {light_id, DesiredState.get(:light, light_id) || %{}}
+        end)
+      else
+        %{}
+      end
+
+    log_trace(
+      trace,
+      "apply_scene_start",
+      room_id: scene.room_id,
+      scene_id: scene.id,
+      occupied: occupied,
+      brightness_override: brightness_override,
+      force_apply: force_apply,
+      diff_mode: diff_mode,
+      occupancy_only: occupancy_only
+    )
 
     txn = DesiredState.begin(scene.id)
 
@@ -170,13 +197,23 @@ defmodule Hueworks.Scenes do
         default_power_by_light = component_default_power_map(component)
 
         Enum.reduce(component.lights, txn, fn light, txn ->
-          light_desired =
+          full_desired =
             maybe_apply_default_power(
               desired,
               component.light_state,
               Map.get(default_power_by_light, light.id, :force_on),
               occupied
             )
+
+          light_desired =
+            if occupancy_only do
+              occupancy_toggle_desired(
+                Map.get(previous_desired_by_light, light.id, %{}),
+                full_desired
+              )
+            else
+              full_desired
+            end
 
           DesiredState.apply(txn, :light, light.id, light_desired)
         end)
@@ -186,11 +223,42 @@ defmodule Hueworks.Scenes do
 
     case result do
       {:ok, diff, _updated} ->
-        plan_diff = if force_apply, do: txn.changes, else: diff
+        desired_diff = desired_change_diff(txn.changes, previous_desired_by_light)
+
+        plan_diff =
+          cond do
+            force_apply ->
+              txn.changes
+
+            diff_mode == :desired ->
+              desired_diff
+
+            true ->
+              diff
+          end
+
+        log_trace(trace, "apply_scene_diff", diff_size: map_size(plan_diff))
 
         if map_size(plan_diff) > 0 do
+          planner_started_ms = monotonic_ms()
           plan = Hueworks.Control.Planner.plan_room(scene.room_id, plan_diff)
-          _ = Hueworks.Control.Executor.enqueue(plan)
+          planner_ms = monotonic_ms() - planner_started_ms
+
+          log_trace(
+            trace,
+            "plan_built",
+            planner_ms: planner_ms,
+            actions_total: length(plan),
+            group_actions: count_action_type(plan, :group),
+            light_actions: count_action_type(plan, :light),
+            off_actions: count_power(plan, :off),
+            on_actions: count_power(plan, :on)
+          )
+
+          enqueued_at_ms = monotonic_ms()
+          traced_plan = attach_trace(plan, trace, scene, occupied, enqueued_at_ms)
+          _ = Hueworks.Control.Executor.enqueue(traced_plan)
+          log_trace(trace, "plan_enqueued", actions_total: length(traced_plan))
         end
 
         result
@@ -259,6 +327,80 @@ defmodule Hueworks.Scenes do
   defp map_key_atom("temperature"), do: :temperature
   defp map_key_atom("kelvin"), do: :kelvin
   defp map_key_atom(_), do: nil
+
+  defp scene_light_ids(scene) do
+    scene
+    |> Map.get(:scene_components, [])
+    |> Enum.flat_map(fn component ->
+      component
+      |> Map.get(:lights, [])
+      |> Enum.map(& &1.id)
+    end)
+    |> Enum.uniq()
+  end
+
+  defp desired_change_diff(changes, previous_desired_by_light) when is_map(changes) do
+    Enum.reduce(changes, %{}, fn
+      {{:light, light_id}, desired}, acc ->
+        previous = Map.get(previous_desired_by_light, light_id, %{})
+
+        if desired == previous do
+          acc
+        else
+          Map.put(acc, {:light, light_id}, desired)
+        end
+
+      {key, desired}, acc ->
+        Map.put(acc, key, desired)
+    end)
+  end
+
+  defp occupancy_toggle_desired(current_desired, target_desired) when is_map(target_desired) do
+    case normalize_power(power_value(target_desired)) do
+      :off ->
+        %{power: :off}
+
+      :on ->
+        case normalize_power(power_value(current_desired)) do
+          :off ->
+            target_desired
+
+          :on ->
+            if map_size(current_desired || %{}) == 0 do
+              target_desired
+            else
+              put_power(current_desired, :on)
+            end
+
+          _ ->
+            target_desired
+        end
+
+      _ ->
+        target_desired
+    end
+  end
+
+  defp occupancy_toggle_desired(_current_desired, target_desired), do: target_desired
+
+  defp power_value(desired) when is_map(desired) do
+    Map.get(desired, :power) || Map.get(desired, "power")
+  end
+
+  defp power_value(_desired), do: nil
+
+  defp normalize_power(:on), do: :on
+  defp normalize_power("on"), do: :on
+  defp normalize_power(:off), do: :off
+  defp normalize_power("off"), do: :off
+  defp normalize_power(_), do: nil
+
+  defp put_power(desired, power) when is_map(desired) do
+    desired
+    |> Map.delete(:power)
+    |> Map.delete("power")
+    |> Map.put(:power, power)
+  end
 
   def replace_scene_components(%Scene{} = scene, components) when is_list(components) do
     Repo.transaction(fn ->
@@ -365,4 +507,52 @@ defmodule Hueworks.Scenes do
   defp parse_default_power(_value), do: :force_on
 
   defp parse_id(value), do: Hueworks.Util.parse_id(value)
+
+  defp attach_trace(plan, nil, _scene, _occupied, _enqueued_at_ms), do: plan
+
+  defp attach_trace(plan, trace, scene, occupied, enqueued_at_ms)
+       when is_list(plan) and is_map(trace) do
+    trace_id = Map.get(trace, :trace_id) || Map.get(trace, "trace_id")
+    source = Map.get(trace, :source) || Map.get(trace, "source")
+    started_at_ms = Map.get(trace, :started_at_ms) || Map.get(trace, "started_at_ms")
+
+    Enum.map(plan, fn action ->
+      action
+      |> Map.put(:trace_id, trace_id)
+      |> Map.put(:trace_source, source)
+      |> Map.put(:trace_room_id, scene.room_id)
+      |> Map.put(:trace_scene_id, scene.id)
+      |> Map.put(:trace_target_occupied, occupied)
+      |> Map.put(:trace_started_at_ms, started_at_ms)
+      |> Map.put(:enqueued_at_ms, enqueued_at_ms)
+    end)
+  end
+
+  defp attach_trace(plan, _trace, _scene, _occupied, _enqueued_at_ms), do: plan
+
+  defp count_action_type(actions, type) do
+    Enum.count(actions, &(&1.type == type))
+  end
+
+  defp count_power(actions, power) do
+    Enum.count(actions, fn action ->
+      desired = Map.get(action, :desired) || %{}
+      (Map.get(desired, :power) || Map.get(desired, "power")) == power
+    end)
+  end
+
+  defp monotonic_ms, do: System.monotonic_time(:millisecond)
+
+  defp log_trace(nil, _event, _kv), do: :ok
+
+  defp log_trace(trace, event, kv) when is_map(trace) and is_list(kv) do
+    trace_id = Map.get(trace, :trace_id) || Map.get(trace, "trace_id")
+    source = Map.get(trace, :source) || Map.get(trace, "source")
+
+    attrs =
+      kv
+      |> Enum.map_join(" ", fn {key, value} -> "#{key}=#{inspect(value)}" end)
+
+    Logger.info("[occ-trace #{trace_id}] #{event} source=#{source} #{attrs}")
+  end
 end

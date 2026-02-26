@@ -46,4 +46,16 @@ defmodule Hueworks.DesiredStateTest do
 
     assert diff[{:light, 3}] == %{brightness: 80}
   end
+
+  test "commit treats numeric strings and numeric values as equal for brightness and kelvin" do
+    _ = PhysicalState.put(:light, 4, %{power: :on, brightness: 27, kelvin: 2000})
+
+    txn =
+      DesiredState.begin("scene-3")
+      |> DesiredState.apply(:light, 4, %{power: :on, brightness: "27", kelvin: "2000"})
+
+    {:ok, diff, _updated} = DesiredState.commit(txn)
+
+    assert diff == %{}
+  end
 end

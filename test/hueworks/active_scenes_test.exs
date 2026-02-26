@@ -1,5 +1,6 @@
 defmodule Hueworks.ActiveScenesTest do
   use Hueworks.DataCase, async: false
+  import Ecto.Query, only: [from: 2]
 
   alias Hueworks.ActiveScenes
   alias Hueworks.Repo
@@ -76,5 +77,25 @@ defmodule Hueworks.ActiveScenesTest do
     :ok = ActiveScenes.deactivate_scene(scene.id)
 
     refute Repo.get_by(ActiveScene, room_id: room.id)
+  end
+
+  test "set_occupied refreshes pending grace window" do
+    room = insert_room()
+    scene = insert_scene(room, "Night")
+    {:ok, _} = ActiveScenes.set_active(scene)
+
+    stale_pending = DateTime.add(DateTime.utc_now(), -10, :second)
+
+    Repo.update_all(
+      from(a in ActiveScene, where: a.room_id == ^room.id),
+      set: [pending_until: stale_pending]
+    )
+
+    :ok = ActiveScenes.set_occupied(room.id, false)
+
+    after_row = Repo.get_by(ActiveScene, room_id: room.id)
+    assert after_row.occupied == false
+    assert DateTime.compare(after_row.pending_until, DateTime.utc_now()) == :gt
+    assert ActiveScenes.pending_for_room?(room.id)
   end
 end

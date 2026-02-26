@@ -6,6 +6,7 @@ defmodule Hueworks.Control.Planner do
   import Ecto.Query, only: [from: 2]
 
   alias Hueworks.Control.DesiredState
+  alias Hueworks.Control.State, as: PhysicalState
   alias Hueworks.Kelvin
   alias Hueworks.Repo
   alias Hueworks.Schemas.{Group, GroupLight, Light}
@@ -52,9 +53,16 @@ defmodule Hueworks.Control.Planner do
       end)
       |> Enum.filter(&MapSet.member?(room_light_ids, &1))
 
+    actionable_diff_light_ids =
+      Enum.filter(diff_light_ids, fn id ->
+        desired = Map.get(effective_desired_by_light, id) || %{}
+        physical = PhysicalState.get(:light, id) || %{}
+        desired_differs_from_physical?(desired, physical)
+      end)
+
     group_memberships = load_group_memberships(room_id)
 
-    diff_light_ids
+    actionable_diff_light_ids
     |> Enum.group_by(fn id ->
       desired = Map.get(effective_desired_by_light, id) || %{}
       {desired_key(desired), desired, light_bridge(room_lights, id)}
@@ -221,4 +229,63 @@ defmodule Hueworks.Control.Planner do
         end)
     end
   end
+
+  defp desired_differs_from_physical?(desired, _physical) when map_size(desired) == 0, do: false
+
+  # Keep explicit off intents actionable even when state currently appears off.
+  defp desired_differs_from_physical?(desired, physical) do
+    if explicit_off_intent?(desired) do
+      true
+    else
+      desired_differs_from_physical_values?(desired, physical)
+    end
+  end
+
+  defp desired_differs_from_physical_values?(desired, physical)
+       when is_map(desired) and is_map(physical) do
+    Enum.any?(desired, fn {key, desired_value} ->
+      physical_value = get_physical_value(physical, key)
+      values_equal?(key, desired_value, physical_value) == false
+    end)
+  end
+
+  defp desired_differs_from_physical_values?(_desired, _physical), do: true
+
+  defp explicit_off_intent?(desired) when is_map(desired) do
+    case Map.get(desired, :power) || Map.get(desired, "power") do
+      :off -> true
+      "off" -> true
+      _ -> false
+    end
+  end
+
+  defp get_physical_value(physical, key) when is_map(physical) do
+    key_aliases(key)
+    |> Enum.find_value(fn alias_key ->
+      Map.get(physical, alias_key)
+    end)
+  end
+
+  defp key_aliases(:kelvin), do: [:kelvin, "kelvin", :temperature, "temperature"]
+  defp key_aliases("kelvin"), do: [:kelvin, "kelvin", :temperature, "temperature"]
+  defp key_aliases(:temperature), do: [:temperature, "temperature", :kelvin, "kelvin"]
+  defp key_aliases("temperature"), do: [:temperature, "temperature", :kelvin, "kelvin"]
+  defp key_aliases(:brightness), do: [:brightness, "brightness"]
+  defp key_aliases("brightness"), do: [:brightness, "brightness"]
+  defp key_aliases(:power), do: [:power, "power"]
+  defp key_aliases("power"), do: [:power, "power"]
+  defp key_aliases(key), do: [key]
+
+  defp values_equal?(_key, desired, physical) when desired == physical, do: true
+
+  defp values_equal?(key, desired, physical)
+       when key in [:brightness, "brightness", :kelvin, "kelvin", :temperature, "temperature"] do
+    case {Util.to_number(desired), Util.to_number(physical)} do
+      {nil, _} -> desired == physical
+      {_, nil} -> desired == physical
+      {a, b} -> round(a) == round(b)
+    end
+  end
+
+  defp values_equal?(_key, desired, physical), do: desired == physical
 end

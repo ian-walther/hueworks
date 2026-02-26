@@ -70,10 +70,11 @@ defmodule Hueworks.ActiveScenes do
 
   def set_brightness_override(room_id, value) when is_boolean(value) do
     now = DateTime.utc_now()
+    pending_until = DateTime.add(now, pending_grace_ms(), :millisecond)
 
     Repo.update_all(
       from(a in ActiveScene, where: a.room_id == ^room_id),
-      set: [brightness_override: value, updated_at: now]
+      set: [brightness_override: value, pending_until: pending_until, updated_at: now]
     )
 
     :ok
@@ -81,10 +82,11 @@ defmodule Hueworks.ActiveScenes do
 
   def set_occupied(room_id, value) when is_integer(room_id) and is_boolean(value) do
     now = DateTime.utc_now()
+    pending_until = DateTime.add(now, pending_grace_ms(), :millisecond)
 
     Repo.update_all(
       from(a in ActiveScene, where: a.room_id == ^room_id),
-      set: [occupied: value, updated_at: now]
+      set: [occupied: value, pending_until: pending_until, updated_at: now]
     )
 
     :ok
@@ -92,10 +94,11 @@ defmodule Hueworks.ActiveScenes do
 
   def mark_applied(%ActiveScene{id: id}) do
     now = DateTime.utc_now()
+    pending_until = DateTime.add(now, pending_grace_ms(), :millisecond)
 
     Repo.update_all(
       from(a in ActiveScene, where: a.id == ^id),
-      set: [last_applied_at: now, updated_at: now]
+      set: [last_applied_at: now, pending_until: pending_until, updated_at: now]
     )
 
     :ok
