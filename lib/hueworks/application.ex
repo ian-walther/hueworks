@@ -11,6 +11,7 @@ defmodule Hueworks.Application do
       [
         Hueworks.Repo,
         {Phoenix.PubSub, name: Hueworks.PubSub},
+        HueworksApp.Cache.Store,
         Hueworks.Control.State,
         Hueworks.Control.DesiredState,
         Hueworks.Control.Executor,
@@ -19,7 +20,6 @@ defmodule Hueworks.Application do
         Hueworks.Subscription.HomeAssistantEventStream,
         Hueworks.Subscription.CasetaEventStream,
         Hueworks.Subscription.Z2MEventStream,
-        HueworksWeb.FilterPrefs,
         HueworksWeb.Endpoint
         # Exploration modules will be started manually in iex for now
         # {Hueworks.Exploration.PicoHueSlice, []},

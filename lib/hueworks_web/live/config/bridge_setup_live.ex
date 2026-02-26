@@ -112,6 +112,7 @@ defmodule HueworksWeb.BridgeSetupLive do
     case pipeline_module().create_import(socket.assigns.bridge) do
       {:ok, bridge_import} ->
         normalized = bridge_import.normalized_blob
+
         socket =
           assign(socket,
             import_status: :ok,
@@ -133,7 +134,9 @@ defmodule HueworksWeb.BridgeSetupLive do
   defp refresh_reimport_plan(socket) do
     if socket.assigns.reimport and socket.assigns.normalized_import do
       normalized_db = NormalizeFromDb.normalize(socket.assigns.bridge)
-      reimport = ReimportPlan.build(socket.assigns.normalized_import, normalized_db, socket.assigns.rooms)
+
+      reimport =
+        ReimportPlan.build(socket.assigns.normalized_import, normalized_db, socket.assigns.rooms)
 
       assign(socket,
         normalized: reimport.normalized,
@@ -152,6 +155,7 @@ defmodule HueworksWeb.BridgeSetupLive do
       socket
     else
       normalized = socket.assigns.normalized_import || %{}
+
       review_blob =
         case bridge_import do
           nil -> nil

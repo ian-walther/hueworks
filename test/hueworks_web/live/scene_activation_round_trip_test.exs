@@ -609,7 +609,9 @@ defmodule Hueworks.SceneActivationRoundTripTest do
 
     {:ok, _} = ActiveScenes.set_active(scene)
 
-    _ = DesiredState.put(:light, force_on_light.id, %{power: :on, brightness: "45", kelvin: "2800"})
+    _ =
+      DesiredState.put(:light, force_on_light.id, %{power: :on, brightness: "45", kelvin: "2800"})
+
     _ = DesiredState.put(:light, follow_light.id, %{power: :on, brightness: "45", kelvin: "2800"})
 
     _ = State.put(:light, force_on_light.id, %{power: :on, brightness: 10, kelvin: 4000})
@@ -628,7 +630,8 @@ defmodule Hueworks.SceneActivationRoundTripTest do
     actions = Agent.get(actions_agent, & &1)
 
     assert Enum.any?(actions, fn action ->
-             action.type == :light and action.id == follow_light.id and action.desired[:power] == :off
+             action.type == :light and action.id == follow_light.id and
+               action.desired[:power] == :off
            end)
 
     refute Enum.any?(actions, fn action ->

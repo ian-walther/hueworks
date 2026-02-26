@@ -29,5 +29,4 @@ defmodule HueworksWeb.Layouts do
     </html>
     """
   end
-
 end

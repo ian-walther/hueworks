@@ -52,30 +52,29 @@ defmodule Hueworks.Control.DesiredState do
   def commit(%Transaction{} = txn) do
     {intent_diff, reconcile_diff, updated} =
       Enum.reduce(txn.changes, {%{}, %{}, %{}}, fn
-                                                    {{type, id}, desired},
-                                                    {intent_acc, reconcile_acc, updated_acc} ->
-        previous_desired = get(type, id) || %{}
-        _ = put(type, id, desired)
-        physical = PhysicalState.get(type, id) || %{}
+        {{type, id}, desired}, {intent_acc, reconcile_acc, updated_acc} ->
+          previous_desired = get(type, id) || %{}
+          _ = put(type, id, desired)
+          physical = PhysicalState.get(type, id) || %{}
 
-        intent_delta = diff_state(previous_desired, desired)
-        reconcile_delta = diff_state(physical, desired)
+          intent_delta = diff_state(previous_desired, desired)
+          reconcile_delta = diff_state(physical, desired)
 
-        intent_acc =
-          if intent_delta == %{} do
-            intent_acc
-          else
-            Map.put(intent_acc, {type, id}, intent_delta)
-          end
+          intent_acc =
+            if intent_delta == %{} do
+              intent_acc
+            else
+              Map.put(intent_acc, {type, id}, intent_delta)
+            end
 
-        reconcile_acc =
-          if reconcile_delta == %{} do
-            reconcile_acc
-          else
-            Map.put(reconcile_acc, {type, id}, reconcile_delta)
-          end
+          reconcile_acc =
+            if reconcile_delta == %{} do
+              reconcile_acc
+            else
+              Map.put(reconcile_acc, {type, id}, reconcile_delta)
+            end
 
-        {intent_acc, reconcile_acc, Map.put(updated_acc, {type, id}, desired)}
+          {intent_acc, reconcile_acc, Map.put(updated_acc, {type, id}, desired)}
       end)
 
     {:ok,

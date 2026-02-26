@@ -5,18 +5,15 @@ defmodule Hueworks.AppSettings do
 
   alias Hueworks.Repo
   alias Hueworks.Schemas.AppSetting
+  alias HueworksApp.Cache
 
   @global_scope "global"
   @config_key :global_solar_config
+  @cache_namespace :app_settings
+  @cache_key :global
 
   def get_global do
-    case Repo.get_by(AppSetting, scope: @global_scope) do
-      %AppSetting{} = app_setting ->
-        app_setting
-
-      nil ->
-        fallback_setting()
-    end
+    Cache.get_or_load(@cache_namespace, @cache_key, &load_global/0)
   end
 
   def upsert_global(attrs) when is_map(attrs) do
@@ -26,16 +23,26 @@ defmodule Hueworks.AppSettings do
       |> with_defaults_from_current()
       |> Map.put(:scope, @global_scope)
 
-    case Repo.get_by(AppSetting, scope: @global_scope) do
-      nil ->
-        %AppSetting{}
-        |> AppSetting.global_changeset(attrs)
-        |> Repo.insert()
+    result =
+      case Repo.get_by(AppSetting, scope: @global_scope) do
+        nil ->
+          %AppSetting{}
+          |> AppSetting.global_changeset(attrs)
+          |> Repo.insert()
 
-      %AppSetting{} = app_setting ->
-        app_setting
-        |> AppSetting.global_changeset(attrs)
-        |> Repo.update()
+        %AppSetting{} = app_setting ->
+          app_setting
+          |> AppSetting.global_changeset(attrs)
+          |> Repo.update()
+      end
+
+    case result do
+      {:ok, %AppSetting{} = app_setting} ->
+        :ok = Cache.put(@cache_namespace, @cache_key, app_setting)
+        {:ok, app_setting}
+
+      other ->
+        other
     end
   end
 
@@ -70,6 +77,13 @@ defmodule Hueworks.AppSettings do
       longitude: parse_number(config[:longitude] || config["longitude"]),
       timezone: parse_timezone(config[:timezone] || config["timezone"])
     }
+  end
+
+  defp load_global do
+    case Repo.get_by(AppSetting, scope: @global_scope) do
+      %AppSetting{} = app_setting -> app_setting
+      nil -> fallback_setting()
+    end
   end
 
   defp normalize_attrs(attrs) do

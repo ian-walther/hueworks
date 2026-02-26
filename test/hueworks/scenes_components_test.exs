@@ -238,7 +238,9 @@ defmodule Hueworks.ScenesComponentsTest do
       ])
 
     _ = DesiredState.put(:light, light.id, %{power: :on, brightness: "25", kelvin: "2500"})
-    _ = Hueworks.Control.State.put(:light, light.id, %{power: :on, brightness: "10", kelvin: "2500"})
+
+    _ =
+      Hueworks.Control.State.put(:light, light.id, %{power: :on, brightness: "10", kelvin: "2500"})
 
     {:ok, _diff, _updated} = Scenes.apply_scene(scene, brightness_override: true)
 

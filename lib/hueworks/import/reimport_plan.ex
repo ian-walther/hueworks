@@ -206,6 +206,7 @@ defmodule Hueworks.Import.ReimportPlan do
 
   defp selected?(plan, key, source_id) do
     map = Normalize.fetch(plan, key) || %{}
+
     case Map.get(map, source_id, true) do
       false -> false
       _ -> true

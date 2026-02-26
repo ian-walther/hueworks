@@ -247,6 +247,30 @@ defmodule Hueworks.LightsLivePipelineTest do
     assert DesiredState.get(:light, light.id) == %{power: :off}
   end
 
+  test "group/light filter prefs persist across page reload", %{conn: conn} do
+    session_id = Ecto.UUID.generate()
+    conn = Plug.Test.init_test_session(conn, %{"filter_session_id" => session_id})
+
+    {:ok, view, _html} = live(conn, "/lights")
+    first_session_id = :sys.get_state(view.pid).socket.assigns.filter_session_id
+    assert first_session_id == session_id
+
+    view
+    |> element("form[phx-change='set_group_filter']")
+    |> render_change(%{"group_filter" => "z2m"})
+
+    view
+    |> element("form[phx-change='set_light_filter']")
+    |> render_change(%{"light_filter" => "hue"})
+
+    {:ok, view_reloaded, html_reloaded} = live(conn, "/lights")
+    reloaded_session_id = :sys.get_state(view_reloaded.pid).socket.assigns.filter_session_id
+    assert first_session_id == reloaded_session_id
+
+    assert html_reloaded =~ ~r/<option value="z2m" selected(?:="selected")?>Z2M<\/option>/
+    assert html_reloaded =~ ~r/<option value="hue" selected(?:="selected")?>Hue<\/option>/
+  end
+
   test "z2m light edit modal shows actual kelvin override fields", %{conn: conn} do
     room = Repo.insert!(%Room{name: "Dining"})
 

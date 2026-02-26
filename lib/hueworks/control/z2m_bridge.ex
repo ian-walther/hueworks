@@ -4,28 +4,20 @@ defmodule Hueworks.Control.Z2MBridge do
   alias Hueworks.Repo
   alias Hueworks.Schemas.Bridge
   alias Hueworks.Util
+  alias HueworksApp.Cache
 
   @default_port 1883
   @default_base_topic "zigbee2mqtt"
+  @cache_namespace :bridge_credentials
+  @default_ttl_ms 10_000
 
   def connection_for(%{bridge_id: bridge_id}) when is_integer(bridge_id) do
-    case Repo.get(Bridge, bridge_id) do
-      nil ->
-        {:error, :bridge_not_found}
-
-      %Bridge{} = bridge ->
-        credentials = bridge.credentials || %{}
-
-        {:ok,
-         %{
-           bridge_id: bridge.id,
-           host: bridge.host,
-           port: normalize_port(Map.get(credentials, "broker_port")),
-           username: normalize_optional(Map.get(credentials, "username")),
-           password: normalize_optional(Map.get(credentials, "password")),
-           base_topic: normalize_base_topic(Map.get(credentials, "base_topic"))
-         }}
-    end
+    Cache.get_or_load(
+      @cache_namespace,
+      {:z2m, bridge_id},
+      fn -> load_connection(bridge_id) end,
+      ttl_ms: credentials_cache_ttl_ms()
+    )
   end
 
   def connection_for(_entity), do: {:error, :missing_bridge_id}
@@ -50,4 +42,28 @@ defmodule Hueworks.Control.Z2MBridge do
   end
 
   defp normalize_base_topic(_value), do: @default_base_topic
+
+  defp load_connection(bridge_id) do
+    case Repo.get(Bridge, bridge_id) do
+      nil ->
+        {:error, :bridge_not_found}
+
+      %Bridge{} = bridge ->
+        credentials = bridge.credentials || %{}
+
+        {:ok,
+         %{
+           bridge_id: bridge.id,
+           host: bridge.host,
+           port: normalize_port(Map.get(credentials, "broker_port")),
+           username: normalize_optional(Map.get(credentials, "username")),
+           password: normalize_optional(Map.get(credentials, "password")),
+           base_topic: normalize_base_topic(Map.get(credentials, "base_topic"))
+         }}
+    end
+  end
+
+  defp credentials_cache_ttl_ms do
+    Application.get_env(:hueworks, :cache_bridge_credentials_ttl_ms, @default_ttl_ms)
+  end
 end

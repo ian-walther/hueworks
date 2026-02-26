@@ -4,6 +4,7 @@ defmodule Hueworks.Control.State do
   """
 
   use GenServer
+  import Ecto.Query, only: [from: 2]
 
   alias Hueworks.Control.Bootstrap.HomeAssistant
   alias Hueworks.Control.Bootstrap.Hue
@@ -12,10 +13,13 @@ defmodule Hueworks.Control.State do
   alias Hueworks.ActiveScenes
   alias Hueworks.Repo
   alias Hueworks.Schemas.Light
+  alias HueworksApp.Cache
   alias Phoenix.PubSub
 
   @table :hueworks_control_state
   @topic "control_state"
+  @light_room_cache_namespace :light_room_ids
+  @default_light_room_cache_ttl_ms 60_000
 
   def start_link(_opts) do
     GenServer.start_link(__MODULE__, %{}, name: __MODULE__)
@@ -114,8 +118,8 @@ defmodule Hueworks.Control.State do
     desired = DesiredState.get(:light, light_id) || %{}
 
     if desired != %{} and diverged_from_desired?(desired, updated) do
-      case Repo.get(Light, light_id) do
-        %Light{room_id: room_id} when is_integer(room_id) ->
+      case light_room_id(light_id) do
+        room_id when is_integer(room_id) ->
           if ActiveScenes.pending_for_room?(room_id) do
             :ok
           else
@@ -133,6 +137,27 @@ defmodule Hueworks.Control.State do
   end
 
   defp maybe_deactivate_scene_on_external_change(_key, _updated), do: :ok
+
+  defp light_room_id(light_id) when is_integer(light_id) do
+    Cache.get_or_load(
+      @light_room_cache_namespace,
+      light_id,
+      fn ->
+        Repo.one(from(l in Light, where: l.id == ^light_id, select: l.room_id))
+      end,
+      ttl_ms: light_room_cache_ttl_ms()
+    )
+  end
+
+  defp light_room_id(_light_id), do: nil
+
+  defp light_room_cache_ttl_ms do
+    Application.get_env(
+      :hueworks,
+      :cache_light_room_ttl_ms,
+      @default_light_room_cache_ttl_ms
+    )
+  end
 
   defp diverged_from_desired?(desired, updated) do
     Enum.any?(desired, fn {key, desired_value} ->

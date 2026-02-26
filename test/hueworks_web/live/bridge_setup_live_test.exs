@@ -127,6 +127,7 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
 
     {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/setup")
     render(view)
+
     view
     |> form("form[phx-change='set_room_action'][data-room-id='12']", %{
       "action" => "skip"
@@ -180,6 +181,7 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
     plan = get_assign(view, :plan)
 
     assert get_in(plan, [:rooms, "room-1", "action"]) == "merge"
+
     assert get_in(plan, [:rooms, "room-1", "target_room_id"]) ==
              Integer.to_string(existing_room.id)
   end
@@ -230,6 +232,7 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
     plan = get_assign(view, :plan)
 
     assert get_in(plan, [:rooms, "room-1", "action"]) == "merge"
+
     assert get_in(plan, [:rooms, "room-1", "target_room_id"]) ==
              Integer.to_string(existing_room.id)
   end
@@ -481,7 +484,11 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
 
     normalized =
       if with_unassigned do
-        %{normalized | lights: normalized.lights ++ [unassigned_light()], groups: normalized.groups ++ [unassigned_group()]}
+        %{
+          normalized
+          | lights: normalized.lights ++ [unassigned_light()],
+            groups: normalized.groups ++ [unassigned_group()]
+        }
       else
         normalized
       end

@@ -21,5 +21,4 @@ defmodule Hueworks.ConnectionTest.HomeAssistant do
         {:error, "Home Assistant test failed: #{inspect(reason)}"}
     end
   end
-
 end

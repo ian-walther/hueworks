@@ -1,34 +1,21 @@
 defmodule HueworksWeb.FilterPrefs do
   @moduledoc false
 
-  use GenServer
+  alias HueworksApp.Cache
 
-  @table :hueworks_filter_prefs
-
-  def start_link(_opts) do
-    GenServer.start_link(__MODULE__, %{}, name: __MODULE__)
-  end
+  @cache_namespace :filter_prefs
 
   def get(nil), do: %{}
 
   def get(session_id) do
-    case :ets.lookup(@table, session_id) do
-      [{^session_id, prefs}] -> prefs
-      _ -> %{}
-    end
+    Cache.get(@cache_namespace, session_id, %{})
   end
 
   def update(nil, updates), do: updates
 
   def update(session_id, updates) when is_map(updates) do
     prefs = Map.merge(get(session_id), updates)
-    :ets.insert(@table, {session_id, prefs})
+    :ok = Cache.put(@cache_namespace, session_id, prefs)
     prefs
-  end
-
-  @impl true
-  def init(_state) do
-    :ets.new(@table, [:named_table, :set, :public, read_concurrency: true])
-    {:ok, %{}}
   end
 end

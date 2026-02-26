@@ -423,8 +423,15 @@ defmodule Hueworks.Control.PlannerTest do
     DesiredState.put(:light, light_b.id, desired)
 
     if :ets.whereis(:hueworks_control_state) != :undefined do
-      :ets.insert(:hueworks_control_state, {{:light, light_a.id}, %{power: :on, brightness: 65, kelvin: 2200}})
-      :ets.insert(:hueworks_control_state, {{:light, light_b.id}, %{power: :on, brightness: 65, kelvin: 2200}})
+      :ets.insert(
+        :hueworks_control_state,
+        {{:light, light_a.id}, %{power: :on, brightness: 65, kelvin: 2200}}
+      )
+
+      :ets.insert(
+        :hueworks_control_state,
+        {{:light, light_b.id}, %{power: :on, brightness: 65, kelvin: 2200}}
+      )
     end
 
     diff = %{

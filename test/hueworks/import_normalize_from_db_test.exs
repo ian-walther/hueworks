@@ -67,6 +67,7 @@ defmodule Hueworks.Import.NormalizeFromDbTest do
     assert Enum.any?(normalized.lights, &(&1["source_id"] == "light-1"))
     assert Enum.any?(normalized.groups, &(&1["source_id"] == "group-1"))
     assert normalized.rooms == []
+
     assert normalized.memberships.group_lights == [
              %{group_source_id: "group-1", light_source_id: "light-1"}
            ]
