@@ -2,6 +2,12 @@
 
 This document captures the planned architecture direction before full automation work begins. The goal is to separate intent, physical state, and execution so the system can compute optimal plans (for example, minimizing Zigbee traffic).
 
+## Product Direction
+
+- HueWorks is the primary control core for lighting logic and optimization.
+- External ecosystems (for example Home Assistant, HomeKit) are optional integration layers.
+- For users who operate from Home Assistant, the HA + HueWorks experience should be at least parity with HA-only daily control workflows, and better where HueWorks adds value (optimization, predictability, explainability).
+
 ## Core Concepts
 
 ### Intent (Desired State)

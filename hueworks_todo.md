@@ -95,6 +95,28 @@ Reference: `planning/db-integrity.md`
 - [ ] Public API surface (WebSocket/REST) for external control.
 - [ ] Multi-user/auth model for non-single-operator deployments.
 
+### 13) HomeKit bridge integration
+Reference: `planning/homekit-bridge.md`
+- [ ] Add a HomeKit bridge endpoint that exposes HueWorks-controlled lights.
+- [ ] Map HomeKit characteristic writes to HueWorks desired-state -> planner/executor flow.
+- [ ] Mirror physical-state updates back to HomeKit characteristics for state coherence.
+- [ ] Add pairing/persistence, room/accessory metadata mapping, and regression tests.
+
+### 14) Home Assistant reverse integration (HueWorks -> HA)
+Reference: `planning/home-assistant-reverse-integration.md`
+- [ ] Expose HueWorks-controlled lights into Home Assistant as entities.
+- [ ] Map HA service calls/state writes to HueWorks desired-state -> planner/executor flow.
+- [ ] Publish HueWorks physical state updates back into HA entity state.
+- [ ] Add config/discovery lifecycle, metadata mapping, and regression tests.
+- [ ] Define and enforce HA parity quality bar (state coherence, interaction latency, reliability) for daily control paths.
+
+### 15) Assisted-user functionality polish
+Reference: `planning/assisted-user-functionality.md`
+- [ ] Add high-impact guardrails for scene/control conflict predictability.
+- [ ] Improve active-scene clarity (state + deactivation reasons) in room UX.
+- [ ] Add plain-language runtime status to increase day-to-day user confidence.
+- [ ] Prioritize outcome-focused scene usability improvements over setup automation.
+
 ## Quality Gates
 - [ ] Keep TODO and planning docs synchronized when priorities change.
 - [ ] Keep tests green on every merge (`mix test`).
