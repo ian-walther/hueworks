@@ -42,7 +42,12 @@ defmodule Hueworks.Control.CircadianPoller do
           :ok
 
         scene ->
-          _ = Scenes.apply_scene(scene, brightness_override: active.brightness_override)
+          _ =
+            Scenes.apply_scene(scene,
+              brightness_override: active.brightness_override,
+              occupied: active.occupied
+            )
+
           _ = ActiveScenes.mark_applied(active)
       end
     end)

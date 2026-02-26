@@ -403,13 +403,13 @@ defmodule Hueworks.SceneActivationRoundTripTest do
     Repo.insert!(%SceneComponentLight{
       scene_component_id: component.id,
       light_id: light_on.id,
-      default_power: true
+      default_power: :force_on
     })
 
     Repo.insert!(%SceneComponentLight{
       scene_component_id: component.id,
       light_id: light_off.id,
-      default_power: false
+      default_power: :force_off
     })
 
     if :ets.whereis(:hueworks_control_state) != :undefined do
@@ -502,7 +502,7 @@ defmodule Hueworks.SceneActivationRoundTripTest do
     Repo.insert!(%SceneComponentLight{
       scene_component_id: component.id,
       light_id: light.id,
-      default_power: false
+      default_power: :force_off
     })
 
     if :ets.whereis(:hueworks_control_state) != :undefined do

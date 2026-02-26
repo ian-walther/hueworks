@@ -158,6 +158,8 @@ defmodule Hueworks.Scenes do
       |> Repo.preload(scene_components: [:lights, :light_state, :scene_component_lights])
 
     brightness_override = Keyword.get(opts, :brightness_override, false)
+    # TODO: replace this temporary fallback with HA-provided occupancy input.
+    occupied = Keyword.get(opts, :occupied, true)
     force_apply = Keyword.get(opts, :force_apply, false)
 
     txn = DesiredState.begin(scene.id)
@@ -172,7 +174,8 @@ defmodule Hueworks.Scenes do
             maybe_apply_default_power(
               desired,
               component.light_state,
-              Map.get(default_power_by_light, light.id, true)
+              Map.get(default_power_by_light, light.id, :force_on),
+              occupied
             )
 
           DesiredState.apply(txn, :light, light.id, light_desired)
@@ -213,18 +216,28 @@ defmodule Hueworks.Scenes do
 
   defp desired_from_light_state(_, _brightness_override), do: %{}
 
-  defp maybe_apply_default_power(desired, %LightState{type: type}, default_power)
+  defp maybe_apply_default_power(desired, %LightState{type: type}, power_policy, occupied)
        when type in [:manual, :circadian] do
-    Map.put(desired, :power, if(default_power, do: :on, else: :off))
+    Map.put(desired, :power, resolve_power_policy(power_policy, occupied))
   end
 
-  defp maybe_apply_default_power(desired, _light_state, _default_power), do: desired
+  defp maybe_apply_default_power(desired, _light_state, _power_policy, _occupied), do: desired
+
+  defp resolve_power_policy(:force_on, _occupied), do: :on
+  defp resolve_power_policy("force_on", _occupied), do: :on
+  defp resolve_power_policy(:force_off, _occupied), do: :off
+  defp resolve_power_policy("force_off", _occupied), do: :off
+  defp resolve_power_policy(:follow_occupancy, true), do: :on
+  defp resolve_power_policy("follow_occupancy", true), do: :on
+  defp resolve_power_policy(:follow_occupancy, false), do: :off
+  defp resolve_power_policy("follow_occupancy", false), do: :off
+  defp resolve_power_policy(_unknown, _occupied), do: :on
 
   defp component_default_power_map(component) do
     component
     |> Map.get(:scene_component_lights, [])
     |> Enum.reduce(%{}, fn join, acc ->
-      Map.put(acc, join.light_id, join.default_power != false)
+      Map.put(acc, join.light_id, parse_default_power(join.default_power))
     end)
   end
 
@@ -338,9 +351,18 @@ defmodule Hueworks.Scenes do
   defp light_default_lookup(_defaults, _light_id), do: nil
 
   defp parse_default_power(value) when value in [nil, true, "true", 1, "1", :on, "on"],
-    do: true
+    do: :force_on
 
-  defp parse_default_power(_value), do: false
+  defp parse_default_power(value) when value in [false, "false", 0, "0", :off, "off"],
+    do: :force_off
+
+  defp parse_default_power(value) when value in [:force_on, "force_on"], do: :force_on
+  defp parse_default_power(value) when value in [:force_off, "force_off"], do: :force_off
+
+  defp parse_default_power(value) when value in [:follow_occupancy, "follow_occupancy"],
+    do: :follow_occupancy
+
+  defp parse_default_power(_value), do: :force_on
 
   defp parse_id(value), do: Hueworks.Util.parse_id(value)
 end

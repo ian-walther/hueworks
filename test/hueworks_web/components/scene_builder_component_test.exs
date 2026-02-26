@@ -138,7 +138,7 @@ defmodule Hueworks.SceneBuilderComponentTest do
     assert has_element?(
              view,
              "button[phx-click='toggle_light_default_power'][phx-value-component_id='1'][phx-value-light_id='1']",
-             "On by default"
+             "Power policy: Force On"
            )
 
     view
@@ -150,7 +150,19 @@ defmodule Hueworks.SceneBuilderComponentTest do
     assert has_element?(
              view,
              "button[phx-click='toggle_light_default_power'][phx-value-component_id='1'][phx-value-light_id='1']",
-             "Off by default"
+             "Power policy: Force Off"
+           )
+
+    view
+    |> element(
+      "button[phx-click='toggle_light_default_power'][phx-value-component_id='1'][phx-value-light_id='1']"
+    )
+    |> render_click()
+
+    assert has_element?(
+             view,
+             "button[phx-click='toggle_light_default_power'][phx-value-component_id='1'][phx-value-light_id='1']",
+             "Power policy: Follow Occupancy"
            )
   end
 

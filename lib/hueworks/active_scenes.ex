@@ -26,6 +26,7 @@ defmodule Hueworks.ActiveScenes do
       room_id: scene.room_id,
       scene_id: scene.id,
       brightness_override: false,
+      occupied: true,
       last_applied_at: now,
       pending_until: pending_until
     }
@@ -37,6 +38,7 @@ defmodule Hueworks.ActiveScenes do
         set: [
           scene_id: scene.id,
           brightness_override: false,
+          occupied: true,
           last_applied_at: now,
           pending_until: pending_until,
           updated_at: now
@@ -72,6 +74,17 @@ defmodule Hueworks.ActiveScenes do
     Repo.update_all(
       from(a in ActiveScene, where: a.room_id == ^room_id),
       set: [brightness_override: value, updated_at: now]
+    )
+
+    :ok
+  end
+
+  def set_occupied(room_id, value) when is_integer(room_id) and is_boolean(value) do
+    now = DateTime.utc_now()
+
+    Repo.update_all(
+      from(a in ActiveScene, where: a.room_id == ^room_id),
+      set: [occupied: value, updated_at: now]
     )
 
     :ok

@@ -236,7 +236,7 @@ defmodule HueworksWeb.SceneEditorLive do
         light_defaults =
           component.scene_component_lights
           |> Enum.reduce(%{}, fn join, acc ->
-            Map.put(acc, join.light_id, join.default_power != false)
+            Map.put(acc, join.light_id, join.default_power)
           end)
 
         %{

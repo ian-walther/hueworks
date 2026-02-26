@@ -177,7 +177,7 @@ defmodule Hueworks.ScenesComponentsTest do
           name: "Component 1",
           light_ids: [light1.id, light2.id],
           light_state_id: to_string(state.id),
-          light_defaults: %{light1.id => true, light2.id => false}
+          light_defaults: %{light1.id => :force_on, light2.id => :force_off}
         }
       ])
 
@@ -192,8 +192,8 @@ defmodule Hueworks.ScenesComponentsTest do
       )
       |> Map.new()
 
-    assert persisted_defaults[light1.id] == true
-    assert persisted_defaults[light2.id] == false
+    assert persisted_defaults[light1.id] == :force_on
+    assert persisted_defaults[light2.id] == :force_off
   end
 
   test "activate_scene updates desired state for scene lights" do
@@ -264,7 +264,7 @@ defmodule Hueworks.ScenesComponentsTest do
           name: "Component 1",
           light_ids: [light1.id, light2.id],
           light_state_id: to_string(state.id),
-          light_defaults: %{light1.id => true, light2.id => false}
+          light_defaults: %{light1.id => :force_on, light2.id => :force_off}
         }
       ])
 

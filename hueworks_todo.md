@@ -130,3 +130,4 @@ Reference: `planning/assisted-user-functionality.md`
 - [ ] Add initial seeding support for Zigbee2MQTT bridges/entities.
 - [ ] Add configurable on/off transition-time support and expose it as scene-level configuration.
 - [ ] Move GenServer modules into a top-level `hueworks_app` folder alongside `hueworks` and `hueworks_web`.
+- [ ] Replace temporary room occupancy test toggle with HA-driven presence input for scene power policies.

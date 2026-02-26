@@ -324,7 +324,7 @@ defmodule HueworksWeb.SceneBuilderComponent do
                   phx-value-component_id={component.id}
                   phx-value-light_id={light_id}
                 >
-                  <%= if light_default_power(component, light_id), do: "On by default", else: "Off by default" %>
+                  <%= "Power policy: #{power_policy_label(light_default_power(component, light_id))}" %>
                 </button>
                 <button
                   type="button"
@@ -688,7 +688,7 @@ defmodule HueworksWeb.SceneBuilderComponent do
           defaults =
             component
             |> Map.get(:light_defaults, %{})
-            |> Map.put(light_id, true)
+            |> Map.put(light_id, :force_on)
 
           %{
             component
@@ -719,7 +719,7 @@ defmodule HueworksWeb.SceneBuilderComponent do
           defaults =
             Enum.reduce(group.light_ids, Map.get(component, :light_defaults, %{}), fn light_id,
                                                                                       acc ->
-              Map.put_new(acc, light_id, true)
+              Map.put_new(acc, light_id, :force_on)
             end)
 
           %{component | light_ids: light_ids, group_ids: group_ids, light_defaults: defaults}
@@ -799,8 +799,14 @@ defmodule HueworksWeb.SceneBuilderComponent do
       Enum.map(socket.assigns.components, fn component ->
         if component.id == parsed_component_id and is_integer(parsed_light_id) do
           defaults = Map.get(component, :light_defaults, %{})
-          current = Map.get(defaults, parsed_light_id, true)
-          %{component | light_defaults: Map.put(defaults, parsed_light_id, not current)}
+
+          current =
+            Map.get(defaults, parsed_light_id, :force_on) |> normalize_default_power_value()
+
+          %{
+            component
+            | light_defaults: Map.put(defaults, parsed_light_id, next_power_policy(current))
+          }
         else
           component
         end
@@ -838,7 +844,7 @@ defmodule HueworksWeb.SceneBuilderComponent do
   defp light_default_power(component, light_id) do
     component
     |> Map.get(:light_defaults, %{})
-    |> Map.get(light_id, true)
+    |> Map.get(light_id, :force_on)
     |> normalize_default_power_value()
   end
 
@@ -1204,11 +1210,33 @@ defmodule HueworksWeb.SceneBuilderComponent do
   end
 
   defp ensure_defaults_for_light_ids(defaults, light_ids) do
-    Enum.reduce(light_ids, defaults, fn light_id, acc -> Map.put_new(acc, light_id, true) end)
+    Enum.reduce(light_ids, defaults, fn light_id, acc -> Map.put_new(acc, light_id, :force_on) end)
   end
 
-  defp normalize_default_power_value(value) when value in [true, "true", 1, "1", :on, "on"],
-    do: true
+  defp normalize_default_power_value(value) when value in [:force_on, "force_on"], do: :force_on
 
-  defp normalize_default_power_value(_value), do: false
+  defp normalize_default_power_value(value) when value in [:force_off, "force_off"],
+    do: :force_off
+
+  defp normalize_default_power_value(value)
+       when value in [:follow_occupancy, "follow_occupancy"],
+       do: :follow_occupancy
+
+  defp normalize_default_power_value(value) when value in [true, "true", 1, "1", :on, "on"],
+    do: :force_on
+
+  defp normalize_default_power_value(value) when value in [false, "false", 0, "0", :off, "off"],
+    do: :force_off
+
+  defp normalize_default_power_value(_value), do: :force_on
+
+  defp next_power_policy(:force_on), do: :force_off
+  defp next_power_policy(:force_off), do: :follow_occupancy
+  defp next_power_policy(:follow_occupancy), do: :force_on
+  defp next_power_policy(_policy), do: :force_on
+
+  defp power_policy_label(:force_on), do: "Force On"
+  defp power_policy_label(:force_off), do: "Force Off"
+  defp power_policy_label(:follow_occupancy), do: "Follow Occupancy"
+  defp power_policy_label(_policy), do: "Force On"
 end

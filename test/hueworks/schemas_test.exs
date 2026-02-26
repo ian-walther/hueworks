@@ -289,11 +289,11 @@ defmodule Hueworks.SchemasTest do
       SceneComponentLight.changeset(%SceneComponentLight{}, %{
         scene_component_id: 1,
         light_id: 2,
-        default_power: false
+        default_power: :force_off
       })
 
     assert valid_changeset.valid?
-    assert get_change(valid_changeset, :default_power) == false
+    assert get_change(valid_changeset, :default_power) == :force_off
   end
 
   test "group_light requires group_id and light_id" do
