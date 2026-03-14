@@ -19,6 +19,16 @@ defmodule Hueworks.DataCase do
   def setup_sandbox(tags) do
     pid = Ecto.Adapters.SQL.Sandbox.start_owner!(Hueworks.Repo, shared: not tags[:async])
     :ok = HueworksApp.Cache.flush_all()
+    clear_ets(:hueworks_desired_state)
+    clear_ets(:hueworks_control_state)
     on_exit(fn -> Ecto.Adapters.SQL.Sandbox.stop_owner(pid) end)
+  end
+
+  defp clear_ets(table) do
+    if :ets.whereis(table) != :undefined do
+      :ets.delete_all_objects(table)
+    end
+
+    :ok
   end
 end

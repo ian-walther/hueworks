@@ -3,7 +3,10 @@ defmodule Hueworks.LightsLivePipelineTest do
 
   import Phoenix.LiveViewTest
 
+  alias Hueworks.AppSettings
+  alias Hueworks.ActiveScenes
   alias Hueworks.Control.{DesiredState, Executor, State}
+  alias Hueworks.Scenes
   alias Hueworks.Repo
 
   alias Hueworks.Schemas.{
@@ -245,6 +248,105 @@ defmodule Hueworks.LightsLivePipelineTest do
     assert first_id == light.id
     assert second_id == light.id
     assert DesiredState.get(:light, light.id) == %{power: :off}
+  end
+
+  test "manual power-on while a circadian scene is active immediately reapplies circadian values for only that light",
+       %{
+         conn: conn,
+         actions_agent: actions_agent,
+         executor_server: executor_server
+       } do
+    room = Repo.insert!(%Room{name: "Bedroom"})
+
+    bridge =
+      Repo.insert!(%Bridge{
+        name: "Hue Bridge",
+        type: :hue,
+        host: "192.168.1.84",
+        credentials: %{"api_key" => "test"}
+      })
+
+    light_a =
+      Repo.insert!(%Light{
+        name: "Bed Left",
+        display_name: "Bed Left",
+        source: :hue,
+        source_id: "bed-left",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        supports_temp: true,
+        reported_min_kelvin: 2000,
+        reported_max_kelvin: 6500
+      })
+
+    light_b =
+      Repo.insert!(%Light{
+        name: "Bed Right",
+        display_name: "Bed Right",
+        source: :hue,
+        source_id: "bed-right",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        supports_temp: true,
+        reported_min_kelvin: 2000,
+        reported_max_kelvin: 6500
+      })
+
+    {:ok, state} =
+      Scenes.create_light_state("Circadian", :circadian, %{
+        "sunrise_time" => "06:00:00",
+        "sunset_time" => "18:00:00",
+        "min_brightness" => 90,
+        "max_brightness" => 90,
+        "min_color_temp" => 5000,
+        "max_color_temp" => 5000
+      })
+
+    {:ok, scene} = Scenes.create_scene(%{name: "Circadian", room_id: room.id})
+
+    {:ok, _} =
+      Scenes.replace_scene_components(scene, [
+        %{
+          name: "Circadian Component",
+          light_ids: [light_a.id, light_b.id],
+          light_state_id: to_string(state.id)
+        }
+      ])
+
+    {:ok, _} = ActiveScenes.set_active(scene)
+
+    {:ok, _} =
+      AppSettings.upsert_global(%{
+        latitude: 40.7128,
+        longitude: -74.0060,
+        timezone: "Etc/UTC"
+      })
+
+    _ = ActiveScenes.set_brightness_override(room.id, true)
+    _ = DesiredState.put(:light, light_a.id, %{power: :off})
+    _ = DesiredState.put(:light, light_b.id, %{power: :off})
+    _ = State.put(:light, light_a.id, %{power: :off})
+    _ = State.put(:light, light_b.id, %{power: :off})
+
+    {:ok, view, _html} = live(conn, "/lights")
+
+    view
+    |> element("button[phx-click='toggle'][phx-value-type='light'][phx-value-id='#{light_a.id}']")
+    |> render_click()
+
+    drain_executor(executor_server)
+
+    actions = Agent.get(actions_agent, & &1)
+
+    assert [
+             %{type: :light, id: first_id, desired: %{power: :on}},
+             %{type: :light, id: second_id, desired: %{power: :on, brightness: 90, kelvin: 5000}}
+           ] = actions
+
+    assert first_id == light_a.id
+    assert second_id == light_a.id
+    assert DesiredState.get(:light, light_a.id) == %{power: :on, brightness: 90, kelvin: 5000}
+    assert DesiredState.get(:light, light_b.id) == %{power: :off}
   end
 
   test "group/light filter prefs persist across page reload", %{conn: conn} do

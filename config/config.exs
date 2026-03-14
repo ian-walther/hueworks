@@ -1,5 +1,7 @@
 import Config
 
+config :elixir, :time_zone_database, Tzdata.TimeZoneDatabase
+
 # Configure Ecto Repo
 config :hueworks, Hueworks.Repo,
   database: Path.expand("../hueworks_#{config_env()}.db", __DIR__),

@@ -8,6 +8,8 @@ defmodule Hueworks.Scenes do
 
   alias Hueworks.Repo
   alias Hueworks.ActiveScenes
+  alias Hueworks.AppSettings
+  alias Hueworks.Circadian
   alias Hueworks.Control.DesiredState
   alias Hueworks.Schemas.{LightState, Scene, SceneComponent, SceneComponentLight}
 
@@ -163,6 +165,9 @@ defmodule Hueworks.Scenes do
     occupied = Keyword.get(opts, :occupied, true)
     force_apply = Keyword.get(opts, :force_apply, false)
     trace = Keyword.get(opts, :trace)
+    now = Keyword.get(opts, :now, DateTime.utc_now())
+    target_light_ids = opts |> Keyword.get(:target_light_ids, []) |> MapSet.new()
+    circadian_only = Keyword.get(opts, :circadian_only, false)
 
     log_trace(
       trace,
@@ -178,20 +183,29 @@ defmodule Hueworks.Scenes do
 
     txn =
       Enum.reduce(scene.scene_components, txn, fn component, txn ->
-        desired = desired_from_light_state(component.light_state, brightness_override)
-        default_power_by_light = component_default_power_map(component)
+        if skip_component?(component, circadian_only) do
+          txn
+        else
+          desired = desired_from_light_state(component.light_state, brightness_override, now)
+          default_power_by_light = component_default_power_map(component)
+          component_lights = target_component_lights(component.lights, target_light_ids)
 
-        Enum.reduce(component.lights, txn, fn light, txn ->
-          light_desired =
-            maybe_apply_default_power(
-              desired,
-              component.light_state,
-              Map.get(default_power_by_light, light.id, :force_on),
-              occupied
-            )
+          Enum.reduce(component_lights, txn, fn light, txn ->
+            light_desired =
+              desired
+              |> maybe_apply_default_power(
+                component.light_state,
+                Map.get(default_power_by_light, light.id, :force_on),
+                occupied
+              )
+              |> maybe_preserve_manual_power_off(
+                DesiredState.get(:light, light.id) || %{},
+                brightness_override
+              )
 
-          DesiredState.apply(txn, :light, light.id, light_desired)
-        end)
+            DesiredState.apply(txn, :light, light.id, light_desired)
+          end)
+        end
       end)
 
     result = DesiredState.commit(txn)
@@ -231,7 +245,11 @@ defmodule Hueworks.Scenes do
     end
   end
 
-  defp desired_from_light_state(%LightState{type: :manual, config: config}, brightness_override) do
+  defp desired_from_light_state(
+         %LightState{type: :manual, config: config},
+         brightness_override,
+         _now
+       ) do
     base = %{power: :on}
 
     base =
@@ -245,7 +263,69 @@ defmodule Hueworks.Scenes do
     |> maybe_put(:kelvin, config, ["temperature", "kelvin"])
   end
 
-  defp desired_from_light_state(_, _brightness_override), do: %{}
+  defp desired_from_light_state(
+         %LightState{type: :circadian, config: config},
+         brightness_override,
+         now
+       ) do
+    solar_config = AppSettings.global_map()
+
+    case Circadian.calculate(config || %{}, solar_config, now) do
+      {:ok, circadian} ->
+        base = %{power: :on}
+
+        base =
+          if brightness_override do
+            base
+          else
+            Map.put(base, :brightness, circadian.brightness)
+          end
+
+        Map.put(base, :kelvin, circadian.kelvin)
+
+      {:error, reason} ->
+        Logger.warning("Skipping circadian apply due to calculation error: #{inspect(reason)}")
+        %{}
+    end
+  end
+
+  defp desired_from_light_state(_, _brightness_override, _now), do: %{}
+
+  def reapply_active_circadian_lights(room_id, light_ids, opts \\ [])
+
+  def reapply_active_circadian_lights(room_id, light_ids, opts)
+      when is_integer(room_id) and is_list(light_ids) do
+    light_ids =
+      light_ids
+      |> Enum.filter(&is_integer/1)
+      |> Enum.uniq()
+
+    case {light_ids, ActiveScenes.get_for_room(room_id)} do
+      {[], _active_scene} ->
+        {:ok, %{}, %{}}
+
+      {_light_ids, nil} ->
+        {:ok, %{}, %{}}
+
+      {_light_ids, active_scene} ->
+        case get_scene(active_scene.scene_id) do
+          nil ->
+            {:error, :not_found}
+
+          scene ->
+            apply_scene(scene,
+              brightness_override: false,
+              occupied: active_scene.occupied,
+              target_light_ids: light_ids,
+              circadian_only: true,
+              now: Keyword.get(opts, :now, DateTime.utc_now()),
+              trace: Keyword.get(opts, :trace)
+            )
+        end
+    end
+  end
+
+  def reapply_active_circadian_lights(_room_id, _light_ids, _opts), do: {:error, :invalid_args}
 
   defp maybe_apply_default_power(desired, %LightState{type: type}, power_policy, occupied)
        when type in [:manual, :circadian] do
@@ -394,6 +474,40 @@ defmodule Hueworks.Scenes do
     do: :follow_occupancy
 
   defp parse_default_power(_value), do: :force_on
+
+  defp skip_component?(%{light_state: %LightState{type: :circadian}}, true), do: false
+  defp skip_component?(%{light_state: %LightState{}}, true), do: true
+  defp skip_component?(_component, false), do: false
+
+  defp target_component_lights(lights, target_light_ids) when is_struct(target_light_ids, MapSet) do
+    if MapSet.size(target_light_ids) == 0 do
+      lights
+    else
+      Enum.filter(lights, &MapSet.member?(target_light_ids, &1.id))
+    end
+  end
+
+  defp target_component_lights(lights, _target_light_ids), do: lights
+
+  defp maybe_preserve_manual_power_off(desired, current_desired, true) do
+    if explicit_off_intent?(current_desired) and not explicit_off_intent?(desired) do
+      %{power: :off}
+    else
+      desired
+    end
+  end
+
+  defp maybe_preserve_manual_power_off(desired, _current_desired, _brightness_override), do: desired
+
+  defp explicit_off_intent?(state) when is_map(state) do
+    case Map.get(state, :power) || Map.get(state, "power") do
+      :off -> true
+      "off" -> true
+      _ -> false
+    end
+  end
+
+  defp explicit_off_intent?(_state), do: false
 
   defp parse_id(value), do: Hueworks.Util.parse_id(value)
 

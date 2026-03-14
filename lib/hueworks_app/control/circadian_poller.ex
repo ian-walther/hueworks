@@ -4,6 +4,7 @@ defmodule Hueworks.Control.CircadianPoller do
   """
 
   use GenServer
+  require Logger
 
   alias Hueworks.ActiveScenes
   alias Hueworks.Scenes
@@ -35,22 +36,62 @@ defmodule Hueworks.Control.CircadianPoller do
   end
 
   defp run_tick do
-    ActiveScenes.list_active_scenes()
-    |> Enum.each(fn active ->
-      case Scenes.get_scene(active.scene_id) do
-        nil ->
-          :ok
+    active_scenes = ActiveScenes.list_active_scenes()
+    started_at_ms = System.monotonic_time(:millisecond)
 
-        scene ->
-          _ =
-            Scenes.apply_scene(scene,
-              brightness_override: active.brightness_override,
-              occupied: active.occupied
+    Logger.info("circadian_tick_start active_scene_count=#{length(active_scenes)}")
+
+    {applied, failed} =
+      Enum.reduce(active_scenes, {0, 0}, fn active, {applied, failed} ->
+        case Scenes.get_scene(active.scene_id) do
+          nil ->
+            Logger.warning(
+              "circadian_scene_apply result=missing_scene room_id=#{active.room_id} scene_id=#{active.scene_id}"
             )
 
-          _ = ActiveScenes.mark_applied(active)
-      end
-    end)
+            {applied, failed + 1}
+
+          scene ->
+            trace = %{
+              trace_id: "circadian-#{active.room_id}-#{System.unique_integer([:positive])}",
+              source: "circadian_poller.tick",
+              started_at_ms: System.monotonic_time(:millisecond)
+            }
+
+            case Scenes.apply_scene(scene,
+                   brightness_override: active.brightness_override,
+                   occupied: active.occupied,
+                   trace: trace
+                 ) do
+              {:ok, diff, _updated} ->
+                _ = ActiveScenes.mark_applied(active)
+
+                Logger.info(
+                  "circadian_scene_apply result=ok room_id=#{scene.room_id} scene_id=#{scene.id} diff_size=#{map_size(diff)}"
+                )
+
+                {applied + 1, failed}
+
+              {:error, reason} ->
+                Logger.warning(
+                  "circadian_scene_apply result=error room_id=#{scene.room_id} scene_id=#{scene.id} reason=#{inspect(reason)}"
+                )
+
+                {applied, failed + 1}
+
+              other ->
+                Logger.warning(
+                  "circadian_scene_apply result=unexpected room_id=#{scene.room_id} scene_id=#{scene.id} value=#{inspect(other)}"
+                )
+
+                {applied, failed + 1}
+            end
+        end
+      end)
+
+    Logger.info(
+      "circadian_tick_end active_scene_count=#{length(active_scenes)} applied=#{applied} failed=#{failed} elapsed_ms=#{System.monotonic_time(:millisecond) - started_at_ms}"
+    )
   end
 
   defp schedule_tick(state) do

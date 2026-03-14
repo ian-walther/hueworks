@@ -3,6 +3,7 @@ defmodule HueworksWeb.LightsLive do
   import Ecto.Query, only: [from: 2]
 
   alias Hueworks.ActiveScenes
+  alias Hueworks.Scenes
   alias Hueworks.Control.{DesiredState, Executor, Planner, State}
   alias Hueworks.Repo
   alias Hueworks.Groups
@@ -317,6 +318,7 @@ defmodule HueworksWeb.LightsLive do
     with {:ok, light} <- fetch_light(id),
          {:ok, _diff} <- apply_manual_updates(light.room_id, [light.id], %{power: action}) do
       _ = ActiveScenes.handle_manual_change(light.room_id, %{power: action})
+      maybe_reapply_active_circadian(light.room_id, [light.id], action)
 
       socket
       |> update_light_state_assign(light.id, %{power: action})
@@ -332,6 +334,7 @@ defmodule HueworksWeb.LightsLive do
          light_ids when light_ids != [] <- group_light_ids(group.id),
          {:ok, _diff} <- apply_manual_updates(group.room_id, light_ids, %{power: action}) do
       _ = ActiveScenes.handle_manual_change(group.room_id, %{power: action})
+      maybe_reapply_active_circadian(group.room_id, light_ids, action)
 
       socket
       |> update_group_state_assign(group.id, %{power: action})
@@ -566,6 +569,19 @@ defmodule HueworksWeb.LightsLive do
       )
     )
   end
+
+  defp maybe_reapply_active_circadian(room_id, light_ids, :on) do
+    trace = %{
+      trace_id: "manual-on-#{room_id}-#{System.unique_integer([:positive])}",
+      source: "lights_live.manual_power_on",
+      started_at_ms: System.monotonic_time(:millisecond)
+    }
+
+    _ = Scenes.reapply_active_circadian_lights(room_id, light_ids, trace: trace)
+    :ok
+  end
+
+  defp maybe_reapply_active_circadian(_room_id, _light_ids, _action), do: :ok
 
   defp fetch_light(id) do
     case Integer.parse(id) do
