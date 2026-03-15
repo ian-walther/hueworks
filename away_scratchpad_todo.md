@@ -30,6 +30,3 @@ Not for commit. Short-lived checklist for travel week work.
 - [ ] Confirm desired vs physical state convergence in logs/state tables.
 - [ ] Confirm active scene activation/deactivation events are emitted as expected.
 - [ ] Confirm no repeated unexpected active-scene deletions during idle periods.
-
-
--Rooms should hold occupancy info, not scenes

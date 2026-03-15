@@ -4,16 +4,12 @@ Forward-looking backlog only. Completed work has been removed.
 
 ## Now (Critical Path)
 
-### 1) Circadian prerequisites and adaptive circadian logic
+### 1) Circadian validation and polish
 Reference: `planning/circadian-adaptation.md`
-- [ ] Implement circadian calculation module (using the existing HA-compatible config model).
-- [ ] Add circadian `light_state` apply path for both brightness and kelvin.
-- [ ] Enforce active-scene semantics:
-  - manual power-off stays off until manual-on.
-  - manual power-on applies current circadian target immediately.
-- [ ] Wire circadian calculator reads to global solar config from `AppSettings`.
-- [ ] Add deep circadian math tests and targeted scene integration regressions.
-- [ ] Add basic observability for circadian ticks and apply outcomes.
+- [ ] Replace the temporary room occupancy test toggle with HA-driven presence input for scene power policies.
+- [ ] Do real-world validation of circadian behavior across mixed-range rooms and document any group-layout expectations that fall out of the planner.
+- [ ] Decide whether room-coherent circadian output needs an explicit mode, or whether overlapping Hue groups are sufficient for the intended experience.
+- [ ] Add telemetry/counters for circadian apply attempts/failures if log-based observability stops being sufficient.
 
 ### 2) External scene mapping (Home Assistant -> HueWorks)
 Reference: `planning/external-scenes.md`
@@ -129,5 +125,3 @@ Reference: `planning/assisted-user-functionality.md`
 - [ ] Evaluate and potentially implement a `secrets.json`-driven initial bridge seed flow so bridge config and credentials can be sourced from one structured file.
 - [ ] Add initial seeding support for Zigbee2MQTT bridges/entities.
 - [ ] Add configurable on/off transition-time support and expose it as scene-level configuration.
-- [ ] Move GenServer modules into a top-level `hueworks_app` folder alongside `hueworks` and `hueworks_web`.
-- [ ] Replace temporary room occupancy test toggle with HA-driven presence input for scene power policies.
