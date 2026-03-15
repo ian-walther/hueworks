@@ -4,7 +4,6 @@ defmodule Hueworks.Schemas.ActiveScene do
 
   schema "active_scenes" do
     field(:brightness_override, :boolean, default: false)
-    field(:occupied, :boolean, default: true)
     field(:last_applied_at, :utc_datetime_usec)
     field(:pending_until, :utc_datetime_usec)
 
@@ -20,7 +19,6 @@ defmodule Hueworks.Schemas.ActiveScene do
       :room_id,
       :scene_id,
       :brightness_override,
-      :occupied,
       :last_applied_at,
       :pending_until
     ])

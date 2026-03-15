@@ -5,6 +5,7 @@ defmodule Hueworks.Schemas.Room do
   schema "rooms" do
     field(:name, :string)
     field(:display_name, :string)
+    field(:occupied, :boolean, default: true)
     field(:metadata, :map, default: %{})
 
     has_many(:lights, Hueworks.Schemas.Light)
@@ -16,7 +17,7 @@ defmodule Hueworks.Schemas.Room do
 
   def changeset(room, attrs) do
     room
-    |> cast(attrs, [:name, :display_name, :metadata])
+    |> cast(attrs, [:name, :display_name, :occupied, :metadata])
     |> validate_required([:name])
   end
 end

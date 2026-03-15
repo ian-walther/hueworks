@@ -6,11 +6,12 @@ defmodule HueworksWeb.RoomsLive do
   alias Hueworks.Scenes
 
   def mount(_params, _session, socket) do
-    scene_assigns = active_scene_assigns()
+    rooms = Rooms.list_rooms_with_children()
+    scene_assigns = active_scene_assigns(rooms)
 
     {:ok,
      assign(socket,
-       rooms: Rooms.list_rooms_with_children(),
+       rooms: rooms,
        active_scene_by_room: scene_assigns.active_scene_by_room,
        occupancy_by_room: scene_assigns.occupancy_by_room,
        modal_open: false,
@@ -111,7 +112,7 @@ defmodule HueworksWeb.RoomsLive do
 
       case active do
         %{} = active_scene ->
-          _ = ActiveScenes.set_occupied(room_id, next_occupied)
+          _ = Rooms.set_occupied(room_id, next_occupied)
 
           _ =
             Scenes.apply_scene(scene,
@@ -126,7 +127,7 @@ defmodule HueworksWeb.RoomsLive do
           # If an external update cleared active_scenes but the UI still shows an active scene,
           # recreate the active row so this toggle remains usable.
           _ = ActiveScenes.set_active(scene)
-          _ = ActiveScenes.set_occupied(room_id, next_occupied)
+          _ = Rooms.set_occupied(room_id, next_occupied)
 
           _ =
             Scenes.apply_scene(scene,
@@ -191,10 +192,11 @@ defmodule HueworksWeb.RoomsLive do
   end
 
   defp refresh_rooms(socket) do
-    scene_assigns = active_scene_assigns()
+    rooms = Rooms.list_rooms_with_children()
+    scene_assigns = active_scene_assigns(rooms)
 
     assign(socket,
-      rooms: Rooms.list_rooms_with_children(),
+      rooms: rooms,
       active_scene_by_room: scene_assigns.active_scene_by_room,
       occupancy_by_room: scene_assigns.occupancy_by_room,
       modal_open: false,
@@ -205,13 +207,17 @@ defmodule HueworksWeb.RoomsLive do
   end
 
   defp active_scene_assigns do
+    active_scene_assigns(Rooms.list_rooms())
+  end
+
+  defp active_scene_assigns(rooms) do
     active_scenes = ActiveScenes.list_active_scenes()
 
     %{
       active_scene_by_room:
         Map.new(active_scenes, fn active -> {active.room_id, active.scene_id} end),
       occupancy_by_room:
-        Map.new(active_scenes, fn active -> {active.room_id, Map.get(active, :occupied, true)} end)
+        Map.new(rooms, fn room -> {room.id, Map.get(room, :occupied, true)} end)
     }
   end
 
@@ -226,8 +232,8 @@ defmodule HueworksWeb.RoomsLive do
     Map.get(socket.assigns.occupancy_by_room || %{}, room_id, true)
   end
 
-  defp current_occupied_for_room(_socket, _room_id, %{} = active) do
-    Map.get(active, :occupied, true)
+  defp current_occupied_for_room(socket, room_id, %{}) do
+    Map.get(socket.assigns.occupancy_by_room || %{}, room_id, true)
   end
 
   defp occupancy_trace(room_id, scene_id, from_occupied, to_occupied) do

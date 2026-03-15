@@ -31,6 +31,22 @@ defmodule Hueworks.Rooms do
     |> Repo.update()
   end
 
+  def set_occupied(room_id, value) when is_integer(room_id) and is_boolean(value) do
+    Repo.update_all(
+      from(r in Room, where: r.id == ^room_id),
+      set: [occupied: value]
+    )
+
+    :ok
+  end
+
+  def room_occupied?(room_id) when is_integer(room_id) do
+    case Repo.one(from(r in Room, where: r.id == ^room_id, select: r.occupied)) do
+      nil -> true
+      value -> value
+    end
+  end
+
   def delete_room(room) do
     Repo.delete(room)
   end

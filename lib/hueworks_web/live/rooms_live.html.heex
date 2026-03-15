@@ -14,6 +14,7 @@
 
       <div class="hw-list">
         <%= for room <- @rooms do %>
+          <% active_scene_id = Map.get(@active_scene_by_room, room.id) %>
           <div class="hw-card" id={"room-#{room.id}"}>
             <div class="hw-card-title">
               <div class="hw-title-row">
@@ -53,6 +54,20 @@
                   </svg>
                 </button>
               </div>
+              <%= if active_scene_id do %>
+                <div class="hw-title-row">
+                  <span class="hw-muted">Occupancy</span>
+                  <button
+                    type="button"
+                    class="hw-button"
+                    phx-click="toggle_occupancy"
+                    phx-value-room_id={room.id}
+                  >
+                    <%= if Map.get(@occupancy_by_room, room.id, true), do: "Occupied", else: "Unoccupied" %>
+                  </button>
+                  <span class="hw-muted">Test control (temporary)</span>
+                </div>
+              <% end %>
             </div>
             <div class="hw-room-scenes">
               <div class="hw-room-scenes-header">
@@ -72,7 +87,7 @@
               </div>
               <div class="hw-room-list">
                 <%= for scene <- room.scenes do %>
-                  <% active? = Map.get(@active_scene_by_room, room.id) == scene.id %>
+                  <% active? = active_scene_id == scene.id %>
                   <div class="hw-room-item hw-room-item-row">
                     <span><%= Hueworks.Util.display_name(scene) %></span>
                     <button
@@ -85,15 +100,6 @@
                     </button>
                     <%= if active? do %>
                       <span class="hw-muted">Active</span>
-                      <button
-                        type="button"
-                        class="hw-button"
-                        phx-click="toggle_occupancy"
-                        phx-value-room_id={room.id}
-                      >
-                        <%= if Map.get(@occupancy_by_room, room.id, true), do: "Occupied", else: "Unoccupied" %>
-                      </button>
-                      <span class="hw-muted">Test control (temporary)</span>
                     <% end %>
                     <span class="hw-room-item-actions">
                       <button

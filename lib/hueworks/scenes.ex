@@ -11,6 +11,7 @@ defmodule Hueworks.Scenes do
   alias Hueworks.AppSettings
   alias Hueworks.Circadian
   alias Hueworks.DebugLogging
+  alias Hueworks.Rooms
   alias Hueworks.Control.DesiredState
   alias Hueworks.Schemas.{LightState, Scene, SceneComponent, SceneComponentLight}
 
@@ -168,7 +169,7 @@ defmodule Hueworks.Scenes do
 
     brightness_override = Keyword.get(opts, :brightness_override, false)
     # TODO: replace this temporary fallback with HA-provided occupancy input.
-    occupied = Keyword.get(opts, :occupied, true)
+    occupied = Keyword.get_lazy(opts, :occupied, fn -> Rooms.room_occupied?(scene.room_id) end)
     force_apply = Keyword.get(opts, :force_apply, false)
     trace = Keyword.get(opts, :trace)
     now = Keyword.get(opts, :now, DateTime.utc_now())
@@ -321,7 +322,7 @@ defmodule Hueworks.Scenes do
           scene ->
             apply_scene(scene,
               brightness_override: false,
-              occupied: active_scene.occupied,
+              occupied: Rooms.room_occupied?(room_id),
               target_light_ids: light_ids,
               circadian_only: true,
               now: Keyword.get(opts, :now, DateTime.utc_now()),

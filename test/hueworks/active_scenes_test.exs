@@ -1,9 +1,9 @@
 defmodule Hueworks.ActiveScenesTest do
   use Hueworks.DataCase, async: false
-  import Ecto.Query, only: [from: 2]
 
   alias Hueworks.ActiveScenes
   alias Hueworks.Repo
+  alias Hueworks.Rooms
   alias Hueworks.Schemas.{ActiveScene, Room, Scene}
 
   defp insert_room do
@@ -79,23 +79,14 @@ defmodule Hueworks.ActiveScenesTest do
     refute Repo.get_by(ActiveScene, room_id: room.id)
   end
 
-  test "set_occupied refreshes pending grace window" do
+  test "room occupancy is stored on rooms, not active scenes" do
     room = insert_room()
     scene = insert_scene(room, "Night")
     {:ok, _} = ActiveScenes.set_active(scene)
 
-    stale_pending = DateTime.add(DateTime.utc_now(), -10, :second)
+    :ok = Rooms.set_occupied(room.id, false)
 
-    Repo.update_all(
-      from(a in ActiveScene, where: a.room_id == ^room.id),
-      set: [pending_until: stale_pending]
-    )
-
-    :ok = ActiveScenes.set_occupied(room.id, false)
-
-    after_row = Repo.get_by(ActiveScene, room_id: room.id)
-    assert after_row.occupied == false
-    assert DateTime.compare(after_row.pending_until, DateTime.utc_now()) == :gt
-    assert ActiveScenes.pending_for_room?(room.id)
+    assert Rooms.room_occupied?(room.id) == false
+    assert Repo.get_by!(ActiveScene, room_id: room.id).scene_id == scene.id
   end
 end

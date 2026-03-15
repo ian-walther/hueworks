@@ -8,6 +8,7 @@ defmodule Hueworks.Control.CircadianPoller do
 
   alias Hueworks.ActiveScenes
   alias Hueworks.DebugLogging
+  alias Hueworks.Rooms
   alias Hueworks.Scenes
 
   @default_interval_ms 60_000
@@ -61,7 +62,7 @@ defmodule Hueworks.Control.CircadianPoller do
 
             case Scenes.apply_scene(scene,
                    brightness_override: active.brightness_override,
-                   occupied: active.occupied,
+                   occupied: Rooms.room_occupied?(active.room_id),
                    trace: trace
                  ) do
               {:ok, diff, _updated} ->

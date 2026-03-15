@@ -168,7 +168,7 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
              "Unoccupied"
            )
 
-    assert Repo.get_by!(ActiveScene, room_id: room.id).occupied == false
+    assert Repo.get!(Room, room.id).occupied == false
   end
 
   test "occupancy toggle should still flip back to occupied on second click even after external updates",
