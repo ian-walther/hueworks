@@ -98,6 +98,9 @@ HueWorks currently has five primary layers:
 `Hueworks.Application` supervises Repo, PubSub, control state, desired state, executor, subscriptions, and endpoint:
 `lib/hueworks/application.ex`
 
+Optional runtime env vars:
+- `ADVANCED_DEBUG_LOGGING=true` enables verbose planner/control trace logs for debugging scene application, circadian ticks, and executor dispatch behavior.
+
 ### Current control flow (scene activation path)
 
 1. Scene activated from `/rooms` UI.

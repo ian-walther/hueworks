@@ -7,6 +7,7 @@ defmodule Hueworks.Control.CircadianPoller do
   require Logger
 
   alias Hueworks.ActiveScenes
+  alias Hueworks.DebugLogging
   alias Hueworks.Scenes
 
   @default_interval_ms 60_000
@@ -39,7 +40,7 @@ defmodule Hueworks.Control.CircadianPoller do
     active_scenes = ActiveScenes.list_active_scenes()
     started_at_ms = System.monotonic_time(:millisecond)
 
-    Logger.info("circadian_tick_start active_scene_count=#{length(active_scenes)}")
+    DebugLogging.info("circadian_tick_start active_scene_count=#{length(active_scenes)}")
 
     {applied, failed} =
       Enum.reduce(active_scenes, {0, 0}, fn active, {applied, failed} ->
@@ -66,7 +67,7 @@ defmodule Hueworks.Control.CircadianPoller do
               {:ok, diff, _updated} ->
                 _ = ActiveScenes.mark_applied(active)
 
-                Logger.info(
+                DebugLogging.info(
                   "circadian_scene_apply result=ok room_id=#{scene.room_id} scene_id=#{scene.id} diff_size=#{map_size(diff)}"
                 )
 
@@ -89,7 +90,7 @@ defmodule Hueworks.Control.CircadianPoller do
         end
       end)
 
-    Logger.info(
+    DebugLogging.info(
       "circadian_tick_end active_scene_count=#{length(active_scenes)} applied=#{applied} failed=#{failed} elapsed_ms=#{System.monotonic_time(:millisecond) - started_at_ms}"
     )
   end

@@ -1,5 +1,12 @@
 import Config
 
+advanced_debug_logging =
+  System.get_env("ADVANCED_DEBUG_LOGGING", "false")
+  |> String.downcase()
+  |> then(&(&1 in ["1", "true", "yes", "on"]))
+
+config :hueworks, :advanced_debug_logging, advanced_debug_logging
+
 # Runtime configuration (can read from environment variables)
 if config_env() == :prod do
   if System.get_env("PHX_SERVER") do

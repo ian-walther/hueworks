@@ -88,8 +88,9 @@ defmodule HueworksWeb.RoomsLive do
         %{scene_id: ^scene_id} ->
           _ = ActiveScenes.clear_for_room(scene.room_id)
 
-        _ ->
-          _ = Scenes.activate_scene(scene_id)
+        current_active ->
+          trace = activation_trace(scene.room_id, Map.get(current_active || %{}, :scene_id), scene_id)
+          _ = Scenes.activate_scene(scene_id, trace: trace)
       end
 
       {:noreply, assign(socket, active_scene_assigns())}
@@ -237,6 +238,17 @@ defmodule HueworksWeb.RoomsLive do
       scene_id: scene_id,
       from_occupied: from_occupied,
       to_occupied: to_occupied,
+      started_at_ms: System.monotonic_time(:millisecond)
+    }
+  end
+
+  defp activation_trace(room_id, from_scene_id, to_scene_id) do
+    %{
+      trace_id: "scene-#{room_id}-#{System.unique_integer([:positive])}",
+      source: "rooms_live.activate_scene",
+      room_id: room_id,
+      from_scene_id: from_scene_id,
+      to_scene_id: to_scene_id,
       started_at_ms: System.monotonic_time(:millisecond)
     }
   end

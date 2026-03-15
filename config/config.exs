@@ -13,7 +13,8 @@ config :hueworks,
     latitude: nil,
     longitude: nil,
     timezone: "Etc/UTC"
-  }
+  },
+  advanced_debug_logging: false
 
 # Configure Phoenix endpoint
 config :hueworks, HueworksWeb.Endpoint,

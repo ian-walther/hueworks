@@ -6,6 +6,7 @@ defmodule Hueworks.Control.Executor do
   use GenServer
   require Logger
 
+  alias Hueworks.DebugLogging
   alias Hueworks.Control.{Group, Light}
   alias Hueworks.Repo
   alias Hueworks.Schemas.Bridge
@@ -376,7 +377,7 @@ defmodule Hueworks.Control.Executor do
       trace_id ->
         queue_delay_ms = queue_delay_ms(action, dispatch_started_ms)
 
-        Logger.info(
+        DebugLogging.info(
           "[occ-trace #{trace_id}] dispatch_start type=#{action.type} id=#{action.id} bridge_id=#{action.bridge_id} queue_delay_ms=#{queue_delay_ms} queue_len_after_pop=#{queue_len_after_pop} desired=#{inspect(action.desired)}"
         )
     end
@@ -391,7 +392,7 @@ defmodule Hueworks.Control.Executor do
         dispatch_ms = dispatch_completed_ms - dispatch_started_ms
         total_elapsed_ms = total_elapsed_ms(action, dispatch_completed_ms)
 
-        Logger.info(
+        DebugLogging.info(
           "[occ-trace #{trace_id}] dispatch_end type=#{action.type} id=#{action.id} result=#{inspect(result)} dispatch_ms=#{dispatch_ms} total_elapsed_ms=#{total_elapsed_ms}"
         )
     end

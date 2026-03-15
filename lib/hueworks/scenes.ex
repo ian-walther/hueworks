@@ -10,6 +10,7 @@ defmodule Hueworks.Scenes do
   alias Hueworks.ActiveScenes
   alias Hueworks.AppSettings
   alias Hueworks.Circadian
+  alias Hueworks.DebugLogging
   alias Hueworks.Control.DesiredState
   alias Hueworks.Schemas.{LightState, Scene, SceneComponent, SceneComponentLight}
 
@@ -144,14 +145,19 @@ defmodule Hueworks.Scenes do
     Repo.delete(scene)
   end
 
-  def activate_scene(scene_id) when is_integer(scene_id) do
+  def activate_scene(scene_id, opts \\ []) when is_integer(scene_id) do
     case Repo.get(Scene, scene_id) do
       nil ->
         {:error, :not_found}
 
       scene ->
         _ = ActiveScenes.set_active(scene)
-        apply_scene(scene, brightness_override: false, force_apply: true)
+
+        apply_scene(scene,
+          brightness_override: false,
+          force_apply: true,
+          trace: Keyword.get(opts, :trace)
+        )
     end
   end
 
@@ -218,7 +224,7 @@ defmodule Hueworks.Scenes do
 
         if map_size(plan_diff) > 0 do
           planner_started_ms = monotonic_ms()
-          plan = Hueworks.Control.Planner.plan_room(scene.room_id, plan_diff)
+          plan = Hueworks.Control.Planner.plan_room(scene.room_id, plan_diff, trace: trace)
           planner_ms = monotonic_ms() - planner_started_ms
 
           log_trace(
@@ -556,6 +562,6 @@ defmodule Hueworks.Scenes do
       kv
       |> Enum.map_join(" ", fn {key, value} -> "#{key}=#{inspect(value)}" end)
 
-    Logger.info("[occ-trace #{trace_id}] #{event} source=#{source} #{attrs}")
+    DebugLogging.info("[occ-trace #{trace_id}] #{event} source=#{source} #{attrs}")
   end
 end

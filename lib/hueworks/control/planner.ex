@@ -4,7 +4,9 @@ defmodule Hueworks.Control.Planner do
   """
 
   import Ecto.Query, only: [from: 2]
+  require Logger
 
+  alias Hueworks.DebugLogging
   alias Hueworks.Control.DesiredState
   alias Hueworks.Control.State, as: PhysicalState
   alias Hueworks.Kelvin
@@ -12,7 +14,9 @@ defmodule Hueworks.Control.Planner do
   alias Hueworks.Schemas.{Group, GroupLight, Light}
   alias Hueworks.Util
 
-  def plan_room(room_id, diff) when is_integer(room_id) and is_map(diff) do
+  def plan_room(room_id, diff, opts \\ []) when is_integer(room_id) and is_map(diff) do
+    trace = Keyword.get(opts, :trace)
+
     room_lights =
       Repo.all(
         from(l in Light,
@@ -62,26 +66,62 @@ defmodule Hueworks.Control.Planner do
 
     group_memberships = load_group_memberships(room_id)
 
-    actionable_diff_light_ids
-    |> Enum.group_by(fn id ->
-      desired = Map.get(effective_desired_by_light, id) || %{}
-      {desired_key(desired), desired, light_bridge(room_lights, id)}
-    end)
-    |> Enum.flat_map(fn {{_key, desired, bridge_id}, ids} ->
-      candidate_ids =
-        room_lights
-        |> Enum.filter(fn light ->
-          light.bridge_id == bridge_id and
-            desired_key(Map.get(effective_desired_by_light, light.id) || %{}) ==
-              desired_key(desired)
-        end)
-        |> Enum.map(& &1.id)
-        |> MapSet.new()
+    log_trace(trace, "planner_input",
+      room_id: room_id,
+      room_light_count: length(room_lights),
+      diff_light_ids: Enum.sort(diff_light_ids),
+      actionable_diff_light_ids: Enum.sort(actionable_diff_light_ids)
+    )
 
-      groups = Enum.filter(group_memberships, &(&1.bridge_id == bridge_id))
-      {group_actions, remaining} = plan_groups(groups, candidate_ids, MapSet.new(ids), desired)
-      group_actions ++ plan_lights(remaining, bridge_id, desired)
-    end)
+    log_light_decisions(trace, room_lights, diff_light_ids, effective_desired_by_light)
+
+    actions =
+      actionable_diff_light_ids
+      |> Enum.group_by(fn id ->
+        desired = Map.get(effective_desired_by_light, id) || %{}
+        {desired_key(desired), desired, light_bridge(room_lights, id)}
+      end)
+      |> Enum.flat_map(fn {{_key, desired, bridge_id}, ids} ->
+        candidate_ids =
+          room_lights
+          |> Enum.filter(fn light ->
+            light.bridge_id == bridge_id and
+              desired_key(Map.get(effective_desired_by_light, light.id) || %{}) ==
+                desired_key(desired)
+          end)
+          |> Enum.map(& &1.id)
+          |> MapSet.new()
+
+        log_trace(trace, "planner_partition",
+          bridge_id: bridge_id,
+          desired: desired,
+          actionable_ids: Enum.sort(ids),
+          candidate_ids: candidate_ids |> MapSet.to_list() |> Enum.sort()
+        )
+
+        groups = Enum.filter(group_memberships, &(&1.bridge_id == bridge_id))
+
+        {group_actions, remaining} =
+          plan_groups(groups, candidate_ids, MapSet.new(ids), desired, trace)
+
+        log_trace(trace, "planner_partition_result",
+          bridge_id: bridge_id,
+          desired: desired,
+          group_action_ids: Enum.map(group_actions, & &1.id),
+          remaining_light_ids: remaining |> MapSet.to_list() |> Enum.sort()
+        )
+
+        group_actions ++ plan_lights(remaining, bridge_id, desired)
+      end)
+
+    log_trace(trace, "planner_output",
+      room_id: room_id,
+      actions_total: length(actions),
+      group_actions: Enum.count(actions, &(&1.type == :group)),
+      light_actions: Enum.count(actions, &(&1.type == :light))
+    )
+
+    actions
   end
 
   defp light_bridge(room_lights, id) do
@@ -126,16 +166,25 @@ defmodule Hueworks.Control.Planner do
     end)
   end
 
-  defp plan_groups(groups, candidate_set, remaining_diff, desired) do
+  defp plan_groups(groups, candidate_set, remaining_diff, desired, trace) do
     case pick_group(groups, candidate_set, remaining_diff) do
       nil ->
         {[], remaining_diff}
 
       group ->
+        log_trace(trace, "planner_group_pick",
+          group_id: group.id,
+          bridge_id: group.bridge_id,
+          group_light_ids: group.lights |> MapSet.to_list() |> Enum.sort(),
+          candidate_ids: candidate_set |> MapSet.to_list() |> Enum.sort(),
+          remaining_diff_ids: remaining_diff |> MapSet.to_list() |> Enum.sort(),
+          desired: desired
+        )
+
         updated_remaining = MapSet.difference(remaining_diff, group.lights)
 
         {rest, final_remaining} =
-          plan_groups(groups, candidate_set, updated_remaining, desired)
+          plan_groups(groups, candidate_set, updated_remaining, desired, trace)
 
         {[%{type: :group, id: group.id, bridge_id: group.bridge_id, desired: desired} | rest],
          final_remaining}
@@ -259,6 +308,36 @@ defmodule Hueworks.Control.Planner do
     end
   end
 
+  defp log_light_decisions(nil, _room_lights, _diff_light_ids, _effective_desired_by_light), do: :ok
+
+  defp log_light_decisions(trace, room_lights, diff_light_ids, effective_desired_by_light) do
+    diff_light_ids = MapSet.new(diff_light_ids)
+
+    Enum.each(room_lights, fn light ->
+      if MapSet.member?(diff_light_ids, light.id) do
+        desired = Map.get(effective_desired_by_light, light.id) || %{}
+        physical = PhysicalState.get(:light, light.id) || %{}
+        actionable = desired_differs_from_physical?(desired, physical)
+
+        reason =
+          cond do
+            map_size(desired) == 0 -> :empty_desired
+            actionable -> :differs_from_physical
+            true -> :physical_already_matches
+          end
+
+        log_trace(trace, "planner_light_decision",
+          light_id: light.id,
+          bridge_id: light.bridge_id,
+          desired: desired,
+          physical: physical,
+          actionable: actionable,
+          reason: reason
+        )
+      end
+    end)
+  end
+
   defp get_physical_value(physical, key) when is_map(physical) do
     key_aliases(key)
     |> Enum.find_value(fn alias_key ->
@@ -288,4 +367,17 @@ defmodule Hueworks.Control.Planner do
   end
 
   defp values_equal?(_key, desired, physical), do: desired == physical
+
+  defp log_trace(nil, _event, _kv), do: :ok
+
+  defp log_trace(trace, event, kv) when is_map(trace) and is_list(kv) do
+    trace_id = Map.get(trace, :trace_id) || Map.get(trace, "trace_id")
+    source = Map.get(trace, :source) || Map.get(trace, "source")
+
+    attrs =
+      kv
+      |> Enum.map_join(" ", fn {key, value} -> "#{key}=#{inspect(value)}" end)
+
+    DebugLogging.info("[occ-trace #{trace_id}] #{event} source=#{source} #{attrs}")
+  end
 end
