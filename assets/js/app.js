@@ -50,11 +50,19 @@ Hooks.GeoLocate = {
         return
       }
 
+      let timezone = null
+      try {
+        timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || null
+      } catch (_error) {
+        timezone = null
+      }
+
       navigator.geolocation.getCurrentPosition(
         (position) => {
           this.pushEvent("geolocation_success", {
             latitude: position.coords.latitude,
-            longitude: position.coords.longitude
+            longitude: position.coords.longitude,
+            timezone
           })
         },
         (error) => {

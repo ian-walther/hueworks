@@ -34,17 +34,37 @@ defmodule HueworksWeb.ConfigLiveTest do
     assert settings.timezone == "America/Chicago"
   end
 
-  test "handles geolocation event by prefilling lat/lon", %{conn: conn} do
+  test "handles geolocation event by prefilling lat/lon and timezone", %{conn: conn} do
     {:ok, view, _html} = live(conn, "/config")
 
     render_hook(view, "geolocation_success", %{
       "latitude" => 40.7128,
-      "longitude" => -74.0060
+      "longitude" => -74.0060,
+      "timezone" => "America/New_York"
     })
 
     html = render(view)
-    assert html =~ "Location received from browser."
+    assert html =~ "Location and timezone received from browser."
     assert html =~ "40.712800"
     assert html =~ "-74.006000"
+    assert html =~ ~s(value="America/New_York" selected)
+  end
+
+  test "shows persisted timezone even when it is outside the curated timezone shortlist", %{
+    conn: conn
+  } do
+    Repo.insert!(%AppSetting{
+      scope: "global",
+      latitude: 40.7128,
+      longitude: -74.0060,
+      timezone: "America/Indiana/Indianapolis"
+    })
+
+    {:ok, _view, html} = live(conn, "/config")
+
+    assert html =~ ~s(value="America/Indiana/Indianapolis")
+
+    assert html =~
+             ~r/<option[^>]*value="America\/Indiana\/Indianapolis"[^>]*selected/
   end
 end

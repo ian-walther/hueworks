@@ -8,14 +8,15 @@ defmodule HueworksWeb.ConfigLive do
 
   def mount(_params, _session, socket) do
     app_setting = AppSettings.get_global()
+    timezone = app_setting.timezone || "Etc/UTC"
 
     {:ok,
      assign(socket,
        bridges: list_bridges(),
-       timezones: timezone_options(),
+       timezones: timezone_options(timezone),
        latitude: format_coord(app_setting.latitude),
        longitude: format_coord(app_setting.longitude),
-       timezone: app_setting.timezone || "Etc/UTC",
+       timezone: timezone,
        settings_status: nil,
        settings_error: nil
      )}
@@ -26,11 +27,14 @@ defmodule HueworksWeb.ConfigLive do
   end
 
   def handle_event("update_global_solar", params, socket) do
+    timezone = Map.get(params, "timezone", socket.assigns.timezone)
+
     {:noreply,
      assign(socket,
        latitude: Map.get(params, "latitude", socket.assigns.latitude),
        longitude: Map.get(params, "longitude", socket.assigns.longitude),
-       timezone: Map.get(params, "timezone", socket.assigns.timezone),
+       timezone: timezone,
+       timezones: timezone_options(timezone),
        settings_status: nil,
        settings_error: nil
      )}
@@ -51,6 +55,7 @@ defmodule HueworksWeb.ConfigLive do
            latitude: format_coord(app_setting.latitude),
            longitude: format_coord(app_setting.longitude),
            timezone: app_setting.timezone,
+           timezones: timezone_options(app_setting.timezone),
            settings_status: "Global solar settings saved.",
            settings_error: nil
          )}
@@ -67,14 +72,25 @@ defmodule HueworksWeb.ConfigLive do
 
   def handle_event(
         "geolocation_success",
-        %{"latitude" => latitude, "longitude" => longitude},
+        %{"latitude" => latitude, "longitude" => longitude} = params,
         socket
       ) do
+    timezone =
+      case Map.get(params, "timezone") do
+        value when is_binary(value) ->
+          trimmed = String.trim(value)
+          if trimmed == "", do: socket.assigns.timezone, else: trimmed
+
+        _ -> socket.assigns.timezone
+      end
+
     {:noreply,
      assign(socket,
        latitude: format_coord(latitude),
        longitude: format_coord(longitude),
-       settings_status: "Location received from browser.",
+       timezone: timezone,
+       timezones: timezone_options(timezone),
+       settings_status: "Location and timezone received from browser.",
        settings_error: nil
      )}
   end
@@ -122,8 +138,8 @@ defmodule HueworksWeb.ConfigLive do
   defp format_coord(value) when is_float(value), do: :erlang.float_to_binary(value, decimals: 6)
   defp format_coord(_value), do: ""
 
-  defp timezone_options do
-    [
+  defp timezone_options(current_timezone) do
+    base_timezones = [
       "Etc/UTC",
       "America/New_York",
       "America/Chicago",
@@ -146,5 +162,17 @@ defmodule HueworksWeb.ConfigLive do
       "Australia/Melbourne",
       "Pacific/Auckland"
     ]
+
+    case normalize_timezone(current_timezone) do
+      nil -> base_timezones
+      timezone -> Enum.uniq([timezone | base_timezones])
+    end
   end
+
+  defp normalize_timezone(value) when is_binary(value) do
+    trimmed = String.trim(value)
+    if trimmed == "", do: nil, else: trimmed
+  end
+
+  defp normalize_timezone(_value), do: nil
 end
