@@ -6,7 +6,7 @@ Forward-looking backlog only. Completed work has been removed.
 
 ### 1) Circadian validation and polish
 Reference: `planning/circadian-adaptation.md`
-- [ ] Replace the temporary room occupancy test toggle with HA-driven presence input for scene power policies.
+- [ ] Replace the current room occupancy UI toggle with HA-driven presence input for scene power policies.
 - [ ] Do real-world validation of circadian behavior across mixed-range rooms and document any group-layout expectations that fall out of the planner.
 - [ ] Decide whether room-coherent circadian output needs an explicit mode, or whether overlapping Hue groups are sufficient for the intended experience.
 - [ ] Add telemetry/counters for circadian apply attempts/failures if log-based observability stops being sufficient.
@@ -44,8 +44,6 @@ Reference: `planning/control-batching.md`
 
 ### 6) Subscription test coverage
 Reference: `planning/test-coverage.md`
-- [ ] Add parser + mapper tests for Hue SSE event handling.
-- [ ] Add Home Assistant websocket event-flow tests (auth, subscribe, state_changed).
 - [ ] Add Caseta LEAP connection/event parsing tests.
 - [ ] Add failure/reconnect tests for all subscription supervisors.
 

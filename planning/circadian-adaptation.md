@@ -13,7 +13,7 @@ Take the current circadian implementation from "functionally complete" to "trust
 - Poll-based reapply and targeted debug logging already exist.
 
 ## Remaining Scope
-- Replace the temporary room occupancy UI toggle with HA-driven presence input.
+- Replace the current room occupancy UI toggle with HA-driven presence input.
 - Validate circadian behavior in real rooms with mixed bulb ranges and overlapping Hue groups.
 - Decide whether the product should keep per-light-exact circadian outputs, or add a room-coherent circadian mode for synchronized fades.
 - Add richer observability only if the current log-based debugging stops being sufficient.
@@ -50,7 +50,7 @@ Follow-up:
 - document any practical grouping guidance that emerges from live testing
 
 ### 3) Occupancy Input
-Current occupancy behavior is intentionally temporary and driven by a room-page toggle for testing.
+Current occupancy behavior is room-level and driven by a room-page UI toggle.
 
 Follow-up:
 - replace that toggle with HA-driven presence state
@@ -67,7 +67,7 @@ Follow-up:
 - `lib/hueworks/circadian.ex`
 - `lib/hueworks/circadian/config.ex`
 - `lib/hueworks/scenes.ex`
-- `lib/hueworks/active_scenes.ex`
+- `lib/hueworks/rooms.ex`
 - `lib/hueworks/app_settings.ex`
 - `lib/hueworks_app/control/circadian_poller.ex`
 - `lib/hueworks_web/live/rooms_live.ex`

@@ -7,13 +7,13 @@ Ship a reliable, repeatable Docker-based production deployment path for HueWorks
 - Deployment target is Dockerized Phoenix release.
 - SQLite remains the DB in V1, stored on a persistent volume.
 - Initial deployment mode is single app container (no orchestrator requirement).
-- Environment-driven runtime config remains the primary config mechanism.
+- Runtime config remains primarily environment-driven, with bridge bootstrap data coming from a mounted `secrets.json`.
 - Security hardening is incremental; baseline first, then tighten.
 
 ## Baseline Architecture
 - Dockerized Phoenix release deployment.
 - SQLite on persistent volume.
-- Runtime config from environment variables.
+- Runtime config from environment variables plus mounted bridge secrets JSON.
 
 ## Scope
 - Define and document canonical production env vars.
@@ -36,6 +36,8 @@ Ship a reliable, repeatable Docker-based production deployment path for HueWorks
 ## Runtime Requirements
 - Persistent storage:
   - `/data/hueworks.db`
+- Mounted secrets:
+  - `/app/secrets.json` (or override via `BRIDGE_SECRETS_PATH`)
 - Required env:
   - `SECRET_KEY_BASE`
   - `DATABASE_PATH`
