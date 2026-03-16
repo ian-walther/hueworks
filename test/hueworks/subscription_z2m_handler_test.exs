@@ -158,4 +158,42 @@ defmodule Hueworks.Subscription.Z2MHandlerTest do
 
     assert State.get(:light, light.id) == %{power: :on, kelvin: 2000}
   end
+
+  test "handler refreshes indexes and resolves newly imported entities after debounce window" do
+    room = Repo.insert!(%Room{name: "Refresh"})
+
+    bridge =
+      Repo.insert!(%Bridge{
+        type: :z2m,
+        name: "Z2M",
+        host: "10.0.0.73",
+        credentials: %{"base_topic" => "zigbee2mqtt", "broker_port" => 1883},
+        enabled: true
+      })
+
+    {:ok, state} = Handler.init([bridge.id, "zigbee2mqtt"])
+
+    light =
+      Repo.insert!(%Light{
+        name: "Late Device",
+        source: :z2m,
+        source_id: "late_device",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        supports_temp: true,
+        reported_min_kelvin: 2000,
+        reported_max_kelvin: 6500
+      })
+
+    stale_state = %{state | last_refresh_at: System.monotonic_time(:millisecond) - 10_000}
+
+    assert {:ok, _refreshed_state} =
+             Handler.handle_message(
+               ["zigbee2mqtt", "late_device"],
+               Jason.encode!(%{"state" => "ON", "brightness" => 127}),
+               stale_state
+             )
+
+    assert State.get(:light, light.id) == %{power: :on, brightness: 50}
+  end
 end

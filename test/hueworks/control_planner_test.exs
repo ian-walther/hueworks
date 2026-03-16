@@ -270,68 +270,7 @@ defmodule Hueworks.Control.PlannerTest do
   end
 
   test "plan_room clamps and partitions using full main-floor export topology" do
-    fixture = load_main_floor_fixture()
-
-    room = Repo.insert!(%Room{name: "Main Floor Fixture"})
-
-    bridge =
-      Repo.insert!(%Bridge{
-        name: "HA",
-        type: :ha,
-        host: "bridge-main-floor",
-        credentials: %{}
-      })
-
-    light_ranges = ranges_for_main_floor_lights(fixture)
-
-    lights_by_source =
-      fixture["lights"]
-      |> Enum.reduce(%{}, fn light_data, acc ->
-        source_id = light_data["source_id"]
-        {min_kelvin, max_kelvin} = Map.get(light_ranges, source_id, {2000, 6535})
-        name = light_data["name"] || source_id
-
-        light =
-          Repo.insert!(%Light{
-            name: name,
-            display_name: name,
-            source: :ha,
-            source_id: source_id,
-            bridge_id: bridge.id,
-            room_id: room.id,
-            supports_temp: true,
-            reported_min_kelvin: min_kelvin,
-            reported_max_kelvin: max_kelvin
-          })
-
-        Map.put(acc, source_id, light)
-      end)
-
-    groups_by_source =
-      fixture["groups"]
-      |> Enum.reduce(%{}, fn group_data, acc ->
-        source_id = group_data["source_id"]
-        name = group_data["name"] || source_id
-
-        group =
-          Repo.insert!(%Group{
-            name: name,
-            display_name: name,
-            source: :ha,
-            source_id: source_id,
-            bridge_id: bridge.id,
-            room_id: room.id
-          })
-
-        Enum.each(group_data["members"] || [], fn light_source_id ->
-          case Map.get(lights_by_source, light_source_id) do
-            nil -> :ok
-            light -> insert_group_light(group, light)
-          end
-        end)
-
-        Map.put(acc, source_id, group)
-      end)
+    {room, _bridge, lights_by_source, groups_by_source} = insert_main_floor_fixture()
 
     desired = %{power: :on, brightness: 55, kelvin: 2000}
 
@@ -398,6 +337,74 @@ defmodule Hueworks.Control.PlannerTest do
       assert values != MapSet.new()
       assert values == MapSet.new([expected_kelvin])
     end)
+  end
+
+  test "plan_room uses one group for uniform manual scene but five groups for clamped circadian scene on same main-floor lights" do
+    {room, _bridge, lights_by_source, groups_by_source} = insert_main_floor_fixture()
+
+    uniform_desired = %{power: :on, brightness: 100, kelvin: 3501}
+
+    for {_source_id, light} <- lights_by_source do
+      DesiredState.put(:light, light.id, uniform_desired)
+    end
+
+    uniform_diff =
+      Enum.into(lights_by_source, %{}, fn {_source_id, light} ->
+        {{:light, light.id}, uniform_desired}
+      end)
+
+    uniform_actions = Planner.plan_room(room.id, uniform_diff)
+
+    assert [
+             %{
+               type: :group,
+               id: main_floor_group_id,
+               desired: ^uniform_desired
+             }
+           ] = uniform_actions
+
+    assert groups_by_source["light.main_floor"].id == main_floor_group_id
+
+    clamped_desired = %{power: :on, brightness: 77, kelvin: 2000}
+
+    for {_source_id, light} <- lights_by_source do
+      DesiredState.put(:light, light.id, clamped_desired)
+    end
+
+    clamped_diff =
+      Enum.into(lights_by_source, %{}, fn {_source_id, light} ->
+        {{:light, light.id}, clamped_desired}
+      end)
+
+    clamped_actions = Planner.plan_room(room.id, clamped_diff)
+
+    assert length(clamped_actions) == 5
+    assert Enum.all?(clamped_actions, &(&1.type == :group))
+
+    action_source_ids =
+      clamped_actions
+      |> Enum.map(fn action ->
+        Enum.find_value(groups_by_source, fn {source_id, group} ->
+          if group.id == action.id, do: source_id
+        end)
+      end)
+      |> MapSet.new()
+
+    assert action_source_ids ==
+             MapSet.new([
+               "light.main_floor_ceiling",
+               "light.living_room",
+               "light.kitchen_ceiling",
+               "light.ians_office",
+               "light.kitchen_hanging"
+             ])
+
+    kelvins =
+      clamped_actions
+      |> Enum.map(fn action -> action.desired[:kelvin] || action.desired["kelvin"] end)
+      |> Enum.sort()
+
+    assert kelvins == [2000, 2000, 2000, 2000, 2202]
   end
 
   test "plan_room skips actions when effective desired already matches physical state" do
@@ -485,6 +492,73 @@ defmodule Hueworks.Control.PlannerTest do
     "test/fixtures/planner/main_floor_export.json"
     |> File.read!()
     |> Jason.decode!()
+  end
+
+  defp insert_main_floor_fixture do
+    fixture = load_main_floor_fixture()
+
+    room = Repo.insert!(%Room{name: "Main Floor Fixture"})
+
+    bridge =
+      Repo.insert!(%Bridge{
+        name: "HA",
+        type: :ha,
+        host: "bridge-main-floor-#{System.unique_integer([:positive])}",
+        credentials: %{}
+      })
+
+    light_ranges = ranges_for_main_floor_lights(fixture)
+
+    lights_by_source =
+      fixture["lights"]
+      |> Enum.reduce(%{}, fn light_data, acc ->
+        source_id = light_data["source_id"]
+        {min_kelvin, max_kelvin} = Map.get(light_ranges, source_id, {2000, 6535})
+        name = light_data["name"] || source_id
+
+        light =
+          Repo.insert!(%Light{
+            name: name,
+            display_name: name,
+            source: :ha,
+            source_id: source_id,
+            bridge_id: bridge.id,
+            room_id: room.id,
+            supports_temp: true,
+            reported_min_kelvin: min_kelvin,
+            reported_max_kelvin: max_kelvin
+          })
+
+        Map.put(acc, source_id, light)
+      end)
+
+    groups_by_source =
+      fixture["groups"]
+      |> Enum.reduce(%{}, fn group_data, acc ->
+        source_id = group_data["source_id"]
+        name = group_data["name"] || source_id
+
+        group =
+          Repo.insert!(%Group{
+            name: name,
+            display_name: name,
+            source: :ha,
+            source_id: source_id,
+            bridge_id: bridge.id,
+            room_id: room.id
+          })
+
+        Enum.each(group_data["members"] || [], fn light_source_id ->
+          case Map.get(lights_by_source, light_source_id) do
+            nil -> :ok
+            light -> insert_group_light(group, light)
+          end
+        end)
+
+        Map.put(acc, source_id, group)
+      end)
+
+    {room, bridge, lights_by_source, groups_by_source}
   end
 
   defp ranges_for_main_floor_lights(fixture) do

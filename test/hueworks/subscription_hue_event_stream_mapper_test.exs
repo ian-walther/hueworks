@@ -130,4 +130,100 @@ defmodule Hueworks.Subscription.HueEventStream.MapperTest do
     assert State.get(:group, group.id) == %{power: :off}
     assert State.get(:light, light.id) == %{power: :off}
   end
+
+  test "light event updates group kelvin average when member kelvins stay within tolerance" do
+    room = Repo.insert!(%Room{name: "Hue Room"})
+
+    bridge =
+      Repo.insert!(%Bridge{
+        type: :hue,
+        name: "Hue",
+        host: "10.0.0.42",
+        credentials: %{"api_key" => "key"},
+        enabled: true
+      })
+
+    light_a =
+      Repo.insert!(%Light{
+        name: "A",
+        source: :hue,
+        source_id: "11",
+        bridge_id: bridge.id,
+        room_id: room.id
+      })
+
+    light_b =
+      Repo.insert!(%Light{
+        name: "B",
+        source: :hue,
+        source_id: "12",
+        bridge_id: bridge.id,
+        room_id: room.id
+      })
+
+    group =
+      Repo.insert!(%Group{
+        name: "All",
+        source: :hue,
+        source_id: "21",
+        bridge_id: bridge.id,
+        room_id: room.id
+      })
+
+    Repo.insert!(%GroupLight{group_id: group.id, light_id: light_a.id})
+    Repo.insert!(%GroupLight{group_id: group.id, light_id: light_b.id})
+
+    _ = State.put(:light, light_b.id, %{power: :on, kelvin: 2500})
+
+    state = %{
+      lights_by_id: %{light_a.source_id => %{id: light_a.id}, light_b.source_id => %{id: light_b.id}},
+      groups_by_id: %{group.source_id => %{id: group.id}},
+      group_light_ids: %{light_a.id => [group.id], light_b.id => [group.id]},
+      group_lights: %{group.id => [light_a.id, light_b.id]}
+    }
+
+    Mapper.handle_resource(
+      %{
+        "type" => "light",
+        "id_v1" => "/lights/#{light_a.source_id}",
+        "on" => %{"on" => true},
+        "color_temperature" => %{"mirek" => 400}
+      },
+      state
+    )
+
+    assert State.get(:light, light_a.id) == %{power: :on, kelvin: 2500}
+    assert State.get(:group, group.id) == %{kelvin: 2500}
+  end
+
+  test "needs_refresh detects unknown light and group resources" do
+    state = %{
+      lights_by_id: %{"11" => %{id: 1}},
+      groups_by_id: %{"21" => %{id: 2}},
+      group_light_ids: %{},
+      group_lights: %{}
+    }
+
+    assert Mapper.needs_refresh?(
+             [
+               %{"type" => "light", "id_v1" => "/lights/99"}
+             ],
+             state
+           )
+
+    assert Mapper.needs_refresh?(
+             [
+               %{"type" => "grouped_light", "id_v1" => "/groups/77"}
+             ],
+             state
+           )
+
+    refute Mapper.needs_refresh?(
+             [
+               %{"type" => "light", "id_v1" => "/lights/11"},
+               %{"type" => "grouped_light", "id_v1" => "/groups/21"}
+             ],
+             state
+           )
+  end
 end
