@@ -121,7 +121,4 @@ Reference: `planning/assisted-user-functionality.md`
 - [ ] Keep docs in sync with implementation each sprint.
 
 ## Additional Tasks
-- [ ] Improve bridge seed secrets model to support arbitrary credential sets (for example `HUE_API_KEY_1`, `HUE_API_KEY_2`) instead of fixed env var names.
-- [ ] Evaluate and potentially implement a `secrets.json`-driven initial bridge seed flow so bridge config and credentials can be sourced from one structured file.
-- [ ] Add initial seeding support for Zigbee2MQTT bridges/entities.
 - [ ] Add configurable on/off transition-time support and expose it as scene-level configuration.

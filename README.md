@@ -122,7 +122,7 @@ Optional runtime env vars:
 # Install dependencies
 mix deps.get
 
-# Create DB, migrate, and seed bridges from secrets.env
+# Create DB, migrate, and seed bridges from secrets.json
 mix ecto.reset
 
 # Build frontend assets
@@ -140,15 +140,58 @@ Open `http://localhost:4000`:
 
 ## Credentials and Seeding
 
-Create `secrets.env` in repo root:
+Create `secrets.json` in repo root, or point `BRIDGE_SECRETS_PATH` at another file:
 
-```bash
-export HUE_API_KEY="..."
-export HUE_API_KEY_DOWNSTAIRS="..."
-export LUTRON_CERT_PATH="/path/to/bridge.crt"
-export LUTRON_KEY_PATH="/path/to/bridge.key"
-export LUTRON_CACERT_PATH="/path/to/bridge-ca.crt"
-export HA_TOKEN="..."
+```json
+{
+  "bridges": [
+    {
+      "type": "hue",
+      "name": "Upstairs Bridge",
+      "host": "192.168.1.162",
+      "credentials": {
+        "api_key": "..."
+      }
+    },
+    {
+      "type": "hue",
+      "name": "Downstairs Bridge",
+      "host": "192.168.1.224",
+      "credentials": {
+        "api_key": "..."
+      }
+    },
+    {
+      "type": "caseta",
+      "name": "Caseta Bridge",
+      "host": "192.168.1.123",
+      "credentials": {
+        "cert_path": "/path/to/bridge.crt",
+        "key_path": "/path/to/bridge.key",
+        "cacert_path": "/path/to/bridge-ca.crt"
+      }
+    },
+    {
+      "type": "ha",
+      "name": "Home Assistant",
+      "host": "192.168.1.41",
+      "credentials": {
+        "token": "..."
+      }
+    },
+    {
+      "type": "z2m",
+      "name": "Z2M Broker",
+      "host": "192.168.1.50",
+      "credentials": {
+        "broker_port": 1883,
+        "username": "mqtt-user",
+        "password": "mqtt-pass",
+        "base_topic": "zigbee2mqtt"
+      }
+    }
+  ]
+}
 ```
 
 Then run:
@@ -163,7 +206,13 @@ or reseed only:
 mix seed_bridges
 ```
 
-Caseta credentials can also be uploaded through the UI and are stored under `priv/credentials/caseta/`.
+By default the seed task reads `secrets.json` from repo root. To use another path:
+
+```bash
+BRIDGE_SECRETS_PATH=/path/to/secrets.json mix seed_bridges
+```
+
+Caseta credentials can still be uploaded through the UI and are stored under `priv/credentials/caseta/`.
 
 ## Optional CLI Import Flow
 
@@ -207,7 +256,7 @@ mix assets.deploy
 ### Bridge/import workflow
 
 ```bash
-# seed bridge rows from secrets.env
+# seed bridge rows from secrets.json
 mix seed_bridges
 
 # export raw bridge payloads

@@ -1,105 +1,21 @@
-alias Hueworks.Repo
-alias Hueworks.Schemas.Bridge
+case Hueworks.BridgeSeeds.seed_from_file() do
+  {:ok, count} ->
+    Mix.shell().info("Seeded #{count} bridge entries from #{Hueworks.BridgeSeeds.default_path()}")
 
-put_env_from_parts = fn
-  [key, value] ->
-    value = value |> String.trim() |> String.trim("\"")
-    System.put_env(key, value)
-  _ ->
-    :ok
+  {:error, {:missing_file, path}} ->
+    Mix.raise("Missing #{path}. Create a JSON secrets file and re-run mix seed_bridges.")
+
+  {:error, {:invalid_json, path, message}} ->
+    Mix.raise("Invalid JSON in #{path}: #{message}")
+
+  {:error, {:invalid_bridge_entry, index, reason}} ->
+    Mix.raise("Invalid bridge entry at index #{index}: #{inspect(reason)}")
+
+  {:error, {:invalid_bridge, attrs, changeset}} ->
+    Mix.raise(
+      "Invalid bridge seed #{inspect(attrs)}: #{inspect(Ecto.Changeset.traverse_errors(changeset, fn {msg, _opts} -> msg end))}"
+    )
+
+  {:error, reason} ->
+    Mix.raise("Failed to seed bridges: #{inspect(reason)}")
 end
-
-load_secrets = fn ->
-  if File.exists?("secrets.env") do
-    "secrets.env"
-    |> File.stream!()
-    |> Stream.map(&String.trim/1)
-    |> Enum.each(fn line ->
-      cond do
-        line == "" -> :ok
-        String.starts_with?(line, "#") -> :ok
-        String.starts_with?(line, "export ") ->
-          line
-          |> String.trim_leading("export ")
-          |> String.split("=", parts: 2)
-          |> put_env_from_parts.()
-        true ->
-          line
-          |> String.split("=", parts: 2)
-          |> put_env_from_parts.()
-      end
-    end)
-  end
-end
-
-fetch_env! = fn key ->
-  case System.get_env(key) do
-    nil -> raise "Missing #{key}. Populate secrets.env and re-run mix seed_bridges."
-    "" -> raise "Missing #{key}. Populate secrets.env and re-run mix seed_bridges."
-    "CHANGE_ME" -> raise "Missing #{key}. Populate secrets.env and re-run mix seed_bridges."
-    value -> value
-  end
-end
-
-load_secrets.()
-now = NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
-
-bridges = [
-  %{
-    type: :hue,
-    name: "Upstairs Bridge",
-    host: "192.168.1.162",
-    credentials: %{
-      "api_key" => fetch_env!.("HUE_API_KEY")
-    },
-    enabled: true,
-    import_complete: false,
-    inserted_at: now,
-    updated_at: now
-  },
-  %{
-    type: :hue,
-    name: "Downstairs Bridge",
-    host: "192.168.1.224",
-    credentials: %{
-      "api_key" => fetch_env!.("HUE_API_KEY_DOWNSTAIRS")
-    },
-    enabled: true,
-    import_complete: false,
-    inserted_at: now,
-    updated_at: now
-  },
-  %{
-    type: :caseta,
-    name: "Caseta Bridge",
-    host: "192.168.1.123",
-    credentials: %{
-      "cert_path" => fetch_env!.("LUTRON_CERT_PATH"),
-      "key_path" => fetch_env!.("LUTRON_KEY_PATH"),
-      "cacert_path" => fetch_env!.("LUTRON_CACERT_PATH")
-    },
-    enabled: true,
-    import_complete: false,
-    inserted_at: now,
-    updated_at: now
-  },
-  %{
-    type: :ha,
-    name: "Home Assistant",
-    host: "192.168.1.41",
-    credentials: %{
-      "token" => fetch_env!.("HA_TOKEN")
-    },
-    enabled: true,
-    import_complete: false,
-    inserted_at: now,
-    updated_at: now
-  }
-]
-
-Repo.insert_all(
-  Bridge,
-  bridges,
-  on_conflict: {:replace, [:name, :credentials, :enabled, :import_complete, :updated_at]},
-  conflict_target: [:type, :host]
-)

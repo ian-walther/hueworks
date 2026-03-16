@@ -4,7 +4,7 @@ defmodule Mix.Tasks.SeedBridges do
   @shortdoc "Seed bridges with import_complete = false"
 
   @moduledoc """
-  Seed bridges from secrets.env into the database.
+  Seed bridges from `secrets.json` into the database.
 
   Usage:
 
