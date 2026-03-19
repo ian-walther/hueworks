@@ -1,6 +1,7 @@
 defmodule HueworksWeb.BridgeLive do
   use Phoenix.LiveView
 
+  alias Hueworks.Credentials
   alias Hueworks.Repo
   alias Hueworks.Schemas.Bridge
   alias Hueworks.Util
@@ -289,7 +290,7 @@ defmodule HueworksWeb.BridgeLive do
 
   defp stage_caseta_uploads(socket) do
     host_prefix = Util.host_prefix(socket.assigns.host)
-    dir = Path.join(["priv", "credentials", "caseta", "staging"])
+    dir = Credentials.caseta_staging_dir()
     File.mkdir_p!(dir)
     stamp = System.unique_integer([:positive])
 
@@ -366,7 +367,7 @@ defmodule HueworksWeb.BridgeLive do
 
   defp save_caseta_uploads(host, staged) do
     host_prefix = Util.host_prefix(host)
-    dir = Path.join(["priv", "credentials", "caseta"])
+    dir = Credentials.caseta_dir()
     File.mkdir_p!(dir)
 
     %{

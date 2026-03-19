@@ -7,6 +7,12 @@ advanced_debug_logging =
 
 config :hueworks, :advanced_debug_logging, advanced_debug_logging
 
+credentials_root = System.get_env("CREDENTIALS_ROOT")
+
+if is_binary(credentials_root) and String.trim(credentials_root) != "" do
+  config :hueworks, :credentials_root, String.trim(credentials_root)
+end
+
 # Runtime configuration (can read from environment variables)
 if config_env() == :prod do
   if System.get_env("PHX_SERVER") do

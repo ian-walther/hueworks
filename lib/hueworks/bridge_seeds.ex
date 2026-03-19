@@ -86,11 +86,10 @@ defmodule Hueworks.BridgeSeeds do
 
   defp normalize_bridge(_), do: {:error, "expected bridge entry object"}
 
-  defp normalize_type(value) when value in ["hue", "caseta", "ha", "z2m"] do
-    {:ok, String.to_existing_atom(value)}
-  rescue
-    ArgumentError -> {:error, "unsupported bridge type #{inspect(value)}"}
-  end
+  defp normalize_type("hue"), do: {:ok, :hue}
+  defp normalize_type("caseta"), do: {:ok, :caseta}
+  defp normalize_type("ha"), do: {:ok, :ha}
+  defp normalize_type("z2m"), do: {:ok, :z2m}
 
   defp normalize_type(value), do: {:error, "unsupported bridge type #{inspect(value)}"}
 

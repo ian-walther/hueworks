@@ -19,12 +19,17 @@ RUN mix deps.compile
 COPY priv priv
 COPY lib lib
 COPY assets assets
+COPY docker docker
 
 RUN mix assets.deploy
 RUN mix compile
 RUN mix release
 
 FROM debian:bookworm-slim AS runner
+
+ENV LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8 \
+    ELIXIR_ERL_OPTIONS=+fnu
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends libstdc++6 openssl libncurses6 ca-certificates sqlite3 && \
@@ -38,6 +43,9 @@ RUN groupadd --system --gid 1000 hueworks && \
     chown -R hueworks:hueworks /app /data
 
 COPY --from=builder --chown=hueworks:hueworks /app/_build/prod/rel/hueworks ./
+COPY --from=builder --chown=hueworks:hueworks /app/docker/start.sh /app/bin/docker-start
+
+RUN chmod +x /app/bin/docker-start
 
 ENV PHX_SERVER=true \
     DATABASE_PATH=/data/hueworks.db \
@@ -47,4 +55,4 @@ EXPOSE 4000
 
 USER hueworks
 
-CMD ["bin/hueworks", "start"]
+CMD ["/app/bin/docker-start"]

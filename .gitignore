@@ -14,6 +14,7 @@ erl_crash.dump
 /*.db
 /*.db-shm
 /*.db-wal
+/data/
 
 # Export files
 /exports/
@@ -34,8 +35,10 @@ npm-debug.log
 *~
 
 # Local secrets
+.env
 /secrets.env
 /secrets.json
+/credentials/
 /priv/credentials/
 
 # OS

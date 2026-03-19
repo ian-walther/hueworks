@@ -1,0 +1,21 @@
+services:
+  hueworks:
+    build:
+      context: .
+    container_name: hueworks
+    restart: unless-stopped
+    ports:
+      - "${PORT:-4000}:4000"
+    environment:
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE:?SECRET_KEY_BASE must be set}
+      PHX_HOST: ${PHX_HOST:-localhost}
+      PORT: "4000"
+      DATABASE_PATH: /data/hueworks.db
+      POOL_SIZE: ${POOL_SIZE:-5}
+      ADVANCED_DEBUG_LOGGING: ${ADVANCED_DEBUG_LOGGING:-false}
+      BRIDGE_SECRETS_PATH: /run/hueworks/secrets.json
+      CREDENTIALS_ROOT: /credentials
+    volumes:
+      - ./data:/data
+      - ./secrets.json:/run/hueworks/secrets.json:ro
+      - ./credentials:/credentials

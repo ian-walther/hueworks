@@ -100,6 +100,7 @@ HueWorks currently has five primary layers:
 
 Optional runtime env vars:
 - `ADVANCED_DEBUG_LOGGING=true` enables verbose planner/control trace logs for debugging scene application, circadian ticks, and executor dispatch behavior.
+- `BRIDGE_SECRETS_PATH=/path/to/secrets.json` overrides the default bridge bootstrap file location.
 
 ### Current control flow (scene activation path)
 
@@ -213,6 +214,73 @@ BRIDGE_SECRETS_PATH=/path/to/secrets.json mix seed_bridges
 ```
 
 Caseta credentials can still be uploaded through the UI and are stored under `priv/credentials/caseta/`.
+The credential storage root is configurable with `CREDENTIALS_ROOT`; in Docker it is set to `/credentials`.
+
+## Docker Deployment
+
+For a fresh clone on a Raspberry Pi or other Linux host, the intended baseline path is:
+
+```bash
+cp .env.example .env
+mkdir -p data credentials
+# edit .env and set SECRET_KEY_BASE + PHX_HOST
+
+# create or copy secrets.json in repo root
+# optionally place Caseta cert/key files under ./credentials
+
+docker compose up -d
+```
+
+What happens on container startup:
+- release migrations run automatically
+- bridge rows are seeded from `secrets.json` on first boot if the file exists
+- the Phoenix server starts on port `4000`
+
+Files involved:
+- `docker-compose.yml`
+- `Dockerfile`
+- `docker/start.sh`
+- `.env`
+- `secrets.json`
+
+### Pi-friendly first boot checklist
+
+1. Clone the repo.
+2. Create `.env` from `.env.example`.
+3. Set `SECRET_KEY_BASE` with:
+
+```bash
+mix phx.gen.secret
+```
+
+4. Set `PHX_HOST` to the hostname or IP you will use to reach the Pi.
+5. Create `secrets.json` in repo root.
+6. Create the local storage directories:
+
+```bash
+mkdir -p data credentials
+```
+
+7. If using Caseta, place cert/key material under `./credentials` and reference container paths like `/credentials/bridge.crt` in `secrets.json`.
+8. Start the stack:
+
+```bash
+docker compose up -d
+```
+
+9. Tail logs if needed:
+
+```bash
+docker compose logs -f
+```
+
+### Docker runtime notes
+
+- SQLite is persisted in the bind-mounted `./data` directory.
+- `secrets.json` is bind-mounted read-only to `/run/hueworks/secrets.json`.
+- `CREDENTIALS_ROOT` is set to `/credentials` in Docker, and `./credentials` is mounted there read/write so UI-uploaded Caseta certs persist.
+- The Docker build context excludes local secrets and credentials via `.dockerignore`, so those files are not baked into the image.
+- A seed marker is stored at `./data/.bridges_seeded` (mounted as `/data/.bridges_seeded` in the container), so automatic bridge bootstrap only happens once per persisted data directory.
 
 ## Optional CLI Import Flow
 
