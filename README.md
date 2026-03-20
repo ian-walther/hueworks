@@ -282,6 +282,79 @@ docker compose logs -f
 - The Docker build context excludes local secrets and credentials via `.dockerignore`, so those files are not baked into the image.
 - A seed marker is stored at `./data/.bridges_seeded` (mounted as `/data/.bridges_seeded` in the container), so automatic bridge bootstrap only happens once per persisted data directory.
 
+### Docker backup / restore
+
+Create a timestamped backup of the live SQLite database:
+
+```bash
+mkdir -p backups
+cp data/hueworks.db "backups/hueworks-$(date +%Y%m%d-%H%M%S).db"
+```
+
+Recommended baseline:
+- keep at least one known-good manual backup before upgrades
+- keep a few recent backups if you expect to iterate on imports/schema often
+
+Restore from a backup:
+
+```bash
+docker compose down
+cp backups/hueworks-YYYYMMDD-HHMMSS.db data/hueworks.db
+docker compose up -d
+```
+
+If you want to force bridge bootstrap again after restoring onto a fresh environment, remove the seed marker before restart:
+
+```bash
+rm -f data/.bridges_seeded
+```
+
+### Docker upgrade / rollback
+
+Upgrade flow:
+
+```bash
+# optional but recommended first
+mkdir -p backups
+cp data/hueworks.db "backups/hueworks-pre-upgrade-$(date +%Y%m%d-%H%M%S).db"
+
+git pull
+docker compose down
+docker compose up -d --build
+docker compose logs -f
+```
+
+What to expect:
+- release migrations run automatically on boot
+- bridge bootstrap is skipped after first successful seed
+- the app starts on port `4000`
+
+Rollback flow:
+
+```bash
+docker compose down
+git checkout <previous-known-good-revision>
+cp backups/hueworks-pre-upgrade-YYYYMMDD-HHMMSS.db data/hueworks.db
+docker compose up -d --build
+docker compose logs -f
+```
+
+If a migration has already changed the DB shape, restore the pre-upgrade backup before rolling back the image.
+
+### Docker smoke check
+
+After first boot or an upgrade, this is the quickest sanity pass:
+
+1. `docker compose ps` shows the `hueworks` container as running.
+2. `docker compose logs --tail=200` shows:
+   - migration success or `Migrations already up`
+   - bridge seed success on first boot, or seed-marker skip on later boots
+   - `Running HueworksWeb.Endpoint`
+3. Open the app in a browser and confirm the home page and a LiveView page such as `/lights` both load.
+4. Confirm your seeded bridges appear in the config UI.
+5. If using Caseta cert files, confirm the configured paths resolve under `/credentials/...`.
+6. If using a reverse proxy or hostname, confirm `PHX_HOST` matches the host you are actually visiting so LiveView sockets connect cleanly.
+
 ## Optional CLI Import Flow
 
 The UI is the primary path, but CLI tasks are available:

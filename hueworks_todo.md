@@ -20,15 +20,7 @@ Reference: `planning/external-scenes.md`
 - [ ] Subscribe to HA scene activation events and trigger mapped HueWorks scenes.
 - [ ] Add tests for sync, mapping resolution, and activation event flow.
 
-### 3) Production deployment baseline (Docker)
-Reference: `planning/prod-deploy.md`
-- [ ] Finalize Docker runtime contract (env vars, volumes, ports).
-- [ ] Add release migration workflow for deploys/upgrades.
-- [ ] Add compose-based baseline deployment path.
-- [ ] Add backup/restore and upgrade runbook docs.
-- [ ] Add production smoke-check checklist.
-
-### 4) Core control coordination and no-popcorning behavior
+### 3) Core control coordination and no-popcorning behavior
 Reference: `planning/control-batching.md`
 - [ ] Ensure coordinated execution semantics for mixed actions in a room scene apply.
 - [ ] Validate cross-bridge timing behavior and define acceptable skew.
@@ -36,13 +28,13 @@ Reference: `planning/control-batching.md`
 - [ ] Decide and document executor mode defaults (`:append` vs `:replace`) per call path.
 - [ ] Add end-to-end tests proving expected behavior with 10+ light scene patterns.
 
-### 5) Close known runtime gaps
+### 4) Close known runtime gaps
 - [ ] Implement Caseta group dispatch path in `Hueworks.Control.Group`.
 - [ ] Replace Caseta Pico stub event logging with real event handling + mapping entrypoint.
 - [ ] Resolve HA group fan-out edge cases currently noted in subscription code.
 - [ ] Add regression tests for all three items above.
 
-### 6) Subscription test coverage
+### 5) Subscription test coverage
 Reference: `planning/test-coverage.md`
 - [ ] Add Caseta LEAP connection/event parsing tests.
 - [ ] Add failure/reconnect tests for all subscription supervisors.
@@ -82,7 +74,6 @@ Reference: `planning/db-integrity.md`
 - [ ] Add security hardening planning doc once scope is finalized.
 - [ ] Encrypt bridge credentials at rest.
 - [ ] Harden file permissions and backup handling for secrets/material.
-- [ ] Add deployment/runbook docs for restore and recovery procedures.
 
 ### 12) Product expansion
 - [ ] Additional bridge integrations beyond Zigbee2MQTT.
