@@ -3,11 +3,12 @@ defmodule Hueworks.ContextsTest do
 
   alias Hueworks.Repo
   alias Hueworks.AppSettings
+  alias Hueworks.Bridges
   alias Hueworks.Lights
   alias Hueworks.Groups
   alias Hueworks.Rooms
   alias Hueworks.Scenes
-  alias Hueworks.Schemas.{AppSetting, Bridge, Group, GroupLight, Light, Room}
+  alias Hueworks.Schemas.{AppSetting, Bridge, BridgeImport, Group, GroupLight, Light, Room}
 
   defp insert_bridge(attrs) do
     defaults = %{
@@ -50,6 +51,18 @@ defmodule Hueworks.ContextsTest do
 
   defp insert_room(name) do
     Repo.insert!(%Room{name: name})
+  end
+
+  defp insert_bridge_import(bridge, attrs) do
+    defaults = %{
+      raw_blob: %{"bridge" => bridge.name},
+      normalized_blob: %{"bridge" => bridge.name},
+      review_blob: %{},
+      status: :normalized,
+      imported_at: ~U[2026-03-19 12:00:00Z]
+    }
+
+    Repo.insert!(struct(BridgeImport, Map.merge(defaults, Map.put(attrs, :bridge_id, bridge.id))))
   end
 
   test "Lights.list_controllable_lights filters canonical and canonical-group lights" do
@@ -167,6 +180,24 @@ defmodule Hueworks.ContextsTest do
 
     assert {:ok, _} = Rooms.delete_room(updated)
     assert Rooms.get_room(updated.id) == nil
+  end
+
+  test "Bridges.latest_import and list_imports_for_bridge return newest imports first" do
+    bridge = insert_bridge(%{host: "10.0.0.16"})
+    older = insert_bridge_import(bridge, %{imported_at: ~U[2026-03-19 12:00:00Z], status: :normalized})
+    newest = insert_bridge_import(bridge, %{imported_at: ~U[2026-03-19 12:05:00Z], status: :applied})
+    _other_bridge = insert_bridge(%{host: "10.0.0.17"})
+
+    assert Bridges.latest_import(bridge).id == newest.id
+
+    assert Bridges.list_imports_for_bridge(bridge)
+           |> Enum.map(& &1.id) == [newest.id, older.id]
+
+    assert Bridges.list_imports_for_bridge(bridge, status: :applied)
+           |> Enum.map(& &1.id) == [newest.id]
+
+    assert Bridges.list_imports_for_bridge(bridge, limit: 1)
+           |> Enum.map(& &1.id) == [newest.id]
   end
 
   test "Scenes context supports CRUD and list ordering" do

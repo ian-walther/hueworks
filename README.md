@@ -427,6 +427,16 @@ mix backup_db
 mix restore_db
 ```
 
+## Migration Review Checklist
+
+Before merging a schema change, sanity-check:
+
+1. Which read paths are expected to hit the new or changed table most often?
+2. Do those query shapes have the right supporting indices for their `where`, `join`, and `order_by` clauses?
+3. Are foreign-key delete behaviors aligned with any app-level cleanup code, or are we relying on both in conflicting ways?
+4. If the migration changes semantics, is there a safe rollback or restore path documented?
+5. If the migration affects production bootstrap, have Docker/release startup steps been re-verified?
+
 ## License
 
 Copyright © 2025

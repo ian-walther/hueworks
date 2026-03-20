@@ -54,9 +54,7 @@ Reference: `planning/import-resync.md`
 
 ### 8.5) DB integrity and query health follow-up
 Reference: `planning/db-integrity.md`
-- [ ] Verify import-history/status query paths and add any missing targeted indices.
 - [ ] Audit FK behavior vs manual cleanup code for consistency.
-- [ ] Add migration review checklist and link it from README/planning.
 
 ## Later
 
