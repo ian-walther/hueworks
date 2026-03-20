@@ -34,58 +34,53 @@ Reference: `planning/control-batching.md`
 - [ ] Resolve HA group fan-out edge cases currently noted in subscription code.
 - [ ] Add regression tests for all three items above.
 
-### 5) Subscription test coverage
-Reference: `planning/test-coverage.md`
-- [ ] Add Caseta LEAP connection/event parsing tests.
-- [ ] Add failure/reconnect tests for all subscription supervisors.
-
 ## Next
 
-### 7) Bridge credential lifecycle
+### 5) Bridge credential lifecycle
 - [ ] Support editing bridge host/credentials safely without destructive re-setup.
 - [ ] Re-test credentials from UI after edit and gate save on validation.
 - [ ] Add migration-safe credential update flow for Caseta cert/key paths.
 
-### 8) Reimport and idempotency polish
+### 6) Reimport and idempotency polish
 Reference: `planning/import-resync.md`
 - [ ] Finalize and document deletion semantics (disabled vs removed) during reimport.
 - [ ] Persist/import history queries for operator-facing visibility.
 - [ ] Add stronger tests around preserving user edits during reimport.
 
-### 8.5) DB integrity and query health follow-up
+### 7) DB integrity and query health follow-up
 Reference: `planning/db-integrity.md`
 - [ ] Audit FK behavior vs manual cleanup code for consistency.
 
 ## Later
 
-### 9) Room assignment intelligence
+### 8) Room assignment intelligence
 - [ ] Extract room derivation into a dedicated module.
 - [ ] Add confidence scoring and suggested assignment review.
 - [ ] Improve unassigned/cross-bridge room handling UX.
 
-### 10) Scene UX improvements
+### 9) Scene UX improvements
 - [ ] Scene preview/dry-run mode before apply.
 - [ ] Scene activation history and error summaries in UI.
 - [ ] Bulk scene operations per room.
 
-### 11) Security and operations
+### 10) Security and operations
 - [ ] Add security hardening planning doc once scope is finalized.
 - [ ] Encrypt bridge credentials at rest.
 - [ ] Harden file permissions and backup handling for secrets/material.
 
-### 12) Product expansion
+### 11) Product expansion
 - [ ] Additional bridge integrations beyond Zigbee2MQTT.
 - [ ] Public API surface (WebSocket/REST) for external control.
 - [ ] Multi-user/auth model for non-single-operator deployments.
 
-### 13) HomeKit bridge integration
+### 12) HomeKit bridge integration
 Reference: `planning/homekit-bridge.md`
 - [ ] Add a HomeKit bridge endpoint that exposes HueWorks-controlled lights.
 - [ ] Map HomeKit characteristic writes to HueWorks desired-state -> planner/executor flow.
 - [ ] Mirror physical-state updates back to HomeKit characteristics for state coherence.
 - [ ] Add pairing/persistence, room/accessory metadata mapping, and regression tests.
 
-### 14) Home Assistant reverse integration (HueWorks -> HA)
+### 13) Home Assistant reverse integration (HueWorks -> HA)
 Reference: `planning/home-assistant-reverse-integration.md`
 - [ ] Expose HueWorks-controlled lights into Home Assistant as entities.
 - [ ] Map HA service calls/state writes to HueWorks desired-state -> planner/executor flow.
@@ -93,7 +88,7 @@ Reference: `planning/home-assistant-reverse-integration.md`
 - [ ] Add config/discovery lifecycle, metadata mapping, and regression tests.
 - [ ] Define and enforce HA parity quality bar (state coherence, interaction latency, reliability) for daily control paths.
 
-### 15) Assisted-user functionality polish
+### 14) Assisted-user functionality polish
 Reference: `planning/assisted-user-functionality.md`
 - [ ] Add high-impact guardrails for scene/control conflict predictability.
 - [ ] Improve active-scene clarity (state + deactivation reasons) in room UX.

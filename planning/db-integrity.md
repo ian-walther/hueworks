@@ -4,9 +4,8 @@
 Address schema/query risks with clear integrity and query-performance standards.
 
 ## Scope
-- Add targeted indices for high-frequency operational queries not yet covered (for example, import history/status lookups).
 - Audit delete/update paths for consistency between FK behavior and manual cleanup code.
-- Define migration review checklist for future schema changes (index impact, rollback, data safety).
+- Keep migration review expectations documented as schema/query patterns evolve.
 
 ## Out of Scope
 - Full schema redesign.
@@ -19,7 +18,6 @@ Address schema/query risks with clear integrity and query-performance standards.
 - `lib/hueworks/import/*`
 
 ## Acceptance Criteria
-- `EXPLAIN` on known hot queries shows index-backed plans.
 - Cleanup behavior is consistent (no orphan-prone edge paths between SQL FKs and app-level deletes).
 - New migration docs/checklist exist and are referenced from planning/readme docs.
 
