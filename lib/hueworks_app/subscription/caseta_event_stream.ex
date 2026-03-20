@@ -15,13 +15,20 @@ defmodule Hueworks.Subscription.CasetaEventStream do
   @restart_delay_ms 1_000
   @retry_delay_ms 2_000
 
-  def start_link(_opts) do
-    GenServer.start_link(__MODULE__, %{}, name: __MODULE__)
+  def start_link(opts \\ []) do
+    name = Keyword.get(opts, :name, __MODULE__)
+    GenServer.start_link(__MODULE__, opts, name: name)
   end
 
   @impl true
-  def init(_state) do
-    state = %{monitors: %{}}
+  def init(opts) do
+    state = %{
+      monitors: %{},
+      connection_module: Keyword.get(opts, :connection_module, Connection),
+      readiness_fun: Keyword.get(opts, :readiness_fun, &Readiness.bridges_table_ready?/0),
+      restart_delay_ms: Keyword.get(opts, :restart_delay_ms, @restart_delay_ms),
+      retry_delay_ms: Keyword.get(opts, :retry_delay_ms, @retry_delay_ms)
+    }
 
     state = maybe_start_connections(state)
 
@@ -35,7 +42,7 @@ defmodule Hueworks.Subscription.CasetaEventStream do
         {:noreply, %{state | monitors: monitors}}
 
       {bridge, monitors} ->
-        Process.send_after(self(), {:restart, bridge}, @restart_delay_ms)
+        Process.send_after(self(), {:restart, bridge}, state.restart_delay_ms)
         {:noreply, %{state | monitors: monitors}}
     end
   end
@@ -51,26 +58,26 @@ defmodule Hueworks.Subscription.CasetaEventStream do
   end
 
   defp start_connection(state, bridge) do
-    case Connection.start_link(bridge) do
+    case state.connection_module.start_link(bridge) do
       {:ok, pid} ->
         ref = Process.monitor(pid)
         %{state | monitors: Map.put(state.monitors, ref, bridge)}
 
       {:error, _reason} ->
-        Process.send_after(self(), {:restart, bridge}, @restart_delay_ms)
+        Process.send_after(self(), {:restart, bridge}, state.restart_delay_ms)
         state
     end
   end
 
   defp maybe_start_connections(state) do
-    if Readiness.bridges_table_ready?() do
+    if state.readiness_fun.() do
       bridges = Repo.all(from(b in Bridge, where: b.type == :caseta and b.enabled == true))
 
       Enum.reduce(bridges, state, fn bridge, acc ->
         start_connection(acc, bridge)
       end)
     else
-      Process.send_after(self(), :retry_bootstrap, @retry_delay_ms)
+      Process.send_after(self(), :retry_bootstrap, state.retry_delay_ms)
       state
     end
   end

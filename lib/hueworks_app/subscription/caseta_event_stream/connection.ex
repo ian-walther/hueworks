@@ -63,7 +63,7 @@ defmodule Hueworks.Subscription.CasetaEventStream.Connection do
     {:stop, :normal, state}
   end
 
-  defp handle_frame(data, state) do
+  def handle_frame(data, state) do
     payload =
       data
       |> IO.iodata_to_binary()
@@ -100,7 +100,7 @@ defmodule Hueworks.Subscription.CasetaEventStream.Connection do
           |> Map.merge(StateParser.brightness_from_0_100(level))
           |> Map.merge(StateParser.power_from_level(level))
 
-        State.put(:light, light_id, update)
+        state_put(state, :light, light_id, update)
     end
   end
 
@@ -232,5 +232,10 @@ defmodule Hueworks.Subscription.CasetaEventStream.Connection do
 
   defp invalid_credential?(value) do
     not is_binary(value) or value == "" or value == "CHANGE_ME"
+  end
+
+  defp state_put(state, type, id, update) do
+    putter = Map.get(state, :state_put, &State.put/3)
+    putter.(type, id, update)
   end
 end
