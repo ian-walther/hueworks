@@ -108,8 +108,8 @@ defmodule Hueworks.Control.Bootstrap.Z2MTest do
              "zigbee2mqtt/kitchen_strip/get"
            ]
 
-    assert State.get(:light, light.id) == %{power: :off}
-    assert State.get(:group, group.id) == %{power: :off}
+    assert %{power: :off} = State.get(:light, light.id)
+    assert %{power: :off} = State.get(:group, group.id)
   end
 
   defmodule TortoiseStub do

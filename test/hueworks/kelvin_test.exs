@@ -40,4 +40,22 @@ defmodule Hueworks.KelvinTest do
     assert Kelvin.mapping_supported?(%{source: :z2m})
     refute Kelvin.mapping_supported?(%{source: :hue})
   end
+
+  test "extended range keeps normal white-temperature mapping out of reported sub-2700 band" do
+    entity = %{
+      extended_kelvin_range: true,
+      actual_min_kelvin: 2700,
+      actual_max_kelvin: 6500,
+      reported_min_kelvin: 2000,
+      reported_max_kelvin: 6329
+    }
+
+    assert Kelvin.map_for_control(entity, 2700) == 2700
+    assert Kelvin.map_for_control(entity, 2880) == 2872
+    assert Kelvin.map_for_control(entity, 3000) == 2987
+
+    assert Kelvin.map_from_event(entity, 2872) == 2880
+    assert Kelvin.map_from_event(entity, 2987) == 3001
+    assert Kelvin.map_from_event(entity, 2493) == 2493
+  end
 end

@@ -44,13 +44,17 @@ defmodule Hueworks.Kelvin do
   end
 
   def map_for_control(entity, kelvin) when is_number(kelvin) do
-    map_between_ranges(kelvin, actual_range(entity), reported_range(entity))
+    map_between_ranges(kelvin, control_actual_range(entity, kelvin), control_reported_range(entity, kelvin))
   end
 
   def map_for_control(_entity, kelvin), do: kelvin
 
   def map_from_event(entity, kelvin) when is_number(kelvin) do
-    map_between_ranges(kelvin, reported_range(entity), actual_range(entity))
+    if preserve_raw_low_event_kelvin?(entity, kelvin) do
+      kelvin
+    else
+      map_between_ranges(kelvin, event_reported_range(entity, kelvin), event_actual_range(entity, kelvin))
+    end
   end
 
   def map_from_event(_entity, kelvin), do: kelvin
@@ -72,6 +76,58 @@ defmodule Hueworks.Kelvin do
   defp reported_range(entity) do
     {get_field(entity, :reported_min_kelvin), get_field(entity, :reported_max_kelvin)}
   end
+
+  defp control_actual_range(entity, kelvin), do: maybe_normal_actual_range(entity, kelvin)
+
+  defp control_reported_range(entity, kelvin), do: maybe_normal_reported_range(entity, kelvin)
+
+  defp event_reported_range(entity, kelvin), do: maybe_normal_reported_range(entity, kelvin)
+
+  defp event_actual_range(entity, kelvin), do: maybe_normal_actual_range(entity, kelvin)
+
+  # Extended-range entities reserve the reported <2700K band for the synthetic
+  # XY-based "super warm" mode. Keep ordinary white-temperature mapping in the
+  # non-overlapping reported 2700K+ band so inbound events are unambiguous.
+  defp maybe_normal_actual_range(entity, kelvin)
+       when is_number(kelvin) and kelvin >= 2700 do
+    {actual_min, actual_max} = actual_range(entity)
+    {reported_min, _reported_max} = reported_range(entity)
+
+    if extended_overlap?(entity, reported_min, actual_min) do
+      {max(2700, actual_min), actual_max}
+    else
+      {actual_min, actual_max}
+    end
+  end
+
+  defp maybe_normal_actual_range(entity, _kelvin), do: actual_range(entity)
+
+  defp maybe_normal_reported_range(entity, kelvin)
+       when is_number(kelvin) and kelvin >= 2700 do
+    {reported_min, reported_max} = reported_range(entity)
+    {actual_min, _actual_max} = actual_range(entity)
+
+    if extended_overlap?(entity, reported_min, actual_min) do
+      {max(2700, reported_min), reported_max}
+    else
+      {reported_min, reported_max}
+    end
+  end
+
+  defp maybe_normal_reported_range(entity, _kelvin), do: reported_range(entity)
+  defp extended_overlap?(entity, reported_min, actual_min) do
+    is_number(reported_min) and is_number(actual_min) and
+      extended_kelvin_range?(entity) and reported_min < 2700 and actual_min >= 2700
+  end
+
+  defp preserve_raw_low_event_kelvin?(entity, kelvin)
+       when is_number(kelvin) and kelvin < 2700 do
+    {reported_min, _reported_max} = reported_range(entity)
+    {actual_min, _actual_max} = actual_range(entity)
+    extended_overlap?(entity, reported_min, actual_min)
+  end
+
+  defp preserve_raw_low_event_kelvin?(_entity, _kelvin), do: false
 
   defp mired_range(%{metadata: metadata}) when is_map(metadata) do
     capabilities = get_nested(metadata, "capabilities") || %{}

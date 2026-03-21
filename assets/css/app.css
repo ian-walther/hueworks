@@ -162,6 +162,14 @@ body {
   font-size: 0.85rem;
 }
 
+.hw-debug {
+  width: 100%;
+  margin: -0.25rem 0 0;
+  color: rgba(27, 27, 23, 0.72);
+  font-size: 0.75rem;
+  font-family: "SFMono-Regular", "Consolas", "Menlo", monospace;
+}
+
 .hw-pill {
   border: 1px solid var(--border);
   border-radius: 999px;

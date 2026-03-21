@@ -111,7 +111,7 @@ defmodule Hueworks.Control.StateParser do
   def kelvin_from_z2m_attrs(_attrs, _entity), do: %{}
 
   defp extended_xy_kelvin(attrs, entity) do
-    if extended_kelvin_range_enabled?(entity) do
+    if extended_kelvin_range_enabled?(entity) and extended_xy_applicable?(attrs) do
       case xy_from_attrs(attrs) do
         {x, y} when is_number(x) and is_number(y) -> inverse_extended_xy(x, y)
         _ -> nil
@@ -152,6 +152,28 @@ defmodule Hueworks.Control.StateParser do
       :math.pow(px - x, 2) + :math.pow(py - y, 2)
     end)
   end
+
+  # Some integrations include xy color coordinates alongside ordinary
+  # white-temperature reports. Only treat xy as the source of truth when the
+  # event is clearly in the extended low-end band; otherwise we'd incorrectly
+  # remap normal >2700K whites back into 2000K-2700K.
+  defp extended_xy_applicable?(attrs) when is_map(attrs) do
+    cond do
+      is_number(attrs["color_temp_kelvin"]) ->
+        attrs["color_temp_kelvin"] < 2700
+
+      is_number(attrs["color_temp"]) and attrs["color_temp"] > 0 and attrs["color_temp"] <= 1000 ->
+        round(1_000_000 / attrs["color_temp"]) < 2700
+
+      is_number(attrs["color_temp"]) and attrs["color_temp"] > 1000 ->
+        attrs["color_temp"] < 2700
+
+      true ->
+        true
+    end
+  end
+
+  defp extended_xy_applicable?(_attrs), do: false
 
   defp parse_low_extended_kelvin(kelvin, entity) when is_number(kelvin) do
     case map_extended_reported_floor(kelvin, entity) do

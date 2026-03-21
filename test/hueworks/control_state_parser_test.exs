@@ -42,6 +42,40 @@ defmodule Hueworks.Control.StateParserTest do
     assert StateParser.kelvin_from_z2m_attrs(attrs, entity) == %{kelvin: 2000}
   end
 
+  test "kelvin_from_z2m_attrs ignores xy payload when color_temp indicates normal white above 2700K" do
+    {x, y} = HomeAssistantPayload.extended_xy(2200)
+
+    attrs = %{
+      "color" => %{"x" => x, "y" => y},
+      "color_temp" => 3119
+    }
+
+    entity = %{extended_kelvin_range: true}
+
+    assert StateParser.kelvin_from_z2m_attrs(attrs, entity) == %{kelvin: 3119}
+  end
+
+  test "kelvin_from_z2m_attrs keeps midrange whites out of extended low-end band" do
+    {x, y} = HomeAssistantPayload.extended_xy(2200)
+
+    attrs = %{
+      "color" => %{"x" => x, "y" => y},
+      "color_temp" => 348
+    }
+
+    entity = %{
+      extended_kelvin_range: true,
+      actual_min_kelvin: 2700,
+      actual_max_kelvin: 6500,
+      reported_min_kelvin: 2000,
+      reported_max_kelvin: 6329
+    }
+
+    assert %{kelvin: kelvin} = StateParser.kelvin_from_z2m_attrs(attrs, entity)
+    assert kelvin >= 2800
+    assert kelvin <= 2950
+  end
+
   test "kelvin_from_z2m_attrs remaps reported low-end floor when extended range is enabled" do
     attrs = %{"color_temp" => 437}
 
@@ -65,6 +99,19 @@ defmodule Hueworks.Control.StateParserTest do
     entity = %{extended_kelvin_range: true}
 
     assert StateParser.kelvin_from_ha_attrs(attrs, entity) == %{kelvin: 2000}
+  end
+
+  test "kelvin_from_ha_attrs ignores xy payload when color_temp indicates normal white above 2700K" do
+    {x, y} = HomeAssistantPayload.extended_xy(2200)
+
+    attrs = %{
+      "xy_color" => [x, y],
+      "color_temp_kelvin" => 3119
+    }
+
+    entity = %{extended_kelvin_range: true}
+
+    assert StateParser.kelvin_from_ha_attrs(attrs, entity) == %{kelvin: 3119}
   end
 
   test "kelvin_from_ha_attrs remaps reported low-end floor when extended range is enabled" do

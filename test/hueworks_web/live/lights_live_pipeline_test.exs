@@ -409,6 +409,59 @@ defmodule Hueworks.LightsLivePipelineTest do
     assert rendered =~ "Actual max kelvin"
   end
 
+  test "extended-range z2m light keeps displayed low kelvin when ambiguous control-state update snaps upward",
+       %{
+         conn: conn,
+         executor_server: executor_server
+       } do
+    room = Repo.insert!(%Room{name: "Media"})
+
+    bridge =
+      Repo.insert!(%Bridge{
+        name: "Z2M Bridge",
+        type: :z2m,
+        host: "192.168.1.88",
+        credentials: %{"broker_port" => 1883}
+      })
+
+    light =
+      Repo.insert!(%Light{
+        name: "TV Cabinet",
+        display_name: "TV Cabinet",
+        source: :z2m,
+        source_id: "tv.cabinet",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        supports_temp: true,
+        reported_min_kelvin: 2288,
+        reported_max_kelvin: 6500,
+        extended_kelvin_range: true
+      })
+
+    clear_light_states(light.id)
+
+    {:ok, view, _html} = live(conn, "/lights")
+
+    rendered = render(view)
+    assert rendered =~ "TV Cabinet"
+    assert rendered =~ "4250K"
+
+    _ =
+      render_hook(view, "set_color_temp", %{
+        "type" => "light",
+        "id" => Integer.to_string(light.id),
+        "kelvin" => "2000"
+      })
+
+    drain_executor(executor_server)
+
+    assert render(view) =~ "2000K"
+
+    send(view.pid, {:control_state, :light, light.id, %{kelvin: 2700}})
+
+    assert render(view) =~ "2000K"
+  end
+
   test "light edit modal title uses display_name when present", %{conn: conn} do
     room = Repo.insert!(%Room{name: "Living Room"})
 

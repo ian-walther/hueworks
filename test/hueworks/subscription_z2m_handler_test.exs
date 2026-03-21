@@ -2,6 +2,7 @@ defmodule Hueworks.Subscription.Z2MHandlerTest do
   use Hueworks.DataCase, async: false
 
   alias Hueworks.Control.HomeAssistantPayload
+  alias Hueworks.Kelvin
   alias Hueworks.Control.State
   alias Hueworks.Repo
   alias Hueworks.Schemas.{Bridge, Group, Light, Room}
@@ -73,7 +74,7 @@ defmodule Hueworks.Subscription.Z2MHandlerTest do
         state
       )
 
-    assert State.get(:light, light_a.id) == %{power: :on, brightness: 31, kelvin: 4000}
+    assert %{power: :on, brightness: 31, kelvin: 4000} = State.get(:light, light_a.id)
 
     {:ok, _state} =
       Handler.handle_message(
@@ -82,7 +83,7 @@ defmodule Hueworks.Subscription.Z2MHandlerTest do
         state
       )
 
-    assert State.get(:group, group.id) == %{power: :off}
+    assert %{power: :off} = State.get(:group, group.id)
     assert State.get(:light, light_a.id).power == :off
     assert State.get(:light, light_b.id).power == :off
   end
@@ -156,7 +157,7 @@ defmodule Hueworks.Subscription.Z2MHandlerTest do
         state
       )
 
-    assert State.get(:light, light.id) == %{power: :on, kelvin: 2000}
+    assert %{power: :on, kelvin: 2000} = State.get(:light, light.id)
   end
 
   test "handler remaps reported low-end floor when extended range is enabled and xy is absent" do
@@ -196,7 +197,112 @@ defmodule Hueworks.Subscription.Z2MHandlerTest do
         state
       )
 
-    assert State.get(:light, light.id) == %{power: :on, kelvin: 2000}
+    assert %{power: :on, kelvin: 2000} = State.get(:light, light.id)
+  end
+
+  test "group updates apply member light kelvin mapping instead of raw reported values" do
+    room = Repo.insert!(%Room{name: "Grouped Extended"})
+
+    bridge =
+      Repo.insert!(%Bridge{
+        type: :z2m,
+        name: "Z2M",
+        host: "10.0.0.76",
+        credentials: %{"base_topic" => "zigbee2mqtt", "broker_port" => 1883},
+        enabled: true
+      })
+
+    light =
+      Repo.insert!(%Light{
+        name: "Grouped Cabinet",
+        source: :z2m,
+        source_id: "grouped_cabinet",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        supports_temp: true,
+        reported_min_kelvin: 2000,
+        reported_max_kelvin: 6329,
+        actual_min_kelvin: 2700,
+        actual_max_kelvin: 6500,
+        extended_kelvin_range: true
+      })
+
+    group =
+      Repo.insert!(%Group{
+        name: "Grouped Cabinet Group",
+        source: :z2m,
+        source_id: "grouped_cabinet_group",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        supports_temp: true,
+        reported_min_kelvin: 2000,
+        reported_max_kelvin: 6329,
+        metadata: %{"members" => ["grouped_cabinet"]}
+      })
+
+    {:ok, state} = Handler.init([bridge.id, "zigbee2mqtt"])
+
+    {:ok, _state} =
+      Handler.handle_message(
+        ["zigbee2mqtt", "grouped_cabinet_group"],
+        Jason.encode!(%{
+          "state" => "ON",
+          "color_temp_kelvin" => 2581
+        }),
+        state
+      )
+
+    assert %{power: :on, kelvin: 2581} = State.get(:group, group.id)
+
+    expected_kelvin = Kelvin.map_from_event(light, 2581)
+    assert %{power: :on, kelvin: ^expected_kelvin} = State.get(:light, light.id)
+  end
+
+  test "handler keeps stale xy plus midrange white temp out of extended low-end band" do
+    room = Repo.insert!(%Room{name: "Midrange Extended"})
+
+    bridge =
+      Repo.insert!(%Bridge{
+        type: :z2m,
+        name: "Z2M",
+        host: "10.0.0.77",
+        credentials: %{"base_topic" => "zigbee2mqtt", "broker_port" => 1883},
+        enabled: true
+      })
+
+    light =
+      Repo.insert!(%Light{
+        name: "Midrange Cabinet",
+        source: :z2m,
+        source_id: "midrange_cabinet",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        supports_temp: true,
+        reported_min_kelvin: 2000,
+        reported_max_kelvin: 6329,
+        actual_min_kelvin: 2700,
+        actual_max_kelvin: 6500,
+        extended_kelvin_range: true
+      })
+
+    {x, y} = HomeAssistantPayload.extended_xy(2200)
+
+    {:ok, state} = Handler.init([bridge.id, "zigbee2mqtt"])
+
+    {:ok, _state} =
+      Handler.handle_message(
+        ["zigbee2mqtt", "midrange_cabinet"],
+        Jason.encode!(%{
+          "state" => "ON",
+          "color" => %{"x" => x, "y" => y},
+          "color_temp" => 348
+        }),
+        state
+      )
+
+    assert %{power: :on, kelvin: kelvin} = State.get(:light, light.id)
+    assert kelvin >= 2800
+    assert kelvin <= 2950
   end
 
   test "handler refreshes indexes and resolves newly imported entities after debounce window" do
@@ -234,6 +340,6 @@ defmodule Hueworks.Subscription.Z2MHandlerTest do
                stale_state
              )
 
-    assert State.get(:light, light.id) == %{power: :on, brightness: 50}
+    assert %{power: :on, brightness: 50} = State.get(:light, light.id)
   end
 end

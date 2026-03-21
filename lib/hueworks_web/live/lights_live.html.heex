@@ -262,7 +262,7 @@
               </div>
               <%= if light.supports_temp do %>
                 <div class="hw-slider">
-              <% {min_k, max_k} = Hueworks.Kelvin.derive_range(light) %>
+                  <% {min_k, max_k} = Hueworks.Kelvin.derive_range(light) %>
                   <% kelvin = get_state_value(@light_state, light.id, :kelvin, round((min_k + max_k) / 2)) %>
                   <input
                     id={"light-temp-#{light.id}"}

@@ -246,12 +246,14 @@ defmodule HueworksWeb.LightsLive do
 
   @impl true
   def handle_info({:control_state, :light, id, state}, socket) do
+    merged_state =
+      socket.assigns.light_state
+      |> Map.get(id, %{})
+      |> merge_light_state_for_display(light_for_id(socket.assigns.lights, id), state)
+
     {:noreply,
      socket
-     |> assign(
-       :light_state,
-       Map.update(socket.assigns.light_state, id, state, &merge_state(&1, state))
-     )}
+     |> assign(:light_state, Map.put(socket.assigns.light_state, id, merged_state))}
   end
 
   @impl true
@@ -690,6 +692,32 @@ defmodule HueworksWeb.LightsLive do
 
   defp merge_state(existing, updates) do
     Map.merge(existing, updates)
+  end
+
+  defp merge_light_state_for_display(existing, nil, updates), do: merge_state(existing, updates)
+
+  defp merge_light_state_for_display(existing, light, updates) do
+    merged = merge_state(existing, updates)
+
+    if preserve_extended_display_kelvin?(light, existing, updates) do
+      Map.put(merged, :kelvin, existing[:kelvin])
+    else
+      merged
+    end
+  end
+
+  defp preserve_extended_display_kelvin?(%{extended_kelvin_range: true}, existing, updates) do
+    current_kelvin = existing[:kelvin]
+    incoming_kelvin = updates[:kelvin]
+
+    is_number(current_kelvin) and current_kelvin < 2700 and is_number(incoming_kelvin) and
+      incoming_kelvin >= 2700
+  end
+
+  defp preserve_extended_display_kelvin?(_light, _existing, _updates), do: false
+
+  defp light_for_id(lights, id) do
+    Enum.find(lights, &(&1.id == id))
   end
 
   defp update_light_state_assign(socket, light_id, attrs)

@@ -126,10 +126,11 @@ defmodule Hueworks.Control.Bootstrap.Z2M do
             update = build_state(payload, group)
             if update != %{}, do: State.put(:group, group.id, update)
 
-            indexes.group_member_light_ids
+            indexes.group_member_lights
             |> Map.get(group.source_id, [])
-            |> Enum.each(fn light_id ->
-              if update != %{}, do: State.put(:light, light_id, update)
+            |> Enum.each(fn light ->
+              light_update = build_state(payload, light)
+              if light_update != %{}, do: State.put(:light, light.id, light_update)
             end)
 
           nil ->
@@ -197,23 +198,22 @@ defmodule Hueworks.Control.Bootstrap.Z2M do
     groups_by_source_id =
       Enum.reduce(groups, %{}, fn group, acc -> Map.put(acc, group.source_id, group) end)
 
-    group_member_light_ids =
+    group_member_lights =
       Enum.reduce(groups, %{}, fn group, acc ->
         members = get_in(group.metadata, ["members"]) || []
 
-        light_ids =
+        lights =
           members
           |> Enum.map(&Map.get(lights_by_source_id, to_string(&1)))
           |> Enum.filter(&is_map/1)
-          |> Enum.map(& &1.id)
 
-        Map.put(acc, group.source_id, light_ids)
+        Map.put(acc, group.source_id, lights)
       end)
 
     %{
       lights_by_source_id: lights_by_source_id,
       groups_by_source_id: groups_by_source_id,
-      group_member_light_ids: group_member_light_ids
+      group_member_lights: group_member_lights
     }
   end
 

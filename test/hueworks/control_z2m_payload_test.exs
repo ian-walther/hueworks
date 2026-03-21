@@ -80,13 +80,13 @@ defmodule Hueworks.Control.Z2MPayloadTest do
       actual_min_kelvin: 2700,
       actual_max_kelvin: 6500,
       reported_min_kelvin: 2000,
-      reported_max_kelvin: 6500
+      reported_max_kelvin: 6329
     }
 
     payload = Z2MPayload.action_payload({:color_temp, 3000}, entity)
 
     assert payload["state"] == "ON"
-    assert payload["color_temp"] == 425
+    assert payload["color_temp"] == 335
   end
 
   test "set_state applies actual->reported mapping above extended range floor" do
@@ -96,12 +96,12 @@ defmodule Hueworks.Control.Z2MPayloadTest do
       actual_min_kelvin: 2700,
       actual_max_kelvin: 6500,
       reported_min_kelvin: 2000,
-      reported_max_kelvin: 6500
+      reported_max_kelvin: 6329
     }
 
     payload = Z2MPayload.action_payload({:set_state, %{power: :on, kelvin: 3000}}, entity)
 
     assert payload["state"] == "ON"
-    assert payload["color_temp"] == 425
+    assert payload["color_temp"] == 335
   end
 end

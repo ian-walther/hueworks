@@ -141,10 +141,10 @@ defmodule Hueworks.Subscription.Z2MEventStream.Connection do
             %Group{} = group ->
               maybe_put_group(group, payload)
 
-              state.group_member_light_ids
+              state.group_member_lights
               |> Map.get(group.source_id, [])
-              |> Enum.each(fn light_id ->
-                State.put(:light, light_id, build_state(payload, nil))
+              |> Enum.each(fn light ->
+                State.put(:light, light.id, build_state(payload, light))
               end)
 
               state
@@ -178,10 +178,10 @@ defmodule Hueworks.Subscription.Z2MEventStream.Connection do
               %Group{} = group ->
                 maybe_put_group(group, payload)
 
-                refreshed.group_member_light_ids
+                refreshed.group_member_lights
                 |> Map.get(group.source_id, [])
-                |> Enum.each(fn light_id ->
-                  State.put(:light, light_id, build_state(payload, nil))
+                |> Enum.each(fn light ->
+                  State.put(:light, light.id, build_state(payload, light))
                 end)
 
                 refreshed
@@ -264,23 +264,22 @@ defmodule Hueworks.Subscription.Z2MEventStream.Connection do
       groups_by_source_id =
         Enum.reduce(groups, %{}, fn group, acc -> Map.put(acc, group.source_id, group) end)
 
-      group_member_light_ids =
+      group_member_lights =
         Enum.reduce(groups, %{}, fn group, acc ->
           members = get_in(group.metadata, ["members"]) || []
 
-          light_ids =
+          lights =
             members
             |> Enum.map(&Map.get(lights_by_source_id, to_string(&1)))
             |> Enum.filter(&is_map/1)
-            |> Enum.map(& &1.id)
 
-          Map.put(acc, group.source_id, light_ids)
+          Map.put(acc, group.source_id, lights)
         end)
 
       %{
         lights_by_source_id: lights_by_source_id,
         groups_by_source_id: groups_by_source_id,
-        group_member_light_ids: group_member_light_ids
+        group_member_lights: group_member_lights
       }
     end
   end
