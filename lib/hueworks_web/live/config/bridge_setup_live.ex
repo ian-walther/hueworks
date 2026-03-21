@@ -83,6 +83,15 @@ defmodule HueworksWeb.BridgeSetupLive do
     {:noreply, assign(socket, plan: plan)}
   end
 
+  def handle_event(
+        "set_entity_room",
+        %{"type" => type, "source_id" => source_id, "target_room_id" => target_room_id},
+        socket
+      ) do
+    plan = put_entity_room_plan(socket.assigns.plan, type, source_id, target_room_id)
+    {:noreply, assign(socket, plan: plan)}
+  end
+
   def handle_event("apply_materialization", _params, socket) do
     plan = socket.assigns.plan || %{}
     normalized = socket.assigns.normalized_import || %{}
@@ -184,7 +193,7 @@ defmodule HueworksWeb.BridgeSetupLive do
 
     if is_binary(source_id) do
       current = Map.get(map, source_id, true)
-      updated = Map.put(map, source_id, !current)
+      updated = Map.put(map, source_id, toggle_selection(current))
       assign(socket, plan: Map.put(plan, type, updated))
     else
       assign(socket, plan: plan)
@@ -335,10 +344,30 @@ defmodule HueworksWeb.BridgeSetupLive do
 
     updated =
       Enum.reduce(ids, map, fn id, acc ->
-        Map.put(acc, id, selected)
+        Map.put(acc, id, merge_selection_value(Map.get(acc, id, true), selected))
       end)
 
     Map.put(plan, key, updated)
+  end
+
+  defp put_entity_room_plan(plan, type, source_id, target_room_id) do
+    key = if type == "groups", do: :groups, else: :lights
+    source_id = Normalize.normalize_source_id(source_id)
+    plan = plan || %{}
+    map = Normalize.fetch(plan, key) || %{}
+
+    if is_binary(source_id) do
+      current = Map.get(map, source_id, true)
+
+      updated =
+        current
+        |> selection_map()
+        |> Map.put("target_room_id", blank_to_nil(target_room_id))
+
+      Map.put(plan, key, Map.put(map, source_id, updated))
+    else
+      plan
+    end
   end
 
   defp entity_ids(entries) do
@@ -470,10 +499,26 @@ defmodule HueworksWeb.BridgeSetupLive do
     if is_binary(source_id) do
       case Map.get(map, source_id, true) do
         false -> false
+        %{} = entry -> Map.get(entry, "selected", true)
         _ -> true
       end
     else
       false
+    end
+  end
+
+  defp entity_target_room(plan, key, source_id) do
+    source_id = Normalize.normalize_source_id(source_id)
+    map = Normalize.fetch(plan, key) || %{}
+
+    case source_id do
+      nil ->
+        nil
+
+      _ ->
+        Map.get(map, source_id, %{})
+        |> Normalize.fetch(:target_room_id)
+        |> Normalize.normalize_source_id()
     end
   end
 
@@ -509,4 +554,25 @@ defmodule HueworksWeb.BridgeSetupLive do
         |> Normalize.normalize_source_id()
     end
   end
+
+  defp toggle_selection(value) do
+    case value do
+      false -> true
+      true -> false
+      map when is_map(map) -> Map.put(map, "selected", !Map.get(map, "selected", true))
+      _ -> false
+    end
+  end
+
+  defp merge_selection_value(current, selected) when is_map(current) do
+    Map.put(current, "selected", selected)
+  end
+
+  defp merge_selection_value(_current, selected), do: selected
+
+  defp selection_map(map) when is_map(map), do: map
+  defp selection_map(_value), do: %{"selected" => true}
+
+  defp blank_to_nil(""), do: nil
+  defp blank_to_nil(value), do: value
 end

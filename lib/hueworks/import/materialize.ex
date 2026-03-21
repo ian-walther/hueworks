@@ -27,8 +27,8 @@ defmodule Hueworks.Import.Materialize do
     groups = filter_entities(groups, plan_groups)
     memberships = filter_memberships(memberships, plan_lights, plan_groups)
 
-    light_map = upsert_lights(bridge, lights, room_map)
-    group_map = upsert_groups(bridge, groups, room_map)
+    light_map = upsert_lights(bridge, lights, room_map, plan_lights)
+    group_map = upsert_groups(bridge, groups, room_map, plan_groups)
 
     upsert_group_lights(memberships, light_map, group_map)
     infer_group_rooms(group_map)
@@ -89,7 +89,7 @@ defmodule Hueworks.Import.Materialize do
     end)
   end
 
-  defp upsert_lights(bridge, lights, room_map) do
+  defp upsert_lights(bridge, lights, room_map, plan_lights) do
     bridge_id = bridge.id
 
     Enum.reduce(lights, %{}, fn light, acc ->
@@ -101,7 +101,7 @@ defmodule Hueworks.Import.Materialize do
           source: normalize_source(Normalize.fetch(light, :source)),
           source_id: source_id,
           bridge_id: bridge_id,
-          room_id: room_id_for(light, room_map),
+          room_id: room_id_for(light, room_map, plan_lights),
           supports_color: !!Normalize.fetch(Normalize.fetch(light, :capabilities) || %{}, :color),
           supports_temp:
             !!Normalize.fetch(Normalize.fetch(light, :capabilities) || %{}, :color_temp),
@@ -134,7 +134,7 @@ defmodule Hueworks.Import.Materialize do
     end)
   end
 
-  defp upsert_groups(bridge, groups, room_map) do
+  defp upsert_groups(bridge, groups, room_map, plan_groups) do
     bridge_id = bridge.id
 
     Enum.reduce(groups, %{}, fn group, acc ->
@@ -146,7 +146,7 @@ defmodule Hueworks.Import.Materialize do
           source: normalize_source(Normalize.fetch(group, :source)),
           source_id: source_id,
           bridge_id: bridge_id,
-          room_id: room_id_for(group, room_map),
+          room_id: room_id_for(group, room_map, plan_groups),
           supports_color: !!Normalize.fetch(Normalize.fetch(group, :capabilities) || %{}, :color),
           supports_temp:
             !!Normalize.fetch(Normalize.fetch(group, :capabilities) || %{}, :color_temp),
@@ -240,6 +240,7 @@ defmodule Hueworks.Import.Materialize do
 
       case Normalize.fetch(plan_map, source_id) do
         false -> false
+        %{} = entry -> Map.get(entry, "selected", true)
         true -> true
         nil -> true
         _ -> true
@@ -271,18 +272,28 @@ defmodule Hueworks.Import.Materialize do
   defp plan_selected?(plan, source_id) do
     case Normalize.fetch(plan, source_id) do
       false -> false
+      %{} = entry -> Map.get(entry, "selected", true)
       true -> true
       nil -> true
       _ -> true
     end
   end
 
-  defp room_id_for(entry, room_map) do
-    room_source_id = Normalize.normalize_source_id(Normalize.fetch(entry, :room_source_id))
+  defp room_id_for(entry, room_map, plan_map) do
+    source_id = Normalize.normalize_source_id(Normalize.fetch(entry, :source_id))
+    plan_entry = if is_binary(source_id), do: Normalize.fetch(plan_map, source_id), else: nil
 
-    case room_source_id do
-      nil -> nil
-      _ -> Map.get(room_map, room_source_id)
+    case plan_entry |> Normalize.fetch(:target_room_id) |> normalize_room_target_id() do
+      room_id when is_integer(room_id) ->
+        room_id
+
+      _ ->
+        room_source_id = Normalize.normalize_source_id(Normalize.fetch(entry, :room_source_id))
+
+        case room_source_id do
+          nil -> nil
+          _ -> Map.get(room_map, room_source_id)
+        end
     end
   end
 

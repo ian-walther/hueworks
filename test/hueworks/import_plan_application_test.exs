@@ -136,4 +136,54 @@ defmodule Hueworks.Import.PlanApplicationTest do
     assert Repo.get(Room, existing_room.id)
     assert Repo.aggregate(Room, :count) == 1
   end
+
+  test "per-entity target room assigns unassigned lights and groups to an existing room" do
+    bridge = insert_bridge(%{host: "10.0.0.203"})
+    target_room = Repo.insert!(%Room{name: "Assigned"})
+
+    normalized = %{
+      rooms: [],
+      lights: [
+        %{
+          source: :hue,
+          source_id: "1",
+          name: "Lamp",
+          room_source_id: nil,
+          capabilities: %{},
+          identifiers: %{},
+          metadata: %{}
+        }
+      ],
+      groups: [
+        %{
+          source: :hue,
+          source_id: "2",
+          name: "Group",
+          room_source_id: nil,
+          type: "group",
+          capabilities: %{},
+          metadata: %{}
+        }
+      ],
+      memberships: %{}
+    }
+
+    plan = %{
+      "rooms" => %{},
+      "lights" => %{
+        "1" => %{"selected" => true, "target_room_id" => Integer.to_string(target_room.id)}
+      },
+      "groups" => %{
+        "2" => %{"selected" => true, "target_room_id" => Integer.to_string(target_room.id)}
+      }
+    }
+
+    assert :ok == Materialize.materialize(bridge, normalized, plan)
+
+    light = Repo.get_by!(Light, bridge_id: bridge.id, source_id: "1")
+    group = Repo.get_by!(Group, bridge_id: bridge.id, source_id: "2")
+
+    assert light.room_id == target_room.id
+    assert group.room_id == target_room.id
+  end
 end

@@ -451,6 +451,40 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
     assert get_in(plan, [:groups, "group-3"]) == false
   end
 
+  test "unassigned entity room dropdown stores target room in plan", %{conn: conn} do
+    existing_room =
+      Repo.insert!(%Hueworks.Schemas.Room{
+        name: "Patio",
+        metadata: %{}
+      })
+
+    {view, _bridge} = setup_import_view(conn, with_unassigned: true)
+
+    view
+    |> form("form[phx-change='set_entity_room'][data-type='lights'][data-source-id='light-3']", %{
+      "type" => "lights",
+      "source_id" => "light-3",
+      "target_room_id" => Integer.to_string(existing_room.id)
+    })
+    |> render_change()
+
+    view
+    |> form("form[phx-change='set_entity_room'][data-type='groups'][data-source-id='group-3']", %{
+      "type" => "groups",
+      "source_id" => "group-3",
+      "target_room_id" => Integer.to_string(existing_room.id)
+    })
+    |> render_change()
+
+    plan = get_assign(view, :plan)
+
+    assert get_in(plan, [:lights, "light-3", "target_room_id"]) ==
+             Integer.to_string(existing_room.id)
+
+    assert get_in(plan, [:groups, "group-3", "target_room_id"]) ==
+             Integer.to_string(existing_room.id)
+  end
+
   defp setup_import_view(conn, opts) do
     with_unassigned = Keyword.get(opts, :with_unassigned, false)
 

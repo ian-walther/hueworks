@@ -297,7 +297,7 @@
                 <%= for light <- unassigned_lights do %>
                   <% light_id = fetch(light, :source_id) %>
                   <% light_status = reimport_status(@reimport_statuses, :lights, light_id) %>
-                  <label class="hw-row">
+                  <div class="hw-row">
                     <input
                       type="checkbox"
                       checked={
@@ -319,7 +319,27 @@
                     <%= if light_status == :missing do %>
                       <span class="hw-muted">(no longer present)</span>
                     <% end %>
-                  </label>
+                    <form
+                      phx-change="set_entity_room"
+                      class="hw-inline-form"
+                      data-type="lights"
+                      data-source-id={light_id}
+                    >
+                      <input type="hidden" name="type" value="lights" />
+                      <input type="hidden" name="source_id" value={light_id} />
+                      <select class="hw-select" name="target_room_id">
+                        <option value="">Unassigned</option>
+                        <%= for existing <- @rooms do %>
+                          <option
+                            value={existing.id}
+                            selected={entity_target_room(@plan, :lights, light_id) == to_string(existing.id)}
+                          >
+                            <%= Hueworks.Util.display_name(existing) %>
+                          </option>
+                        <% end %>
+                      </select>
+                    </form>
+                  </div>
                 <% end %>
               </div>
             </div>
@@ -357,7 +377,7 @@
                 <%= for group <- unassigned_groups do %>
                   <% group_id = fetch(group, :source_id) %>
                   <% group_status = reimport_status(@reimport_statuses, :groups, group_id) %>
-                  <label class="hw-row">
+                  <div class="hw-row">
                     <input
                       type="checkbox"
                       checked={
@@ -379,7 +399,27 @@
                     <%= if group_status == :missing do %>
                       <span class="hw-muted">(no longer present)</span>
                     <% end %>
-                  </label>
+                    <form
+                      phx-change="set_entity_room"
+                      class="hw-inline-form"
+                      data-type="groups"
+                      data-source-id={group_id}
+                    >
+                      <input type="hidden" name="type" value="groups" />
+                      <input type="hidden" name="source_id" value={group_id} />
+                      <select class="hw-select" name="target_room_id">
+                        <option value="">Unassigned</option>
+                        <%= for existing <- @rooms do %>
+                          <option
+                            value={existing.id}
+                            selected={entity_target_room(@plan, :groups, group_id) == to_string(existing.id)}
+                          >
+                            <%= Hueworks.Util.display_name(existing) %>
+                          </option>
+                        <% end %>
+                      </select>
+                    </form>
+                  </div>
                 <% end %>
               </div>
             </div>

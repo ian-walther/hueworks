@@ -209,6 +209,7 @@ defmodule Hueworks.Import.ReimportPlan do
 
     case Map.get(map, source_id, true) do
       false -> false
+      %{} = entry -> Map.get(entry, "selected", true)
       _ -> true
     end
   end
