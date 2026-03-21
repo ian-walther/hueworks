@@ -73,12 +73,11 @@ defmodule Hueworks.Control.StateParser do
         %{kelvin: round(extended_xy_kelvin)}
 
       is_number(attrs["color_temp_kelvin"]) ->
-        kelvin = Kelvin.map_from_event(entity, round(attrs["color_temp_kelvin"]))
-        %{kelvin: kelvin}
+        parse_low_extended_kelvin(round(attrs["color_temp_kelvin"]), entity)
 
       is_number(attrs["color_temp"]) and attrs["color_temp"] > 0 ->
         kelvin = round(1_000_000 / attrs["color_temp"])
-        %{kelvin: Kelvin.map_from_event(entity, kelvin)}
+        parse_low_extended_kelvin(kelvin, entity)
 
       true ->
         %{}
@@ -95,16 +94,14 @@ defmodule Hueworks.Control.StateParser do
         %{kelvin: round(extended_xy_kelvin)}
 
       is_number(attrs["color_temp_kelvin"]) ->
-        kelvin = Kelvin.map_from_event(entity, round(attrs["color_temp_kelvin"]))
-        %{kelvin: kelvin}
+        parse_low_extended_kelvin(round(attrs["color_temp_kelvin"]), entity)
 
       is_number(attrs["color_temp"]) and attrs["color_temp"] > 0 and attrs["color_temp"] <= 1000 ->
         kelvin = round(1_000_000 / attrs["color_temp"])
-        %{kelvin: Kelvin.map_from_event(entity, kelvin)}
+        parse_low_extended_kelvin(kelvin, entity)
 
       is_number(attrs["color_temp"]) and attrs["color_temp"] > 1000 ->
-        kelvin = Kelvin.map_from_event(entity, round(attrs["color_temp"]))
-        %{kelvin: kelvin}
+        parse_low_extended_kelvin(round(attrs["color_temp"]), entity)
 
       true ->
         %{}
@@ -156,10 +153,53 @@ defmodule Hueworks.Control.StateParser do
     end)
   end
 
+  defp parse_low_extended_kelvin(kelvin, entity) when is_number(kelvin) do
+    case map_extended_reported_floor(kelvin, entity) do
+      mapped when is_number(mapped) -> %{kelvin: mapped}
+      nil -> %{kelvin: Kelvin.map_from_event(entity, kelvin)}
+    end
+  end
+
+  defp parse_low_extended_kelvin(_kelvin, _entity), do: %{}
+
+  # Some extended-range devices only report their native low-end color_temp floor
+  # on events, even after we drove them lower via XY color. Remap that reported
+  # floor back into the logical 2000K-2700K band so the UI doesn't snap upward.
+  defp map_extended_reported_floor(kelvin, entity) when is_number(kelvin) do
+    reported_min = map_field(entity, :reported_min_kelvin)
+
+    cond do
+      not extended_kelvin_range_enabled?(entity) ->
+        nil
+
+      not is_number(reported_min) ->
+        nil
+
+      reported_min <= 2000 or reported_min >= 2700 ->
+        nil
+
+      kelvin > 2700 ->
+        nil
+
+      true ->
+        ratio = (kelvin - reported_min) / (2700 - reported_min)
+        mapped = 2000 + ratio * 700
+        round(Util.clamp(mapped, 2000, 2700))
+    end
+  end
+
+  defp map_extended_reported_floor(_kelvin, _entity), do: nil
+
   defp extended_kelvin_range_enabled?(entity) when is_map(entity) do
     Map.get(entity, :extended_kelvin_range) == true or
       Map.get(entity, "extended_kelvin_range") == true
   end
 
   defp extended_kelvin_range_enabled?(_entity), do: false
+
+  defp map_field(entity, key) when is_map(entity) do
+    Map.get(entity, key) || Map.get(entity, Atom.to_string(key))
+  end
+
+  defp map_field(_entity, _key), do: nil
 end

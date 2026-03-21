@@ -159,6 +159,46 @@ defmodule Hueworks.Subscription.Z2MHandlerTest do
     assert State.get(:light, light.id) == %{power: :on, kelvin: 2000}
   end
 
+  test "handler remaps reported low-end floor when extended range is enabled and xy is absent" do
+    room = Repo.insert!(%Room{name: "Extended Floor"})
+
+    bridge =
+      Repo.insert!(%Bridge{
+        type: :z2m,
+        name: "Z2M",
+        host: "10.0.0.74",
+        credentials: %{"base_topic" => "zigbee2mqtt", "broker_port" => 1883},
+        enabled: true
+      })
+
+    light =
+      Repo.insert!(%Light{
+        name: "Cabinet Floor",
+        source: :z2m,
+        source_id: "cabinet_floor",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        supports_temp: true,
+        reported_min_kelvin: 2288,
+        reported_max_kelvin: 6500,
+        extended_kelvin_range: true
+      })
+
+    {:ok, state} = Handler.init([bridge.id, "zigbee2mqtt"])
+
+    {:ok, _state} =
+      Handler.handle_message(
+        ["zigbee2mqtt", "cabinet_floor"],
+        Jason.encode!(%{
+          "state" => "ON",
+          "color_temp" => 437
+        }),
+        state
+      )
+
+    assert State.get(:light, light.id) == %{power: :on, kelvin: 2000}
+  end
+
   test "handler refreshes indexes and resolves newly imported entities after debounce window" do
     room = Repo.insert!(%Room{name: "Refresh"})
 

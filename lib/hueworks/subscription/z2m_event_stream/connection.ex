@@ -13,9 +13,7 @@ defmodule Hueworks.Subscription.Z2MEventStream.Connection do
       [
         client_id: subscription_client_id(bridge.id),
         handler: {__MODULE__.Handler, [bridge.id, config.base_topic]},
-        server:
-          {Tortoise.Transport.Tcp, host: String.to_charlist(bridge.host), port: config.port},
-        subscriptions: [{"#{config.base_topic}/#", 0}]
+        server: {Tortoise.Transport.Tcp, host: String.to_charlist(bridge.host), port: config.port}
       ]
       |> maybe_put_auth(config)
 
@@ -93,12 +91,28 @@ defmodule Hueworks.Subscription.Z2MEventStream.Connection do
       {:ok,
        Map.merge(indexes, %{
          bridge_id: bridge_id,
+         client_id: Hueworks.Subscription.Z2MEventStream.Connection.subscription_client_id(bridge_id),
          base_topic: base_topic,
          base_levels: String.split(base_topic, "/", trim: true),
-         last_refresh_at: System.monotonic_time(:millisecond)
+         last_refresh_at: System.monotonic_time(:millisecond),
+         subscriptions: [{"#{base_topic}/#", 0}],
+         subscribed?: false
        })}
     end
 
+    def connection(:up, state) do
+      client_id = state.client_id
+
+      case Tortoise.Connection.subscribe(client_id, state.subscriptions) do
+        {:ok, _ref} ->
+          {:ok, %{state | subscribed?: true}}
+
+        {:error, _reason} ->
+          {:ok, %{state | subscribed?: false}}
+      end
+    end
+
+    def connection(:down, state), do: {:ok, %{state | subscribed?: false}}
     def connection(_status, state), do: {:ok, state}
 
     def subscription(_status, _topic_filter, state), do: {:ok, state}
