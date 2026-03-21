@@ -409,6 +409,137 @@ defmodule Hueworks.LightsLivePipelineTest do
     assert rendered =~ "Actual max kelvin"
   end
 
+  test "light edit modal title uses display_name when present", %{conn: conn} do
+    room = Repo.insert!(%Room{name: "Living Room"})
+
+    bridge =
+      Repo.insert!(%Bridge{
+        name: "Hue Bridge",
+        type: :hue,
+        host: "192.168.1.85",
+        credentials: %{"api_key" => "test"}
+      })
+
+    light =
+      Repo.insert!(%Light{
+        name: "living.room.floor_lamp",
+        display_name: "Floor Lamp",
+        source: :hue,
+        source_id: "floor-lamp",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        supports_temp: true,
+        reported_min_kelvin: 2000,
+        reported_max_kelvin: 6500
+      })
+
+    {:ok, view, _html} = live(conn, "/lights")
+
+    view
+    |> element("#light-#{light.id} button[aria-label='Edit light name']")
+    |> render_click()
+
+    assert has_element?(view, "div.hw-modal h3", "Floor Lamp")
+    refute has_element?(view, "div.hw-modal h3", "living.room.floor_lamp")
+  end
+
+  test "light edit modal can link a light to another light", %{conn: conn} do
+    room = Repo.insert!(%Room{name: "Kitchen"})
+
+    bridge =
+      Repo.insert!(%Bridge{
+        name: "Mixed Bridge",
+        type: :ha,
+        host: "192.168.1.86",
+        credentials: %{"token" => "test"}
+      })
+
+    target =
+      Repo.insert!(%Light{
+        name: "kitchen.target",
+        display_name: "Kitchen Target",
+        source: :caseta,
+        source_id: "caseta-1",
+        bridge_id: bridge.id,
+        room_id: room.id
+      })
+
+    light =
+      Repo.insert!(%Light{
+        name: "kitchen.duplicate",
+        display_name: "Kitchen Duplicate",
+        source: :ha,
+        source_id: "light.kitchen_duplicate",
+        bridge_id: bridge.id,
+        room_id: room.id
+      })
+
+    {:ok, view, _html} = live(conn, "/lights")
+
+    view
+    |> element("#light-#{light.id} button[aria-label='Edit light name']")
+    |> render_click()
+
+    assert has_element?(view, "button[phx-click='show_link_selector']", "Link to Other Light")
+    refute has_element?(view, "select[name='canonical_light_id']")
+
+    view
+    |> element("button[phx-click='show_link_selector']")
+    |> render_click()
+
+    assert has_element?(view, "select[name='canonical_light_id']")
+    assert render(view) =~ "Kitchen Target"
+
+    view
+    |> element("form[phx-submit='save_edit_fields']")
+    |> render_submit(%{"canonical_light_id" => Integer.to_string(target.id)})
+
+    assert Repo.get!(Light, light.id).canonical_light_id == target.id
+  end
+
+  test "show linked toggle reveals linked lights", %{conn: conn} do
+    room = Repo.insert!(%Room{name: "Office"})
+
+    bridge =
+      Repo.insert!(%Bridge{
+        name: "HA Bridge",
+        type: :ha,
+        host: "192.168.1.87",
+        credentials: %{"token" => "test"}
+      })
+
+    root =
+      Repo.insert!(%Light{
+        name: "office.root",
+        display_name: "Office Root",
+        source: :caseta,
+        source_id: "caseta-office",
+        bridge_id: bridge.id,
+        room_id: room.id
+      })
+
+    linked =
+      Repo.insert!(%Light{
+        name: "office.linked",
+        display_name: "Office Linked",
+        source: :ha,
+        source_id: "light.office_linked",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        canonical_light_id: root.id
+      })
+
+    {:ok, view, _html} = live(conn, "/lights")
+
+    refute has_element?(view, "#light-#{linked.id}")
+
+    view
+    |> element("form[phx-change='toggle_light_linked']")
+    |> render_change(%{"show_linked_lights" => "true"})
+
+    assert has_element?(view, "#light-#{linked.id}")
+  end
+
   defp drain_executor(server, attempts \\ 5)
 
   defp drain_executor(_server, 0), do: :ok

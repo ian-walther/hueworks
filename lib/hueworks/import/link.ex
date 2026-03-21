@@ -33,7 +33,7 @@ defmodule Hueworks.Import.Link do
       Enum.reduce(non_ha_lights, %{}, fn light, acc ->
         case identifier(light, "mac") do
           nil -> acc
-          mac -> Map.put(acc, mac, light.id)
+          mac -> Map.update(acc, mac, [light.id], &[light.id | &1])
         end
       end)
 
@@ -41,7 +41,7 @@ defmodule Hueworks.Import.Link do
       Enum.reduce(non_ha_lights, %{}, fn light, acc ->
         case identifier(light, "serial") do
           nil -> acc
-          serial -> Map.put(acc, serial, light.id)
+          serial -> Map.update(acc, serial, [light.id], &[light.id | &1])
         end
       end)
 
@@ -49,7 +49,7 @@ defmodule Hueworks.Import.Link do
       Enum.reduce(non_ha_lights, %{}, fn light, acc ->
         case identifier(light, "ieee") do
           nil -> acc
-          ieee -> Map.put(acc, ieee, light.id)
+          ieee -> Map.update(acc, ieee, [light.id], &[light.id | &1])
         end
       end)
 
@@ -76,11 +76,15 @@ defmodule Hueworks.Import.Link do
     serial = identifier(light, "serial")
     ieee = identifier(light, "ieee")
 
-    cond do
-      is_binary(mac) and Map.has_key?(mac_index, mac) -> Map.get(mac_index, mac)
-      is_binary(serial) and Map.has_key?(serial_index, serial) -> Map.get(serial_index, serial)
-      is_binary(ieee) and Map.has_key?(ieee_index, ieee) -> Map.get(ieee_index, ieee)
-      true -> nil
+    unique_match(mac_index, mac) ||
+      unique_match(serial_index, serial) ||
+      unique_match(ieee_index, ieee)
+  end
+
+  defp unique_match(index, key) do
+    case (if is_binary(key), do: Map.get(index, key, []), else: []) |> Enum.uniq() do
+      [id] -> id
+      _ -> nil
     end
   end
 

@@ -178,24 +178,26 @@ defmodule Hueworks.Import.Normalize do
   def normalize_source_id(id) when is_float(id), do: Float.to_string(id)
   def normalize_source_id(_id), do: nil
 
-  def extract_device_connection(light, type) do
+  def extract_device_connection(light, type_or_types) do
     device = fetch(light, :device) || %{}
     connections = fetch(device, :connections) || []
+    types = List.wrap(type_or_types)
 
     Enum.find_value(connections, fn
-      [^type, value] -> value
-      [value_type, value] when value_type == type -> value
+      [value_type, value] -> if value_type in types, do: value
+      {value_type, value} -> if value_type in types, do: value
       _ -> nil
     end)
   end
 
-  def extract_device_identifier(light, type) do
+  def extract_device_identifier(light, type_or_types) do
     device = fetch(light, :device) || %{}
     identifiers = fetch(device, :identifiers) || []
+    types = List.wrap(type_or_types)
 
     Enum.find_value(identifiers, fn
-      [^type, value] -> value
-      [value_type, value] when value_type == type -> value
+      [value_type, value] -> if value_type in types, do: value
+      {value_type, value} -> if value_type in types, do: value
       _ -> nil
     end)
   end

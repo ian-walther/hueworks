@@ -94,6 +94,18 @@ defmodule Hueworks.ContextsTest do
     assert Enum.sort(ids_all) == ["a", "b"]
   end
 
+  test "Lights.list_controllable_lights can include linked lights" do
+    bridge = insert_bridge(%{host: "10.0.0.111"})
+    root = insert_light(bridge, %{source_id: "a"})
+    _linked = insert_light(bridge, %{source_id: "b", canonical_light_id: root.id})
+
+    ids_default = Lights.list_controllable_lights(true) |> Enum.map(& &1.source_id)
+    ids_all = Lights.list_controllable_lights(true, true) |> Enum.map(& &1.source_id)
+
+    assert ids_default == ["a"]
+    assert Enum.sort(ids_all) == ["a", "b"]
+  end
+
   test "Lights.update_display_name normalizes blanks and allows HA kelvin overrides" do
     ha_bridge = insert_bridge(%{type: :ha, host: "10.0.0.12", credentials: %{"token" => "t"}})
     ha_light = insert_light(ha_bridge, %{source: :ha, source_id: "light.kitchen"})
@@ -140,6 +152,34 @@ defmodule Hueworks.ContextsTest do
     assert changeset.errors[:actual_min_kelvin] != nil
   end
 
+  test "Lights.update_link links to a canonical root and rejects chains" do
+    bridge = insert_bridge(%{host: "10.0.0.131"})
+    root = insert_light(bridge, %{source_id: "root"})
+    child = insert_light(bridge, %{source_id: "child"})
+
+    assert {:ok, updated} = Lights.update_link(child, root.id)
+    assert updated.canonical_light_id == root.id
+
+    middle = insert_light(bridge, %{source_id: "middle"})
+    dependent = insert_light(bridge, %{source_id: "dependent", canonical_light_id: middle.id})
+
+    assert {:error, :has_linked_dependents} = Lights.update_link(middle, root.id)
+    assert Repo.get!(Light, dependent.id).canonical_light_id == middle.id
+  end
+
+  test "Lights.list_link_targets excludes self and non-root lights" do
+    bridge = insert_bridge(%{host: "10.0.0.132"})
+    root = insert_light(bridge, %{source_id: "root"})
+    other_root = insert_light(bridge, %{source_id: "other"})
+    child = insert_light(bridge, %{source_id: "child", canonical_light_id: root.id})
+
+    targets = Lights.list_link_targets(root)
+
+    assert Enum.map(targets, & &1.id) == [other_root.id]
+    refute Enum.any?(targets, &(&1.id == root.id))
+    refute Enum.any?(targets, &(&1.id == child.id))
+  end
+
   test "Groups.list_controllable_groups filters canonical and disabled groups" do
     bridge = insert_bridge(%{host: "10.0.0.14"})
 
@@ -184,8 +224,13 @@ defmodule Hueworks.ContextsTest do
 
   test "Bridges.latest_import and list_imports_for_bridge return newest imports first" do
     bridge = insert_bridge(%{host: "10.0.0.16"})
-    older = insert_bridge_import(bridge, %{imported_at: ~U[2026-03-19 12:00:00Z], status: :normalized})
-    newest = insert_bridge_import(bridge, %{imported_at: ~U[2026-03-19 12:05:00Z], status: :applied})
+
+    older =
+      insert_bridge_import(bridge, %{imported_at: ~U[2026-03-19 12:00:00Z], status: :normalized})
+
+    newest =
+      insert_bridge_import(bridge, %{imported_at: ~U[2026-03-19 12:05:00Z], status: :applied})
+
     _other_bridge = insert_bridge(%{host: "10.0.0.17"})
 
     assert Bridges.latest_import(bridge).id == newest.id

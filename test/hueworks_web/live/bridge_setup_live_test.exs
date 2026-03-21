@@ -284,6 +284,50 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
     assert selected =~ "value=\"#{existing_room.id}\""
   end
 
+  test "merge dropdown shows room display_name when present", %{conn: conn} do
+    _existing_room =
+      Repo.insert!(%Hueworks.Schemas.Room{
+        name: "Studio",
+        display_name: "Studio Upstairs",
+        metadata: %{}
+      })
+
+    bridge =
+      %Bridge{}
+      |> Bridge.changeset(%{
+        type: :hue,
+        name: "Hue Bridge",
+        host: "10.0.0.224",
+        credentials: %{"api_key" => "key"},
+        import_complete: false,
+        enabled: true
+      })
+      |> Repo.insert!()
+
+    normalized = %{
+      rooms: [
+        %{
+          source: :hue,
+          source_id: "room-1",
+          name: "Studio",
+          normalized_name: "studio",
+          metadata: %{}
+        }
+      ],
+      lights: [],
+      groups: [],
+      memberships: %{}
+    }
+
+    Application.put_env(:hueworks, :import_pipeline_payload, normalized)
+
+    {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/setup")
+    html = render(view)
+
+    assert html =~ "Studio Upstairs"
+    refute html =~ ">Studio</option>"
+  end
+
   test "light and group checkboxes toggle plan selections", %{conn: conn} do
     {view, _bridge} = setup_import_view(conn, with_unassigned: true)
 

@@ -149,7 +149,7 @@
       <div class="hw-panel-header">
         <h2>Lights</h2>
         <span class="hw-count">
-          <%= length(filter_entities(@lights, @light_filter, @light_room_filter, @show_disabled_lights)) %>
+          <%= length(filter_lights(@lights, @light_filter, @light_room_filter, @show_disabled_lights, @show_linked_lights)) %>
         </span>
       </div>
       <div class="hw-filter-row">
@@ -186,9 +186,20 @@
             Show disabled
           </label>
         </form>
+        <form class="hw-filter" phx-change="toggle_light_linked">
+          <label class="hw-checkbox">
+            <input
+              type="checkbox"
+              name="show_linked_lights"
+              value="true"
+              checked={@show_linked_lights}
+            />
+            Show linked
+          </label>
+        </form>
       </div>
       <div class="hw-list">
-        <%= for light <- filter_entities(@lights, @light_filter, @light_room_filter, @show_disabled_lights) do %>
+        <%= for light <- filter_lights(@lights, @light_filter, @light_room_filter, @show_disabled_lights, @show_linked_lights) do %>
           <div class="hw-card" id={"light-#{light.id}"}>
             <div class="hw-card-title">
               <div>
@@ -306,6 +317,26 @@
             </option>
           <% end %>
         </select>
+        <%= if @edit_target_type == "light" do %>
+          <%= if @edit_show_link_selector do %>
+            <label class="hw-modal-label" for="canonical_light_id">Linked canonical light</label>
+            <select id="canonical_light_id" name="canonical_light_id" class="hw-select">
+              <option value="" selected={is_nil(@edit_canonical_light_id)}>No link</option>
+              <%= for light <- @edit_link_targets do %>
+                <option
+                  value={light.id}
+                  selected={light.id == @edit_canonical_light_id}
+                >
+                  <%= Hueworks.Util.display_name(light) %> (<%= light.source %>)
+                </option>
+              <% end %>
+            </select>
+          <% else %>
+            <button type="button" class="hw-button" phx-click="show_link_selector">
+              Link to Other Light
+            </button>
+          <% end %>
+        <% end %>
         <input type="hidden" name="enabled" value="false" />
         <input type="hidden" name="extended_kelvin_range" value="false" />
         <label class="hw-checkbox hw-modal-checkbox">

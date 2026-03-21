@@ -79,7 +79,8 @@ defmodule Hueworks.Import.Normalize.HomeAssistant do
           capabilities: normalize_ha_capabilities(light),
           identifiers: %{
             "mac" => Normalize.extract_device_connection(light, "mac"),
-            "serial" => Normalize.extract_device_identifier(light, "serial")
+            "serial" => Normalize.extract_device_identifier(light, ["serial", "lutron_caseta"]),
+            "ieee" => Normalize.extract_device_identifier(light, ["ieee", "zha"])
           },
           metadata: %{
             "entity_id" => Normalize.fetch(light, :entity_id),

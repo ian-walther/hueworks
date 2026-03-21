@@ -113,7 +113,7 @@
                       <option value="">Select room</option>
                       <%= for existing <- @rooms do %>
                     <option value={existing.id} selected={room_merge_target(@plan, room_id) == to_string(existing.id)}>
-                      <%= existing.name %>
+                      <%= Hueworks.Util.display_name(existing) %>
                     </option>
                       <% end %>
                     </select>
