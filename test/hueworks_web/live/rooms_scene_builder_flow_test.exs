@@ -614,6 +614,23 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
     assert has_element?(view, ".hw-error", "Assign all lights once before saving.")
   end
 
+  test "disabled room lights are excluded from scene builder options and unassigned counts",
+       %{conn: conn} do
+    room = insert_room()
+    bridge = insert_bridge()
+    _enabled = insert_light(room, bridge, %{name: "Lamp", enabled: true})
+    _disabled = insert_light(room, bridge, %{name: "Disabled", enabled: false})
+
+    {:ok, view, _html} = live(conn, "/rooms/#{room.id}/scenes/new")
+
+    html = render(view)
+
+    assert html =~ "option value=\"\">Select light</option>"
+    assert html =~ "Lamp"
+    refute html =~ "Disabled"
+    assert html =~ "Unassigned lights: 1"
+  end
+
   test "scene editor uses a click save button instead of nested save form", %{conn: conn} do
     room = insert_room()
     bridge = insert_bridge()

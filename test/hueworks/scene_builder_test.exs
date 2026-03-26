@@ -80,6 +80,39 @@ defmodule Hueworks.SceneBuilderTest do
     assert Enum.map(state.available_groups, & &1.id) == [11, 12]
   end
 
+  test "disabled room lights without an enabled group are excluded from scene requirements" do
+    lights = [
+      %{id: 1, name: "Lamp", enabled: true},
+      %{id: 2, name: "Disabled", enabled: false},
+      %{id: 3, name: "Desk", enabled: true}
+    ]
+
+    state = Builder.build(lights, [], [%{light_ids: []}])
+
+    assert state.room_light_ids == [1, 3]
+    assert Enum.map(state.available_lights, & &1.id) == [1, 3]
+    assert state.unassigned_light_ids == [1, 3]
+  end
+
+  test "disabled room lights covered by enabled groups remain scene-relevant but not individually selectable" do
+    lights = [
+      %{id: 1, name: "Lamp", enabled: true},
+      %{id: 2, name: "Grouped Disabled", enabled: false},
+      %{id: 3, name: "Desk", enabled: true}
+    ]
+
+    groups = [
+      %{id: 10, name: "Desk Group", light_ids: [2, 3], enabled: true}
+    ]
+
+    state = Builder.build(lights, groups, [%{light_ids: []}])
+
+    assert state.room_light_ids == [1, 2, 3]
+    assert Enum.map(state.available_lights, & &1.id) == [1, 3]
+    assert Enum.map(state.available_groups, & &1.id) == [10]
+    assert state.unassigned_light_ids == [1, 2, 3]
+  end
+
   test "valid? requires all room lights assigned exactly once" do
     state = Builder.build(room_lights(), groups(), [%{light_ids: [1, 2, 3]}])
     assert state.valid?

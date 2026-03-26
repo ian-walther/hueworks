@@ -497,6 +497,51 @@ defmodule Hueworks.SceneBuilderComponentTest do
     refute html =~ "Light 9"
   end
 
+  test "disabled lights covered by enabled groups are not individually selectable but remain group-assignable",
+       %{conn: conn} do
+    defmodule DisabledGroupedLive do
+      use Phoenix.LiveView
+
+      def mount(_params, _session, socket) do
+        room_lights = [
+          %{id: 1, name: "Lamp", enabled: true},
+          %{id: 2, name: "Grouped Disabled", enabled: false},
+          %{id: 3, name: "Desk", enabled: true}
+        ]
+
+        groups = [%{id: 10, name: "Desk Group", light_ids: [2, 3], enabled: true}]
+
+        {:ok,
+         assign(socket,
+           room_lights: room_lights,
+           groups: groups,
+           light_states: []
+         )}
+      end
+
+      def render(assigns) do
+        ~H"""
+        <.live_component
+          module={HueworksWeb.SceneBuilderComponent}
+          id="scene-builder"
+          room_lights={@room_lights}
+          groups={@groups}
+          light_states={@light_states}
+        />
+        """
+      end
+    end
+
+    {:ok, view, _html} = live_isolated(conn, DisabledGroupedLive)
+
+    html = render(view)
+    assert html =~ "option value=\"1\">Lamp</option>"
+    assert html =~ "option value=\"3\">Desk</option>"
+    refute html =~ "Grouped Disabled"
+    assert html =~ "option value=\"10\">Desk Group</option>"
+    assert html =~ "Unassigned lights: 3"
+  end
+
   test "save state button renames the selected light state", %{conn: conn} do
     {:ok, state} = Scenes.create_manual_light_state("Soft")
 

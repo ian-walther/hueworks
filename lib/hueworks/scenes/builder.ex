@@ -4,13 +4,14 @@ defmodule Hueworks.Scenes.Builder do
   def build(room_lights, groups, components) do
     filtered_lights = filter_canonical_lights(room_lights)
     filtered_groups = filter_canonical_groups(groups)
-    room_light_ids = light_ids(filtered_lights)
+    selectable_lights = selectable_lights(filtered_lights)
+    room_light_ids = scene_relevant_light_ids(filtered_lights, filtered_groups)
     normalized_groups = normalize_group_light_ids(filtered_groups, room_light_ids)
 
     assigned_ids =
       assigned_light_ids(components) |> MapSet.intersection(MapSet.new(room_light_ids))
 
-    available_lights = available_lights(filtered_lights, assigned_ids)
+    available_lights = available_lights(selectable_lights, assigned_ids)
     available_groups = available_groups(normalized_groups, assigned_ids)
     duplicate_ids = duplicate_light_ids(components, room_light_ids)
 
@@ -93,7 +94,7 @@ defmodule Hueworks.Scenes.Builder do
 
   defp filter_canonical_groups(groups) do
     Enum.reject(groups, fn group ->
-      Map.get(group, :canonical_group_id)
+      Map.get(group, :canonical_group_id) || Map.get(group, :enabled) == false
     end)
   end
 
@@ -101,5 +102,24 @@ defmodule Hueworks.Scenes.Builder do
     Enum.map(groups, fn group ->
       Map.put(group, :light_ids, group_room_light_ids(group, room_light_ids))
     end)
+  end
+
+  defp selectable_lights(lights) do
+    Enum.reject(lights, &(Map.get(&1, :enabled) == false))
+  end
+
+  defp scene_relevant_light_ids(lights, groups) do
+    all_room_light_ids = light_ids(lights)
+    enabled_light_ids = lights |> selectable_lights() |> light_ids() |> MapSet.new()
+
+    group_light_ids =
+      groups
+      |> Enum.flat_map(&group_room_light_ids(&1, all_room_light_ids))
+      |> MapSet.new()
+
+    lights
+    |> Enum.map(&Map.get(&1, :id))
+    |> Enum.filter(&is_integer/1)
+    |> Enum.filter(fn id -> MapSet.member?(enabled_light_ids, id) or MapSet.member?(group_light_ids, id) end)
   end
 end
