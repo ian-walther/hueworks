@@ -709,16 +709,17 @@ defmodule HueworksWeb.SceneBuilderComponent do
     component_id = parse_id(id)
     group_id = Map.get(socket.assigns[:selections] || %{}, {:group, parse_id(id)})
     group = Enum.find(socket.assigns.groups, &(&1.id == group_id))
+    room_light_ids = socket.assigns.builder.room_light_ids
 
     components =
       Enum.map(socket.assigns.components, fn component ->
         if component.id == component_id and group do
-          light_ids = Enum.uniq(component.light_ids ++ group.light_ids)
+          group_light_ids = Builder.group_room_light_ids(group, room_light_ids)
+          light_ids = Enum.uniq(component.light_ids ++ group_light_ids)
           group_ids = Enum.uniq(component.group_ids ++ [group_id])
 
           defaults =
-            Enum.reduce(group.light_ids, Map.get(component, :light_defaults, %{}), fn light_id,
-                                                                                      acc ->
+            Enum.reduce(group_light_ids, Map.get(component, :light_defaults, %{}), fn light_id, acc ->
               Map.put_new(acc, light_id, :force_on)
             end)
 

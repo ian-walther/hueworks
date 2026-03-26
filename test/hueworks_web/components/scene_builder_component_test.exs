@@ -452,6 +452,51 @@ defmodule Hueworks.SceneBuilderComponentTest do
     refute has_element?(view, "label", "Add group")
   end
 
+  test "adding a group only adds room lights from that group", %{conn: conn} do
+    defmodule MixedGroupLive do
+      use Phoenix.LiveView
+
+      def mount(_params, _session, socket) do
+        room_lights = [%{id: 1, name: "Lamp"}, %{id: 2, name: "Ceiling"}]
+        groups = [%{id: 10, name: "Mixed", light_ids: [2, 9]}]
+
+        {:ok,
+         assign(socket,
+           room_lights: room_lights,
+           groups: groups,
+           light_states: []
+         )}
+      end
+
+      def render(assigns) do
+        ~H"""
+        <.live_component
+          module={HueworksWeb.SceneBuilderComponent}
+          id="scene-builder"
+          room_lights={@room_lights}
+          groups={@groups}
+          light_states={@light_states}
+        />
+        """
+      end
+    end
+
+    {:ok, view, _html} = live_isolated(conn, MixedGroupLive)
+
+    view
+    |> form("form[phx-change='select_group'][data-component-id='1']", %{"group_id" => "10"})
+    |> render_change()
+
+    view
+    |> element("button[phx-click='add_group'][phx-value-component_id='1']")
+    |> render_click()
+
+    html = render(view)
+
+    assert html =~ "Ceiling"
+    refute html =~ "Light 9"
+  end
+
   test "save state button renames the selected light state", %{conn: conn} do
     {:ok, state} = Scenes.create_manual_light_state("Soft")
 

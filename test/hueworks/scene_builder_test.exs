@@ -65,6 +65,21 @@ defmodule Hueworks.SceneBuilderTest do
     assert Enum.map(state.available_groups, & &1.id) == [11]
   end
 
+  test "groups with no room lights do not appear in available groups" do
+    state =
+      Builder.build(
+        room_lights(),
+        [
+          %{id: 10, name: "Foreign", light_ids: [9, 10]},
+          %{id: 11, name: "Mixed", light_ids: [2, 9]},
+          %{id: 12, name: "Relevant", light_ids: [1, 3]}
+        ],
+        [%{light_ids: []}]
+      )
+
+    assert Enum.map(state.available_groups, & &1.id) == [11, 12]
+  end
+
   test "valid? requires all room lights assigned exactly once" do
     state = Builder.build(room_lights(), groups(), [%{light_ids: [1, 2, 3]}])
     assert state.valid?
