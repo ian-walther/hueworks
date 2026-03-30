@@ -200,7 +200,7 @@ defmodule Hueworks.Control.StateParser do
       reported_min <= 2000 or reported_min >= 2700 ->
         nil
 
-      kelvin > 2700 ->
+      kelvin > reported_min + 25 ->
         nil
 
       true ->

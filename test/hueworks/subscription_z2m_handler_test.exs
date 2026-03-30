@@ -300,9 +300,7 @@ defmodule Hueworks.Subscription.Z2MHandlerTest do
         state
       )
 
-    assert %{power: :on, kelvin: kelvin} = State.get(:light, light.id)
-    assert kelvin >= 2800
-    assert kelvin <= 2950
+    assert %{power: :on, kelvin: 3648} = State.get(:light, light.id)
   end
 
   test "handler refreshes indexes and resolves newly imported entities after debounce window" do

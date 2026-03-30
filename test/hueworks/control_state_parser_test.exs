@@ -71,9 +71,7 @@ defmodule Hueworks.Control.StateParserTest do
       reported_max_kelvin: 6329
     }
 
-    assert %{kelvin: kelvin} = StateParser.kelvin_from_z2m_attrs(attrs, entity)
-    assert kelvin >= 2800
-    assert kelvin <= 2950
+    assert StateParser.kelvin_from_z2m_attrs(attrs, entity) == %{kelvin: 3648}
   end
 
   test "kelvin_from_z2m_attrs remaps reported low-end floor when extended range is enabled" do
@@ -124,5 +122,19 @@ defmodule Hueworks.Control.StateParserTest do
     }
 
     assert StateParser.kelvin_from_ha_attrs(attrs, entity) == %{kelvin: 2000}
+  end
+
+  test "kelvin_from_z2m_attrs matches mired-space remap for normal whites on extended-range entities" do
+    attrs = %{"color_temp_kelvin" => 3125}
+
+    entity = %{
+      extended_kelvin_range: true,
+      actual_min_kelvin: 2700,
+      actual_max_kelvin: 6500,
+      reported_min_kelvin: 2000,
+      reported_max_kelvin: 6329
+    }
+
+    assert StateParser.kelvin_from_z2m_attrs(attrs, entity) == %{kelvin: 3900}
   end
 end

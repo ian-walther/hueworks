@@ -13,11 +13,11 @@ defmodule Hueworks.KelvinTest do
 
     assert Kelvin.map_for_control(entity, 2700) == 2000
     assert Kelvin.map_for_control(entity, 6500) == 6500
-    assert Kelvin.map_for_control(entity, 4600) == 4250
+    assert Kelvin.map_for_control(entity, 4600) == 3915
 
     assert Kelvin.map_from_event(entity, 2000) == 2700
     assert Kelvin.map_from_event(entity, 6500) == 6500
-    assert Kelvin.map_from_event(entity, 4250) == 4600
+    assert Kelvin.map_from_event(entity, 3915) == 4600
   end
 
   test "returns the original kelvin when ranges are missing" do
@@ -41,7 +41,7 @@ defmodule Hueworks.KelvinTest do
     refute Kelvin.mapping_supported?(%{source: :hue})
   end
 
-  test "extended range keeps normal white-temperature mapping out of reported sub-2700 band" do
+  test "extended range uses the same mired-space remap as the HA template for normal whites" do
     entity = %{
       extended_kelvin_range: true,
       actual_min_kelvin: 2700,
@@ -50,12 +50,13 @@ defmodule Hueworks.KelvinTest do
       reported_max_kelvin: 6329
     }
 
-    assert Kelvin.map_for_control(entity, 2700) == 2700
-    assert Kelvin.map_for_control(entity, 2880) == 2872
-    assert Kelvin.map_for_control(entity, 3000) == 2987
+    assert Kelvin.map_for_control(entity, 2700) == 2000
+    assert Kelvin.map_for_control(entity, 2880) == 2158
+    assert Kelvin.map_for_control(entity, 3000) == 2265
+    assert Kelvin.map_for_control(entity, 3900) == 3125
 
-    assert Kelvin.map_from_event(entity, 2872) == 2880
-    assert Kelvin.map_from_event(entity, 2987) == 3001
-    assert Kelvin.map_from_event(entity, 2493) == 2493
+    assert Kelvin.map_from_event(entity, 2158) == 2880
+    assert Kelvin.map_from_event(entity, 2265) == 3000
+    assert Kelvin.map_from_event(entity, 3125) == 3900
   end
 end
