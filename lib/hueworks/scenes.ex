@@ -146,6 +146,54 @@ defmodule Hueworks.Scenes do
     Repo.delete(scene)
   end
 
+  def refresh_active_scene(scene_id) when is_integer(scene_id) do
+    case Repo.get(Scene, scene_id) do
+      nil ->
+        {:error, :not_found}
+
+      %Scene{} = scene ->
+        case ActiveScenes.get_for_room(scene.room_id) do
+          %{scene_id: ^scene_id} = active_scene ->
+            apply_active_scene(scene, active_scene)
+
+          _ ->
+            {:ok, %{}, %{}}
+        end
+    end
+  end
+
+  def refresh_active_scenes_for_light_state(light_state_id) when is_integer(light_state_id) do
+    scene_ids =
+      Repo.all(
+        from(sc in SceneComponent,
+          where: sc.light_state_id == ^light_state_id,
+          distinct: true,
+          select: sc.scene_id
+        )
+      )
+
+    scenes_and_active =
+      Repo.all(
+        from(s in Scene,
+          join: a in Hueworks.Schemas.ActiveScene,
+          on: a.scene_id == s.id and a.room_id == s.room_id,
+          where: s.id in ^scene_ids,
+          select: {s, a}
+        )
+      )
+
+    refreshed =
+      Enum.reduce(scenes_and_active, [], fn {scene, active_scene}, acc ->
+        case apply_active_scene(scene, active_scene) do
+          {:ok, _diff, _updated} -> [scene | acc]
+          _ -> acc
+        end
+      end)
+      |> Enum.reverse()
+
+    {:ok, refreshed}
+  end
+
   def activate_scene(scene_id, opts \\ []) when is_integer(scene_id) do
     case Repo.get(Scene, scene_id) do
       nil ->
@@ -505,6 +553,20 @@ defmodule Hueworks.Scenes do
   end
 
   defp maybe_preserve_manual_power_off(desired, _current_desired, _brightness_override), do: desired
+
+  defp apply_active_scene(%Scene{} = scene, active_scene) do
+    case apply_scene(scene,
+           brightness_override: Map.get(active_scene, :brightness_override, false),
+           occupied: Rooms.room_occupied?(scene.room_id)
+         ) do
+      {:ok, _diff, _updated} = ok ->
+        _ = ActiveScenes.mark_applied(active_scene)
+        ok
+
+      other ->
+        other
+    end
+  end
 
   defp explicit_off_intent?(state) when is_map(state) do
     case Map.get(state, :power) || Map.get(state, "power") do

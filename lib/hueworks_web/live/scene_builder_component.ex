@@ -485,6 +485,8 @@ defmodule HueworksWeb.SceneBuilderComponent do
       is_integer(state_id) ->
         case Hueworks.Scenes.update_light_state(state_id, %{name: name, config: edits}) do
           {:ok, updated} ->
+            _ = Hueworks.Scenes.refresh_active_scenes_for_light_state(updated.id)
+
             light_states =
               Enum.map(socket.assigns.light_states, fn state ->
                 if state.id == updated.id, do: updated, else: state
@@ -596,6 +598,8 @@ defmodule HueworksWeb.SceneBuilderComponent do
     if is_integer(state_id) do
       case Hueworks.Scenes.update_light_state(state_id, %{config: edits}) do
         {:ok, updated} ->
+          _ = Hueworks.Scenes.refresh_active_scenes_for_light_state(updated.id)
+
           light_states =
             Enum.map(socket.assigns.light_states, fn state ->
               if state.id == updated.id, do: updated, else: state

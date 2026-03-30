@@ -198,6 +198,7 @@ defmodule HueworksWeb.SceneEditorLive do
           {:ok, updated} ->
             case Scenes.replace_scene_components(updated, socket.assigns.scene_components) do
               {:ok, _} ->
+                _ = Scenes.refresh_active_scene(updated.id)
                 {:noreply, push_navigate(socket, to: "/rooms")}
 
               {:error, :invalid_light_state} ->

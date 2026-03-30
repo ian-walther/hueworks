@@ -4,8 +4,9 @@ defmodule Hueworks.ScenesComponentsTest do
   alias Hueworks.Repo
   alias Hueworks.Scenes
   alias Hueworks.AppSettings
+  alias Hueworks.ActiveScenes
   alias Hueworks.Control.DesiredState
-  alias Hueworks.Schemas.{Bridge, Light, LightState, Room, SceneComponent, SceneComponentLight}
+  alias Hueworks.Schemas.{ActiveScene, Bridge, Light, LightState, Room, SceneComponent, SceneComponentLight}
 
   defp insert_room do
     Repo.insert!(%Room{name: "Studio", metadata: %{}})
@@ -195,6 +196,67 @@ defmodule Hueworks.ScenesComponentsTest do
 
     assert persisted_defaults[light1.id] == :force_on
     assert persisted_defaults[light2.id] == :force_off
+  end
+
+  test "refresh_active_scene reapplies updated scene component state immediately" do
+    room = insert_room()
+    bridge = insert_bridge()
+    light = insert_light(room, bridge, %{name: "Lamp"})
+
+    {:ok, state_a} =
+      Scenes.create_manual_light_state("Soft", %{"brightness" => "40", "temperature" => "3000"})
+
+    {:ok, state_b} =
+      Scenes.create_manual_light_state("Warm", %{"brightness" => "60", "temperature" => "3500"})
+
+    {:ok, scene} = Scenes.create_scene(%{name: "Chill", room_id: room.id})
+
+    {:ok, _} =
+      Scenes.replace_scene_components(scene, [
+        %{name: "Component 1", light_ids: [light.id], light_state_id: to_string(state_a.id)}
+      ])
+
+    {:ok, _} = ActiveScenes.set_active(scene)
+    {:ok, _diff, _updated} = Scenes.apply_scene(scene)
+
+    assert DesiredState.get(:light, light.id) == %{power: :on, brightness: "40", kelvin: "3000"}
+
+    {:ok, _} =
+      Scenes.replace_scene_components(scene, [
+        %{name: "Component 1", light_ids: [light.id], light_state_id: to_string(state_b.id)}
+      ])
+
+    assert {:ok, _diff, _updated} = Scenes.refresh_active_scene(scene.id)
+    assert DesiredState.get(:light, light.id) == %{power: :on, brightness: "60", kelvin: "3500"}
+    assert %ActiveScene{} = ActiveScenes.get_for_room(room.id)
+  end
+
+  test "refresh_active_scenes_for_light_state reapplies active scenes using the updated light state" do
+    room = insert_room()
+    bridge = insert_bridge()
+    light = insert_light(room, bridge, %{name: "Lamp"})
+
+    {:ok, state} =
+      Scenes.create_manual_light_state("Soft", %{"brightness" => "40", "temperature" => "3000"})
+
+    {:ok, scene} = Scenes.create_scene(%{name: "Chill", room_id: room.id})
+
+    {:ok, _} =
+      Scenes.replace_scene_components(scene, [
+        %{name: "Component 1", light_ids: [light.id], light_state_id: to_string(state.id)}
+      ])
+
+    {:ok, _} = ActiveScenes.set_active(scene)
+    {:ok, _diff, _updated} = Scenes.apply_scene(scene)
+
+    assert DesiredState.get(:light, light.id) == %{power: :on, brightness: "40", kelvin: "3000"}
+
+    {:ok, _updated_state} =
+      Scenes.update_light_state(state.id, %{config: %{"brightness" => "55", "temperature" => "3200"}})
+
+    assert {:ok, refreshed} = Scenes.refresh_active_scenes_for_light_state(state.id)
+    assert Enum.map(refreshed, & &1.id) == [scene.id]
+    assert DesiredState.get(:light, light.id) == %{power: :on, brightness: "55", kelvin: "3200"}
   end
 
   test "activate_scene updates desired state for scene lights" do
