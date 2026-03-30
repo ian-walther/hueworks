@@ -12,6 +12,7 @@ defmodule Hueworks.Control.Bootstrap.Z2M do
   @default_port 1883
   @default_base_topic "zigbee2mqtt"
   @connection_timeout 3_000
+  @subscription_timeout 3_000
   @collect_timeout 2_000
 
   def run do
@@ -22,9 +23,11 @@ defmodule Hueworks.Control.Bootstrap.Z2M do
 
   defp bootstrap_bridge(%Bridge{} = bridge) do
     indexes = load_indexes(bridge.id)
-    entity_ids = Map.keys(indexes.lights_by_source_id) ++ Map.keys(indexes.groups_by_source_id)
 
-    if entity_ids == [] do
+    entities =
+      Map.values(indexes.lights_by_source_id) ++ Map.values(indexes.groups_by_source_id)
+
+    if entities == [] do
       :ok
     else
       config = config_for_bridge(bridge)
@@ -41,14 +44,15 @@ defmodule Hueworks.Control.Bootstrap.Z2M do
         |> maybe_put_auth(config)
 
       with {:ok, pid} <- start_connection(start_opts),
-           :ok <- await_connection(client_id) do
+           :ok <- await_connection(client_id),
+           :ok <- await_subscription(config.base_topic) do
         try do
-          request_entity_states(client_id, config.base_topic, entity_ids)
+          request_entity_states(client_id, config.base_topic, entities)
 
           collect_updates(
             indexes,
             String.split(config.base_topic, "/", trim: true),
-            MapSet.new(entity_ids)
+            MapSet.new(Enum.map(entities, & &1.source_id))
           )
         after
           if is_pid(pid), do: Process.exit(pid, :shutdown)
@@ -74,12 +78,38 @@ defmodule Hueworks.Control.Bootstrap.Z2M do
     end
   end
 
-  defp request_entity_states(client_id, base_topic, entity_ids) do
-    Enum.each(entity_ids, fn entity_id ->
-      topic = "#{base_topic}/#{entity_id}/get"
-      _ = tortoise_module().publish(client_id, topic, Jason.encode!(%{}), qos: 0)
+  defp await_subscription(base_topic) do
+    topic_filter = "#{base_topic}/#"
+
+    receive do
+      {:z2m_bootstrap_subscription, :up, ^topic_filter} ->
+        :ok
+    after
+      @subscription_timeout ->
+        {:error, :subscription_timeout}
+    end
+  end
+
+  defp request_entity_states(client_id, base_topic, entities) do
+    Enum.each(entities, fn entity ->
+      topic = "#{base_topic}/#{entity.source_id}/get"
+      _ = tortoise_module().publish(client_id, topic, Jason.encode!(get_payload(entity)), qos: 0)
     end)
   end
+
+  defp get_payload(entity) do
+    %{"state" => "", "brightness" => ""}
+    |> maybe_put_color_temp_request(entity)
+  end
+
+  defp maybe_put_color_temp_request(payload, %{supports_temp: true}) do
+    payload
+    |> Map.put("color_temp", "")
+    |> Map.put("color_mode", "")
+    |> Map.put("color", "")
+  end
+
+  defp maybe_put_color_temp_request(payload, _entity), do: payload
 
   defp collect_updates(indexes, base_levels, pending) do
     deadline = System.monotonic_time(:millisecond) + @collect_timeout
@@ -286,7 +316,11 @@ defmodule Hueworks.Control.Bootstrap.Z2M do
     def init(_), do: {:ok, self()}
 
     def connection(_status, owner), do: {:ok, owner}
-    def subscription(_status, _topic_filter, owner), do: {:ok, owner}
+
+    def subscription(status, topic_filter, owner) do
+      send(owner, {:z2m_bootstrap_subscription, status, topic_filter})
+      {:ok, owner}
+    end
 
     def handle_message(topic_levels, payload, owner) do
       send(owner, {:z2m_bootstrap_msg, topic_levels, payload})

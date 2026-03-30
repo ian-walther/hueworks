@@ -91,7 +91,8 @@ defmodule Hueworks.Subscription.Z2MEventStream.Connection do
       {:ok,
        Map.merge(indexes, %{
          bridge_id: bridge_id,
-         client_id: Hueworks.Subscription.Z2MEventStream.Connection.subscription_client_id(bridge_id),
+         client_id:
+           Hueworks.Subscription.Z2MEventStream.Connection.subscription_client_id(bridge_id),
          base_topic: base_topic,
          base_levels: String.split(base_topic, "/", trim: true),
          last_refresh_at: System.monotonic_time(:millisecond),

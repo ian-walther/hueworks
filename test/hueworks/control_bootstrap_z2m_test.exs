@@ -112,6 +112,91 @@ defmodule Hueworks.Control.Bootstrap.Z2MTest do
     assert %{power: :off} = State.get(:group, group.id)
   end
 
+  test "bootstrap requests full light state fields for temp-capable z2m entities" do
+    room = Repo.insert!(%Room{name: "Request Fields"})
+
+    bridge =
+      Repo.insert!(%Bridge{
+        type: :z2m,
+        name: "Z2M Request Fields",
+        host: "10.0.0.82",
+        credentials: %{"base_topic" => "zigbee2mqtt", "broker_port" => 1883},
+        enabled: true
+      })
+
+    _light =
+      Repo.insert!(%Light{
+        name: "Field Strip",
+        source: :z2m,
+        source_id: "field_strip",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        supports_temp: true,
+        reported_min_kelvin: 2000,
+        reported_max_kelvin: 6500
+      })
+
+    assert :ok == Z2M.run()
+
+    assert_receive {:publish, _client_id, "zigbee2mqtt/field_strip/get", payload, [qos: 0]}
+
+    assert Jason.decode!(payload) == %{
+             "state" => "",
+             "brightness" => "",
+             "color_temp" => "",
+             "color_mode" => "",
+             "color" => ""
+           }
+  end
+
+  test "bootstrap waits for subscription confirmation before requesting entity states" do
+    original_supervisor =
+      Application.get_env(:hueworks, :z2m_bootstrap_tortoise_supervisor_module)
+
+    Application.put_env(
+      :hueworks,
+      :z2m_bootstrap_tortoise_supervisor_module,
+      __MODULE__.DelayedSubscriptionSupervisorStub
+    )
+
+    room = Repo.insert!(%Room{name: "Delayed Kitchen"})
+
+    bridge =
+      Repo.insert!(%Bridge{
+        type: :z2m,
+        name: "Z2M Delayed",
+        host: "10.0.0.81",
+        credentials: %{"base_topic" => "zigbee2mqtt", "broker_port" => 1883},
+        enabled: true
+      })
+
+    _light =
+      Repo.insert!(%Light{
+        name: "Delayed Strip",
+        source: :z2m,
+        source_id: "delayed_strip",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        supports_temp: true,
+        reported_min_kelvin: 2000,
+        reported_max_kelvin: 6500
+      })
+
+    task = Task.async(fn -> Z2M.run() end)
+
+    refute_receive {:publish, _, _, _, _}, 20
+    assert_receive {:subscription_ready, {"zigbee2mqtt/#", 0}}, 200
+    assert_receive {:publish, client_id, "zigbee2mqtt/delayed_strip/get", _payload, [qos: 0]}, 200
+    assert String.starts_with?(client_id, "hwz2mb#{bridge.id}_")
+    assert :ok == Task.await(task, 500)
+
+    Application.put_env(
+      :hueworks,
+      :z2m_bootstrap_tortoise_supervisor_module,
+      original_supervisor
+    )
+  end
+
   defmodule TortoiseStub do
     def publish(client_id, topic, payload, opts) do
       send(
@@ -127,12 +212,15 @@ defmodule Hueworks.Control.Bootstrap.Z2MTest do
     def start_child(opts) do
       {handler_module, [owner]} = Keyword.fetch!(opts, :handler)
       sink = Application.fetch_env!(:hueworks, :z2m_bootstrap_test_sink)
+      subscriptions = Keyword.fetch!(opts, :subscriptions)
       send(sink, {:start_child, opts})
-
-      _ = handler_module
 
       worker =
         spawn(fn ->
+          {:ok, handler_state} = handler_module.init([owner])
+          [{topic_filter, _qos}] = subscriptions
+          {:ok, _handler_state} = handler_module.subscription(:up, topic_filter, handler_state)
+
           Process.sleep(10)
 
           send(
@@ -156,5 +244,33 @@ defmodule Hueworks.Control.Bootstrap.Z2MTest do
 
   defmodule ConnectionStub do
     def connection(_client_id, _opts), do: {:ok, {:tcp, :socket}}
+  end
+
+  defmodule DelayedSubscriptionSupervisorStub do
+    def start_child(opts) do
+      {handler_module, [owner]} = Keyword.fetch!(opts, :handler)
+      sink = Application.fetch_env!(:hueworks, :z2m_bootstrap_test_sink)
+      subscriptions = Keyword.fetch!(opts, :subscriptions)
+      send(sink, {:start_child, opts})
+
+      worker =
+        spawn(fn ->
+          {:ok, handler_state} = handler_module.init([owner])
+          Process.sleep(50)
+          [{topic_filter, _qos}] = subscriptions
+          send(sink, {:subscription_ready, {topic_filter, 0}})
+          {:ok, _handler_state} = handler_module.subscription(:up, topic_filter, handler_state)
+
+          send(
+            owner,
+            {:z2m_bootstrap_msg, ["zigbee2mqtt", "delayed_strip"],
+             Jason.encode!(%{"state" => "OFF"})}
+          )
+
+          Process.sleep(:infinity)
+        end)
+
+      {:ok, worker}
+    end
   end
 end

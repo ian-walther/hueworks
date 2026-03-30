@@ -160,6 +160,52 @@ defmodule Hueworks.Subscription.Z2MHandlerTest do
     assert %{power: :on, kelvin: 2000} = State.get(:light, light.id)
   end
 
+  test "handler prefers color_temp when z2m color_mode is color_temp even if xy is present" do
+    room = Repo.insert!(%Room{name: "Color Temp Preferred"})
+
+    bridge =
+      Repo.insert!(%Bridge{
+        type: :z2m,
+        name: "Z2M",
+        host: "10.0.0.73",
+        credentials: %{"base_topic" => "zigbee2mqtt", "broker_port" => 1883},
+        enabled: true
+      })
+
+    light =
+      Repo.insert!(%Light{
+        name: "Cabinet Midrange",
+        source: :z2m,
+        source_id: "cabinet_midrange",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        supports_temp: true,
+        reported_min_kelvin: 2000,
+        reported_max_kelvin: 6329,
+        actual_min_kelvin: 2700,
+        actual_max_kelvin: 6500,
+        extended_kelvin_range: true
+      })
+
+    {x, y} = HomeAssistantPayload.extended_xy(2000)
+
+    {:ok, state} = Handler.init([bridge.id, "zigbee2mqtt"])
+
+    {:ok, _state} =
+      Handler.handle_message(
+        ["zigbee2mqtt", "cabinet_midrange"],
+        Jason.encode!(%{
+          "state" => "ON",
+          "color_mode" => "color_temp",
+          "color" => %{"x" => x, "y" => y},
+          "color_temp" => 434
+        }),
+        state
+      )
+
+    assert %{power: :on, kelvin: 3043} = State.get(:light, light.id)
+  end
+
   test "handler remaps reported low-end floor when extended range is enabled and xy is absent" do
     room = Repo.insert!(%Room{name: "Extended Floor"})
 

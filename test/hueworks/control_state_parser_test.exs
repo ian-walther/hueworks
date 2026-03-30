@@ -74,6 +74,66 @@ defmodule Hueworks.Control.StateParserTest do
     assert StateParser.kelvin_from_z2m_attrs(attrs, entity) == %{kelvin: 3648}
   end
 
+  test "kelvin_from_z2m_attrs prefers color_temp when color_mode says color_temp even if xy is present" do
+    {x, y} = HomeAssistantPayload.extended_xy(2000)
+
+    attrs = %{
+      "color_mode" => "color_temp",
+      "color" => %{"x" => x, "y" => y},
+      "color_temp" => 434
+    }
+
+    entity = %{
+      extended_kelvin_range: true,
+      actual_min_kelvin: 2700,
+      actual_max_kelvin: 6500,
+      reported_min_kelvin: 2000,
+      reported_max_kelvin: 6329
+    }
+
+    assert StateParser.kelvin_from_z2m_attrs(attrs, entity) == %{kelvin: 3043}
+  end
+
+  test "kelvin_from_z2m_attrs prefers xy when color_mode says xy even if color_temp is present" do
+    {x, y} = HomeAssistantPayload.extended_xy(2493)
+
+    attrs = %{
+      "color_mode" => "xy",
+      "color" => %{"x" => x, "y" => y},
+      "color_temp" => 375
+    }
+
+    entity = %{
+      extended_kelvin_range: true,
+      actual_min_kelvin: 2700,
+      actual_max_kelvin: 6500,
+      reported_min_kelvin: 2000,
+      reported_max_kelvin: 6329
+    }
+
+    assert StateParser.kelvin_from_z2m_attrs(attrs, entity) == %{kelvin: 2493}
+  end
+
+  test "kelvin_from_z2m_attrs preserves direct sub-2700 kelvin reports for extended range lights" do
+    {x, y} = HomeAssistantPayload.extended_xy(2688)
+
+    attrs = %{
+      "color_mode" => "color_temp",
+      "color" => %{"x" => x, "y" => y},
+      "color_temp" => 2688
+    }
+
+    entity = %{
+      extended_kelvin_range: true,
+      actual_min_kelvin: 2700,
+      actual_max_kelvin: 6500,
+      reported_min_kelvin: 2000,
+      reported_max_kelvin: 6329
+    }
+
+    assert StateParser.kelvin_from_z2m_attrs(attrs, entity) == %{kelvin: 2688}
+  end
+
   test "kelvin_from_z2m_attrs remaps reported low-end floor when extended range is enabled" do
     attrs = %{"color_temp" => 437}
 
