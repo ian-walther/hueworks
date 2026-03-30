@@ -166,6 +166,154 @@ defmodule Hueworks.SceneBuilderComponentTest do
            )
   end
 
+  test "assigned groups show mixed state and can bulk-toggle member power policy", %{conn: conn} do
+    defmodule GroupPolicyLive do
+      use Phoenix.LiveView
+
+      def mount(_params, _session, socket) do
+        room_lights = [
+          %{id: 1, name: "Lamp"},
+          %{id: 2, name: "Ceiling"}
+        ]
+
+        groups = [
+          %{id: 10, name: "All", light_ids: [1, 2]}
+        ]
+
+        components = [
+          %{
+            id: 1,
+            name: "Component 1",
+            light_ids: [1, 2],
+            group_ids: [10],
+            light_state_id: "new",
+            light_defaults: %{1 => :force_on, 2 => :force_off}
+          }
+        ]
+
+        {:ok,
+         assign(socket,
+           room_lights: room_lights,
+           groups: groups,
+           components: components,
+           light_states: []
+         )}
+      end
+
+      def render(assigns) do
+        ~H"""
+        <.live_component
+          module={HueworksWeb.SceneBuilderComponent}
+          id="scene-builder"
+          room_lights={@room_lights}
+          groups={@groups}
+          components={@components}
+          light_states={@light_states}
+        />
+        """
+      end
+    end
+
+    {:ok, view, _html} = live_isolated(conn, GroupPolicyLive)
+
+    assert has_element?(
+             view,
+             "button[phx-click='toggle_group_default_power'][phx-value-component_id='1'][phx-value-group_id='10']",
+             "Power policy: ..."
+           )
+
+    view
+    |> element(
+      "button[phx-click='toggle_group_default_power'][phx-value-component_id='1'][phx-value-group_id='10']"
+    )
+    |> render_click()
+
+    assert has_element?(
+             view,
+             "button[phx-click='toggle_light_default_power'][phx-value-component_id='1'][phx-value-light_id='1']",
+             "Power policy: Force On"
+           )
+
+    assert has_element?(
+             view,
+             "button[phx-click='toggle_light_default_power'][phx-value-component_id='1'][phx-value-light_id='2']",
+             "Power policy: Force On"
+           )
+
+    assert has_element?(
+             view,
+             "button[phx-click='toggle_group_default_power'][phx-value-component_id='1'][phx-value-group_id='10']",
+             "Power policy: Force On"
+           )
+  end
+
+  test "group helper list includes any fully covered group, not only explicitly added groups", %{
+    conn: conn
+  } do
+    defmodule FullyCoveredGroupsLive do
+      use Phoenix.LiveView
+
+      def mount(_params, _session, socket) do
+        room_lights = [
+          %{id: 1, name: "Lamp"},
+          %{id: 2, name: "Ceiling"},
+          %{id: 3, name: "TV Light"}
+        ]
+
+        groups = [
+          %{id: 10, name: "Parent", light_ids: [1, 2, 3]},
+          %{id: 11, name: "Subset", light_ids: [1, 2]}
+        ]
+
+        components = [
+          %{
+            id: 1,
+            name: "Component 1",
+            light_ids: [1, 2, 3],
+            group_ids: [10],
+            light_state_id: "new",
+            light_defaults: %{1 => :force_on, 2 => :force_on, 3 => :force_on}
+          }
+        ]
+
+        {:ok,
+         assign(socket,
+           room_lights: room_lights,
+           groups: groups,
+           components: components,
+           light_states: []
+         )}
+      end
+
+      def render(assigns) do
+        ~H"""
+        <.live_component
+          module={HueworksWeb.SceneBuilderComponent}
+          id="scene-builder"
+          room_lights={@room_lights}
+          groups={@groups}
+          components={@components}
+          light_states={@light_states}
+        />
+        """
+      end
+    end
+
+    {:ok, view, _html} = live_isolated(conn, FullyCoveredGroupsLive)
+
+    assert has_element?(
+             view,
+             "button[phx-click='toggle_group_default_power'][phx-value-component_id='1'][phx-value-group_id='10']",
+             "Power policy: Force On"
+           )
+
+    assert has_element?(
+             view,
+             "button[phx-click='toggle_group_default_power'][phx-value-component_id='1'][phx-value-group_id='11']",
+             "Power policy: Force On"
+           )
+  end
+
   test "selecting a manual light state updates the component dropdown", %{conn: conn} do
     {:ok, state} = Scenes.create_manual_light_state("Soft")
     {:ok, view, _html} = live_isolated(conn, TestLive)

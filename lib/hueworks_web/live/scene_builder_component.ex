@@ -312,6 +312,32 @@ defmodule HueworksWeb.SceneBuilderComponent do
             </div>
           <% end %>
 
+          <% active_groups = component_groups(component, @groups, @builder.room_light_ids) %>
+          <%= if active_groups != [] do %>
+            <div class="hw-room-list">
+              <%= for group <- active_groups do %>
+                <span class="hw-room-item hw-room-item-row">
+                  <span>
+                    <%= display_name(group) %>
+                    <span class="hw-muted">
+                      (<%= Enum.count(component_group_light_ids(component, group, @builder.room_light_ids)) %> lights)
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    class="hw-button"
+                    phx-click="toggle_group_default_power"
+                    phx-target={@myself}
+                    phx-value-component_id={component.id}
+                    phx-value-group_id={group.id}
+                  >
+                    <%= "Power policy: #{power_policy_label(group_default_power(component, group, @builder.room_light_ids))}" %>
+                  </button>
+                </span>
+              <% end %>
+            </div>
+          <% end %>
+
           <div class="hw-room-list">
             <%= for light_id <- component.light_ids do %>
               <span class="hw-room-item hw-room-item-row">
@@ -818,6 +844,41 @@ defmodule HueworksWeb.SceneBuilderComponent do
     {:noreply, socket}
   end
 
+  def handle_event(
+        "toggle_group_default_power",
+        %{"component_id" => component_id, "group_id" => group_id},
+        socket
+      ) do
+    parsed_component_id = parse_id(component_id)
+    parsed_group_id = parse_id(group_id)
+    room_light_ids = socket.assigns.builder.room_light_ids
+
+    components =
+      Enum.map(socket.assigns.components, fn component ->
+        group = Enum.find(socket.assigns.groups, &(&1.id == parsed_group_id))
+
+        if component.id == parsed_component_id and group do
+          group_light_ids = component_group_light_ids(component, group, room_light_ids)
+          current = group_default_power(component, group, room_light_ids)
+          next = next_power_policy(current)
+          defaults = Map.get(component, :light_defaults, %{})
+
+          updated_defaults =
+            Enum.reduce(group_light_ids, defaults, fn light_id, acc ->
+              Map.put(acc, light_id, next)
+            end)
+
+          %{component | light_defaults: updated_defaults}
+        else
+          component
+        end
+      end)
+
+    socket = refresh_builder(assign(socket, components: components))
+    notify_parent(socket)
+    {:noreply, socket}
+  end
+
   defp refresh_builder(socket) do
     room_lights = List.wrap(socket.assigns.room_lights)
     groups = List.wrap(socket.assigns.groups)
@@ -847,6 +908,39 @@ defmodule HueworksWeb.SceneBuilderComponent do
     |> Map.get(:light_defaults, %{})
     |> Map.get(light_id, :force_on)
     |> normalize_default_power_value()
+  end
+
+  defp component_groups(component, groups, room_light_ids) do
+    component_light_ids = MapSet.new(Map.get(component, :light_ids, []))
+
+    groups
+    |> Enum.filter(fn group ->
+      group_light_ids = Builder.group_room_light_ids(group, room_light_ids)
+
+      group_light_ids != [] and
+        Enum.all?(group_light_ids, &MapSet.member?(component_light_ids, &1))
+    end)
+  end
+
+  defp component_group_light_ids(component, group, room_light_ids) do
+    component_light_ids = MapSet.new(Map.get(component, :light_ids, []))
+
+    group
+    |> Builder.group_room_light_ids(room_light_ids)
+    |> Enum.filter(&MapSet.member?(component_light_ids, &1))
+  end
+
+  defp group_default_power(component, group, room_light_ids) do
+    policies =
+      component
+      |> component_group_light_ids(group, room_light_ids)
+      |> Enum.map(&light_default_power(component, &1))
+      |> Enum.uniq()
+
+    case policies do
+      [policy] -> policy
+      _ -> :mixed
+    end
   end
 
   defp display_name(entity), do: Util.display_name(entity)
@@ -1234,10 +1328,12 @@ defmodule HueworksWeb.SceneBuilderComponent do
   defp next_power_policy(:force_on), do: :force_off
   defp next_power_policy(:force_off), do: :follow_occupancy
   defp next_power_policy(:follow_occupancy), do: :force_on
+  defp next_power_policy(:mixed), do: :force_on
   defp next_power_policy(_policy), do: :force_on
 
   defp power_policy_label(:force_on), do: "Force On"
   defp power_policy_label(:force_off), do: "Force Off"
   defp power_policy_label(:follow_occupancy), do: "Follow Occupancy"
+  defp power_policy_label(:mixed), do: "..."
   defp power_policy_label(_policy), do: "Force On"
 end
