@@ -11,6 +11,7 @@ defmodule Hueworks.Control.State do
   alias Hueworks.Control.Bootstrap.Z2M
   alias Hueworks.Control.DesiredState
   alias Hueworks.ActiveScenes
+  alias Hueworks.DebugLogging
   alias Hueworks.Repo
   alias Hueworks.Schemas.Light
   alias HueworksApp.Cache
@@ -120,7 +121,16 @@ defmodule Hueworks.Control.State do
     if desired != %{} and diverged_from_desired?(desired, updated) do
       case light_room_id(light_id) do
         room_id when is_integer(room_id) ->
-          if ActiveScenes.pending_for_room?(room_id) do
+          active_scene = ActiveScenes.get_for_room(room_id)
+          pending? = active_scene_pending?(active_scene)
+
+          DebugLogging.info(
+            "[scene-clear-trace] light_id=#{light_id} room_id=#{room_id} " <>
+              "active_scene_id=#{inspect(active_scene_id(active_scene))} " <>
+              "pending=#{pending?} desired=#{inspect(desired)} updated=#{inspect(updated)}"
+          )
+
+          if pending? do
             :ok
           else
             _ = ActiveScenes.clear_for_room(room_id)
@@ -137,6 +147,15 @@ defmodule Hueworks.Control.State do
   end
 
   defp maybe_deactivate_scene_on_external_change(_key, _updated), do: :ok
+
+  defp active_scene_pending?(%{pending_until: %DateTime{} = pending_until}) do
+    DateTime.compare(pending_until, DateTime.utc_now()) == :gt
+  end
+
+  defp active_scene_pending?(_active_scene), do: false
+
+  defp active_scene_id(%{scene_id: scene_id}) when is_integer(scene_id), do: scene_id
+  defp active_scene_id(_active_scene), do: nil
 
   defp light_room_id(light_id) when is_integer(light_id) do
     Cache.get_or_load(
