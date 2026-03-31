@@ -197,6 +197,79 @@ defmodule Hueworks.Control.Bootstrap.Z2MTest do
     )
   end
 
+  test "bootstrap keeps individual member states when group state arrives later" do
+    original_supervisor =
+      Application.get_env(:hueworks, :z2m_bootstrap_tortoise_supervisor_module)
+
+    Application.put_env(
+      :hueworks,
+      :z2m_bootstrap_tortoise_supervisor_module,
+      __MODULE__.DivergedMemberSupervisorStub
+    )
+
+    on_exit(fn ->
+      Application.put_env(
+        :hueworks,
+        :z2m_bootstrap_tortoise_supervisor_module,
+        original_supervisor
+      )
+    end)
+
+    room = Repo.insert!(%Room{name: "Bar"})
+
+    bridge =
+      Repo.insert!(%Bridge{
+        type: :z2m,
+        name: "Z2M Diverged",
+        host: "10.0.0.83",
+        credentials: %{"base_topic" => "zigbee2mqtt", "broker_port" => 1883},
+        enabled: true
+      })
+
+    lower =
+      Repo.insert!(%Light{
+        name: "Bar Lower Cabinet Lights",
+        source: :z2m,
+        source_id: "bar_lower_cabinet",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        supports_temp: true,
+        reported_min_kelvin: 2000,
+        reported_max_kelvin: 6500
+      })
+
+    upper =
+      Repo.insert!(%Light{
+        name: "Bar Upper Cabinet Lights",
+        source: :z2m,
+        source_id: "bar_upper_cabinet",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        supports_temp: true,
+        reported_min_kelvin: 2000,
+        reported_max_kelvin: 6500
+      })
+
+    group =
+      Repo.insert!(%Group{
+        name: "Bar Cabinet Lights",
+        source: :z2m,
+        source_id: "bar_cabinet_group",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        supports_temp: true,
+        reported_min_kelvin: 2000,
+        reported_max_kelvin: 6500,
+        metadata: %{"members" => ["bar_lower_cabinet", "bar_upper_cabinet"]}
+      })
+
+    assert :ok == Z2M.run()
+
+    assert %{power: :on, brightness: 69, kelvin: 2000} = State.get(:group, group.id)
+    assert %{power: :on, brightness: 69, kelvin: 2000} = State.get(:light, lower.id)
+    assert %{power: :off} = State.get(:light, upper.id)
+  end
+
   defmodule TortoiseStub do
     def publish(client_id, topic, payload, opts) do
       send(
@@ -265,6 +338,52 @@ defmodule Hueworks.Control.Bootstrap.Z2MTest do
             owner,
             {:z2m_bootstrap_msg, ["zigbee2mqtt", "delayed_strip"],
              Jason.encode!(%{"state" => "OFF"})}
+          )
+
+          Process.sleep(:infinity)
+        end)
+
+      {:ok, worker}
+    end
+  end
+
+  defmodule DivergedMemberSupervisorStub do
+    def start_child(opts) do
+      {handler_module, [owner]} = Keyword.fetch!(opts, :handler)
+      subscriptions = Keyword.fetch!(opts, :subscriptions)
+
+      worker =
+        spawn(fn ->
+          {:ok, handler_state} = handler_module.init([owner])
+          [{topic_filter, _qos}] = subscriptions
+          {:ok, _handler_state} = handler_module.subscription(:up, topic_filter, handler_state)
+
+          Process.sleep(10)
+
+          send(
+            owner,
+            {:z2m_bootstrap_msg, ["zigbee2mqtt", "bar_lower_cabinet"],
+             Jason.encode!(%{
+               "state" => "ON",
+               "brightness_percent" => 69,
+               "color_temp_kelvin" => 2000
+             })}
+          )
+
+          send(
+            owner,
+            {:z2m_bootstrap_msg, ["zigbee2mqtt", "bar_upper_cabinet"],
+             Jason.encode!(%{"state" => "OFF"})}
+          )
+
+          send(
+            owner,
+            {:z2m_bootstrap_msg, ["zigbee2mqtt", "bar_cabinet_group"],
+             Jason.encode!(%{
+               "state" => "ON",
+               "brightness_percent" => 69,
+               "color_temp_kelvin" => 2000
+             })}
           )
 
           Process.sleep(:infinity)

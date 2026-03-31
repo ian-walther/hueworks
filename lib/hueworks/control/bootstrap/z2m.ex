@@ -156,15 +156,6 @@ defmodule Hueworks.Control.Bootstrap.Z2M do
             update = build_state(payload, group)
             if update != %{}, do: State.put(:group, group.id, update, source: :bootstrap)
 
-            indexes.group_member_lights
-            |> Map.get(group.source_id, [])
-            |> Enum.each(fn light ->
-              light_update = build_state(payload, light)
-
-              if light_update != %{},
-                do: State.put(:light, light.id, light_update, source: :bootstrap)
-            end)
-
           nil ->
             :ok
         end

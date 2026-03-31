@@ -142,12 +142,6 @@ defmodule Hueworks.Subscription.Z2MEventStream.Connection do
             %Group{} = group ->
               maybe_put_group(group, payload)
 
-              state.group_member_lights
-              |> Map.get(group.source_id, [])
-              |> Enum.each(fn light ->
-                State.put(:light, light.id, build_state(payload, light))
-              end)
-
               state
 
             nil ->
@@ -178,12 +172,6 @@ defmodule Hueworks.Subscription.Z2MEventStream.Connection do
             case Map.get(refreshed.groups_by_source_id, entity_source_id) do
               %Group{} = group ->
                 maybe_put_group(group, payload)
-
-                refreshed.group_member_lights
-                |> Map.get(group.source_id, [])
-                |> Enum.each(fn light ->
-                  State.put(:light, light.id, build_state(payload, light))
-                end)
 
                 refreshed
 

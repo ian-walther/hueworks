@@ -2,7 +2,6 @@ defmodule Hueworks.Subscription.Z2MHandlerTest do
   use Hueworks.DataCase, async: false
 
   alias Hueworks.Control.HomeAssistantPayload
-  alias Hueworks.Kelvin
   alias Hueworks.Control.State
   alias Hueworks.Repo
   alias Hueworks.Schemas.{Bridge, Group, Light, Room}
@@ -84,8 +83,8 @@ defmodule Hueworks.Subscription.Z2MHandlerTest do
       )
 
     assert %{power: :off} = State.get(:group, group.id)
-    assert State.get(:light, light_a.id).power == :off
-    assert State.get(:light, light_b.id).power == :off
+    assert State.get(:light, light_a.id).power == :on
+    assert State.get(:light, light_b.id) == nil
   end
 
   test "handler ignores bridge and set topics" do
@@ -246,7 +245,7 @@ defmodule Hueworks.Subscription.Z2MHandlerTest do
     assert %{power: :on, kelvin: 2000} = State.get(:light, light.id)
   end
 
-  test "group updates apply member light kelvin mapping instead of raw reported values" do
+  test "group updates update group state without overwriting member light state" do
     room = Repo.insert!(%Room{name: "Grouped Extended"})
 
     bridge =
@@ -299,9 +298,92 @@ defmodule Hueworks.Subscription.Z2MHandlerTest do
       )
 
     assert %{power: :on, kelvin: 2581} = State.get(:group, group.id)
+    assert State.get(:light, light.id) == nil
+  end
 
-    expected_kelvin = Kelvin.map_from_event(light, 2581)
-    assert %{power: :on, kelvin: ^expected_kelvin} = State.get(:light, light.id)
+  test "group updates do not overwrite diverged member light states" do
+    room = Repo.insert!(%Room{name: "Bar Cabinets"})
+
+    bridge =
+      Repo.insert!(%Bridge{
+        type: :z2m,
+        name: "Z2M",
+        host: "10.0.0.78",
+        credentials: %{"base_topic" => "zigbee2mqtt", "broker_port" => 1883},
+        enabled: true
+      })
+
+    lower =
+      Repo.insert!(%Light{
+        name: "Bar Lower Cabinet Lights",
+        source: :z2m,
+        source_id: "bar_lower_cabinet",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        supports_temp: true,
+        reported_min_kelvin: 2000,
+        reported_max_kelvin: 6500
+      })
+
+    upper =
+      Repo.insert!(%Light{
+        name: "Bar Upper Cabinet Lights",
+        source: :z2m,
+        source_id: "bar_upper_cabinet",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        supports_temp: true,
+        reported_min_kelvin: 2000,
+        reported_max_kelvin: 6500
+      })
+
+    group =
+      Repo.insert!(%Group{
+        name: "Bar Cabinet Lights",
+        source: :z2m,
+        source_id: "bar_cabinet_group",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        supports_temp: true,
+        reported_min_kelvin: 2000,
+        reported_max_kelvin: 6500,
+        metadata: %{"members" => ["bar_lower_cabinet", "bar_upper_cabinet"]}
+      })
+
+    {:ok, state} = Handler.init([bridge.id, "zigbee2mqtt"])
+
+    {:ok, state} =
+      Handler.handle_message(
+        ["zigbee2mqtt", "bar_lower_cabinet"],
+        Jason.encode!(%{
+          "state" => "ON",
+          "brightness_percent" => 69,
+          "color_temp_kelvin" => 2000
+        }),
+        state
+      )
+
+    {:ok, state} =
+      Handler.handle_message(
+        ["zigbee2mqtt", "bar_upper_cabinet"],
+        Jason.encode!(%{"state" => "OFF"}),
+        state
+      )
+
+    {:ok, _state} =
+      Handler.handle_message(
+        ["zigbee2mqtt", "bar_cabinet_group"],
+        Jason.encode!(%{
+          "state" => "ON",
+          "brightness_percent" => 69,
+          "color_temp_kelvin" => 2000
+        }),
+        state
+      )
+
+    assert State.get(:group, group.id) == %{power: :on, brightness: 69, kelvin: 2000}
+    assert State.get(:light, lower.id) == %{power: :on, brightness: 69, kelvin: 2000}
+    assert State.get(:light, upper.id) == %{power: :off}
   end
 
   test "handler keeps stale xy plus midrange white temp out of extended low-end band" do
