@@ -82,7 +82,7 @@ defmodule Hueworks.Subscription.Z2MHandlerTest do
         state
       )
 
-    assert %{power: :off} = State.get(:group, group.id)
+    assert %{power: :on, brightness: 31, kelvin: 4000} = State.get(:group, group.id)
     assert State.get(:light, light_a.id).power == :on
     assert State.get(:light, light_b.id) == nil
   end
@@ -384,6 +384,82 @@ defmodule Hueworks.Subscription.Z2MHandlerTest do
     assert State.get(:group, group.id) == %{power: :on, brightness: 69, kelvin: 2000}
     assert State.get(:light, lower.id) == %{power: :on, brightness: 69, kelvin: 2000}
     assert State.get(:light, upper.id) == %{power: :off}
+  end
+
+  test "group state follows member-mapped low kelvin values" do
+    room = Repo.insert!(%Room{name: "Mapped Cabinets"})
+
+    bridge =
+      Repo.insert!(%Bridge{
+        type: :z2m,
+        name: "Z2M",
+        host: "10.0.0.79",
+        credentials: %{"base_topic" => "zigbee2mqtt", "broker_port" => 1883},
+        enabled: true
+      })
+
+    lower =
+      Repo.insert!(%Light{
+        name: "Mapped Lower Cabinet",
+        source: :z2m,
+        source_id: "mapped_lower_cabinet",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        supports_temp: true,
+        reported_min_kelvin: 2000,
+        reported_max_kelvin: 6329,
+        actual_min_kelvin: 2700,
+        actual_max_kelvin: 6500,
+        extended_kelvin_range: true
+      })
+
+    upper =
+      Repo.insert!(%Light{
+        name: "Mapped Upper Cabinet",
+        source: :z2m,
+        source_id: "mapped_upper_cabinet",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        supports_temp: true,
+        reported_min_kelvin: 2000,
+        reported_max_kelvin: 6329,
+        actual_min_kelvin: 2700,
+        actual_max_kelvin: 6500,
+        extended_kelvin_range: true
+      })
+
+    group =
+      Repo.insert!(%Group{
+        name: "Mapped Cabinet Group",
+        source: :z2m,
+        source_id: "mapped_cabinet_group",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        supports_temp: true,
+        reported_min_kelvin: 2000,
+        reported_max_kelvin: 6329,
+        metadata: %{"members" => ["mapped_lower_cabinet", "mapped_upper_cabinet"]}
+      })
+
+    {:ok, state} = Handler.init([bridge.id, "zigbee2mqtt"])
+
+    payload =
+      Jason.encode!(%{
+        "state" => "ON",
+        "color_mode" => "color_temp",
+        "color_temp" => 434
+      })
+
+    {:ok, state} = Handler.handle_message(["zigbee2mqtt", "mapped_lower_cabinet"], payload, state)
+    {:ok, state} = Handler.handle_message(["zigbee2mqtt", "mapped_upper_cabinet"], payload, state)
+
+    assert State.get(:light, lower.id) == %{power: :on, kelvin: 3043}
+    assert State.get(:light, upper.id) == %{power: :on, kelvin: 3043}
+    assert State.get(:group, group.id) == %{power: :on, kelvin: 3043}
+
+    {:ok, _state} = Handler.handle_message(["zigbee2mqtt", "mapped_cabinet_group"], payload, state)
+
+    assert State.get(:group, group.id) == %{power: :on, kelvin: 3043}
   end
 
   test "handler keeps stale xy plus midrange white temp out of extended low-end band" do

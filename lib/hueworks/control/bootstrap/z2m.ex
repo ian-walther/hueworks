@@ -54,6 +54,8 @@ defmodule Hueworks.Control.Bootstrap.Z2M do
             String.split(config.base_topic, "/", trim: true),
             MapSet.new(Enum.map(entities, & &1.source_id))
           )
+
+          recompute_group_states(indexes)
         after
           if is_pid(pid), do: Process.exit(pid, :shutdown)
         end
@@ -238,6 +240,83 @@ defmodule Hueworks.Control.Bootstrap.Z2M do
       groups_by_source_id: groups_by_source_id,
       group_member_lights: group_member_lights
     }
+  end
+
+  defp recompute_group_states(indexes) do
+    Enum.each(Map.keys(indexes.group_member_lights), fn group_source_id ->
+      with %Group{id: group_id} <- Map.get(indexes.groups_by_source_id, group_source_id),
+           lights when is_list(lights) <- Map.get(indexes.group_member_lights, group_source_id),
+           derived when derived != %{} <- derive_group_state(lights) do
+        State.put(:group, group_id, derived, source: :bootstrap)
+      else
+        _ -> :ok
+      end
+    end)
+  end
+
+  defp derive_group_state(lights) when is_list(lights) do
+    states =
+      lights
+      |> Enum.map(&State.get(:light, &1.id))
+      |> Enum.reject(&is_nil/1)
+
+    on_states =
+      Enum.filter(states, fn
+        %{power: power} when power in [:on, "on", true] -> true
+        _ -> false
+      end)
+
+    base =
+      cond do
+        on_states != [] -> %{power: :on}
+        length(states) == length(lights) and states != [] -> %{power: :off}
+        true -> %{}
+      end
+
+    base
+    |> maybe_put_group_brightness(on_states)
+    |> maybe_put_group_kelvin(on_states)
+  end
+
+  defp derive_group_state(_lights), do: %{}
+
+  defp maybe_put_group_brightness(group_state, on_states) do
+    brightness_values =
+      on_states
+      |> Enum.map(fn
+        %{brightness: brightness} when is_number(brightness) -> brightness
+        _ -> nil
+      end)
+      |> Enum.reject(&is_nil/1)
+
+    if brightness_values != [] and length(brightness_values) == length(on_states) do
+      Map.put(group_state, :brightness, round(Enum.sum(brightness_values) / length(brightness_values)))
+    else
+      group_state
+    end
+  end
+
+  defp maybe_put_group_kelvin(group_state, on_states) do
+    kelvin_values =
+      on_states
+      |> Enum.map(fn
+        %{kelvin: kelvin} when is_number(kelvin) -> kelvin
+        _ -> nil
+      end)
+      |> Enum.reject(&is_nil/1)
+
+    if kelvin_values != [] and length(kelvin_values) == length(on_states) do
+      min_k = Enum.min(kelvin_values)
+      max_k = Enum.max(kelvin_values)
+
+      if max_k - min_k <= 50 do
+        Map.put(group_state, :kelvin, round(Enum.sum(kelvin_values) / length(kelvin_values)))
+      else
+        group_state
+      end
+    else
+      group_state
+    end
   end
 
   defp config_for_bridge(bridge) do

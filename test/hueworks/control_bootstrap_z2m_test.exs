@@ -270,6 +270,85 @@ defmodule Hueworks.Control.Bootstrap.Z2MTest do
     assert %{power: :off} = State.get(:light, upper.id)
   end
 
+  test "bootstrap recomputes group kelvin from mapped member states" do
+    original_supervisor =
+      Application.get_env(:hueworks, :z2m_bootstrap_tortoise_supervisor_module)
+
+    Application.put_env(
+      :hueworks,
+      :z2m_bootstrap_tortoise_supervisor_module,
+      __MODULE__.MappedKelvinSupervisorStub
+    )
+
+    on_exit(fn ->
+      Application.put_env(
+        :hueworks,
+        :z2m_bootstrap_tortoise_supervisor_module,
+        original_supervisor
+      )
+    end)
+
+    room = Repo.insert!(%Room{name: "Mapped Bar"})
+
+    bridge =
+      Repo.insert!(%Bridge{
+        type: :z2m,
+        name: "Z2M Mapped",
+        host: "10.0.0.84",
+        credentials: %{"base_topic" => "zigbee2mqtt", "broker_port" => 1883},
+        enabled: true
+      })
+
+    lower =
+      Repo.insert!(%Light{
+        name: "Mapped Lower Cabinet",
+        source: :z2m,
+        source_id: "mapped_lower_cabinet",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        supports_temp: true,
+        reported_min_kelvin: 2000,
+        reported_max_kelvin: 6329,
+        actual_min_kelvin: 2700,
+        actual_max_kelvin: 6500,
+        extended_kelvin_range: true
+      })
+
+    upper =
+      Repo.insert!(%Light{
+        name: "Mapped Upper Cabinet",
+        source: :z2m,
+        source_id: "mapped_upper_cabinet",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        supports_temp: true,
+        reported_min_kelvin: 2000,
+        reported_max_kelvin: 6329,
+        actual_min_kelvin: 2700,
+        actual_max_kelvin: 6500,
+        extended_kelvin_range: true
+      })
+
+    group =
+      Repo.insert!(%Group{
+        name: "Mapped Cabinet Group",
+        source: :z2m,
+        source_id: "mapped_cabinet_group",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        supports_temp: true,
+        reported_min_kelvin: 2000,
+        reported_max_kelvin: 6329,
+        metadata: %{"members" => ["mapped_lower_cabinet", "mapped_upper_cabinet"]}
+      })
+
+    assert :ok == Z2M.run()
+
+    assert State.get(:light, lower.id) == %{power: :on, kelvin: 3043}
+    assert State.get(:light, upper.id) == %{power: :on, kelvin: 3043}
+    assert State.get(:group, group.id) == %{power: :on, kelvin: 3043}
+  end
+
   defmodule TortoiseStub do
     def publish(client_id, topic, payload, opts) do
       send(
@@ -339,6 +418,37 @@ defmodule Hueworks.Control.Bootstrap.Z2MTest do
             {:z2m_bootstrap_msg, ["zigbee2mqtt", "delayed_strip"],
              Jason.encode!(%{"state" => "OFF"})}
           )
+
+          Process.sleep(:infinity)
+        end)
+
+      {:ok, worker}
+    end
+  end
+
+  defmodule MappedKelvinSupervisorStub do
+    def start_child(opts) do
+      {handler_module, [owner]} = Keyword.fetch!(opts, :handler)
+      sink = Application.fetch_env!(:hueworks, :z2m_bootstrap_test_sink)
+      subscriptions = Keyword.fetch!(opts, :subscriptions)
+      send(sink, {:start_child, opts})
+
+      worker =
+        spawn(fn ->
+          {:ok, handler_state} = handler_module.init([owner])
+          [{topic_filter, _qos}] = subscriptions
+          {:ok, _handler_state} = handler_module.subscription(:up, topic_filter, handler_state)
+
+          payload =
+            Jason.encode!(%{
+              "state" => "ON",
+              "color_mode" => "color_temp",
+              "color_temp" => 434
+            })
+
+          send(owner, {:z2m_bootstrap_msg, ["zigbee2mqtt", "mapped_lower_cabinet"], payload})
+          send(owner, {:z2m_bootstrap_msg, ["zigbee2mqtt", "mapped_upper_cabinet"], payload})
+          send(owner, {:z2m_bootstrap_msg, ["zigbee2mqtt", "mapped_cabinet_group"], payload})
 
           Process.sleep(:infinity)
         end)
