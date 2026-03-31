@@ -2,7 +2,7 @@ defmodule Hueworks.Control.PlannerTest do
   use Hueworks.DataCase, async: false
   import Ecto.Query, only: [from: 2]
 
-  alias Hueworks.Control.{DesiredState, Planner}
+  alias Hueworks.Control.{DesiredState, Planner, State}
   alias Hueworks.Repo
   alias Hueworks.Schemas.{Bridge, Group, GroupLight, Light, Room}
 
@@ -196,6 +196,27 @@ defmodule Hueworks.Control.PlannerTest do
 
     assert MapSet.new([table_action.id, ceiling_action.id]) ==
              MapSet.new([table_group.id, ceiling_group.id])
+  end
+
+  test "plan_room treats adjacent mirek kelvin drift as already in state" do
+    room = Repo.insert!(%Room{name: "Warm Drift"})
+
+    bridge =
+      Repo.insert!(%Bridge{
+        name: "Hue",
+        type: :hue,
+        host: "bridge-warm-drift",
+        credentials: %{}
+      })
+
+    light = insert_light(room, bridge, "A", supports_temp: true)
+    desired = %{power: :on, brightness: 100, kelvin: 3715}
+    DesiredState.put(:light, light.id, desired)
+    _ = State.put(:light, light.id, %{power: :on, brightness: 100, kelvin: 3704})
+
+    diff = %{{:light, light.id} => desired}
+
+    assert Planner.plan_room(room.id, diff) == []
   end
 
   test "plan_room removes kelvin from non-temp partitions while preserving temp partitions" do

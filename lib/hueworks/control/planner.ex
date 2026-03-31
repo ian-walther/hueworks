@@ -15,6 +15,7 @@ defmodule Hueworks.Control.Planner do
   alias Hueworks.Util
 
   @brightness_tolerance 2
+  @temperature_physical_mired_tolerance 1
 
   def plan_room(room_id, diff, opts \\ []) when is_integer(room_id) and is_map(diff) do
     trace = Keyword.get(opts, :trace)
@@ -368,12 +369,10 @@ defmodule Hueworks.Control.Planner do
   end
 
   defp values_equal?(key, desired, physical)
-       when key in [:brightness, "brightness", :kelvin, "kelvin", :temperature, "temperature"] do
-    case {Util.to_number(desired), Util.to_number(physical)} do
-      {nil, _} -> desired == physical
-      {_, nil} -> desired == physical
-      {a, b} -> round(a) == round(b)
-    end
+       when key in [:kelvin, "kelvin", :temperature, "temperature"] do
+    Kelvin.equivalent_temperature?(desired, physical,
+      mired_tolerance: @temperature_physical_mired_tolerance
+    )
   end
 
   defp values_equal?(_key, desired, physical), do: desired == physical

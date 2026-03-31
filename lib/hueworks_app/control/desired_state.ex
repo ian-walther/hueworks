@@ -5,9 +5,11 @@ defmodule Hueworks.Control.DesiredState do
 
   use GenServer
 
+  alias Hueworks.Kelvin
   alias Hueworks.Control.State, as: PhysicalState
 
   @brightness_tolerance 2
+  @temperature_reconcile_mired_tolerance 1
 
   @table :hueworks_desired_state
 
@@ -59,8 +61,17 @@ defmodule Hueworks.Control.DesiredState do
           _ = put(type, id, desired)
           physical = PhysicalState.get(type, id) || %{}
 
-          intent_delta = diff_state(previous_desired, desired, brightness_tolerance: 0)
-          reconcile_delta = diff_state(physical, desired, brightness_tolerance: @brightness_tolerance)
+          intent_delta =
+            diff_state(previous_desired, desired,
+              brightness_tolerance: 0,
+              temperature_mired_tolerance: 0
+            )
+
+          reconcile_delta =
+            diff_state(physical, desired,
+              brightness_tolerance: @brightness_tolerance,
+              temperature_mired_tolerance: @temperature_reconcile_mired_tolerance
+            )
 
           intent_acc =
             if intent_delta == %{} do
@@ -154,13 +165,10 @@ defmodule Hueworks.Control.DesiredState do
     end
   end
 
-  defp values_equal?(key, desired, physical, _opts)
-       when key in [:brightness, "brightness", :kelvin, "kelvin", :temperature, "temperature"] do
-    case {Hueworks.Util.to_number(desired), Hueworks.Util.to_number(physical)} do
-      {nil, _} -> desired == physical
-      {_, nil} -> desired == physical
-      {a, b} -> round(a) == round(b)
-    end
+  defp values_equal?(key, desired, physical, opts)
+       when key in [:kelvin, "kelvin", :temperature, "temperature"] do
+    tolerance = Keyword.get(opts, :temperature_mired_tolerance, 0)
+    Kelvin.equivalent_temperature?(desired, physical, mired_tolerance: tolerance)
   end
 
   defp values_equal?(_key, desired, physical, _opts), do: desired == physical

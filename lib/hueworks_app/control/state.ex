@@ -26,6 +26,7 @@ defmodule Hueworks.Control.State do
   @default_light_room_cache_ttl_ms 60_000
   @default_bootstrap_scene_clear_suppress_ms 10_000
   @brightness_tolerance 2
+  @temperature_scene_clear_mired_tolerance 1
 
   def start_link(_opts) do
     GenServer.start_link(__MODULE__, %{}, name: __MODULE__)
@@ -402,12 +403,11 @@ defmodule Hueworks.Control.State do
     end
   end
 
-  defp values_equal?(key, desired, updated) when key in [:brightness, :kelvin] do
-    case {Hueworks.Util.to_number(desired), Hueworks.Util.to_number(updated)} do
-      {nil, _} -> desired == updated
-      {_, nil} -> desired == updated
-      {a, b} -> round(a) == round(b)
-    end
+  defp values_equal?(key, desired, updated)
+       when key in [:kelvin, "kelvin", :temperature, "temperature"] do
+    Kelvin.equivalent_temperature?(desired, updated,
+      mired_tolerance: @temperature_scene_clear_mired_tolerance
+    )
   end
 
   defp values_equal?(_key, desired, updated), do: desired == updated

@@ -55,6 +55,32 @@ defmodule Hueworks.Kelvin do
 
   def map_from_event(_entity, kelvin), do: kelvin
 
+  def same_temperature_step?(left, right) do
+    equivalent_temperature?(left, right, mired_tolerance: 0)
+  end
+
+  def equivalent_temperature?(left, right, opts \\ []) do
+    tolerance = Keyword.get(opts, :mired_tolerance, 0)
+
+    case {mired_step(left), mired_step(right)} do
+      {nil, _} -> left == right
+      {_, nil} -> left == right
+      {a, b} -> abs(a - b) <= tolerance
+    end
+  end
+
+  def mired_step(value) do
+    case Util.to_number(value) do
+      kelvin when is_number(kelvin) and kelvin > 0 ->
+        kelvin
+        |> then(&(1_000_000 / &1))
+        |> round()
+
+      _ ->
+        nil
+    end
+  end
+
   defp map_between_ranges_mired(value, {from_min, from_max}, {to_min, to_max})
        when is_number(from_min) and is_number(from_max) and is_number(to_min) and
               is_number(to_max) and from_max > from_min and to_max > to_min do

@@ -59,4 +59,13 @@ defmodule Hueworks.KelvinTest do
     assert Kelvin.map_from_event(entity, 2265) == 3000
     assert Kelvin.map_from_event(entity, 3125) == 3900
   end
+
+  test "temperature equivalence treats adjacent mirek steps as equal while keeping exact-step checks strict" do
+    assert Kelvin.same_temperature_step?(3700, 3704)
+    refute Kelvin.same_temperature_step?(3715, 3704)
+
+    assert Kelvin.equivalent_temperature?(3715, 3704, mired_tolerance: 1)
+    assert Kelvin.equivalent_temperature?(3715, 3699, mired_tolerance: 1)
+    refute Kelvin.equivalent_temperature?(3800, 3704, mired_tolerance: 1)
+  end
 end

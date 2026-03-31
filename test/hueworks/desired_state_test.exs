@@ -84,6 +84,20 @@ defmodule Hueworks.DesiredStateTest do
     assert reconcile_diff == %{}
   end
 
+  test "commit treats adjacent mirek temperature drift as equal for reconcile diff" do
+    _ = PhysicalState.put(:light, 7, %{power: :on, brightness: 100, kelvin: 3704})
+
+    txn =
+      DesiredState.begin("scene-6")
+      |> DesiredState.apply(:light, 7, %{power: :on, brightness: 100, kelvin: 3715})
+
+    {:ok, %{intent_diff: intent_diff, reconcile_diff: reconcile_diff, updated: _updated}} =
+      DesiredState.commit(txn)
+
+    assert intent_diff[{:light, 7}] == %{power: :on, brightness: 100, kelvin: 3715}
+    assert reconcile_diff == %{}
+  end
+
   test "commit does not treat small brightness changes as equal for intent diff" do
     _ = PhysicalState.put(:light, 6, %{power: :on, brightness: 86, kelvin: 3000})
     _ = DesiredState.put(:light, 6, %{power: :on, brightness: 86, kelvin: 3000})
@@ -96,6 +110,21 @@ defmodule Hueworks.DesiredStateTest do
       DesiredState.commit(txn)
 
     assert intent_diff[{:light, 6}] == %{brightness: 87}
+    assert reconcile_diff == %{}
+  end
+
+  test "commit still treats one-step kelvin changes as real intent diff" do
+    _ = PhysicalState.put(:light, 8, %{power: :on, brightness: 100, kelvin: 3704})
+    _ = DesiredState.put(:light, 8, %{power: :on, brightness: 100, kelvin: 3700})
+
+    txn =
+      DesiredState.begin("scene-7")
+      |> DesiredState.apply(:light, 8, %{power: :on, brightness: 100, kelvin: 3715})
+
+    {:ok, %{intent_diff: intent_diff, reconcile_diff: reconcile_diff, updated: _updated}} =
+      DesiredState.commit(txn)
+
+    assert intent_diff[{:light, 8}] == %{kelvin: 3715}
     assert reconcile_diff == %{}
   end
 end

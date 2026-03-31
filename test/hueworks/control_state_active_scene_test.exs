@@ -148,6 +148,26 @@ defmodule Hueworks.ControlStateActiveSceneTest do
     assert Repo.get_by!(ActiveScene, room_id: room.id).scene_id == scene.id
   end
 
+  test "state updates within adjacent mirek tolerance do not clear active scene" do
+    room = insert_room()
+    bridge = insert_bridge()
+    light = insert_light(room, bridge, %{supports_temp: true})
+    scene = insert_scene(room)
+
+    {:ok, _} = ActiveScenes.set_active(scene)
+    active = Repo.get_by!(ActiveScene, room_id: room.id)
+
+    active
+    |> Ecto.Changeset.change(pending_until: DateTime.add(DateTime.utc_now(), -5, :second))
+    |> Repo.update!()
+
+    _ = DesiredState.put(:light, light.id, %{power: :on, brightness: 100, kelvin: 3715})
+
+    _ = State.put(:light, light.id, %{power: :on, brightness: 100, kelvin: 3704})
+
+    assert Repo.get_by!(ActiveScene, room_id: room.id).scene_id == scene.id
+  end
+
   test "power-only state changes do not clear active scene" do
     room = insert_room()
     bridge = insert_bridge()
