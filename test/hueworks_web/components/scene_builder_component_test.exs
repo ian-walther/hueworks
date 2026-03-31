@@ -138,7 +138,7 @@ defmodule Hueworks.SceneBuilderComponentTest do
     assert has_element?(
              view,
              "button[phx-click='toggle_light_default_power'][phx-value-component_id='1'][phx-value-light_id='1']",
-             "Power policy: Force On"
+             "Power policy: Default On"
            )
 
     view
@@ -150,7 +150,7 @@ defmodule Hueworks.SceneBuilderComponentTest do
     assert has_element?(
              view,
              "button[phx-click='toggle_light_default_power'][phx-value-component_id='1'][phx-value-light_id='1']",
-             "Power policy: Force Off"
+             "Power policy: Default Off"
            )
 
     view
@@ -231,19 +231,19 @@ defmodule Hueworks.SceneBuilderComponentTest do
     assert has_element?(
              view,
              "button[phx-click='toggle_light_default_power'][phx-value-component_id='1'][phx-value-light_id='1']",
-             "Power policy: Force On"
+             "Power policy: Default On"
            )
 
     assert has_element?(
              view,
              "button[phx-click='toggle_light_default_power'][phx-value-component_id='1'][phx-value-light_id='2']",
-             "Power policy: Force On"
+             "Power policy: Default On"
            )
 
     assert has_element?(
              view,
              "button[phx-click='toggle_group_default_power'][phx-value-component_id='1'][phx-value-group_id='10']",
-             "Power policy: Force On"
+             "Power policy: Default On"
            )
   end
 
@@ -304,13 +304,13 @@ defmodule Hueworks.SceneBuilderComponentTest do
     assert has_element?(
              view,
              "button[phx-click='toggle_group_default_power'][phx-value-component_id='1'][phx-value-group_id='10']",
-             "Power policy: Force On"
+             "Power policy: Default On"
            )
 
     assert has_element?(
              view,
              "button[phx-click='toggle_group_default_power'][phx-value-component_id='1'][phx-value-group_id='11']",
-             "Power policy: Force On"
+             "Power policy: Default On"
            )
   end
 

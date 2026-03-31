@@ -142,4 +142,24 @@ defmodule Hueworks.ControlStateActiveSceneTest do
 
     assert Repo.get_by!(ActiveScene, room_id: room.id).scene_id == scene.id
   end
+
+  test "power-only state changes do not clear active scene" do
+    room = insert_room()
+    bridge = insert_bridge()
+    light = insert_light(room, bridge)
+    scene = insert_scene(room)
+
+    {:ok, _} = ActiveScenes.set_active(scene)
+    active = Repo.get_by!(ActiveScene, room_id: room.id)
+
+    active
+    |> Ecto.Changeset.change(pending_until: DateTime.add(DateTime.utc_now(), -5, :second))
+    |> Repo.update!()
+
+    _ = DesiredState.put(:light, light.id, %{power: :on, brightness: 46, kelvin: 3000})
+
+    _ = State.put(:light, light.id, %{power: :off, brightness: 46, kelvin: 3000})
+
+    assert Repo.get_by!(ActiveScene, room_id: room.id).scene_id == scene.id
+  end
 end

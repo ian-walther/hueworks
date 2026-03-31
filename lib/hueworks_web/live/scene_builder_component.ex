@@ -1339,9 +1339,9 @@ defmodule HueworksWeb.SceneBuilderComponent do
   defp next_power_policy(:mixed), do: :force_on
   defp next_power_policy(_policy), do: :force_on
 
-  defp power_policy_label(:force_on), do: "Force On"
-  defp power_policy_label(:force_off), do: "Force Off"
+  defp power_policy_label(:force_on), do: "Default On"
+  defp power_policy_label(:force_off), do: "Default Off"
   defp power_policy_label(:follow_occupancy), do: "Follow Occupancy"
   defp power_policy_label(:mixed), do: "..."
-  defp power_policy_label(_policy), do: "Force On"
+  defp power_policy_label(_policy), do: "Default On"
 end

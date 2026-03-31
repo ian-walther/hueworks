@@ -171,7 +171,7 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
     assert Repo.get!(Room, room.id).occupied == false
   end
 
-  test "occupancy toggle should still flip back to occupied on second click even after external updates",
+  test "occupancy toggle should still flip back to occupied after a manual power toggle",
        %{conn: conn} do
     room = insert_room()
     bridge = insert_bridge()
@@ -220,9 +220,9 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
       set: [pending_until: stale_pending]
     )
 
-    _ = State.put(:light, light.id, %{power: :on, brightness: 50, kelvin: 3000})
+    _ = State.put(:light, light.id, %{power: :on, brightness: 10, kelvin: 2200})
 
-    refute Repo.get_by(ActiveScene, room_id: room.id)
+    assert Repo.get_by!(ActiveScene, room_id: room.id).scene_id == scene.id
 
     view
     |> element(

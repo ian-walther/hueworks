@@ -122,12 +122,16 @@ defmodule Hueworks.Control.State do
 
   defp maybe_deactivate_scene_on_external_change({:light, light_id}, updated, caller) do
     desired = DesiredState.get(:light, light_id) || %{}
+    diverging_keys = diverging_keys(desired, updated)
 
     cond do
       desired == %{} ->
         :ok
 
-      diverged_from_desired?(desired, updated) == false ->
+      diverging_keys == [] ->
+        :ok
+
+      power_only_divergence?(diverging_keys) ->
         :ok
 
       true ->
@@ -308,6 +312,34 @@ defmodule Hueworks.Control.State do
       updated_value = Map.get(updated, key)
       values_equal?(key, desired_value, updated_value) == false
     end)
+  end
+
+  defp diverging_keys(desired, updated) do
+    desired
+    |> Enum.reduce([], fn {key, desired_value}, acc ->
+      updated_value = Map.get(updated, key)
+
+      if values_equal?(key, desired_value, updated_value) do
+        acc
+      else
+        [key | acc]
+      end
+    end)
+    |> Enum.reverse()
+  end
+
+  defp power_only_divergence?(keys) do
+    keys
+    |> Enum.map(fn
+      :power -> :power
+      "power" -> :power
+      key -> key
+    end)
+    |> Enum.uniq()
+    |> case do
+      [:power] -> true
+      _ -> false
+    end
   end
 
   defp values_equal?(_key, desired, updated) when desired == updated, do: true
