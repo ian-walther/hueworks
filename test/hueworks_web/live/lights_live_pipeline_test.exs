@@ -339,14 +339,82 @@ defmodule Hueworks.LightsLivePipelineTest do
     actions = Agent.get(actions_agent, & &1)
 
     assert [
-             %{type: :light, id: first_id, desired: %{power: :on}},
-             %{type: :light, id: second_id, desired: %{power: :on, brightness: 90, kelvin: 5000}}
+             %{type: :light, id: light_id, desired: %{power: :on, brightness: 90, kelvin: 5000}}
            ] = actions
 
-    assert first_id == light_a.id
-    assert second_id == light_a.id
+    assert light_id == light_a.id
     assert DesiredState.get(:light, light_a.id) == %{power: :on, brightness: 90, kelvin: 5000}
     assert DesiredState.get(:light, light_b.id) == %{power: :off}
+  end
+
+  test "manual power-on for a default-off scene light sends one on action with scene state",
+       %{
+         conn: conn,
+         actions_agent: actions_agent,
+         executor_server: executor_server
+       } do
+    room = Repo.insert!(%Room{name: "Den"})
+
+    bridge =
+      Repo.insert!(%Bridge{
+        name: "Hue Bridge",
+        type: :hue,
+        host: "192.168.1.89",
+        credentials: %{"api_key" => "test"}
+      })
+
+    light =
+      Repo.insert!(%Light{
+        name: "Reading Lamp",
+        display_name: "Reading Lamp",
+        source: :hue,
+        source_id: "reading-lamp",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        supports_temp: true,
+        reported_min_kelvin: 2000,
+        reported_max_kelvin: 6500
+      })
+
+    {:ok, state} =
+      Scenes.create_light_state("Soft", :manual, %{
+        "brightness" => "42",
+        "temperature" => "3100"
+      })
+
+    {:ok, scene} = Scenes.create_scene(%{name: "Evening", room_id: room.id})
+
+    {:ok, _} =
+      Scenes.replace_scene_components(scene, [
+        %{
+          name: "Evening Component",
+          light_ids: [light.id],
+          light_state_id: to_string(state.id),
+          light_defaults: %{light.id => :force_off}
+        }
+      ])
+
+    {:ok, _} = ActiveScenes.set_active(scene)
+
+    _ = DesiredState.put(:light, light.id, %{power: :off})
+    _ = State.put(:light, light.id, %{power: :off})
+
+    {:ok, view, _html} = live(conn, "/lights")
+
+    view
+    |> element("button[phx-click='toggle'][phx-value-type='light'][phx-value-id='#{light.id}']")
+    |> render_click()
+
+    drain_executor(executor_server)
+
+    actions = Agent.get(actions_agent, & &1)
+
+    assert [
+             %{type: :light, id: light_id, desired: %{power: :on, brightness: "42", kelvin: 3100}}
+           ] = actions
+
+    assert light_id == light.id
+    assert DesiredState.get(:light, light.id) == %{power: :on, brightness: "42", kelvin: "3100"}
   end
 
   test "group/light filter prefs persist across page reload", %{conn: conn} do

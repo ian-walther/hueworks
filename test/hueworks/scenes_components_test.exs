@@ -433,6 +433,54 @@ defmodule Hueworks.ScenesComponentsTest do
     assert DesiredState.get(:light, light.id) == %{power: :off}
   end
 
+  test "apply_scene preserves manual power-on latch for default-off light during circadian reapply when brightness override is active" do
+    room = insert_room()
+    bridge = insert_bridge()
+    light = insert_light(room, bridge, %{name: "Lamp"})
+
+    {:ok, state} =
+      Scenes.create_light_state("Circadian", :circadian, %{
+        "sunrise_time" => "06:00:00",
+        "sunset_time" => "18:00:00",
+        "min_brightness" => 10,
+        "max_brightness" => 90,
+        "min_color_temp" => 2200,
+        "max_color_temp" => 5000
+      })
+
+    {:ok, scene} = Scenes.create_scene(%{name: "Daylight", room_id: room.id})
+
+    {:ok, _} =
+      Scenes.replace_scene_components(scene, [
+        %{
+          name: "Component 1",
+          light_ids: [light.id],
+          light_state_id: to_string(state.id),
+          light_defaults: %{light.id => :force_off}
+        }
+      ])
+
+    {:ok, _} =
+      AppSettings.upsert_global(%{
+        latitude: 40.7128,
+        longitude: -74.0060,
+        timezone: "Etc/UTC"
+      })
+
+    _ = DesiredState.put(:light, light.id, %{power: :on, brightness: 35, kelvin: 2400})
+
+    {:ok, _diff, _updated} =
+      Scenes.apply_scene(scene,
+        brightness_override: true,
+        now: utc_dt("2026-03-08T12:00:00Z")
+      )
+
+    desired = DesiredState.get(:light, light.id)
+    assert desired[:power] == :on
+    assert desired[:brightness] == 35
+    assert desired[:kelvin] == 5000
+  end
+
   defp utc_dt(iso8601) do
     {:ok, datetime, 0} = DateTime.from_iso8601(iso8601)
     datetime

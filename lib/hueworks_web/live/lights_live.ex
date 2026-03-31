@@ -341,12 +341,11 @@ defmodule HueworksWeb.LightsLive do
 
   defp dispatch_action(socket, "light", id, action) do
     with {:ok, light} <- fetch_light(id),
-         {:ok, _diff} <- apply_manual_updates(light.room_id, [light.id], %{power: action}) do
+         {:ok, updated_attrs} <- apply_manual_power_action(light.room_id, [light.id], action) do
       _ = ActiveScenes.handle_manual_change(light.room_id, %{power: action})
-      maybe_reapply_active_circadian(light.room_id, [light.id], action)
 
       socket
-      |> update_light_state_assign(light.id, %{power: action})
+      |> update_light_state_assign(light.id, updated_attrs)
       |> assign(status: "#{action_label(action)} light #{Util.display_name(light)}")
     else
       {:error, reason} ->
@@ -357,12 +356,11 @@ defmodule HueworksWeb.LightsLive do
   defp dispatch_action(socket, "group", id, action) do
     with {:ok, group} <- fetch_group(id),
          light_ids when light_ids != [] <- group_light_ids(group.id),
-         {:ok, _diff} <- apply_manual_updates(group.room_id, light_ids, %{power: action}) do
+         {:ok, updated_attrs} <- apply_manual_power_action(group.room_id, light_ids, action) do
       _ = ActiveScenes.handle_manual_change(group.room_id, %{power: action})
-      maybe_reapply_active_circadian(group.room_id, light_ids, action)
 
       socket
-      |> update_group_state_assign(group.id, %{power: action})
+      |> update_group_state_assign(group.id, updated_attrs)
       |> assign(status: "#{action_label(action)} group #{Util.display_name(group)}")
     else
       [] ->
@@ -555,6 +553,38 @@ defmodule HueworksWeb.LightsLive do
     end
   end
 
+  defp apply_manual_power_action(room_id, light_ids, :on)
+       when is_integer(room_id) and is_list(light_ids) do
+    trace = %{
+      trace_id: "manual-on-#{room_id}-#{System.unique_integer([:positive])}",
+      source: "lights_live.manual_power_on",
+      started_at_ms: System.monotonic_time(:millisecond)
+    }
+
+    case Scenes.reapply_active_scene_lights(room_id, light_ids,
+           power_override: :on,
+           trace: trace
+         ) do
+      {:ok, _diff, updated} when map_size(updated) > 0 ->
+        {:ok, merged_updated_light_attrs(updated, light_ids)}
+
+      {:ok, _diff, _updated} ->
+        with {:ok, _diff} <- apply_manual_updates(room_id, light_ids, %{power: :on}) do
+          {:ok, %{power: :on}}
+        end
+
+      other ->
+        other
+    end
+  end
+
+  defp apply_manual_power_action(room_id, light_ids, action)
+       when is_integer(room_id) and is_list(light_ids) and action in [:off, "off"] do
+    with {:ok, _diff} <- apply_manual_updates(room_id, light_ids, %{power: :off}) do
+      {:ok, %{power: :off}}
+    end
+  end
+
   defp enqueue_diff(_room_id, diff) when map_size(diff) == 0, do: :ok
 
   defp enqueue_diff(room_id, diff) when is_integer(room_id) and is_map(diff) do
@@ -615,18 +645,12 @@ defmodule HueworksWeb.LightsLive do
     )
   end
 
-  defp maybe_reapply_active_circadian(room_id, light_ids, :on) do
-    trace = %{
-      trace_id: "manual-on-#{room_id}-#{System.unique_integer([:positive])}",
-      source: "lights_live.manual_power_on",
-      started_at_ms: System.monotonic_time(:millisecond)
-    }
-
-    _ = Scenes.reapply_active_circadian_lights(room_id, light_ids, trace: trace)
-    :ok
+  defp merged_updated_light_attrs(updated, light_ids) do
+    light_ids
+    |> Enum.reduce(%{}, fn light_id, acc ->
+      Map.merge(acc, Map.get(updated, {:light, light_id}, %{}))
+    end)
   end
-
-  defp maybe_reapply_active_circadian(_room_id, _light_ids, _action), do: :ok
 
   defp fetch_light(id) do
     case Integer.parse(id) do

@@ -223,6 +223,7 @@ defmodule Hueworks.Scenes do
     now = Keyword.get(opts, :now, DateTime.utc_now())
     target_light_ids = opts |> Keyword.get(:target_light_ids, []) |> MapSet.new()
     circadian_only = Keyword.get(opts, :circadian_only, false)
+    power_overrides = Keyword.get(opts, :power_overrides, %{})
 
     log_trace(
       trace,
@@ -246,6 +247,8 @@ defmodule Hueworks.Scenes do
           component_lights = target_component_lights(component.lights, target_light_ids)
 
           Enum.reduce(component_lights, txn, fn light, txn ->
+            current_desired = DesiredState.get(:light, light.id) || %{}
+
             light_desired =
               desired
               |> maybe_apply_default_power(
@@ -253,10 +256,8 @@ defmodule Hueworks.Scenes do
                 Map.get(default_power_by_light, light.id, :force_on),
                 occupied
               )
-              |> maybe_preserve_manual_power_off(
-                DesiredState.get(:light, light.id) || %{},
-                brightness_override
-              )
+              |> maybe_preserve_manual_power_override(current_desired, brightness_override)
+              |> maybe_apply_power_override(Map.get(power_overrides, light.id))
 
             DesiredState.apply(txn, :light, light.id, light_desired)
           end)
@@ -346,9 +347,9 @@ defmodule Hueworks.Scenes do
 
   defp desired_from_light_state(_, _brightness_override, _now), do: %{}
 
-  def reapply_active_circadian_lights(room_id, light_ids, opts \\ [])
+  def reapply_active_scene_lights(room_id, light_ids, opts \\ [])
 
-  def reapply_active_circadian_lights(room_id, light_ids, opts)
+  def reapply_active_scene_lights(room_id, light_ids, opts)
       when is_integer(room_id) and is_list(light_ids) do
     light_ids =
       light_ids
@@ -368,16 +369,32 @@ defmodule Hueworks.Scenes do
             {:error, :not_found}
 
           scene ->
+            power_overrides =
+              case Keyword.get(opts, :power_override) do
+                nil -> %{}
+                power -> Map.new(light_ids, &{&1, power})
+              end
+
             apply_scene(scene,
               brightness_override: false,
               occupied: Rooms.room_occupied?(room_id),
               target_light_ids: light_ids,
-              circadian_only: true,
+              circadian_only: Keyword.get(opts, :circadian_only, false),
+              power_overrides: power_overrides,
               now: Keyword.get(opts, :now, DateTime.utc_now()),
               trace: Keyword.get(opts, :trace)
             )
         end
     end
+  end
+
+  def reapply_active_scene_lights(_room_id, _light_ids, _opts), do: {:error, :invalid_args}
+
+  def reapply_active_circadian_lights(room_id, light_ids, opts \\ [])
+
+  def reapply_active_circadian_lights(room_id, light_ids, opts)
+      when is_integer(room_id) and is_list(light_ids) do
+    reapply_active_scene_lights(room_id, light_ids, Keyword.put(opts, :circadian_only, true))
   end
 
   def reapply_active_circadian_lights(_room_id, _light_ids, _opts), do: {:error, :invalid_args}
@@ -544,15 +561,27 @@ defmodule Hueworks.Scenes do
 
   defp target_component_lights(lights, _target_light_ids), do: lights
 
-  defp maybe_preserve_manual_power_off(desired, current_desired, true) do
-    if explicit_off_intent?(current_desired) and not explicit_off_intent?(desired) do
-      %{power: :off}
-    else
-      desired
+  defp maybe_preserve_manual_power_override(desired, current_desired, true) do
+    cond do
+      explicit_off_intent?(current_desired) and not explicit_off_intent?(desired) ->
+        %{power: :off}
+
+      explicit_on_intent?(current_desired) and explicit_off_intent?(desired) ->
+        Map.put(desired, :power, :on)
+
+      true ->
+        desired
     end
   end
 
-  defp maybe_preserve_manual_power_off(desired, _current_desired, _brightness_override), do: desired
+  defp maybe_preserve_manual_power_override(desired, _current_desired, _brightness_override),
+    do: desired
+
+  defp maybe_apply_power_override(desired, nil), do: desired
+  defp maybe_apply_power_override(desired, power) when power in [:on, :off], do: Map.put(desired, :power, power)
+  defp maybe_apply_power_override(desired, "on"), do: Map.put(desired, :power, :on)
+  defp maybe_apply_power_override(desired, "off"), do: Map.put(desired, :power, :off)
+  defp maybe_apply_power_override(desired, _power), do: desired
 
   defp apply_active_scene(%Scene{} = scene, active_scene) do
     case apply_scene(scene,
@@ -577,6 +606,16 @@ defmodule Hueworks.Scenes do
   end
 
   defp explicit_off_intent?(_state), do: false
+
+  defp explicit_on_intent?(state) when is_map(state) do
+    case Map.get(state, :power) || Map.get(state, "power") do
+      :on -> true
+      "on" -> true
+      _ -> false
+    end
+  end
+
+  defp explicit_on_intent?(_state), do: false
 
   defp parse_id(value), do: Hueworks.Util.parse_id(value)
 
