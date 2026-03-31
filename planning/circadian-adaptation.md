@@ -116,6 +116,26 @@ Follow-up:
   - active-scene survival during refresh/bootstrap activity
   - circadian behavior in rooms with mixed temp ranges
   - planner/group behavior in rooms with intentionally overlapping Hue groups
+- Maintain a growing circadian integration suite instead of relying only on smaller math/planner/unit tests.
+- Continue adding integration coverage for scenarios that have proven failure-prone in production-ish use:
+  - dense brightness tolerance sweeps around the active-scene clear threshold
+  - dense kelvin floor sweeps around the Hue `2203K` clamp and Z2M `2700K` crossover
+  - brightness-only adaptation windows before kelvin starts warming
+  - compressed-day scenarios that move quickly from brightness-only adaptation into warming kelvin
+  - DST spring-forward and fall-back transitions
+  - reload/bootstrap refresh plus echoed state updates while a scene remains active
+  - mixed Z2M member states followed by late group echoes
+  - multiple active rooms progressing independently without cross-room scene clears
+  - mixed manual + circadian scene components in the same scene
+  - default-off / manual-on / manual-off behavior inside mixed-source circadian scenes
+  - scene edits while active during an ongoing circadian ramp
+  - long-form poller progression that spans pre-sunrise, sunrise, and warming periods in one scenario
+- Prefer integration tests that assert all of the following together:
+  - desired-state changes
+  - planner output
+  - source-specific event round trips
+  - in-memory physical group/member state
+  - values rendered by the `/lights` LiveView
 - Add more automated coverage when live testing reveals a repeatable regression that is not already represented in the existing math, planner, scene, or LiveView tests.
 
 ## Observability Follow-Up
