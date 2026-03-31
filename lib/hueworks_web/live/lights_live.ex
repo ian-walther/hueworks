@@ -731,12 +731,13 @@ defmodule HueworksWeb.LightsLive do
     end
   end
 
-  defp preserve_extended_display_kelvin?(%{extended_kelvin_range: true}, existing, updates) do
+  defp preserve_extended_display_kelvin?(%{extended_kelvin_range: true} = light, existing, updates) do
     current_kelvin = existing[:kelvin]
     incoming_kelvin = updates[:kelvin]
+    ambiguous_floor = light.actual_min_kelvin || 2700
 
     is_number(current_kelvin) and current_kelvin < 2700 and is_number(incoming_kelvin) and
-      incoming_kelvin >= 2700
+      incoming_kelvin == ambiguous_floor
   end
 
   defp preserve_extended_display_kelvin?(_light, _existing, _updates), do: false
