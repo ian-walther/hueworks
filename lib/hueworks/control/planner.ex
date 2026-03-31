@@ -14,6 +14,8 @@ defmodule Hueworks.Control.Planner do
   alias Hueworks.Schemas.{Group, GroupLight, Light}
   alias Hueworks.Util
 
+  @brightness_tolerance 2
+
   def plan_room(room_id, diff, opts \\ []) when is_integer(room_id) and is_map(diff) do
     trace = Keyword.get(opts, :trace)
 
@@ -356,6 +358,14 @@ defmodule Hueworks.Control.Planner do
   defp key_aliases(key), do: [key]
 
   defp values_equal?(_key, desired, physical) when desired == physical, do: true
+
+  defp values_equal?(key, desired, physical) when key in [:brightness, "brightness"] do
+    case {Util.to_number(desired), Util.to_number(physical)} do
+      {nil, _} -> desired == physical
+      {_, nil} -> desired == physical
+      {a, b} -> abs(round(a) - round(b)) <= @brightness_tolerance
+    end
+  end
 
   defp values_equal?(key, desired, physical)
        when key in [:brightness, "brightness", :kelvin, "kelvin", :temperature, "temperature"] do

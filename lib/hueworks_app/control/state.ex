@@ -24,6 +24,7 @@ defmodule Hueworks.Control.State do
   @light_room_cache_namespace :light_room_ids
   @light_compare_cache_namespace :light_compare_entities
   @default_light_room_cache_ttl_ms 60_000
+  @brightness_tolerance 2
 
   def start_link(_opts) do
     GenServer.start_link(__MODULE__, %{}, name: __MODULE__)
@@ -310,6 +311,14 @@ defmodule Hueworks.Control.State do
   end
 
   defp values_equal?(_key, desired, updated) when desired == updated, do: true
+
+  defp values_equal?(key, desired, updated) when key in [:brightness, "brightness"] do
+    case {Hueworks.Util.to_number(desired), Hueworks.Util.to_number(updated)} do
+      {nil, _} -> desired == updated
+      {_, nil} -> desired == updated
+      {a, b} -> abs(round(a) - round(b)) <= @brightness_tolerance
+    end
+  end
 
   defp values_equal?(key, desired, updated) when key in [:brightness, :kelvin] do
     case {Hueworks.Util.to_number(desired), Hueworks.Util.to_number(updated)} do

@@ -69,4 +69,18 @@ defmodule Hueworks.DesiredStateTest do
     assert intent_diff[{:light, 4}] == %{power: :on, brightness: "27", kelvin: "2000"}
     assert reconcile_diff == %{}
   end
+
+  test "commit treats small brightness drift as equal for reconcile diff" do
+    _ = PhysicalState.put(:light, 5, %{power: :on, brightness: 47, kelvin: 3000})
+
+    txn =
+      DesiredState.begin("scene-4")
+      |> DesiredState.apply(:light, 5, %{power: :on, brightness: 46, kelvin: 3000})
+
+    {:ok, %{intent_diff: intent_diff, reconcile_diff: reconcile_diff, updated: _updated}} =
+      DesiredState.commit(txn)
+
+    assert intent_diff[{:light, 5}] == %{power: :on, brightness: 46, kelvin: 3000}
+    assert reconcile_diff == %{}
+  end
 end

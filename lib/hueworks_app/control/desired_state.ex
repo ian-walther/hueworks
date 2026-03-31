@@ -7,6 +7,8 @@ defmodule Hueworks.Control.DesiredState do
 
   alias Hueworks.Control.State, as: PhysicalState
 
+  @brightness_tolerance 2
+
   @table :hueworks_desired_state
 
   defmodule Transaction do
@@ -141,6 +143,14 @@ defmodule Hueworks.Control.DesiredState do
   defp key_aliases(key), do: [key]
 
   defp values_equal?(_key, desired, physical) when desired == physical, do: true
+
+  defp values_equal?(key, desired, physical) when key in [:brightness, "brightness"] do
+    case {Hueworks.Util.to_number(desired), Hueworks.Util.to_number(physical)} do
+      {nil, _} -> desired == physical
+      {_, nil} -> desired == physical
+      {a, b} -> abs(round(a) - round(b)) <= @brightness_tolerance
+    end
+  end
 
   defp values_equal?(key, desired, physical)
        when key in [:brightness, "brightness", :kelvin, "kelvin", :temperature, "temperature"] do
