@@ -148,19 +148,21 @@ defmodule Hueworks.Control.Bootstrap.Z2M do
     case Map.get(indexes.lights_by_source_id, entity_source_id) do
       %Light{} = light ->
         update = build_state(payload, light)
-        if update != %{}, do: State.put(:light, light.id, update)
+        if update != %{}, do: State.put(:light, light.id, update, source: :bootstrap)
 
       nil ->
         case Map.get(indexes.groups_by_source_id, entity_source_id) do
           %Group{} = group ->
             update = build_state(payload, group)
-            if update != %{}, do: State.put(:group, group.id, update)
+            if update != %{}, do: State.put(:group, group.id, update, source: :bootstrap)
 
             indexes.group_member_lights
             |> Map.get(group.source_id, [])
             |> Enum.each(fn light ->
               light_update = build_state(payload, light)
-              if light_update != %{}, do: State.put(:light, light.id, light_update)
+
+              if light_update != %{},
+                do: State.put(:light, light.id, light_update, source: :bootstrap)
             end)
 
           nil ->

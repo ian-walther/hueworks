@@ -24,6 +24,7 @@ defmodule Hueworks.Control.State do
   @light_room_cache_namespace :light_room_ids
   @light_compare_cache_namespace :light_compare_entities
   @default_light_room_cache_ttl_ms 60_000
+  @default_bootstrap_scene_clear_suppress_ms 10_000
   @brightness_tolerance 2
 
   def start_link(_opts) do
@@ -51,12 +52,20 @@ defmodule Hueworks.Control.State do
     GenServer.call(__MODULE__, {:ensure, type, id, defaults})
   end
 
-  def put(type, id, attrs) when is_map(attrs) do
-    GenServer.call(__MODULE__, {:put, type, id, attrs, self()})
+  def put(type, id, attrs, opts \\ []) when is_map(attrs) and is_list(opts) do
+    GenServer.call(__MODULE__, {:put, type, id, attrs, self(), opts})
   end
 
   def bootstrap do
     GenServer.cast(__MODULE__, :bootstrap)
+  end
+
+  def suppress_scene_clear_for_refresh do
+    GenServer.call(__MODULE__, :suppress_scene_clear)
+  end
+
+  def clear_scene_clear_suppression do
+    GenServer.call(__MODULE__, :clear_scene_clear_suppression)
   end
 
   @impl true
@@ -80,12 +89,22 @@ defmodule Hueworks.Control.State do
   end
 
   @impl true
-  def handle_call({:put, type, id, attrs, caller}, _from, state) do
+  def handle_call({:put, type, id, attrs, caller, opts}, _from, state) do
     key = {type, id}
 
     allow_repo_access(caller)
-    updated = merge_and_store(key, attrs, caller)
+    updated = merge_and_store(key, attrs, caller, opts, state)
     {:reply, updated, state}
+  end
+
+  @impl true
+  def handle_call(:suppress_scene_clear, _from, state) do
+    {:reply, :ok, suppress_scene_clear(state)}
+  end
+
+  @impl true
+  def handle_call(:clear_scene_clear_suppression, _from, state) do
+    {:reply, :ok, Map.delete(state, :scene_clear_suppressed_until_ms)}
   end
 
   @impl true
@@ -102,7 +121,7 @@ defmodule Hueworks.Control.State do
     end)
   end
 
-  defp merge_and_store(key, attrs, caller) do
+  defp merge_and_store(key, attrs, caller, opts, state) do
     current =
       case :ets.lookup(@table, key) do
         [{_key, existing}] -> existing
@@ -110,7 +129,7 @@ defmodule Hueworks.Control.State do
       end
 
     updated = Map.merge(current, attrs)
-    maybe_deactivate_scene_on_external_change(key, updated, caller)
+    maybe_deactivate_scene_on_external_change(key, updated, caller, opts, state)
     :ets.insert(@table, {key, updated})
     broadcast_update(key, updated)
     updated
@@ -120,59 +139,82 @@ defmodule Hueworks.Control.State do
     PubSub.broadcast(Hueworks.PubSub, @topic, {:control_state, type, id, state})
   end
 
-  defp maybe_deactivate_scene_on_external_change({:light, light_id}, updated, caller) do
-    desired = DesiredState.get(:light, light_id) || %{}
-    diverging_keys = diverging_keys(desired, updated)
+  defp maybe_deactivate_scene_on_external_change({:light, light_id}, updated, caller, opts, state) do
+    if Keyword.get(opts, :source) == :bootstrap or scene_clear_suppressed?(state) do
+      :ok
+    else
+      desired = DesiredState.get(:light, light_id) || %{}
+      diverging_keys = diverging_keys(desired, updated)
 
-    cond do
-      desired == %{} ->
-        :ok
-
-      diverging_keys == [] ->
-        :ok
-
-      power_only_divergence?(diverging_keys) ->
-        :ok
-
-      true ->
-        effective_desired = effective_desired_for_light(light_id, desired, caller)
-
-        if effective_desired == %{} or diverged_from_desired?(effective_desired, updated) == false do
+      cond do
+        desired == %{} ->
           :ok
-        else
-          case light_room_id(light_id, caller) do
-            room_id when is_integer(room_id) ->
-              case ActiveScenes.get_for_room(room_id) do
-                nil ->
-                  :ok
 
-                active_scene ->
-                  pending? = active_scene_pending?(active_scene)
+        diverging_keys == [] ->
+          :ok
 
-                  DebugLogging.info(
-                    "[scene-clear-trace] light_id=#{light_id} room_id=#{room_id} " <>
-                      "active_scene_id=#{inspect(active_scene_id(active_scene))} " <>
-                      "pending=#{pending?} desired=#{inspect(desired)} " <>
-                      "effective_desired=#{inspect(effective_desired)} updated=#{inspect(updated)}"
-                  )
+        power_only_divergence?(diverging_keys) ->
+          :ok
 
-                  if pending? do
+        true ->
+          effective_desired = effective_desired_for_light(light_id, desired, caller)
+
+          if effective_desired == %{} or
+               diverged_from_desired?(effective_desired, updated) == false do
+            :ok
+          else
+            case light_room_id(light_id, caller) do
+              room_id when is_integer(room_id) ->
+                case ActiveScenes.get_for_room(room_id) do
+                  nil ->
                     :ok
-                  else
-                    _ = ActiveScenes.clear_for_room(room_id)
-                  end
 
-                  :ok
-              end
+                  active_scene ->
+                    pending? = active_scene_pending?(active_scene)
 
-            _ ->
-              :ok
+                    DebugLogging.info(
+                      "[scene-clear-trace] light_id=#{light_id} room_id=#{room_id} " <>
+                        "active_scene_id=#{inspect(active_scene_id(active_scene))} " <>
+                        "pending=#{pending?} desired=#{inspect(desired)} " <>
+                        "effective_desired=#{inspect(effective_desired)} updated=#{inspect(updated)}"
+                    )
+
+                    if pending? do
+                      :ok
+                    else
+                      _ = ActiveScenes.clear_for_room(room_id)
+                    end
+
+                    :ok
+                end
+
+              _ ->
+                :ok
+            end
           end
-        end
+      end
     end
   end
 
-  defp maybe_deactivate_scene_on_external_change(_key, _updated, _caller), do: :ok
+  defp maybe_deactivate_scene_on_external_change(_key, _updated, _caller, _opts, _state), do: :ok
+
+  defp suppress_scene_clear(state) do
+    Map.put(
+      state,
+      :scene_clear_suppressed_until_ms,
+      System.monotonic_time(:millisecond) + bootstrap_scene_clear_suppress_ms()
+    )
+  end
+
+  defp scene_clear_suppressed?(state) do
+    case Map.get(state, :scene_clear_suppressed_until_ms) do
+      until_ms when is_integer(until_ms) ->
+        System.monotonic_time(:millisecond) < until_ms
+
+      _ ->
+        false
+    end
+  end
 
   defp active_scene_pending?(%{pending_until: %DateTime{} = pending_until}) do
     DateTime.compare(pending_until, DateTime.utc_now()) == :gt
@@ -225,6 +267,14 @@ defmodule Hueworks.Control.State do
       :hueworks,
       :cache_light_room_ttl_ms,
       @default_light_room_cache_ttl_ms
+    )
+  end
+
+  defp bootstrap_scene_clear_suppress_ms do
+    Application.get_env(
+      :hueworks,
+      :bootstrap_scene_clear_suppress_ms,
+      @default_bootstrap_scene_clear_suppress_ms
     )
   end
 

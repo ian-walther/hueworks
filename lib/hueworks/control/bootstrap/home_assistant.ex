@@ -28,12 +28,12 @@ defmodule Hueworks.Control.Bootstrap.HomeAssistant do
 
           case Map.get(lights_by_id, entity_id) do
             nil -> :ok
-            db_light -> State.put(:light, db_light.id, current)
+            db_light -> State.put(:light, db_light.id, current, source: :bootstrap)
           end
 
           case Map.get(groups_by_id, entity_id) do
             nil -> :ok
-            db_group -> State.put(:group, db_group.id, current)
+            db_group -> State.put(:group, db_group.id, current, source: :bootstrap)
           end
         end)
       end

@@ -103,6 +103,7 @@ defmodule HueworksWeb.LightsLive do
 
   @impl true
   def handle_event("refresh", _params, socket) do
+    :ok = State.suppress_scene_clear_for_refresh()
     State.bootstrap()
 
     socket =
