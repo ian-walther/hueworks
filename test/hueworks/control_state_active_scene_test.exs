@@ -18,9 +18,9 @@ defmodule Hueworks.ControlStateActiveSceneTest do
     Repo.insert!(%Room{name: "Studio", metadata: %{}})
   end
 
-  defp insert_bridge do
+  defp insert_bridge(type \\ :hue) do
     Repo.insert!(%Bridge{
-      type: :hue,
+      type: type,
       name: "Hue Bridge",
       host: "10.0.0.230",
       credentials: %{"api_key" => "key"},
@@ -29,15 +29,17 @@ defmodule Hueworks.ControlStateActiveSceneTest do
     })
   end
 
-  defp insert_light(room, bridge) do
-    Repo.insert!(%Light{
+  defp insert_light(room, bridge, attrs \\ %{}) do
+    defaults = %{
       name: "Lamp",
       source: :hue,
       source_id: Integer.to_string(System.unique_integer([:positive])),
       bridge_id: bridge.id,
       room_id: room.id,
       metadata: %{}
-    })
+    }
+
+    Repo.insert!(struct(Light, Map.merge(defaults, attrs)))
   end
 
   defp insert_scene(room) do
@@ -88,6 +90,35 @@ defmodule Hueworks.ControlStateActiveSceneTest do
     _ = DesiredState.put(:light, light.id, %{power: :on, brightness: "50", kelvin: "3000"})
 
     _ = State.put(:light, light.id, %{power: :on, brightness: 50, kelvin: 3000})
+
+    assert Repo.get_by!(ActiveScene, room_id: room.id).scene_id == scene.id
+  end
+
+  test "state updates that match the reported kelvin floor do not clear active scene" do
+    room = insert_room()
+    bridge = insert_bridge(:hue)
+
+    light =
+      insert_light(room, bridge, %{
+        source: :hue,
+        supports_temp: true,
+        reported_min_kelvin: 2203,
+        reported_max_kelvin: 6500,
+        metadata: %{}
+      })
+
+    scene = insert_scene(room)
+
+    {:ok, _} = ActiveScenes.set_active(scene)
+    active = Repo.get_by!(ActiveScene, room_id: room.id)
+
+    active
+    |> Ecto.Changeset.change(pending_until: DateTime.add(DateTime.utc_now(), -5, :second))
+    |> Repo.update!()
+
+    _ = DesiredState.put(:light, light.id, %{power: :on, brightness: 71, kelvin: 2000})
+
+    _ = State.put(:light, light.id, %{power: :on, brightness: 71, kelvin: 2203})
 
     assert Repo.get_by!(ActiveScene, room_id: room.id).scene_id == scene.id
   end

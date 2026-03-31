@@ -6,10 +6,12 @@ defmodule Hueworks.Control.State do
   use GenServer
   import Ecto.Query, only: [from: 2]
 
+  alias Ecto.Adapters.SQL.Sandbox
   alias Hueworks.Control.Bootstrap.HomeAssistant
   alias Hueworks.Control.Bootstrap.Hue
   alias Hueworks.Control.Bootstrap.Z2M
   alias Hueworks.Control.DesiredState
+  alias Hueworks.Kelvin
   alias Hueworks.ActiveScenes
   alias Hueworks.DebugLogging
   alias Hueworks.Repo
@@ -20,6 +22,7 @@ defmodule Hueworks.Control.State do
   @table :hueworks_control_state
   @topic "control_state"
   @light_room_cache_namespace :light_room_ids
+  @light_compare_cache_namespace :light_compare_entities
   @default_light_room_cache_ttl_ms 60_000
 
   def start_link(_opts) do
@@ -48,7 +51,7 @@ defmodule Hueworks.Control.State do
   end
 
   def put(type, id, attrs) when is_map(attrs) do
-    GenServer.call(__MODULE__, {:put, type, id, attrs})
+    GenServer.call(__MODULE__, {:put, type, id, attrs, self()})
   end
 
   def bootstrap do
@@ -76,10 +79,11 @@ defmodule Hueworks.Control.State do
   end
 
   @impl true
-  def handle_call({:put, type, id, attrs}, _from, state) do
+  def handle_call({:put, type, id, attrs, caller}, _from, state) do
     key = {type, id}
 
-    updated = merge_and_store(key, attrs)
+    allow_repo_access(caller)
+    updated = merge_and_store(key, attrs, caller)
     {:reply, updated, state}
   end
 
@@ -97,7 +101,7 @@ defmodule Hueworks.Control.State do
     end)
   end
 
-  defp merge_and_store(key, attrs) do
+  defp merge_and_store(key, attrs, caller) do
     current =
       case :ets.lookup(@table, key) do
         [{_key, existing}] -> existing
@@ -105,7 +109,7 @@ defmodule Hueworks.Control.State do
       end
 
     updated = Map.merge(current, attrs)
-    maybe_deactivate_scene_on_external_change(key, updated)
+    maybe_deactivate_scene_on_external_change(key, updated, caller)
     :ets.insert(@table, {key, updated})
     broadcast_update(key, updated)
     updated
@@ -115,38 +119,55 @@ defmodule Hueworks.Control.State do
     PubSub.broadcast(Hueworks.PubSub, @topic, {:control_state, type, id, state})
   end
 
-  defp maybe_deactivate_scene_on_external_change({:light, light_id}, updated) do
+  defp maybe_deactivate_scene_on_external_change({:light, light_id}, updated, caller) do
     desired = DesiredState.get(:light, light_id) || %{}
 
-    if desired != %{} and diverged_from_desired?(desired, updated) do
-      case light_room_id(light_id) do
-        room_id when is_integer(room_id) ->
-          active_scene = ActiveScenes.get_for_room(room_id)
-          pending? = active_scene_pending?(active_scene)
+    cond do
+      desired == %{} ->
+        :ok
 
-          DebugLogging.info(
-            "[scene-clear-trace] light_id=#{light_id} room_id=#{room_id} " <>
-              "active_scene_id=#{inspect(active_scene_id(active_scene))} " <>
-              "pending=#{pending?} desired=#{inspect(desired)} updated=#{inspect(updated)}"
-          )
+      diverged_from_desired?(desired, updated) == false ->
+        :ok
 
-          if pending? do
-            :ok
-          else
-            _ = ActiveScenes.clear_for_room(room_id)
+      true ->
+        effective_desired = effective_desired_for_light(light_id, desired, caller)
+
+        if effective_desired == %{} or diverged_from_desired?(effective_desired, updated) == false do
+          :ok
+        else
+          case light_room_id(light_id, caller) do
+            room_id when is_integer(room_id) ->
+              case ActiveScenes.get_for_room(room_id) do
+                nil ->
+                  :ok
+
+                active_scene ->
+                  pending? = active_scene_pending?(active_scene)
+
+                  DebugLogging.info(
+                    "[scene-clear-trace] light_id=#{light_id} room_id=#{room_id} " <>
+                      "active_scene_id=#{inspect(active_scene_id(active_scene))} " <>
+                      "pending=#{pending?} desired=#{inspect(desired)} " <>
+                      "effective_desired=#{inspect(effective_desired)} updated=#{inspect(updated)}"
+                  )
+
+                  if pending? do
+                    :ok
+                  else
+                    _ = ActiveScenes.clear_for_room(room_id)
+                  end
+
+                  :ok
+              end
+
+            _ ->
+              :ok
           end
-
-          :ok
-
-        _ ->
-          :ok
-      end
-    else
-      :ok
+        end
     end
   end
 
-  defp maybe_deactivate_scene_on_external_change(_key, _updated), do: :ok
+  defp maybe_deactivate_scene_on_external_change(_key, _updated, _caller), do: :ok
 
   defp active_scene_pending?(%{pending_until: %DateTime{} = pending_until}) do
     DateTime.compare(pending_until, DateTime.utc_now()) == :gt
@@ -157,18 +178,42 @@ defmodule Hueworks.Control.State do
   defp active_scene_id(%{scene_id: scene_id}) when is_integer(scene_id), do: scene_id
   defp active_scene_id(_active_scene), do: nil
 
-  defp light_room_id(light_id) when is_integer(light_id) do
+  defp light_room_id(light_id, caller) when is_integer(light_id) do
     Cache.get_or_load(
       @light_room_cache_namespace,
       light_id,
       fn ->
-        Repo.one(from(l in Light, where: l.id == ^light_id, select: l.room_id))
+        Repo.one(from(l in Light, where: l.id == ^light_id, select: l.room_id), caller: caller)
       end,
       ttl_ms: light_room_cache_ttl_ms()
     )
   end
 
-  defp light_room_id(_light_id), do: nil
+  defp light_room_id(_light_id, _caller), do: nil
+
+  defp effective_desired_for_light(light_id, desired, caller)
+       when is_integer(light_id) and is_map(desired) do
+    case light_for_desired_comparison(light_id, caller) do
+      %Light{} = light ->
+        clamp_desired_for_light(desired, light)
+
+      _ ->
+        desired
+    end
+  end
+
+  defp effective_desired_for_light(_light_id, desired, _caller), do: desired
+
+  defp light_for_desired_comparison(light_id, caller) when is_integer(light_id) do
+    Cache.get_or_load(
+      @light_compare_cache_namespace,
+      light_id,
+      fn -> Repo.get(Light, light_id, caller: caller) end,
+      ttl_ms: light_room_cache_ttl_ms()
+    )
+  end
+
+  defp light_for_desired_comparison(_light_id, _caller), do: nil
 
   defp light_room_cache_ttl_ms do
     Application.get_env(
@@ -176,6 +221,85 @@ defmodule Hueworks.Control.State do
       :cache_light_room_ttl_ms,
       @default_light_room_cache_ttl_ms
     )
+  end
+
+  defp allow_repo_access(caller) when is_pid(caller) do
+    if Repo.config()[:pool] == Sandbox do
+      case Sandbox.allow(Repo, caller, self()) do
+        :ok -> :ok
+        {:already, _} -> :ok
+        {:error, _} -> :ok
+        :not_found -> :ok
+      end
+    else
+      :ok
+    end
+  end
+
+  defp allow_repo_access(_caller), do: :ok
+
+  defp clamp_desired_for_light(desired, light) when is_map(desired) do
+    case kelvin_value(desired) do
+      nil ->
+        desired
+
+      kelvin ->
+        if supports_temp?(light) do
+          {min_kelvin, max_kelvin} = Kelvin.derive_range(light)
+          clamped_kelvin = round(Hueworks.Util.clamp(kelvin, min_kelvin, max_kelvin))
+          put_kelvin(desired, clamped_kelvin)
+        else
+          drop_kelvin(desired)
+        end
+    end
+  end
+
+  defp clamp_desired_for_light(desired, _light), do: desired
+
+  defp kelvin_value(desired) when is_map(desired) do
+    desired
+    |> Enum.find_value(fn
+      {key, value} when key in [:kelvin, "kelvin", :temperature, "temperature"] ->
+        Hueworks.Util.to_number(value)
+
+      _ ->
+        nil
+    end)
+    |> case do
+      nil -> nil
+      value -> round(value)
+    end
+  end
+
+  defp supports_temp?(light) when is_map(light) do
+    Map.get(light, :supports_temp) == true or Map.get(light, "supports_temp") == true
+  end
+
+  defp drop_kelvin(desired) do
+    desired
+    |> Map.delete(:kelvin)
+    |> Map.delete("kelvin")
+    |> Map.delete(:temperature)
+    |> Map.delete("temperature")
+  end
+
+  defp put_kelvin(desired, clamped_kelvin) do
+    keys =
+      desired
+      |> Map.keys()
+      |> Enum.filter(&(&1 in [:kelvin, "kelvin", :temperature, "temperature"]))
+
+    desired = drop_kelvin(desired)
+
+    case keys do
+      [] ->
+        Map.put(desired, :kelvin, clamped_kelvin)
+
+      _ ->
+        Enum.reduce(keys, desired, fn key, acc ->
+          Map.put(acc, key, clamped_kelvin)
+        end)
+    end
   end
 
   defp diverged_from_desired?(desired, updated) do
