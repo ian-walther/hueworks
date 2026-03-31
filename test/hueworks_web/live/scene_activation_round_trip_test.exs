@@ -531,7 +531,7 @@ defmodule Hueworks.SceneActivationRoundTripTest do
            end)
   end
 
-  test "occupancy toggle only dispatches follow_occupancy power changes, not force_on reassertions",
+  test "occupancy toggle dispatches follow_occupancy power changes and also catches stale force_on lights",
        %{
          conn: conn,
          actions_agent: actions_agent,
@@ -634,8 +634,10 @@ defmodule Hueworks.SceneActivationRoundTripTest do
                action.desired[:power] == :off
            end)
 
-    refute Enum.any?(actions, fn action ->
-             action.type == :light and action.id == force_on_light.id
+    assert Enum.any?(actions, fn action ->
+             action.type == :light and action.id == force_on_light.id and
+               action.desired[:power] == :on and action.desired[:brightness] == "45" and
+               action.desired[:kelvin] == 2800
            end)
   end
 

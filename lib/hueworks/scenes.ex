@@ -247,8 +247,13 @@ defmodule Hueworks.Scenes do
     result = DesiredState.commit(txn)
 
     case result do
-      {:ok, %{intent_diff: intent_diff, updated: updated}} ->
-        plan_diff = if force_apply, do: txn.changes, else: intent_diff
+      {:ok, %{intent_diff: intent_diff, reconcile_diff: reconcile_diff, updated: updated}} ->
+        plan_diff =
+          if force_apply do
+            txn.changes
+          else
+            merge_plan_diff(intent_diff, reconcile_diff)
+          end
 
         log_trace(trace, "apply_scene_diff", diff_size: map_size(plan_diff))
 
@@ -443,6 +448,15 @@ defmodule Hueworks.Scenes do
     Enum.count(actions, fn action ->
       desired = Map.get(action, :desired) || %{}
       (Map.get(desired, :power) || Map.get(desired, "power")) == power
+    end)
+  end
+
+  defp merge_plan_diff(left, right) when left == %{}, do: right
+  defp merge_plan_diff(left, right) when right == %{}, do: left
+
+  defp merge_plan_diff(left, right) when is_map(left) and is_map(right) do
+    Map.merge(left, right, fn _key, left_attrs, right_attrs ->
+      Map.merge(left_attrs, right_attrs)
     end)
   end
 

@@ -351,6 +351,39 @@ defmodule Hueworks.ScenesComponentsTest do
     assert desired[:power] == :on
   end
 
+  test "apply_scene replans when physical state still diverges even if desired state is already current" do
+    room = insert_room()
+    bridge = insert_bridge()
+    light = insert_light(room, bridge, %{name: "Lamp"})
+
+    {:ok, state} =
+      Scenes.create_manual_light_state("Soft", %{"brightness" => "40", "temperature" => "3000"})
+
+    {:ok, scene} = Scenes.create_scene(%{name: "Chill", room_id: room.id})
+
+    {:ok, _} =
+      Scenes.replace_scene_components(scene, [
+        %{name: "Component 1", light_ids: [light.id], light_state_id: to_string(state.id)}
+      ])
+
+    _ =
+      Hueworks.Control.State.put(:light, light.id, %{
+        power: :on,
+        brightness: "10",
+        kelvin: "2500"
+      })
+
+    {:ok, first_diff, _updated} = Scenes.apply_scene(scene)
+
+    assert first_diff[{:light, light.id}] == %{power: :on, brightness: "40", kelvin: "3000"}
+
+    assert DesiredState.get(:light, light.id) == %{power: :on, brightness: "40", kelvin: "3000"}
+
+    {:ok, second_diff, _updated} = Scenes.apply_scene(scene)
+
+    assert second_diff[{:light, light.id}] == %{brightness: "40", kelvin: "3000"}
+  end
+
   test "apply_scene keeps existing desired brightness when override is enabled for circadian states" do
     room = insert_room()
     bridge = insert_bridge()
@@ -429,7 +462,7 @@ defmodule Hueworks.ScenesComponentsTest do
         now: utc_dt("2026-03-08T12:00:00Z")
       )
 
-    assert diff == %{}
+    assert diff == %{{:light, light.id} => %{power: :off}}
     assert DesiredState.get(:light, light.id) == %{power: :off}
   end
 

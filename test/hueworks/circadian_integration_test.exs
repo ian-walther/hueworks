@@ -40,7 +40,7 @@ defmodule Hueworks.CircadianIntegrationTest do
     assert Map.fetch!(noon.intent_diff, {:light, solo_hue.id})[:brightness] == 90
 
     assert Map.fetch!(dawn_ramp.intent_diff, {:light, solo_hue.id})[:kelvin] == 2000
-    assert Map.fetch!(sunrise.intent_diff, {:light, solo_hue.id})[:kelvin] == nil
+    assert Map.fetch!(sunrise.intent_diff, {:light, solo_hue.id})[:kelvin] == 2000
     assert Map.fetch!(noon.intent_diff, {:light, solo_hue.id})[:kelvin] == 4000
 
     assert Enum.any?(actions, fn
