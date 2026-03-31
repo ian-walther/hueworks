@@ -87,19 +87,27 @@ defmodule Hueworks.Control.StateParser do
   def kelvin_from_ha_attrs(_attrs, _entity), do: %{}
 
   def kelvin_from_z2m_attrs(attrs, entity) when is_map(attrs) do
+    extended_xy_kelvin = raw_extended_xy_kelvin(attrs, entity)
+    crossover_xy? = prefer_z2m_extended_xy_crossover?(attrs, extended_xy_kelvin)
+
     case z2m_color_mode(attrs) do
       "xy" ->
         parse_xy_preferred_z2m(attrs, entity)
+
+      "color_temp" when crossover_xy? ->
+        %{kelvin: round(extended_xy_kelvin)}
 
       "color_temp" ->
         parse_z2m_color_temp(attrs, entity)
 
       _other ->
-        extended_xy_kelvin = extended_xy_kelvin(attrs, entity)
-
         cond do
           is_number(extended_xy_kelvin) ->
-            %{kelvin: round(extended_xy_kelvin)}
+            if extended_xy_applicable?(attrs) or crossover_xy? do
+              %{kelvin: round(extended_xy_kelvin)}
+            else
+              parse_z2m_color_temp(attrs, entity)
+            end
 
           true ->
             parse_z2m_color_temp(attrs, entity)
@@ -110,7 +118,7 @@ defmodule Hueworks.Control.StateParser do
   def kelvin_from_z2m_attrs(_attrs, _entity), do: %{}
 
   defp parse_xy_preferred_z2m(attrs, entity) do
-    case extended_xy_kelvin(attrs, entity) do
+    case raw_extended_xy_kelvin(attrs, entity) do
       kelvin when is_number(kelvin) ->
         %{kelvin: round(kelvin)}
 
@@ -163,8 +171,26 @@ defmodule Hueworks.Control.StateParser do
 
   defp preserve_z2m_direct_low_kelvin?(_attrs, _entity, _kelvin), do: false
 
+  defp prefer_z2m_extended_xy_crossover?(attrs, extended_xy_kelvin)
+       when is_number(extended_xy_kelvin) do
+    direct_kelvin = z2m_direct_kelvin(attrs)
+
+    is_number(direct_kelvin) and direct_kelvin > 2700 and direct_kelvin < 3800 and
+      extended_xy_kelvin >= 2600 and extended_xy_kelvin < 2700
+  end
+
+  defp prefer_z2m_extended_xy_crossover?(_attrs, _extended_xy_kelvin), do: false
+
   defp extended_xy_kelvin(attrs, entity) do
     if extended_kelvin_range_enabled?(entity) and extended_xy_applicable?(attrs) do
+      raw_extended_xy_kelvin(attrs, entity)
+    else
+      nil
+    end
+  end
+
+  defp raw_extended_xy_kelvin(attrs, entity) do
+    if extended_kelvin_range_enabled?(entity) do
       case xy_from_attrs(attrs) do
         {x, y} when is_number(x) and is_number(y) -> inverse_extended_xy(x, y)
         _ -> nil
@@ -278,6 +304,24 @@ defmodule Hueworks.Control.StateParser do
   end
 
   defp z2m_color_mode(_attrs), do: nil
+
+  defp z2m_direct_kelvin(attrs) when is_map(attrs) do
+    cond do
+      is_number(attrs["color_temp_kelvin"]) ->
+        round(attrs["color_temp_kelvin"])
+
+      is_number(attrs["color_temp"]) and attrs["color_temp"] > 0 and attrs["color_temp"] <= 1000 ->
+        round(1_000_000 / attrs["color_temp"])
+
+      is_number(attrs["color_temp"]) and attrs["color_temp"] > 1000 ->
+        round(attrs["color_temp"])
+
+      true ->
+        nil
+    end
+  end
+
+  defp z2m_direct_kelvin(_attrs), do: nil
 
   defp map_field(entity, key) when is_map(entity) do
     Map.get(entity, key) || Map.get(entity, Atom.to_string(key))

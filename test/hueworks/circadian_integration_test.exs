@@ -54,7 +54,8 @@ defmodule Hueworks.CircadianIntegrationTest do
            end)
 
     assert Enum.any?(actions, fn
-             %{type: :light, id: id, desired: %{brightness: 50, kelvin: 2000}} when id == solo_hue.id ->
+             %{type: :light, id: id, desired: %{brightness: 50, kelvin: 2000}}
+             when id == solo_hue.id ->
                true
 
              _ ->
@@ -72,6 +73,62 @@ defmodule Hueworks.CircadianIntegrationTest do
 
     assert_round_trip(view, room.id, fixture, "2026-03-31 05:00:00", 37, 2000, 2000)
     assert_round_trip(view, room.id, fixture, "2026-03-31 12:00:00", 90, 4000, 3995)
+  end
+
+  test "z2m crossover-band events keep group and member UI aligned with hue values", %{conn: conn} do
+    fixture = setup_mixed_scene_fixture("z2m-crossover")
+    %{scene: scene} = fixture
+
+    {:ok, _} = ActiveScenes.set_active(scene)
+    {:ok, view, _html} = live(conn, "/lights")
+
+    local_time =
+      time_for_round_tripped_kelvin!(
+        fixture,
+        {:group, fixture.hue_group.id},
+        ~D[2026-03-31],
+        &(&1 >= 2600 and &1 < 2700)
+      )
+
+    round_trip_at(view, fixture, local_time)
+
+    {x, y} = Hueworks.Control.HomeAssistantPayload.extended_xy(2681)
+
+    payload =
+      Jason.encode!(%{
+        "state" => "ON",
+        "brightness" => 254,
+        "color_mode" => "color_temp",
+        "color" => %{"x" => x, "y" => y},
+        "color_temp_kelvin" => 3479
+      })
+
+    {:ok, _state} =
+      Z2MHandler.handle_message(
+        ["zigbee2mqtt", fixture.z2m_lower.source_id],
+        payload,
+        fixture.z2m_handler_state
+      )
+
+    {:ok, _state} =
+      Z2MHandler.handle_message(
+        ["zigbee2mqtt", fixture.z2m_upper.source_id],
+        payload,
+        fixture.z2m_handler_state
+      )
+
+    baseline_html = render(view)
+    baseline_hue_kelvin = html_value(baseline_html, "#group-temp-value-#{fixture.hue_group.id}")
+
+    assert String.ends_with?(baseline_hue_kelvin, "K")
+    assert baseline_hue_kelvin |> String.trim_trailing("K") |> String.to_integer() >= 2600
+    assert baseline_hue_kelvin |> String.trim_trailing("K") |> String.to_integer() < 2700
+
+    html = render(view)
+
+    assert_value(html, "#group-temp-value-#{fixture.z2m_group.id}", "2681K")
+    assert_value(html, "#light-temp-value-#{fixture.z2m_lower.id}", "2681K")
+    assert_value(html, "#light-temp-value-#{fixture.z2m_upper.id}", "2681K")
   end
 
   test "scene clear suppression ignores echoed refresh updates until the refresh window closes" do
@@ -153,7 +210,9 @@ defmodule Hueworks.CircadianIntegrationTest do
     actions = Planner.plan_room(room.id, result.intent_diff)
     desired = find_action_desired!(actions, :group, fixture.z2m_group.id)
 
-    lower_payload = Jason.encode!(Z2MPayload.action_payload({:set_state, desired}, fixture.z2m_lower))
+    lower_payload =
+      Jason.encode!(Z2MPayload.action_payload({:set_state, desired}, fixture.z2m_lower))
+
     off_payload = Jason.encode!(Z2MPayload.action_payload(:off, fixture.z2m_upper))
 
     {:ok, _state} =
@@ -180,7 +239,9 @@ defmodule Hueworks.CircadianIntegrationTest do
     assert %ActiveScene{} = ActiveScenes.get_for_room(room.id)
   end
 
-  test "late z2m group echo does not overwrite mixed member truth during an active scene", %{conn: conn} do
+  test "late z2m group echo does not overwrite mixed member truth during an active scene", %{
+    conn: conn
+  } do
     fixture = setup_mixed_scene_fixture("late-group")
     %{room: room, scene: scene} = fixture
 
@@ -191,9 +252,13 @@ defmodule Hueworks.CircadianIntegrationTest do
     actions = Planner.plan_room(room.id, result.intent_diff)
     desired = find_action_desired!(actions, :group, fixture.z2m_group.id)
 
-    lower_payload = Jason.encode!(Z2MPayload.action_payload({:set_state, desired}, fixture.z2m_lower))
+    lower_payload =
+      Jason.encode!(Z2MPayload.action_payload({:set_state, desired}, fixture.z2m_lower))
+
     off_payload = Jason.encode!(Z2MPayload.action_payload(:off, fixture.z2m_upper))
-    group_payload = Jason.encode!(Z2MPayload.action_payload({:set_state, desired}, fixture.z2m_group))
+
+    group_payload =
+      Jason.encode!(Z2MPayload.action_payload({:set_state, desired}, fixture.z2m_group))
 
     {:ok, _state} =
       Z2MHandler.handle_message(
@@ -231,7 +296,12 @@ defmodule Hueworks.CircadianIntegrationTest do
     before_gap = apply_scene_at(scene, "2026-03-08 01:30:00")
     after_gap = apply_scene_at(scene, "2026-03-08 03:30:00")
 
-    assert before_gap.updated[{:light, solo_hue.id}] == %{power: :on, brightness: 10, kelvin: 2000}
+    assert before_gap.updated[{:light, solo_hue.id}] == %{
+             power: :on,
+             brightness: 10,
+             kelvin: 2000
+           }
+
     assert after_gap.updated[{:light, solo_hue.id}] == %{power: :on, brightness: 17, kelvin: 2000}
   end
 
@@ -287,7 +357,12 @@ defmodule Hueworks.CircadianIntegrationTest do
     hue_threshold_html = render(view)
 
     assert DesiredState.get(:light, fixture.solo_hue.id).kelvin > 2200
-    assert html_value(hue_threshold_html, "#group-temp-value-#{fixture.hue_group.id}") not in ["2203K", "2000K"]
+
+    assert html_value(hue_threshold_html, "#group-temp-value-#{fixture.hue_group.id}") not in [
+             "2203K",
+             "2000K"
+           ]
+
     assert html_value(hue_threshold_html, "#group-temp-value-#{fixture.hue_group.id}") ==
              html_value(hue_threshold_html, "#light-temp-value-#{fixture.hue_floor_a.id}")
 
@@ -303,8 +378,11 @@ defmodule Hueworks.CircadianIntegrationTest do
     _ = round_trip_at(view, fixture, z2m_threshold)
     z2m_threshold_html = render(view)
 
-    z2m_threshold_group = html_value(z2m_threshold_html, "#group-temp-value-#{fixture.z2m_group.id}")
-    z2m_threshold_member = html_value(z2m_threshold_html, "#light-temp-value-#{fixture.z2m_lower.id}")
+    z2m_threshold_group =
+      html_value(z2m_threshold_html, "#group-temp-value-#{fixture.z2m_group.id}")
+
+    z2m_threshold_member =
+      html_value(z2m_threshold_html, "#light-temp-value-#{fixture.z2m_lower.id}")
 
     assert String.trim_trailing(z2m_threshold_group, "K") |> String.to_integer() >= 2700
     assert z2m_threshold_group == z2m_threshold_member
@@ -431,10 +509,29 @@ defmodule Hueworks.CircadianIntegrationTest do
 
     result = apply_scene_at(scene, "2026-03-31 12:00:00")
 
-    assert result.updated[{:light, manual_light.id}] == %{power: :on, brightness: "25", kelvin: "2500"}
-    assert result.updated[{:light, circadian_light.id}] == %{power: :on, brightness: 90, kelvin: 4000}
-    assert DesiredState.get(:light, manual_light.id) == %{power: :on, brightness: "25", kelvin: "2500"}
-    assert DesiredState.get(:light, circadian_light.id) == %{power: :on, brightness: 90, kelvin: 4000}
+    assert result.updated[{:light, manual_light.id}] == %{
+             power: :on,
+             brightness: "25",
+             kelvin: "2500"
+           }
+
+    assert result.updated[{:light, circadian_light.id}] == %{
+             power: :on,
+             brightness: 90,
+             kelvin: 4000
+           }
+
+    assert DesiredState.get(:light, manual_light.id) == %{
+             power: :on,
+             brightness: "25",
+             kelvin: "2500"
+           }
+
+    assert DesiredState.get(:light, circadian_light.id) == %{
+             power: :on,
+             brightness: 90,
+             kelvin: 4000
+           }
   end
 
   test "poller advances an active circadian scene using real elapsed time" do
@@ -461,8 +558,20 @@ defmodule Hueworks.CircadianIntegrationTest do
       })
 
     now_local = DateTime.now!("America/New_York")
-    sunrise = now_local |> DateTime.add(1, :second) |> DateTime.to_time() |> Time.truncate(:second) |> Time.to_iso8601()
-    sunset = now_local |> DateTime.add(11, :second) |> DateTime.to_time() |> Time.truncate(:second) |> Time.to_iso8601()
+
+    sunrise =
+      now_local
+      |> DateTime.add(1, :second)
+      |> DateTime.to_time()
+      |> Time.truncate(:second)
+      |> Time.to_iso8601()
+
+    sunset =
+      now_local
+      |> DateTime.add(11, :second)
+      |> DateTime.to_time()
+      |> Time.truncate(:second)
+      |> Time.to_iso8601()
 
     {:ok, state} =
       Scenes.create_light_state("Rapid Poller", :circadian, %{
@@ -554,7 +663,11 @@ defmodule Hueworks.CircadianIntegrationTest do
 
     {:ok, _} =
       Scenes.replace_scene_components(scene, [
-        %{name: "Compressed Day Component", light_ids: [light.id], light_state_id: to_string(state.id)}
+        %{
+          name: "Compressed Day Component",
+          light_ids: [light.id],
+          light_state_id: to_string(state.id)
+        }
       ])
 
     {:ok, _} =
@@ -606,9 +719,13 @@ defmodule Hueworks.CircadianIntegrationTest do
     assert ActiveScenes.get_for_room(room.id) == nil
   end
 
-  test "reload plus mixed z2m echoes keeps partial-member truth while the scene stays active", %{conn: conn} do
+  test "reload plus mixed z2m echoes keeps partial-member truth while the scene stays active", %{
+    conn: conn
+  } do
     fixture = setup_mixed_scene_fixture("reload-z2m")
-    %{room: room, scene: scene, solo_hue: solo_hue, hue_group: hue_group, z2m_group: z2m_group} = fixture
+
+    %{room: room, scene: scene, solo_hue: solo_hue, hue_group: hue_group, z2m_group: z2m_group} =
+      fixture
 
     disable_bridges_for_refresh!([solo_hue.bridge_id, hue_group.bridge_id, z2m_group.bridge_id])
 
@@ -623,9 +740,13 @@ defmodule Hueworks.CircadianIntegrationTest do
     |> element("button[phx-click=\"refresh\"]")
     |> render_click()
 
-    lower_payload = Jason.encode!(Z2MPayload.action_payload({:set_state, desired}, fixture.z2m_lower))
+    lower_payload =
+      Jason.encode!(Z2MPayload.action_payload({:set_state, desired}, fixture.z2m_lower))
+
     off_payload = Jason.encode!(Z2MPayload.action_payload(:off, fixture.z2m_upper))
-    group_payload = Jason.encode!(Z2MPayload.action_payload({:set_state, desired}, fixture.z2m_group))
+
+    group_payload =
+      Jason.encode!(Z2MPayload.action_payload({:set_state, desired}, fixture.z2m_group))
 
     {:ok, _state} =
       Z2MHandler.handle_message(
@@ -687,6 +808,7 @@ defmodule Hueworks.CircadianIntegrationTest do
       [fixture.hue_floor_a, fixture.hue_floor_b],
       fixture.hue_mapper_state
     )
+
     member_html = render(view)
 
     assert_value(member_html, "#group-temp-value-#{fixture.hue_group.id}", "4000K")
@@ -704,8 +826,17 @@ defmodule Hueworks.CircadianIntegrationTest do
     dawn_a = apply_scene_at(fixture_a.scene, "2026-03-31 05:00:00")
     noon_b = apply_scene_at(fixture_b.scene, "2026-03-31 12:00:00")
 
-    assert dawn_a.updated[{:light, fixture_a.solo_hue.id}] == %{power: :on, brightness: 37, kelvin: 2000}
-    assert noon_b.updated[{:light, fixture_b.solo_hue.id}] == %{power: :on, brightness: 90, kelvin: 4000}
+    assert dawn_a.updated[{:light, fixture_a.solo_hue.id}] == %{
+             power: :on,
+             brightness: 37,
+             kelvin: 2000
+           }
+
+    assert noon_b.updated[{:light, fixture_b.solo_hue.id}] == %{
+             power: :on,
+             brightness: 90,
+             kelvin: 4000
+           }
 
     expire_pending!(fixture_a.room.id)
     expire_pending!(fixture_b.room.id)
@@ -716,7 +847,11 @@ defmodule Hueworks.CircadianIntegrationTest do
     assert %ActiveScene{scene_id: scene_id} = ActiveScenes.get_for_room(fixture_b.room.id)
     assert scene_id == fixture_b.scene.id
 
-    assert DesiredState.get(:light, fixture_b.solo_hue.id) == %{power: :on, brightness: 90, kelvin: 4000}
+    assert DesiredState.get(:light, fixture_b.solo_hue.id) == %{
+             power: :on,
+             brightness: 90,
+             kelvin: 4000
+           }
   end
 
   defp setup_mixed_scene_fixture(suffix \\ "") do
@@ -847,7 +982,8 @@ defmodule Hueworks.CircadianIntegrationTest do
         "brightness_mode_time_light" => 10_800
       })
 
-    {:ok, scene} = Scenes.create_scene(%{name: "Circadian Integration#{room_suffix}", room_id: room.id})
+    {:ok, scene} =
+      Scenes.create_scene(%{name: "Circadian Integration#{room_suffix}", room_id: room.id})
 
     {:ok, _} =
       Scenes.replace_scene_components(scene, [
@@ -875,7 +1011,8 @@ defmodule Hueworks.CircadianIntegrationTest do
       z2m_lower: z2m_lower,
       z2m_upper: z2m_upper,
       z2m_group: z2m_group,
-      hue_mapper_state: hue_mapper_state(hue_bridge, [solo_hue, hue_floor_a, hue_floor_b], [hue_group]),
+      hue_mapper_state:
+        hue_mapper_state(hue_bridge, [solo_hue, hue_floor_a, hue_floor_b], [hue_group]),
       z2m_handler_state: z2m_handler_state(z2m_bridge)
     }
   end
@@ -904,25 +1041,74 @@ defmodule Hueworks.CircadianIntegrationTest do
 
     simulate_hue_action(actions, fixture.solo_hue, fixture.hue_mapper_state)
     simulate_hue_group_action(actions, fixture.hue_group, fixture.hue_mapper_state)
-    simulate_z2m_group_members(actions, fixture.z2m_group, [fixture.z2m_lower, fixture.z2m_upper], fixture.z2m_handler_state)
+
+    simulate_z2m_group_members(
+      actions,
+      fixture.z2m_group,
+      [fixture.z2m_lower, fixture.z2m_upper],
+      fixture.z2m_handler_state
+    )
 
     html = render(view)
 
-    assert_value(html, "#light-brightness-value-#{fixture.solo_hue.id}", "#{expected_brightness}%")
+    assert_value(
+      html,
+      "#light-brightness-value-#{fixture.solo_hue.id}",
+      "#{expected_brightness}%"
+    )
+
     assert_value(html, "#light-temp-value-#{fixture.solo_hue.id}", "#{expected_desired_kelvin}K")
 
     expected_hue_group_kelvin =
       if expected_desired_kelvin < 2203, do: 2203, else: expected_desired_kelvin
 
-    assert_value(html, "#group-brightness-value-#{fixture.hue_group.id}", "#{expected_brightness}%")
-    assert_value(html, "#group-temp-value-#{fixture.hue_group.id}", "#{expected_hue_group_kelvin}K")
-    assert_value(html, "#light-temp-value-#{fixture.hue_floor_a.id}", "#{expected_hue_group_kelvin}K")
-    assert_value(html, "#light-temp-value-#{fixture.hue_floor_b.id}", "#{expected_hue_group_kelvin}K")
+    assert_value(
+      html,
+      "#group-brightness-value-#{fixture.hue_group.id}",
+      "#{expected_brightness}%"
+    )
 
-    assert_value(html, "#group-brightness-value-#{fixture.z2m_group.id}", "#{expected_brightness}%")
-    assert_value(html, "#group-temp-value-#{fixture.z2m_group.id}", "#{expected_z2m_display_kelvin}K")
-    assert_value(html, "#light-temp-value-#{fixture.z2m_lower.id}", "#{expected_z2m_display_kelvin}K")
-    assert_value(html, "#light-temp-value-#{fixture.z2m_upper.id}", "#{expected_z2m_display_kelvin}K")
+    assert_value(
+      html,
+      "#group-temp-value-#{fixture.hue_group.id}",
+      "#{expected_hue_group_kelvin}K"
+    )
+
+    assert_value(
+      html,
+      "#light-temp-value-#{fixture.hue_floor_a.id}",
+      "#{expected_hue_group_kelvin}K"
+    )
+
+    assert_value(
+      html,
+      "#light-temp-value-#{fixture.hue_floor_b.id}",
+      "#{expected_hue_group_kelvin}K"
+    )
+
+    assert_value(
+      html,
+      "#group-brightness-value-#{fixture.z2m_group.id}",
+      "#{expected_brightness}%"
+    )
+
+    assert_value(
+      html,
+      "#group-temp-value-#{fixture.z2m_group.id}",
+      "#{expected_z2m_display_kelvin}K"
+    )
+
+    assert_value(
+      html,
+      "#light-temp-value-#{fixture.z2m_lower.id}",
+      "#{expected_z2m_display_kelvin}K"
+    )
+
+    assert_value(
+      html,
+      "#light-temp-value-#{fixture.z2m_upper.id}",
+      "#{expected_z2m_display_kelvin}K"
+    )
 
     assert State.get(:group, fixture.hue_group.id) == %{
              power: :on,
@@ -941,7 +1127,11 @@ defmodule Hueworks.CircadianIntegrationTest do
     expected_hue_group_kelvin = if expected_kelvin < 2203, do: 2203, else: expected_kelvin
 
     assert Enum.any?(actions, fn
-             %{type: :light, id: id, desired: %{brightness: ^expected_brightness, kelvin: ^expected_kelvin, power: :on}}
+             %{
+               type: :light,
+               id: id,
+               desired: %{brightness: ^expected_brightness, kelvin: ^expected_kelvin, power: :on}
+             }
              when id == fixture.solo_hue.id ->
                true
 
@@ -950,7 +1140,15 @@ defmodule Hueworks.CircadianIntegrationTest do
            end)
 
     assert Enum.any?(actions, fn
-             %{type: :group, id: id, desired: %{brightness: ^expected_brightness, kelvin: ^expected_hue_group_kelvin, power: :on}}
+             %{
+               type: :group,
+               id: id,
+               desired: %{
+                 brightness: ^expected_brightness,
+                 kelvin: ^expected_hue_group_kelvin,
+                 power: :on
+               }
+             }
              when id == fixture.hue_group.id ->
                true
 
@@ -959,7 +1157,11 @@ defmodule Hueworks.CircadianIntegrationTest do
            end)
 
     assert Enum.any?(actions, fn
-             %{type: :group, id: id, desired: %{brightness: ^expected_brightness, kelvin: ^expected_kelvin, power: :on}}
+             %{
+               type: :group,
+               id: id,
+               desired: %{brightness: ^expected_brightness, kelvin: ^expected_kelvin, power: :on}
+             }
              when id == fixture.z2m_group.id ->
                true
 
@@ -1127,7 +1329,8 @@ defmodule Hueworks.CircadianIntegrationTest do
     naive |> NaiveDateTime.add(seconds, :second) |> NaiveDateTime.to_iso8601()
   end
 
-  defp time_for_round_tripped_kelvin!(fixture, {type, id}, date, matcher) when is_function(matcher, 1) do
+  defp time_for_round_tripped_kelvin!(fixture, {type, id}, date, matcher)
+       when is_function(matcher, 1) do
     Enum.find_value(0..1_439, fn minute ->
       local_time =
         date

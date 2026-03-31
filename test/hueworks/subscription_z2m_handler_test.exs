@@ -205,6 +205,52 @@ defmodule Hueworks.Subscription.Z2MHandlerTest do
     assert %{power: :on, kelvin: 3043} = State.get(:light, light.id)
   end
 
+  test "handler prefers xy in the 2600-2700 crossover band even when z2m reports color_temp mode" do
+    room = Repo.insert!(%Room{name: "Color Temp Crossover"})
+
+    bridge =
+      Repo.insert!(%Bridge{
+        type: :z2m,
+        name: "Z2M",
+        host: "10.0.0.731",
+        credentials: %{"base_topic" => "zigbee2mqtt", "broker_port" => 1883},
+        enabled: true
+      })
+
+    light =
+      Repo.insert!(%Light{
+        name: "Cabinet Crossover",
+        source: :z2m,
+        source_id: "cabinet_crossover",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        supports_temp: true,
+        reported_min_kelvin: 2000,
+        reported_max_kelvin: 6329,
+        actual_min_kelvin: 2700,
+        actual_max_kelvin: 6500,
+        extended_kelvin_range: true
+      })
+
+    {x, y} = HomeAssistantPayload.extended_xy(2681)
+
+    {:ok, state} = Handler.init([bridge.id, "zigbee2mqtt"])
+
+    {:ok, _state} =
+      Handler.handle_message(
+        ["zigbee2mqtt", "cabinet_crossover"],
+        Jason.encode!(%{
+          "state" => "ON",
+          "color_mode" => "color_temp",
+          "color" => %{"x" => x, "y" => y},
+          "color_temp_kelvin" => 3479
+        }),
+        state
+      )
+
+    assert %{power: :on, kelvin: 2681} = State.get(:light, light.id)
+  end
+
   test "handler remaps reported low-end floor when extended range is enabled and xy is absent" do
     room = Repo.insert!(%Room{name: "Extended Floor"})
 
@@ -457,7 +503,8 @@ defmodule Hueworks.Subscription.Z2MHandlerTest do
     assert State.get(:light, upper.id) == %{power: :on, kelvin: 3043}
     assert State.get(:group, group.id) == %{power: :on, kelvin: 3043}
 
-    {:ok, _state} = Handler.handle_message(["zigbee2mqtt", "mapped_cabinet_group"], payload, state)
+    {:ok, _state} =
+      Handler.handle_message(["zigbee2mqtt", "mapped_cabinet_group"], payload, state)
 
     assert State.get(:group, group.id) == %{power: :on, kelvin: 3043}
   end

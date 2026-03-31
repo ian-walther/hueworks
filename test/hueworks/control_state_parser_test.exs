@@ -114,6 +114,26 @@ defmodule Hueworks.Control.StateParserTest do
     assert StateParser.kelvin_from_z2m_attrs(attrs, entity) == %{kelvin: 2493}
   end
 
+  test "kelvin_from_z2m_attrs prefers xy in the 2600-2700 crossover band even when color_mode says color_temp" do
+    {x, y} = HomeAssistantPayload.extended_xy(2681)
+
+    attrs = %{
+      "color_mode" => "color_temp",
+      "color" => %{"x" => x, "y" => y},
+      "color_temp_kelvin" => 3479
+    }
+
+    entity = %{
+      extended_kelvin_range: true,
+      actual_min_kelvin: 2700,
+      actual_max_kelvin: 6500,
+      reported_min_kelvin: 2000,
+      reported_max_kelvin: 6329
+    }
+
+    assert StateParser.kelvin_from_z2m_attrs(attrs, entity) == %{kelvin: 2681}
+  end
+
   test "kelvin_from_z2m_attrs preserves direct sub-2700 kelvin reports for extended range lights" do
     {x, y} = HomeAssistantPayload.extended_xy(2688)
 
