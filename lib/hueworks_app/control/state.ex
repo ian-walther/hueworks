@@ -9,9 +9,9 @@ defmodule Hueworks.Control.State do
   alias Ecto.Adapters.SQL.Sandbox
   alias Hueworks.Control.Bootstrap.HomeAssistant
   alias Hueworks.Control.Bootstrap.Hue
+  alias Hueworks.Control.LightStateSemantics
   alias Hueworks.Control.Bootstrap.Z2M
   alias Hueworks.Control.DesiredState
-  alias Hueworks.Kelvin
   alias Hueworks.ActiveScenes
   alias Hueworks.DebugLogging
   alias Hueworks.Repo
@@ -243,7 +243,7 @@ defmodule Hueworks.Control.State do
        when is_integer(light_id) and is_map(desired) do
     case light_for_desired_comparison(light_id, caller) do
       %Light{} = light ->
-        clamp_desired_for_light(desired, light)
+        LightStateSemantics.effective_desired_for_light(desired, light)
 
       _ ->
         desired
@@ -294,89 +294,18 @@ defmodule Hueworks.Control.State do
 
   defp allow_repo_access(_caller), do: :ok
 
-  defp clamp_desired_for_light(desired, light) when is_map(desired) do
-    case kelvin_value(desired) do
-      nil ->
-        desired
-
-      kelvin ->
-        if supports_temp?(light) do
-          {min_kelvin, max_kelvin} = Kelvin.derive_range(light)
-          clamped_kelvin = round(Hueworks.Util.clamp(kelvin, min_kelvin, max_kelvin))
-          put_kelvin(desired, clamped_kelvin)
-        else
-          drop_kelvin(desired)
-        end
-    end
-  end
-
-  defp clamp_desired_for_light(desired, _light), do: desired
-
-  defp kelvin_value(desired) when is_map(desired) do
-    desired
-    |> Enum.find_value(fn
-      {key, value} when key in [:kelvin, "kelvin", :temperature, "temperature"] ->
-        Hueworks.Util.to_number(value)
-
-      _ ->
-        nil
-    end)
-    |> case do
-      nil -> nil
-      value -> round(value)
-    end
-  end
-
-  defp supports_temp?(light) when is_map(light) do
-    Map.get(light, :supports_temp) == true or Map.get(light, "supports_temp") == true
-  end
-
-  defp drop_kelvin(desired) do
-    desired
-    |> Map.delete(:kelvin)
-    |> Map.delete("kelvin")
-    |> Map.delete(:temperature)
-    |> Map.delete("temperature")
-  end
-
-  defp put_kelvin(desired, clamped_kelvin) do
-    keys =
-      desired
-      |> Map.keys()
-      |> Enum.filter(&(&1 in [:kelvin, "kelvin", :temperature, "temperature"]))
-
-    desired = drop_kelvin(desired)
-
-    case keys do
-      [] ->
-        Map.put(desired, :kelvin, clamped_kelvin)
-
-      _ ->
-        Enum.reduce(keys, desired, fn key, acc ->
-          Map.put(acc, key, clamped_kelvin)
-        end)
-    end
-  end
-
   defp diverged_from_desired?(desired, updated) do
-    Enum.any?(desired, fn {key, desired_value} ->
-      updated_value = Map.get(updated, key)
-      values_equal?(key, desired_value, updated_value) == false
-    end)
+    LightStateSemantics.diverging_keys(desired, updated,
+      brightness_tolerance: @brightness_tolerance,
+      temperature_mired_tolerance: @temperature_scene_clear_mired_tolerance
+    ) != []
   end
 
   defp diverging_keys(desired, updated) do
-    desired
-    |> Enum.reduce([], fn {key, desired_value}, acc ->
-      updated_value = Map.get(updated, key)
-
-      if values_equal?(key, desired_value, updated_value) do
-        acc
-      else
-        [key | acc]
-      end
-    end)
-    |> Enum.reverse()
+    LightStateSemantics.diverging_keys(desired, updated,
+      brightness_tolerance: @brightness_tolerance,
+      temperature_mired_tolerance: @temperature_scene_clear_mired_tolerance
+    )
   end
 
   defp power_only_divergence?(keys) do
@@ -392,23 +321,4 @@ defmodule Hueworks.Control.State do
       _ -> false
     end
   end
-
-  defp values_equal?(_key, desired, updated) when desired == updated, do: true
-
-  defp values_equal?(key, desired, updated) when key in [:brightness, "brightness"] do
-    case {Hueworks.Util.to_number(desired), Hueworks.Util.to_number(updated)} do
-      {nil, _} -> desired == updated
-      {_, nil} -> desired == updated
-      {a, b} -> abs(round(a) - round(b)) <= @brightness_tolerance
-    end
-  end
-
-  defp values_equal?(key, desired, updated)
-       when key in [:kelvin, "kelvin", :temperature, "temperature"] do
-    Kelvin.equivalent_temperature?(desired, updated,
-      mired_tolerance: @temperature_scene_clear_mired_tolerance
-    )
-  end
-
-  defp values_equal?(_key, desired, updated), do: desired == updated
 end

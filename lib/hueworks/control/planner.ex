@@ -8,41 +8,28 @@ defmodule Hueworks.Control.Planner do
 
   alias Hueworks.DebugLogging
   alias Hueworks.Control.DesiredState
+  alias Hueworks.Control.LightStateSemantics
   alias Hueworks.Control.State, as: PhysicalState
-  alias Hueworks.Kelvin
   alias Hueworks.Repo
   alias Hueworks.Schemas.{Group, GroupLight, Light}
-  alias Hueworks.Util
-
   @brightness_tolerance 2
   @temperature_physical_mired_tolerance 1
 
   def plan_room(room_id, diff, opts \\ []) when is_integer(room_id) and is_map(diff) do
-    trace = Keyword.get(opts, :trace)
+    room_id
+    |> load_room_snapshot()
+    |> plan_snapshot(diff, opts)
+  end
 
-    room_lights =
-      Repo.all(
-        from(l in Light,
-          where: l.room_id == ^room_id,
-          select: %{
-            id: l.id,
-            bridge_id: l.bridge_id,
-            supports_temp: l.supports_temp,
-            reported_min_kelvin: l.reported_min_kelvin,
-            reported_max_kelvin: l.reported_max_kelvin,
-            actual_min_kelvin: l.actual_min_kelvin,
-            actual_max_kelvin: l.actual_max_kelvin,
-            extended_kelvin_range: l.extended_kelvin_range
-          }
-        )
-      )
+  def plan_snapshot(snapshot, diff, opts \\ []) when is_map(snapshot) and is_map(diff) do
+    trace = Keyword.get(opts, :trace)
+    room_id = Map.get(snapshot, :room_id)
+    room_lights = Map.get(snapshot, :room_lights, [])
+    desired_by_light = Map.get(snapshot, :desired_by_light, %{})
+    physical_by_light = Map.get(snapshot, :physical_by_light, %{})
+    group_memberships = Map.get(snapshot, :group_memberships, [])
 
     room_light_ids = MapSet.new(Enum.map(room_lights, & &1.id))
-
-    desired_by_light =
-      Map.new(room_lights, fn light ->
-        {light.id, DesiredState.get(:light, light.id)}
-      end)
 
     effective_desired_by_light =
       Map.new(room_lights, fn light ->
@@ -63,11 +50,9 @@ defmodule Hueworks.Control.Planner do
     actionable_diff_light_ids =
       Enum.filter(diff_light_ids, fn id ->
         desired = Map.get(effective_desired_by_light, id) || %{}
-        physical = PhysicalState.get(:light, id) || %{}
+        physical = Map.get(physical_by_light, id, %{})
         desired_differs_from_physical?(desired, physical)
       end)
-
-    group_memberships = load_group_memberships(room_id)
 
     log_trace(trace, "planner_input",
       room_id: room_id,
@@ -76,7 +61,13 @@ defmodule Hueworks.Control.Planner do
       actionable_diff_light_ids: Enum.sort(actionable_diff_light_ids)
     )
 
-    log_light_decisions(trace, room_lights, diff_light_ids, effective_desired_by_light)
+    log_light_decisions(
+      trace,
+      room_lights,
+      diff_light_ids,
+      effective_desired_by_light,
+      physical_by_light
+    )
 
     actions =
       actionable_diff_light_ids
@@ -125,6 +116,39 @@ defmodule Hueworks.Control.Planner do
     )
 
     actions
+  end
+
+  defp load_room_snapshot(room_id) do
+    room_lights =
+      Repo.all(
+        from(l in Light,
+          where: l.room_id == ^room_id,
+          select: %{
+            id: l.id,
+            bridge_id: l.bridge_id,
+            supports_temp: l.supports_temp,
+            reported_min_kelvin: l.reported_min_kelvin,
+            reported_max_kelvin: l.reported_max_kelvin,
+            actual_min_kelvin: l.actual_min_kelvin,
+            actual_max_kelvin: l.actual_max_kelvin,
+            extended_kelvin_range: l.extended_kelvin_range
+          }
+        )
+      )
+
+    %{
+      room_id: room_id,
+      room_lights: room_lights,
+      desired_by_light:
+        Map.new(room_lights, fn light ->
+          {light.id, DesiredState.get(:light, light.id)}
+        end),
+      physical_by_light:
+        Map.new(room_lights, fn light ->
+          {light.id, PhysicalState.get(:light, light.id) || %{}}
+        end),
+      group_memberships: load_group_memberships(room_id)
+    }
   end
 
   defp light_bridge(room_lights, id) do
@@ -219,68 +243,10 @@ defmodule Hueworks.Control.Planner do
   end
 
   defp effective_desired_for_light(desired, light) when is_map(desired) do
-    case kelvin_value(desired) do
-      nil ->
-        desired
-
-      kelvin ->
-        if supports_temp?(light) do
-          {min_kelvin, max_kelvin} = Kelvin.derive_range(light)
-          clamped_kelvin = round(Util.clamp(kelvin, min_kelvin, max_kelvin))
-          put_kelvin(desired, clamped_kelvin)
-        else
-          drop_kelvin(desired)
-        end
-    end
+    LightStateSemantics.effective_desired_for_light(desired, light)
   end
 
   defp effective_desired_for_light(_desired, _light), do: %{}
-
-  defp kelvin_value(desired) when is_map(desired) do
-    desired
-    |> Enum.find_value(fn
-      {key, value} when key in [:kelvin, "kelvin", :temperature, "temperature"] ->
-        Util.to_number(value)
-
-      _ ->
-        nil
-    end)
-    |> case do
-      nil -> nil
-      value -> round(value)
-    end
-  end
-
-  defp supports_temp?(light) when is_map(light) do
-    Map.get(light, :supports_temp) == true or Map.get(light, "supports_temp") == true
-  end
-
-  defp drop_kelvin(desired) do
-    desired
-    |> Map.delete(:kelvin)
-    |> Map.delete("kelvin")
-    |> Map.delete(:temperature)
-    |> Map.delete("temperature")
-  end
-
-  defp put_kelvin(desired, clamped_kelvin) do
-    keys =
-      desired
-      |> Map.keys()
-      |> Enum.filter(&(&1 in [:kelvin, "kelvin", :temperature, "temperature"]))
-
-    desired = drop_kelvin(desired)
-
-    case keys do
-      [] ->
-        Map.put(desired, :kelvin, clamped_kelvin)
-
-      _ ->
-        Enum.reduce(keys, desired, fn key, acc ->
-          Map.put(acc, key, clamped_kelvin)
-        end)
-    end
-  end
 
   defp desired_differs_from_physical?(desired, _physical) when map_size(desired) == 0, do: false
 
@@ -295,10 +261,12 @@ defmodule Hueworks.Control.Planner do
 
   defp desired_differs_from_physical_values?(desired, physical)
        when is_map(desired) and is_map(physical) do
-    Enum.any?(desired, fn {key, desired_value} ->
-      physical_value = get_physical_value(physical, key)
-      values_equal?(key, desired_value, physical_value) == false
-    end)
+    map_size(
+      LightStateSemantics.diff_state(physical, desired,
+        brightness_tolerance: @brightness_tolerance,
+        temperature_mired_tolerance: @temperature_physical_mired_tolerance
+      )
+    ) > 0
   end
 
   defp desired_differs_from_physical_values?(_desired, _physical), do: true
@@ -311,15 +279,28 @@ defmodule Hueworks.Control.Planner do
     end
   end
 
-  defp log_light_decisions(nil, _room_lights, _diff_light_ids, _effective_desired_by_light), do: :ok
+  defp log_light_decisions(
+         nil,
+         _room_lights,
+         _diff_light_ids,
+         _effective_desired_by_light,
+         _physical_by_light
+       ),
+       do: :ok
 
-  defp log_light_decisions(trace, room_lights, diff_light_ids, effective_desired_by_light) do
+  defp log_light_decisions(
+         trace,
+         room_lights,
+         diff_light_ids,
+         effective_desired_by_light,
+         physical_by_light
+       ) do
     diff_light_ids = MapSet.new(diff_light_ids)
 
     Enum.each(room_lights, fn light ->
       if MapSet.member?(diff_light_ids, light.id) do
         desired = Map.get(effective_desired_by_light, light.id) || %{}
-        physical = PhysicalState.get(:light, light.id) || %{}
+        physical = Map.get(physical_by_light, light.id, %{})
         actionable = desired_differs_from_physical?(desired, physical)
 
         reason =
@@ -340,42 +321,6 @@ defmodule Hueworks.Control.Planner do
       end
     end)
   end
-
-  defp get_physical_value(physical, key) when is_map(physical) do
-    key_aliases(key)
-    |> Enum.find_value(fn alias_key ->
-      Map.get(physical, alias_key)
-    end)
-  end
-
-  defp key_aliases(:kelvin), do: [:kelvin, "kelvin", :temperature, "temperature"]
-  defp key_aliases("kelvin"), do: [:kelvin, "kelvin", :temperature, "temperature"]
-  defp key_aliases(:temperature), do: [:temperature, "temperature", :kelvin, "kelvin"]
-  defp key_aliases("temperature"), do: [:temperature, "temperature", :kelvin, "kelvin"]
-  defp key_aliases(:brightness), do: [:brightness, "brightness"]
-  defp key_aliases("brightness"), do: [:brightness, "brightness"]
-  defp key_aliases(:power), do: [:power, "power"]
-  defp key_aliases("power"), do: [:power, "power"]
-  defp key_aliases(key), do: [key]
-
-  defp values_equal?(_key, desired, physical) when desired == physical, do: true
-
-  defp values_equal?(key, desired, physical) when key in [:brightness, "brightness"] do
-    case {Util.to_number(desired), Util.to_number(physical)} do
-      {nil, _} -> desired == physical
-      {_, nil} -> desired == physical
-      {a, b} -> abs(round(a) - round(b)) <= @brightness_tolerance
-    end
-  end
-
-  defp values_equal?(key, desired, physical)
-       when key in [:kelvin, "kelvin", :temperature, "temperature"] do
-    Kelvin.equivalent_temperature?(desired, physical,
-      mired_tolerance: @temperature_physical_mired_tolerance
-    )
-  end
-
-  defp values_equal?(_key, desired, physical), do: desired == physical
 
   defp log_trace(nil, _event, _kv), do: :ok
 

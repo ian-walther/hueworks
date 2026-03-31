@@ -207,6 +207,19 @@ defmodule Hueworks.ContextsTest do
     assert Repo.get!(Light, light.id).room_id == room.id
   end
 
+  test "Groups.member_light_ids returns group members" do
+    bridge = insert_bridge(%{host: "10.0.0.151"})
+    group = insert_group(bridge, %{source_id: "g-members"})
+    light_a = insert_light(bridge, %{source_id: "l-a"})
+    light_b = insert_light(bridge, %{source_id: "l-b"})
+    _other = insert_light(bridge, %{source_id: "l-other"})
+
+    Repo.insert!(%GroupLight{group_id: group.id, light_id: light_b.id})
+    Repo.insert!(%GroupLight{group_id: group.id, light_id: light_a.id})
+
+    assert Groups.member_light_ids(group.id) |> Enum.sort() == [light_a.id, light_b.id]
+  end
+
   test "Rooms context supports CRUD and list ordering" do
     _b = insert_room("B room")
     _a = insert_room("A room")

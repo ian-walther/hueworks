@@ -26,6 +26,15 @@ defmodule Hueworks.Groups do
 
   def get_group(id), do: Repo.get(Group, id)
 
+  def member_light_ids(group_id) when is_integer(group_id) do
+    Repo.all(
+      from(gl in GroupLight,
+        where: gl.group_id == ^group_id,
+        select: gl.light_id
+      )
+    )
+  end
+
   def update_display_name(group, attrs) when is_map(attrs) do
     attrs =
       attrs

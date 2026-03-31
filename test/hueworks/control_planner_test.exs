@@ -57,6 +57,48 @@ defmodule Hueworks.Control.PlannerTest do
     assert group_id == group_big.id
   end
 
+  test "plan_snapshot plans from a preloaded room snapshot without repo lookups" do
+    desired = %{power: :on, brightness: 50, kelvin: 3000}
+
+    snapshot = %{
+      room_id: 123,
+      room_lights: [
+        %{
+          id: 1,
+          bridge_id: 10,
+          supports_temp: true,
+          reported_min_kelvin: 2000,
+          reported_max_kelvin: 6500,
+          actual_min_kelvin: nil,
+          actual_max_kelvin: nil,
+          extended_kelvin_range: false
+        },
+        %{
+          id: 2,
+          bridge_id: 10,
+          supports_temp: true,
+          reported_min_kelvin: 2000,
+          reported_max_kelvin: 6500,
+          actual_min_kelvin: nil,
+          actual_max_kelvin: nil,
+          extended_kelvin_range: false
+        }
+      ],
+      desired_by_light: %{1 => desired, 2 => desired},
+      physical_by_light: %{1 => %{}, 2 => %{}},
+      group_memberships: [%{id: 99, bridge_id: 10, lights: MapSet.new([1, 2])}]
+    }
+
+    diff = %{
+      {:light, 1} => desired,
+      {:light, 2} => desired
+    }
+
+    assert [
+             %{type: :group, id: 99, bridge_id: 10, desired: ^desired}
+           ] = Planner.plan_snapshot(snapshot, diff)
+  end
+
   test "plan_room falls back to individual lights when no exact-match group exists" do
     room = Repo.insert!(%Room{name: "Office"})
 

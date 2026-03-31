@@ -5,7 +5,7 @@ defmodule Hueworks.Control.DesiredState do
 
   use GenServer
 
-  alias Hueworks.Kelvin
+  alias Hueworks.Control.LightStateSemantics
   alias Hueworks.Control.State, as: PhysicalState
 
   @brightness_tolerance 2
@@ -124,52 +124,6 @@ defmodule Hueworks.Control.DesiredState do
   end
 
   defp diff_state(physical, desired, opts) do
-    desired
-    |> Enum.reduce(%{}, fn {key, value}, acc ->
-      if values_equal?(key, value, value_or_alias(physical, key), opts) do
-        acc
-      else
-        Map.put(acc, key, value)
-      end
-    end)
+    LightStateSemantics.diff_state(physical, desired, opts)
   end
-
-  defp value_or_alias(state, key) when is_map(state) do
-    key_aliases(key)
-    |> Enum.find_value(fn alias_key ->
-      Map.get(state, alias_key)
-    end)
-  end
-
-  defp value_or_alias(_state, _key), do: nil
-
-  defp key_aliases(:kelvin), do: [:kelvin, "kelvin", :temperature, "temperature"]
-  defp key_aliases("kelvin"), do: [:kelvin, "kelvin", :temperature, "temperature"]
-  defp key_aliases(:temperature), do: [:temperature, "temperature", :kelvin, "kelvin"]
-  defp key_aliases("temperature"), do: [:temperature, "temperature", :kelvin, "kelvin"]
-  defp key_aliases(:brightness), do: [:brightness, "brightness"]
-  defp key_aliases("brightness"), do: [:brightness, "brightness"]
-  defp key_aliases(:power), do: [:power, "power"]
-  defp key_aliases("power"), do: [:power, "power"]
-  defp key_aliases(key), do: [key]
-
-  defp values_equal?(_key, desired, physical, _opts) when desired == physical, do: true
-
-  defp values_equal?(key, desired, physical, opts) when key in [:brightness, "brightness"] do
-    tolerance = Keyword.get(opts, :brightness_tolerance, 0)
-
-    case {Hueworks.Util.to_number(desired), Hueworks.Util.to_number(physical)} do
-      {nil, _} -> desired == physical
-      {_, nil} -> desired == physical
-      {a, b} -> abs(round(a) - round(b)) <= tolerance
-    end
-  end
-
-  defp values_equal?(key, desired, physical, opts)
-       when key in [:kelvin, "kelvin", :temperature, "temperature"] do
-    tolerance = Keyword.get(opts, :temperature_mired_tolerance, 0)
-    Kelvin.equivalent_temperature?(desired, physical, mired_tolerance: tolerance)
-  end
-
-  defp values_equal?(_key, desired, physical, _opts), do: desired == physical
 end
