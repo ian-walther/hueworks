@@ -924,6 +924,10 @@ defmodule HueworksWeb.SceneBuilderComponent do
       group_light_ids != [] and
         Enum.all?(group_light_ids, &MapSet.member?(component_light_ids, &1))
     end)
+    |> Enum.sort_by(fn group ->
+      {-Enum.count(component_group_light_ids(component, group, room_light_ids)),
+       group |> display_name() |> String.downcase(), group.id}
+    end)
   end
 
   defp component_group_light_ids(component, group, room_light_ids) do

@@ -77,7 +77,27 @@ defmodule Hueworks.SceneBuilderTest do
         [%{light_ids: []}]
       )
 
-    assert Enum.map(state.available_groups, & &1.id) == [11, 12]
+    assert Enum.map(state.available_groups, & &1.id) == [12, 11]
+  end
+
+  test "available groups are ordered by member count then alphabetically" do
+    state =
+      Builder.build(
+        [
+          %{id: 1, name: "Lamp"},
+          %{id: 2, name: "Ceiling"},
+          %{id: 3, name: "Desk"},
+          %{id: 4, name: "Shelf"}
+        ],
+        [
+          %{id: 10, name: "Beta Pair", light_ids: [1, 2]},
+          %{id: 11, name: "All Four", light_ids: [1, 2, 3, 4]},
+          %{id: 12, name: "Alpha Pair", light_ids: [3, 4]}
+        ],
+        [%{light_ids: []}]
+      )
+
+    assert Enum.map(state.available_groups, & &1.id) == [11, 12, 10]
   end
 
   test "disabled room lights without an enabled group are excluded from scene requirements" do

@@ -314,6 +314,69 @@ defmodule Hueworks.SceneBuilderComponentTest do
            )
   end
 
+  test "group helper list is ordered by member count then alphabetically", %{conn: conn} do
+    defmodule OrderedGroupsLive do
+      use Phoenix.LiveView
+
+      def mount(_params, _session, socket) do
+        room_lights = [
+          %{id: 1, name: "Lamp"},
+          %{id: 2, name: "Ceiling"},
+          %{id: 3, name: "TV Light"},
+          %{id: 4, name: "Shelf"}
+        ]
+
+        groups = [
+          %{id: 10, name: "Beta Pair", light_ids: [1, 2]},
+          %{id: 11, name: "All Four", light_ids: [1, 2, 3, 4]},
+          %{id: 12, name: "Alpha Pair", light_ids: [3, 4]}
+        ]
+
+        components = [
+          %{
+            id: 1,
+            name: "Component 1",
+            light_ids: [1, 2, 3, 4],
+            group_ids: [11],
+            light_state_id: "new",
+            light_defaults: %{1 => :force_on, 2 => :force_on, 3 => :force_on, 4 => :force_on}
+          }
+        ]
+
+        {:ok,
+         assign(socket,
+           room_lights: room_lights,
+           groups: groups,
+           components: components,
+           light_states: []
+         )}
+      end
+
+      def render(assigns) do
+        ~H"""
+        <.live_component
+          module={HueworksWeb.SceneBuilderComponent}
+          id="scene-builder"
+          room_lights={@room_lights}
+          groups={@groups}
+          components={@components}
+          light_states={@light_states}
+        />
+        """
+      end
+    end
+
+    {:ok, view, _html} = live_isolated(conn, OrderedGroupsLive)
+    html = render(view)
+
+    alpha_index = html |> :binary.match("Alpha Pair") |> elem(0)
+    all_four_index = html |> :binary.match("All Four") |> elem(0)
+    beta_index = html |> :binary.match("Beta Pair") |> elem(0)
+
+    assert all_four_index < alpha_index
+    assert alpha_index < beta_index
+  end
+
   test "selecting a manual light state updates the component dropdown", %{conn: conn} do
     {:ok, state} = Scenes.create_manual_light_state("Soft")
     {:ok, view, _html} = live_isolated(conn, TestLive)

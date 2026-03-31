@@ -1,6 +1,8 @@
 defmodule Hueworks.Scenes.Builder do
   @moduledoc false
 
+  alias Hueworks.Util
+
   def build(room_lights, groups, components) do
     filtered_lights = filter_canonical_lights(room_lights)
     filtered_groups = filter_canonical_groups(groups)
@@ -59,6 +61,11 @@ defmodule Hueworks.Scenes.Builder do
       light_ids = Map.get(group, :light_ids, [])
       light_ids != [] and Enum.all?(light_ids, fn id -> not MapSet.member?(assigned_ids, id) end)
     end)
+    |> Enum.sort_by(
+      fn group ->
+        {-Enum.count(Map.get(group, :light_ids, [])), group |> Util.display_name() |> String.downcase(), group.id}
+      end
+    )
   end
 
   def group_room_light_ids(group, room_light_ids) do
