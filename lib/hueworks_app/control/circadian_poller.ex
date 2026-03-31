@@ -26,6 +26,7 @@ defmodule Hueworks.Control.CircadianPoller do
 
   @impl true
   def handle_continue(:schedule, state) do
+    run_tick()
     schedule_tick(state)
     {:noreply, state}
   end
