@@ -59,8 +59,8 @@ defmodule Hueworks.Control.DesiredState do
           _ = put(type, id, desired)
           physical = PhysicalState.get(type, id) || %{}
 
-          intent_delta = diff_state(previous_desired, desired)
-          reconcile_delta = diff_state(physical, desired)
+          intent_delta = diff_state(previous_desired, desired, brightness_tolerance: 0)
+          reconcile_delta = diff_state(physical, desired, brightness_tolerance: @brightness_tolerance)
 
           intent_acc =
             if intent_delta == %{} do
@@ -112,10 +112,10 @@ defmodule Hueworks.Control.DesiredState do
     |> Map.delete("temperature")
   end
 
-  defp diff_state(physical, desired) do
+  defp diff_state(physical, desired, opts) do
     desired
     |> Enum.reduce(%{}, fn {key, value}, acc ->
-      if values_equal?(key, value, value_or_alias(physical, key)) do
+      if values_equal?(key, value, value_or_alias(physical, key), opts) do
         acc
       else
         Map.put(acc, key, value)
@@ -142,17 +142,19 @@ defmodule Hueworks.Control.DesiredState do
   defp key_aliases("power"), do: [:power, "power"]
   defp key_aliases(key), do: [key]
 
-  defp values_equal?(_key, desired, physical) when desired == physical, do: true
+  defp values_equal?(_key, desired, physical, _opts) when desired == physical, do: true
 
-  defp values_equal?(key, desired, physical) when key in [:brightness, "brightness"] do
+  defp values_equal?(key, desired, physical, opts) when key in [:brightness, "brightness"] do
+    tolerance = Keyword.get(opts, :brightness_tolerance, 0)
+
     case {Hueworks.Util.to_number(desired), Hueworks.Util.to_number(physical)} do
       {nil, _} -> desired == physical
       {_, nil} -> desired == physical
-      {a, b} -> abs(round(a) - round(b)) <= @brightness_tolerance
+      {a, b} -> abs(round(a) - round(b)) <= tolerance
     end
   end
 
-  defp values_equal?(key, desired, physical)
+  defp values_equal?(key, desired, physical, _opts)
        when key in [:brightness, "brightness", :kelvin, "kelvin", :temperature, "temperature"] do
     case {Hueworks.Util.to_number(desired), Hueworks.Util.to_number(physical)} do
       {nil, _} -> desired == physical
@@ -161,5 +163,5 @@ defmodule Hueworks.Control.DesiredState do
     end
   end
 
-  defp values_equal?(_key, desired, physical), do: desired == physical
+  defp values_equal?(_key, desired, physical, _opts), do: desired == physical
 end
