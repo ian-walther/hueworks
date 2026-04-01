@@ -65,6 +65,25 @@ The problem is that they were added to a model that already conflates:
 
 As a result, every new edge case tends to spill into multiple layers at once.
 
+One recent example is especially illustrative:
+
+- after an app restart, an active scene could still appear active
+- desired state could already reflect the current circadian target
+- but the room might not have physically converged to that target
+- later poller ticks could then under-dispatch because they were effectively planning from "did desired intent change?" more than "is the scene still unmet in the real world?"
+- manually toggling a small group would correct only that group, because the targeted reapply path happened to force reconciliation for that subset
+- deactivating and reactivating the whole scene would fix the room immediately, because that path force-applied the full scene again
+
+That bug was fixable in the current system by widening planning to include reconcile drift, not just intent drift.
+
+But architecturally, it is another symptom of the same underlying problem:
+
+- desired intent
+- observed physical divergence
+- and "outstanding convergence work"
+
+are still not represented as clearly separate concepts.
+
 ## Current Shape Of The System
 
 The current system is already more structured than it used to be. Recent refactors helped.
@@ -336,6 +355,13 @@ has to answer:
 - should power-only changes be ignored?
 
 That is a lot of policy for one place.
+
+Closely related: the poller and apply path also need to answer a reconciliation question that is easy to blur with scene intent:
+
+- did the scene target itself change?
+- or is the target unchanged while the room still has not actually converged?
+
+The restart/manual-toggle bug above came from that distinction not being explicit enough.
 
 In a cleaner design:
 
@@ -647,6 +673,7 @@ Tracks:
 - manual latches
 - apply revisions
 - divergence decisions
+- outstanding convergence work
 
 Responsibilities:
 
@@ -654,6 +681,7 @@ Responsibilities:
 - what channels are owned?
 - what is tolerated?
 - what has truly diverged?
+- what still needs to be dispatched even when scene intent itself has not changed?
 
 ### Layer 5: UI
 

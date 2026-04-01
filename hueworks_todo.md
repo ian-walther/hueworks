@@ -4,14 +4,12 @@ Forward-looking backlog only. Completed work has been removed.
 
 ## Now (Critical Path)
 
-### 1) Circadian validation and polish
-Reference: `planning/circadian-adaptation.md`
-- [ ] Replace the current room occupancy UI toggle with HA-driven presence input for scene power policies.
-- [ ] Do real-world validation of circadian behavior across mixed-range rooms and document any group-layout expectations that fall out of the planner.
-- [ ] Decide whether room-coherent circadian output needs an explicit mode, or whether overlapping Hue groups are sufficient for the intended experience.
-- [ ] Add telemetry/counters for circadian apply attempts/failures if log-based observability stops being sufficient.
+### 1) Pico support
+- [ ] Replace Caseta Pico stub event logging with real event handling + mapping entrypoint.
+- [ ] Define Pico button mapping UX for HueWorks scene/control actions.
+- [ ] Add end-to-end tests for Pico event ingestion, mapping resolution, and runtime activation.
 
-### 2) External scene mapping (Home Assistant -> HueWorks)
+### 2) Home Assistant scenes (Home Assistant -> HueWorks)
 Reference: `planning/external-scenes.md`
 - [ ] Add generic external scene model (`external_scenes`) with source-scoped identity.
 - [ ] Add scene mapping model linking external scenes to HueWorks scenes.
@@ -20,7 +18,14 @@ Reference: `planning/external-scenes.md`
 - [ ] Subscribe to HA scene activation events and trigger mapped HueWorks scenes.
 - [ ] Add tests for sync, mapping resolution, and activation event flow.
 
-### 3) Core control coordination and no-popcorning behavior
+### 3) Circadian validation and polish
+Reference: `planning/circadian-adaptation.md`
+- [ ] Replace the current room occupancy UI toggle with HA-driven presence input for scene power policies.
+- [ ] Do real-world validation of circadian behavior across mixed-range rooms and document any group-layout expectations that fall out of the planner.
+- [ ] Decide whether room-coherent circadian output needs an explicit mode, or whether overlapping Hue groups are sufficient for the intended experience.
+- [ ] Add telemetry/counters for circadian apply attempts/failures if log-based observability stops being sufficient.
+
+### 4) Core control coordination and no-popcorning behavior
 Reference: `planning/control-batching.md`
 - [ ] Ensure coordinated execution semantics for mixed actions in a room scene apply.
 - [ ] Validate cross-bridge timing behavior and define acceptable skew.
@@ -28,59 +33,58 @@ Reference: `planning/control-batching.md`
 - [ ] Decide and document executor mode defaults (`:append` vs `:replace`) per call path.
 - [ ] Add end-to-end tests proving expected behavior with 10+ light scene patterns.
 
-### 4) Close known runtime gaps
+### 5) Close known runtime gaps
 - [ ] Implement Caseta group dispatch path in `Hueworks.Control.Group`.
-- [ ] Replace Caseta Pico stub event logging with real event handling + mapping entrypoint.
 - [ ] Resolve HA group fan-out edge cases currently noted in subscription code.
-- [ ] Add regression tests for all three items above.
+- [ ] Add regression tests for both items above.
 
 ## Next
 
-### 5) Bridge credential lifecycle
+### 6) Bridge credential lifecycle
 - [ ] Support editing bridge host/credentials safely without destructive re-setup.
 - [ ] Re-test credentials from UI after edit and gate save on validation.
 - [ ] Add migration-safe credential update flow for Caseta cert/key paths.
 
-### 6) Reimport and idempotency polish
+### 7) Reimport and idempotency polish
 Reference: `planning/import-resync.md`
 - [ ] Finalize and document deletion semantics (disabled vs removed) during reimport.
 - [ ] Persist/import history queries for operator-facing visibility.
 - [ ] Add stronger tests around preserving user edits during reimport.
 
-### 7) DB integrity and query health follow-up
+### 8) DB integrity and query health follow-up
 Reference: `planning/db-integrity.md`
 - [ ] Audit FK behavior vs manual cleanup code for consistency.
 
 ## Later
 
-### 8) Room assignment intelligence
+### 9) Room assignment intelligence
 - [ ] Extract room derivation into a dedicated module.
 - [ ] Add confidence scoring and suggested assignment review.
 - [ ] Improve unassigned/cross-bridge room handling UX.
 
-### 9) Scene UX improvements
+### 10) Scene UX improvements
 - [ ] Scene preview/dry-run mode before apply.
 - [ ] Scene activation history and error summaries in UI.
 - [ ] Bulk scene operations per room.
 
-### 10) Security and operations
+### 11) Security and operations
 - [ ] Add security hardening planning doc once scope is finalized.
 - [ ] Encrypt bridge credentials at rest.
 - [ ] Harden file permissions and backup handling for secrets/material.
 
-### 11) Product expansion
+### 12) Product expansion
 - [ ] Additional bridge integrations beyond Zigbee2MQTT.
 - [ ] Public API surface (WebSocket/REST) for external control.
 - [ ] Multi-user/auth model for non-single-operator deployments.
 
-### 12) HomeKit bridge integration
+### 13) HomeKit bridge integration
 Reference: `planning/homekit-bridge.md`
 - [ ] Add a HomeKit bridge endpoint that exposes HueWorks-controlled lights.
 - [ ] Map HomeKit characteristic writes to HueWorks desired-state -> planner/executor flow.
 - [ ] Mirror physical-state updates back to HomeKit characteristics for state coherence.
 - [ ] Add pairing/persistence, room/accessory metadata mapping, and regression tests.
 
-### 13) Home Assistant reverse integration (HueWorks -> HA)
+### 14) Home Assistant reverse integration (HueWorks -> HA)
 Reference: `planning/home-assistant-reverse-integration.md`
 - [ ] Expose HueWorks-controlled lights into Home Assistant as entities.
 - [ ] Map HA service calls/state writes to HueWorks desired-state -> planner/executor flow.
@@ -88,7 +92,7 @@ Reference: `planning/home-assistant-reverse-integration.md`
 - [ ] Add config/discovery lifecycle, metadata mapping, and regression tests.
 - [ ] Define and enforce HA parity quality bar (state coherence, interaction latency, reliability) for daily control paths.
 
-### 14) Assisted-user functionality polish
+### 15) Assisted-user functionality polish
 Reference: `planning/assisted-user-functionality.md`
 - [ ] Add high-impact guardrails for scene/control conflict predictability.
 - [ ] Improve active-scene clarity (state + deactivation reasons) in room UX.
