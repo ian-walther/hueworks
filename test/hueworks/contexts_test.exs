@@ -4,11 +4,21 @@ defmodule Hueworks.ContextsTest do
   alias Hueworks.Repo
   alias Hueworks.AppSettings
   alias Hueworks.Bridges
+  alias Hueworks.ExternalScenes
   alias Hueworks.Lights
   alias Hueworks.Groups
   alias Hueworks.Rooms
   alias Hueworks.Scenes
-  alias Hueworks.Schemas.{AppSetting, Bridge, BridgeImport, Group, GroupLight, Light, Room}
+  alias Hueworks.Schemas.{
+    AppSetting,
+    Bridge,
+    BridgeImport,
+    ExternalScene,
+    Group,
+    GroupLight,
+    Light,
+    Room
+  }
 
   defp insert_bridge(attrs) do
     defaults = %{
@@ -218,6 +228,45 @@ defmodule Hueworks.ContextsTest do
     Repo.insert!(%GroupLight{group_id: group.id, light_id: light_a.id})
 
     assert Groups.member_light_ids(group.id) |> Enum.sort() == [light_a.id, light_b.id]
+  end
+
+  test "ExternalScenes syncs HA scenes and preserves mappings across resync" do
+    bridge = insert_bridge(%{type: :ha, host: "10.0.0.152", credentials: %{"token" => "token"}})
+    room = insert_room("Living")
+    {:ok, scene} = Scenes.create_scene(%{name: "Evening", room_id: room.id})
+
+    assert {:ok, [external_scene]} =
+             ExternalScenes.sync_home_assistant_scenes(bridge, [
+               %{source_id: "scene.movie_time", name: "Movie Time", metadata: %{"state" => "scening"}}
+             ])
+
+    assert external_scene.source == :ha
+    assert external_scene.source_id == "scene.movie_time"
+
+    assert {:ok, _mapping} =
+             ExternalScenes.update_mapping(external_scene, %{"scene_id" => scene.id, "enabled" => "true"})
+
+    assert {:ok, [resynced]} =
+             ExternalScenes.sync_home_assistant_scenes(bridge, [
+               %{source_id: "scene.movie_time", name: "Movie Time Updated", metadata: %{"state" => "scening"}}
+             ])
+
+    assert resynced.name == "Movie Time Updated"
+    assert resynced.mapping.scene_id == scene.id
+  end
+
+  test "ExternalScenes disables missing HA scenes on resync" do
+    bridge = insert_bridge(%{type: :ha, host: "10.0.0.153", credentials: %{"token" => "token"}})
+
+    {:ok, [external_scene]} =
+      ExternalScenes.sync_home_assistant_scenes(bridge, [
+        %{source_id: "scene.missing_later", name: "Missing Later", metadata: %{}}
+      ])
+
+    assert {:ok, [disabled]} = ExternalScenes.sync_home_assistant_scenes(bridge, [])
+    assert disabled.id == external_scene.id
+    assert disabled.enabled == false
+    assert %ExternalScene{enabled: false} = ExternalScenes.get_external_scene(external_scene.id)
   end
 
   test "Rooms context supports CRUD and list ordering" do

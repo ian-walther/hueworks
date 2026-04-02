@@ -89,6 +89,9 @@
               <%= if bridge.type == :caseta do %>
                 <a class="hw-button" href={"/config/bridge/#{bridge.id}/picos"}>Pico Config</a>
               <% end %>
+              <%= if bridge.type == :ha do %>
+                <a class="hw-button" href={"/config/bridge/#{bridge.id}/external-scenes"}>Scene Import</a>
+              <% end %>
               <%= if bridge.import_complete do %>
               <button
                 class="hw-button"

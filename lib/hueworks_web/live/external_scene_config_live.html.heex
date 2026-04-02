@@ -1,0 +1,99 @@
+<div class="hw-shell">
+  <div class="hw-topbar">
+    <div>
+      <h1 class="hw-title">External Scenes</h1>
+      <p class="hw-subtitle"><%= @bridge.name %> <span class="hw-meta">(<%= @bridge.host %>)</span></p>
+    </div>
+    <div class="hw-actions">
+      <a class="hw-button" href="/config">Back to Config</a>
+      <button type="button" class="hw-button hw-button-on" phx-click="sync_external_scenes">
+        Sync HA Scenes
+      </button>
+    </div>
+  </div>
+
+  <%= if @save_status do %>
+    <p class="hw-muted"><%= @save_status %></p>
+  <% end %>
+
+  <%= if @save_error do %>
+    <p class="hw-error"><%= @save_error %></p>
+  <% end %>
+
+  <section class="hw-panel">
+    <div class="hw-panel-header">
+      <h2>Mapped Triggers</h2>
+      <span class="hw-count"><%= length(@external_scenes) %></span>
+    </div>
+
+    <p class="hw-meta">
+      Home Assistant scene activations are treated like HueWorks scene activations. Keep these HA scenes focused on trigger intent rather than directly mutating HueWorks-managed lights.
+    </p>
+
+    <%= if @external_scenes == [] do %>
+      <p class="hw-muted">No Home Assistant scenes synced yet.</p>
+    <% else %>
+      <div class="hw-list">
+        <%= for external_scene <- @external_scenes do %>
+          <div class="hw-card" id={"external-scene-#{external_scene.id}"}>
+            <div class="hw-card-title">
+              <div class="hw-title-row">
+                <h3><%= external_scene.display_name || external_scene.name %></h3>
+              </div>
+              <p class="hw-meta">source: <%= external_scene.source_id %></p>
+              <p class="hw-meta">
+                status:
+                <%= cond do %>
+                  <% external_scene.enabled == false -> %>
+                    disabled by sync
+                  <% external_scene.mapping && external_scene.mapping.scene_id && external_scene.mapping.enabled -> %>
+                    mapped
+                  <% external_scene.mapping && external_scene.mapping.scene_id && !external_scene.mapping.enabled -> %>
+                    mapped (disabled)
+                  <% true -> %>
+                    unmapped
+                <% end %>
+              </p>
+            </div>
+
+            <form class="hw-form" phx-submit="save_mapping">
+              <input type="hidden" name="external_scene_id" value={external_scene.id} />
+              <input type="hidden" name="enabled" value="false" />
+
+              <label class="hw-modal-label" for={"mapping-scene-#{external_scene.id}"}>HueWorks Scene</label>
+              <select
+                id={"mapping-scene-#{external_scene.id}"}
+                class="hw-select"
+                name="scene_id"
+              >
+                <option value="">No mapping</option>
+                <%= for scene <- @scene_options do %>
+                  <option
+                    value={scene.id}
+                    selected={external_scene.mapping && external_scene.mapping.scene_id == scene.id}
+                  >
+                    <%= (scene.room && (scene.room.display_name || scene.room.name) || "No Room") <> " / " <> scene.name %>
+                  </option>
+                <% end %>
+              </select>
+
+              <label class="hw-row">
+                <input
+                  type="checkbox"
+                  name="enabled"
+                  value="true"
+                  checked={is_nil(external_scene.mapping) || external_scene.mapping.enabled}
+                />
+                <span class="hw-row-title">Enable this mapping</span>
+              </label>
+
+              <div class="hw-modal-actions">
+                <button type="submit" class="hw-button">Save Mapping</button>
+              </div>
+            </form>
+          </div>
+        <% end %>
+      </div>
+    <% end %>
+  </section>
+</div>

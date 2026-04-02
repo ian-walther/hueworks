@@ -5,7 +5,7 @@ defmodule HueworksWeb.ConfigLiveTest do
 
   alias Hueworks.AppSettings
   alias Hueworks.Repo
-  alias Hueworks.Schemas.AppSetting
+  alias Hueworks.Schemas.{AppSetting, Bridge}
 
   setup do
     Repo.delete_all(AppSetting)
@@ -66,5 +66,22 @@ defmodule HueworksWeb.ConfigLiveTest do
 
     assert html =~
              ~r/<option[^>]*value="America\/Indiana\/Indianapolis"[^>]*selected/
+  end
+
+  test "shows Scene Import button for Home Assistant bridges", %{conn: conn} do
+    Repo.insert!(%Bridge{
+      type: :ha,
+      name: "Home Assistant",
+      host: "10.0.0.90",
+      credentials: %{"token" => "token"},
+      enabled: true,
+      import_complete: true
+    })
+
+    {:ok, _view, html} = live(conn, "/config")
+
+    assert html =~ "Scene Import"
+    assert html =~ "/config/bridge/"
+    assert html =~ "/external-scenes"
   end
 end

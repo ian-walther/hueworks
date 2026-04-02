@@ -129,6 +129,26 @@ defmodule Hueworks.Import.Fetch.HomeAssistant do
     }
   end
 
+  def fetch_scene_entities_for_bridge(bridge) do
+    token = bridge.credentials["token"]
+
+    if invalid_credential?(token) do
+      raise "Missing Home Assistant token for bridge #{bridge.name} (#{bridge.host})"
+    end
+
+    {:ok, pid} = Client.connect(bridge.host, token)
+    states = get_states(pid)
+
+    states
+    |> Enum.filter(&is_map/1)
+    |> Enum.filter(fn state ->
+      entity_id = state["entity_id"] || ""
+      String.starts_with?(entity_id, "scene.")
+    end)
+    |> Enum.map(&simplify_scene/1)
+    |> Enum.filter(&is_map/1)
+  end
+
   defp get_entity_registry(pid) do
     case request(pid, "config/entity_registry/list", %{}) do
       {:ok, entities} -> entities
@@ -396,6 +416,23 @@ defmodule Hueworks.Import.Fetch.HomeAssistant do
       }
     end)
   end
+
+  defp simplify_scene(scene) when is_map(scene) do
+    attrs = scene["attributes"] || %{}
+    entity_id = scene["entity_id"]
+
+    %{
+      source_id: entity_id,
+      name: attrs["friendly_name"] || entity_id,
+      display_name: attrs["friendly_name"],
+      metadata: %{
+        "state" => scene["state"],
+        "attributes" => attrs
+      }
+    }
+  end
+
+  defp simplify_scene(_scene), do: nil
 
   defp request(pid, type, params) do
     ref = make_ref()

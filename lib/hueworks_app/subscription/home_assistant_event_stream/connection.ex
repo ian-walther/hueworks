@@ -7,6 +7,7 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.Connection do
 
   import Ecto.Query, only: [from: 2]
 
+  alias Hueworks.ExternalScenes
   alias Hueworks.HomeAssistant.Host
   alias Hueworks.Control.State
   alias Hueworks.Control.StateParser
@@ -30,6 +31,8 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.Connection do
         token: token,
         next_id: 1,
         subscribed: false,
+        state_changed_subscribed: false,
+        call_service_subscribed: false,
         lights: lights,
         groups: groups,
         group_members: group_members
@@ -52,7 +55,10 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.Connection do
         {:reply, {:text, Jason.encode!(auth)}, state}
 
       {:ok, %{"type" => "auth_ok"}} ->
-        subscribe(state)
+        subscribe_events(state, "state_changed")
+
+      {:ok, %{"type" => "result", "success" => true}} ->
+        maybe_subscribe_next_event_type(state)
 
       {:ok, %{"type" => "result"}} ->
         {:ok, state}
@@ -69,13 +75,24 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.Connection do
     end
   end
 
-  defp subscribe(state) do
+  defp subscribe_events(state, event_type) do
     {id, state} = next_id(state)
-    payload = %{"id" => id, "type" => "subscribe_events", "event_type" => "state_changed"}
+    payload = %{"id" => id, "type" => "subscribe_events", "event_type" => event_type}
     {:reply, {:text, Jason.encode!(payload)}, %{state | subscribed: true}}
   end
 
-  defp handle_event(%{"data" => data}, state) do
+  defp maybe_subscribe_next_event_type(%{state_changed_subscribed: false} = state) do
+    state = %{state | state_changed_subscribed: true}
+    subscribe_events(state, "call_service")
+  end
+
+  defp maybe_subscribe_next_event_type(%{call_service_subscribed: false} = state) do
+    {:ok, %{state | call_service_subscribed: true}}
+  end
+
+  defp maybe_subscribe_next_event_type(state), do: {:ok, state}
+
+  defp handle_event(%{"event_type" => "state_changed", "data" => data}, state) do
     entity_id = data["entity_id"]
     new_state = data["new_state"]
 
@@ -104,7 +121,30 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.Connection do
     end
   end
 
+  defp handle_event(%{"event_type" => "call_service", "data" => data}, state) do
+    if data["domain"] == "scene" and data["service"] == "turn_on" do
+      data
+      |> scene_entity_ids_from_service_data()
+      |> then(&ExternalScenes.activate_home_assistant_scenes(state.bridge.id, &1))
+    else
+      :ok
+    end
+  end
+
   defp handle_event(_event, _state), do: :ok
+
+  defp scene_entity_ids_from_service_data(%{"service_data" => service_data}) when is_map(service_data) do
+    direct_ids = normalize_entity_ids(service_data["entity_id"])
+    target_ids = service_data |> Map.get("target", %{}) |> Map.get("entity_id") |> normalize_entity_ids()
+    Enum.uniq(direct_ids ++ target_ids)
+  end
+
+  defp scene_entity_ids_from_service_data(_data), do: []
+
+  defp normalize_entity_ids(nil), do: []
+  defp normalize_entity_ids(value) when is_binary(value), do: [value]
+  defp normalize_entity_ids(values) when is_list(values), do: Enum.filter(values, &is_binary/1)
+  defp normalize_entity_ids(_value), do: []
 
   defp build_ha_state(state, entity) do
     attrs = state["attributes"] || %{}
