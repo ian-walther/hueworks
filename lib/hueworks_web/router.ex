@@ -24,6 +24,7 @@ defmodule HueworksWeb.Router do
     live("/config/bridge/new", BridgeLive, :index)
     live("/config/bridge/:id/setup", BridgeSetupLive, :index)
     live("/config/bridge/:id/picos", PicoConfigLive, :index)
+    live("/config/bridge/:id/picos/:pico_id", PicoConfigLive, :show)
     live("/config/bridge/:id/external-scenes", ExternalSceneConfigLive, :index)
     live("/explore", ExplorationLive, :index)
   end

@@ -1,11 +1,20 @@
 <div class="hw-shell">
   <div class="hw-topbar">
     <div>
-      <h1 class="hw-title">Pico Config</h1>
+      <h1 class="hw-title">
+        <%= if @live_action == :show and @selected_pico do %>
+          Configure Pico
+        <% else %>
+          Pico Config
+        <% end %>
+      </h1>
       <p class="hw-subtitle"><%= @bridge.name %> <span class="hw-meta">(<%= @bridge.host %>)</span></p>
     </div>
     <div class="hw-actions">
       <a class="hw-button" href="/config">Back to Config</a>
+      <%= if @live_action == :show do %>
+        <a class="hw-button" href={"/config/bridge/#{@bridge.id}/picos"}>Back to Picos</a>
+      <% end %>
       <button type="button" class="hw-button hw-button-on" phx-click="sync_picos">Sync Picos</button>
     </div>
   </div>
@@ -18,37 +27,62 @@
     <p class="hw-error"><%= @save_error %></p>
   <% end %>
 
-  <section class="hw-panel">
-    <div class="hw-panel-header">
-      <h2>Discovered Picos</h2>
-      <span class="hw-count"><%= length(@pico_devices) %></span>
-    </div>
+  <%= if @live_action == :index or is_nil(@selected_pico) do %>
+    <section class="hw-panel">
+      <div class="hw-panel-header">
+        <h2>Discovered Picos</h2>
+        <div class="hw-actions">
+          <%= if @detect_pico_mode do %>
+            <button
+              id="pico-cancel-detect"
+              type="button"
+              class="hw-button"
+              phx-click="cancel_detect_pico"
+            >
+              Cancel Detect
+            </button>
+          <% else %>
+            <button
+              id="pico-start-detect"
+              type="button"
+              class="hw-button hw-button-on"
+              phx-click="start_detect_pico"
+            >
+              Detect Pico
+            </button>
+          <% end %>
+          <span class="hw-count"><%= length(@pico_devices) %></span>
+        </div>
+      </div>
 
-    <%= if @pico_devices == [] do %>
-      <p class="hw-muted">No Picos synced yet.</p>
-    <% else %>
-      <div class="hw-list">
-        <%= for pico <- @pico_devices do %>
-          <div class="hw-card" id={"pico-#{pico.id}"}>
-            <div class="hw-card-title">
-              <div class="hw-title-row">
-                <h3><%= pico.display_name || pico.name %></h3>
-              </div>
-              <p class="hw-meta">buttons: <%= length(pico.buttons) %></p>
-              <p class="hw-meta">room: <%= if pico.room, do: pico.room.display_name || pico.room.name, else: "Unassigned" %></p>
-              <div class="hw-actions">
-                <button type="button" class="hw-button" phx-click="select_pico" phx-value-id={pico.id}>
-                  <%= if @selected_pico && @selected_pico.id == pico.id, do: "Configuring", else: "Configure" %>
-                </button>
+      <%= if @detect_pico_mode do %>
+        <p class="hw-muted">Press any button on a synced Pico to jump straight to its config page.</p>
+      <% end %>
+
+      <%= if @pico_devices == [] do %>
+        <p class="hw-muted">No Picos synced yet.</p>
+      <% else %>
+        <div class="hw-list">
+          <%= for pico <- @pico_devices do %>
+            <div class="hw-card" id={"pico-#{pico.id}"}>
+              <div class="hw-card-title">
+                <div class="hw-title-row">
+                  <h3><%= pico.display_name || pico.name %></h3>
+                </div>
+                <p class="hw-meta">buttons: <%= length(pico.buttons) %></p>
+                <p class="hw-meta">room: <%= if pico.room, do: pico.room.display_name || pico.room.name, else: "Unassigned" %></p>
+                <div class="hw-actions">
+                  <button type="button" class="hw-button" phx-click="select_pico" phx-value-id={pico.id}>
+                    Configure
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        <% end %>
-      </div>
-    <% end %>
-  </section>
-
-  <%= if @selected_pico do %>
+          <% end %>
+        </div>
+      <% end %>
+    </section>
+  <% else %>
     <section class="hw-panel">
       <div class="hw-panel-header">
         <h2><%= @selected_pico.display_name || @selected_pico.name %></h2>
@@ -190,7 +224,7 @@
                       <span><%= if group, do: group.display_name || group.name, else: "Unknown group" %></span>
                       <button
                         type="button"
-                        class="hw-edit-button hw-delete-button"
+                        class="hw-button hw-delete-button"
                         phx-click="remove_control_group_entity"
                         phx-value-entity="group"
                         phx-value-id={group_id}
@@ -206,7 +240,7 @@
                       <span><%= if light, do: light.display_name || light.name, else: "Unknown light" %></span>
                       <button
                         type="button"
-                        class="hw-edit-button hw-delete-button"
+                        class="hw-button hw-delete-button"
                         phx-click="remove_control_group_entity"
                         phx-value-entity="light"
                         phx-value-id={light_id}

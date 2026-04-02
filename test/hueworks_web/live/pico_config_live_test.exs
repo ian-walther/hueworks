@@ -94,7 +94,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
     assert html =~ "Pico Config"
   end
 
-  test "pico config creates control groups and assigns buttons by press", %{conn: conn} do
+  test "pico config uses a dedicated detail page for editing", %{conn: conn} do
     room = Repo.insert!(%Room{name: "Main Floor"})
     override_room = Repo.insert!(%Room{name: "Override Room"})
 
@@ -179,6 +179,16 @@ defmodule HueworksWeb.PicoConfigLiveTest do
 
     html = render(view)
     assert html =~ "Main Floor Pico"
+    refute html =~ "Control Groups"
+
+    device = Repo.one!(PicoDevice)
+
+    render_click(element(view, "button[phx-click='select_pico']"))
+
+    assert_patch(view, "/config/bridge/#{bridge.id}/picos/#{device.id}")
+
+    html = render(view)
+    assert html =~ "Configure Pico"
     assert html =~ "Control Groups"
     assert html =~ "Using auto-detected room from Caseta import data."
 
@@ -254,5 +264,38 @@ defmodule HueworksWeb.PicoConfigLiveTest do
     assert assigned.action_type == "toggle_any_on"
     assert assigned.action_config["target_kind"] == "control_group"
     assert assigned.action_config["target_id"] == control_group["id"]
+  end
+
+  test "detect pico mode redirects from the list page into the matching pico config", %{conn: conn} do
+    bridge =
+      Repo.insert!(%Bridge{
+        type: :caseta,
+        name: "Caseta",
+        host: "10.0.0.63",
+        credentials: %{"cert_path" => "a", "key_path" => "b", "cacert_path" => "c"},
+        enabled: true,
+        import_complete: true
+      })
+
+    {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/picos")
+
+    render_click(element(view, "button[phx-click='sync_picos']"))
+    assert render(view) =~ "Main Floor Pico"
+
+    render_click(element(view, "#pico-start-detect"))
+    assert render(view) =~ "Detect mode active. Press a Pico button to open that Pico."
+
+    device = Repo.one!(PicoDevice)
+
+    Phoenix.PubSub.broadcast(
+      Hueworks.PubSub,
+      Picos.topic(),
+      {:pico_button_press, device.id, "1"}
+    )
+
+    assert_patch(view, "/config/bridge/#{bridge.id}/picos/#{device.id}")
+    html = render(view)
+    assert html =~ "Configure Pico"
+    assert html =~ "Pico detected. Opening configuration."
   end
 end

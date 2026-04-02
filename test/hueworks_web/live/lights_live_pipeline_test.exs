@@ -193,6 +193,92 @@ defmodule Hueworks.LightsLivePipelineTest do
     assert physical_group[:kelvin] != 2400
   end
 
+  test "manual group toggle replans stale physical members via reconcile diff",
+       %{
+         conn: conn,
+         actions_agent: actions_agent,
+         executor_server: executor_server
+       } do
+    room = Repo.insert!(%Room{name: "Kitchen"})
+
+    bridge =
+      Repo.insert!(%Bridge{
+        name: "Hue Bridge",
+        type: :hue,
+        host: "192.168.1.81",
+        credentials: %{"api_key" => "test"}
+      })
+
+    light_a =
+      Repo.insert!(%Light{
+        name: "Kitchen A",
+        display_name: "Kitchen A",
+        source: :hue,
+        source_id: "light-a-reconcile",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        supports_temp: true,
+        reported_min_kelvin: 2000,
+        reported_max_kelvin: 6500
+      })
+
+    light_b =
+      Repo.insert!(%Light{
+        name: "Kitchen B",
+        display_name: "Kitchen B",
+        source: :hue,
+        source_id: "light-b-reconcile",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        supports_temp: true,
+        reported_min_kelvin: 2000,
+        reported_max_kelvin: 6500
+      })
+
+    group =
+      Repo.insert!(%Group{
+        name: "Kitchen Group",
+        display_name: "Kitchen Group",
+        source: :hue,
+        source_id: "group-kitchen-reconcile",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        supports_temp: true,
+        reported_min_kelvin: 2000,
+        reported_max_kelvin: 6500
+      })
+
+    Repo.insert!(%GroupLight{group_id: group.id, light_id: light_a.id})
+    Repo.insert!(%GroupLight{group_id: group.id, light_id: light_b.id})
+
+    _ = DesiredState.put(:light, light_a.id, %{power: :on})
+    _ = DesiredState.put(:light, light_b.id, %{power: :on})
+    _ = State.put(:light, light_a.id, %{power: :off})
+    _ = State.put(:light, light_b.id, %{power: :on})
+
+    {:ok, view, _html} = live(conn, "/lights")
+
+    view
+    |> element("button[phx-click='toggle'][phx-value-type='group'][phx-value-id='#{group.id}']")
+    |> render_click()
+
+    drain_executor(executor_server)
+
+    actions = Agent.get(actions_agent, & &1)
+
+    assert [
+             %{
+               type: :group,
+               id: group_id,
+               desired: %{power: :on}
+             }
+           ] = actions
+
+    assert group_id == group.id
+    assert DesiredState.get(:light, light_a.id) == %{power: :on}
+    assert DesiredState.get(:light, light_b.id) == %{power: :on}
+  end
+
   test "manual light toggle can be used repeatedly without reload",
        %{
          conn: conn,

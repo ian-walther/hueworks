@@ -82,10 +82,16 @@ body {
 }
 
 .hw-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: rgba(27, 27, 23, 0.08);
   padding: 0.15rem 0.6rem;
   border-radius: 999px;
   font-size: 0.85rem;
+  line-height: 1;
+  min-height: 2rem;
+  white-space: nowrap;
 }
 
 .hw-list {

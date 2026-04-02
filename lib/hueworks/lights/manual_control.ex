@@ -4,6 +4,7 @@ defmodule Hueworks.Lights.ManualControl do
   import Ecto.Query, only: [from: 2]
 
   alias Hueworks.Control.{DesiredState, Executor, Planner}
+  alias Hueworks.Control.State, as: PhysicalState
   alias Hueworks.Repo
   alias Hueworks.Scenes
   alias Hueworks.Schemas.Light
@@ -18,9 +19,10 @@ defmodule Hueworks.Lights.ManualControl do
       end)
 
     case DesiredState.commit(txn) do
-      {:ok, %{intent_diff: intent_diff}} ->
-        _ = enqueue_diff(room_id, intent_diff)
-        {:ok, intent_diff}
+      {:ok, %{intent_diff: intent_diff, reconcile_diff: reconcile_diff}} ->
+        plan_diff = merge_plan_diff(intent_diff, reconcile_diff)
+        _ = enqueue_diff(room_id, plan_diff)
+        {:ok, plan_diff}
 
       other ->
         other
@@ -40,11 +42,15 @@ defmodule Hueworks.Lights.ManualControl do
            trace: trace
          ) do
       {:ok, _diff, updated} when map_size(updated) > 0 ->
-        {:ok, merged_updated_light_attrs(updated, light_ids)}
+        result = {:ok, merged_updated_light_attrs(updated, light_ids)}
+        schedule_power_reconcile(room_id, light_ids)
+        result
 
       {:ok, _diff, _updated} ->
         with {:ok, _diff} <- apply_updates(room_id, light_ids, %{power: :on}) do
-          {:ok, %{power: :on}}
+          result = {:ok, %{power: :on}}
+          schedule_power_reconcile(room_id, light_ids)
+          result
         end
 
       other ->
@@ -55,7 +61,9 @@ defmodule Hueworks.Lights.ManualControl do
   def apply_power_action(room_id, light_ids, action)
       when is_integer(room_id) and is_list(light_ids) and action in [:off, "off"] do
     with {:ok, _diff} <- apply_updates(room_id, light_ids, %{power: :off}) do
-      {:ok, %{power: :off}}
+      result = {:ok, %{power: :off}}
+      schedule_power_reconcile(room_id, light_ids)
+      result
     end
   end
 
@@ -114,6 +122,71 @@ defmodule Hueworks.Lights.ManualControl do
     light_ids
     |> Enum.reduce(%{}, fn light_id, acc ->
       Map.merge(acc, Map.get(updated, {:light, light_id}, %{}))
+    end)
+  end
+
+  defp schedule_power_reconcile(room_id, light_ids)
+       when is_integer(room_id) and is_list(light_ids) do
+    delay_ms = Application.get_env(:hueworks, :manual_control_reconcile_delay_ms, 500)
+    unique_light_ids = Enum.uniq(light_ids)
+
+    if unique_light_ids != [] do
+      Task.start(fn ->
+        if delay_ms > 0 do
+          Process.sleep(delay_ms)
+        end
+
+        enqueue_power_reconcile(room_id, unique_light_ids)
+      end)
+    end
+
+    :ok
+  end
+
+  defp enqueue_power_reconcile(room_id, light_ids) do
+    diff =
+      Enum.reduce(light_ids, %{}, fn light_id, acc ->
+        desired = DesiredState.get(:light, light_id) || %{}
+        physical = PhysicalState.get(:light, light_id) || %{}
+
+        case power_reconcile_delta(desired, physical) do
+          nil -> acc
+          delta -> Map.put(acc, {:light, light_id}, delta)
+        end
+      end)
+
+    enqueue_diff(room_id, diff)
+  end
+
+  defp power_reconcile_delta(desired, physical) when is_map(desired) and is_map(physical) do
+    desired_power = normalize_power(Map.get(desired, :power) || Map.get(desired, "power"))
+    physical_power = normalize_power(Map.get(physical, :power) || Map.get(physical, "power"))
+
+    cond do
+      desired_power in [:on, :off] and desired_power != physical_power ->
+        %{power: desired_power}
+
+      true ->
+        nil
+    end
+  end
+
+  defp power_reconcile_delta(_desired, _physical), do: nil
+
+  defp normalize_power(:on), do: :on
+  defp normalize_power("on"), do: :on
+  defp normalize_power(true), do: :on
+  defp normalize_power(:off), do: :off
+  defp normalize_power("off"), do: :off
+  defp normalize_power(false), do: :off
+  defp normalize_power(_value), do: nil
+
+  defp merge_plan_diff(left, right) when left == %{}, do: right
+  defp merge_plan_diff(left, right) when right == %{}, do: left
+
+  defp merge_plan_diff(left, right) when is_map(left) and is_map(right) do
+    Map.merge(left, right, fn _key, left_value, right_value ->
+      Map.merge(left_value, right_value)
     end)
   end
 end

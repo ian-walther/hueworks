@@ -17,6 +17,7 @@ defmodule HueworksWeb.PicoConfigLive do
        bridge: nil,
        pico_devices: [],
        selected_pico: nil,
+       detect_pico_mode: false,
        all_rooms: [],
        room_groups: [],
        room_lights: [],
@@ -43,7 +44,13 @@ defmodule HueworksWeb.PicoConfigLive do
 
     case Repo.get(Bridge, bridge_id) do
       %Bridge{type: :caseta} = bridge ->
-        {:noreply, load_page(socket, bridge, pico_id)}
+        case {socket.assigns.live_action, pico_id} do
+          {:show, nil} ->
+            {:noreply, push_navigate(socket, to: pico_index_path(bridge.id))}
+
+          _ ->
+            {:noreply, load_page(socket, bridge, pico_id)}
+        end
 
       _ ->
         {:noreply, push_navigate(socket, to: "/config")}
@@ -53,7 +60,11 @@ defmodule HueworksWeb.PicoConfigLive do
   def handle_event("sync_picos", _params, socket) do
     case Picos.sync_bridge_picos(socket.assigns.bridge) do
       {:ok, devices} ->
-        selected_id = selected_pico_id(socket.assigns.selected_pico, devices)
+        selected_id =
+          case socket.assigns.live_action do
+            :show -> socket.assigns.selected_pico && socket.assigns.selected_pico.id
+            _ -> nil
+          end
 
         {:noreply,
          socket
@@ -67,7 +78,25 @@ defmodule HueworksWeb.PicoConfigLive do
 
   def handle_event("select_pico", %{"id" => id}, socket) do
     pico_id = Util.parse_id(id)
-    {:noreply, push_patch(socket, to: pico_path(socket.assigns.bridge.id, pico_id))}
+    {:noreply, push_patch(socket, to: pico_show_path(socket.assigns.bridge.id, pico_id))}
+  end
+
+  def handle_event("start_detect_pico", _params, socket) do
+    {:noreply,
+     assign(socket,
+       detect_pico_mode: true,
+       save_status: "Detect mode active. Press a Pico button to open that Pico.",
+       save_error: nil
+     )}
+  end
+
+  def handle_event("cancel_detect_pico", _params, socket) do
+    {:noreply,
+     assign(socket,
+       detect_pico_mode: false,
+       save_status: "Detect mode cancelled.",
+       save_error: nil
+     )}
   end
 
   def handle_event("save_room_override", %{"room_id" => room_id}, socket) do
@@ -329,12 +358,19 @@ defmodule HueworksWeb.PicoConfigLive do
 
   def handle_info({:pico_button_press, pico_device_id, button_source_id}, socket) do
     if Enum.any?(socket.assigns.pico_devices, &(&1.id == pico_device_id)) do
-      socket =
-        socket
-        |> push_patch(to: pico_path(socket.assigns.bridge.id, pico_device_id))
+      cond do
+        socket.assigns.live_action == :index and socket.assigns.detect_pico_mode ->
+          {:noreply,
+           socket
+           |> assign(
+             detect_pico_mode: false,
+             save_status: "Pico detected. Opening configuration.",
+             save_error: nil
+           )
+           |> push_patch(to: pico_show_path(socket.assigns.bridge.id, pico_device_id))}
 
-      if socket.assigns.selected_pico && socket.assigns.selected_pico.id == pico_device_id &&
-           socket.assigns.learning_binding do
+        socket.assigns.selected_pico && socket.assigns.selected_pico.id == pico_device_id &&
+            socket.assigns.learning_binding ->
         case Picos.assign_button_binding(
                socket.assigns.selected_pico,
                button_source_id,
@@ -362,8 +398,15 @@ defmodule HueworksWeb.PicoConfigLive do
                save_error: "Failed to assign pressed button: #{inspect(reason)}"
              )}
         end
-      else
-        {:noreply, assign(socket, save_status: "Detected Pico button press.", save_error: nil)}
+
+        socket.assigns.live_action == :show ->
+          {:noreply,
+           socket
+           |> push_patch(to: pico_show_path(socket.assigns.bridge.id, pico_device_id))
+           |> assign(save_status: "Detected Pico button press.", save_error: nil)}
+
+        true ->
+          {:noreply, assign(socket, save_status: "Detected Pico button press.", save_error: nil)}
       end
     else
       {:noreply, socket}
@@ -372,7 +415,12 @@ defmodule HueworksWeb.PicoConfigLive do
 
   defp load_page(socket, bridge, pico_id) do
     devices = Picos.list_devices_for_bridge(bridge.id)
-    selected_id = normalize_selected_pico_id(devices, pico_id)
+    selected_id =
+      case socket.assigns.live_action do
+        :show -> normalize_selected_pico_id(devices, pico_id)
+        _ -> nil
+      end
+
     rooms = Rooms.list_rooms()
 
     socket
@@ -400,6 +448,8 @@ defmodule HueworksWeb.PicoConfigLive do
     socket =
       assign(socket,
         pico_devices: devices,
+        detect_pico_mode:
+          if(socket.assigns.live_action == :index, do: socket.assigns[:detect_pico_mode] || false, else: false),
         selected_pico: selected,
         room_groups: groups,
         room_lights: lights,
@@ -433,19 +483,15 @@ defmodule HueworksWeb.PicoConfigLive do
     )
   end
 
-  defp selected_pico_id(nil, devices), do: normalize_selected_pico_id(devices, nil)
-  defp selected_pico_id(device, _devices), do: device.id
-
   defp normalize_selected_pico_id(devices, selected_id) when is_integer(selected_id) do
     if Enum.any?(devices, &(&1.id == selected_id)) do
       selected_id
     else
-      normalize_selected_pico_id(devices, nil)
+      nil
     end
   end
 
-  defp normalize_selected_pico_id([first | _], _selected_id), do: first.id
-  defp normalize_selected_pico_id([], _selected_id), do: nil
+  defp normalize_selected_pico_id(_devices, _selected_id), do: nil
 
   defp normalize_selected_control_group_id(control_groups, selected_id)
        when is_binary(selected_id) do
@@ -493,8 +539,10 @@ defmodule HueworksWeb.PicoConfigLive do
     |> load_selected_control_group()
   end
 
-  defp pico_path(bridge_id, pico_id) when is_integer(pico_id),
-    do: "/config/bridge/#{bridge_id}/picos?pico_id=#{pico_id}"
+  defp pico_show_path(bridge_id, pico_id) when is_integer(pico_id),
+    do: "/config/bridge/#{bridge_id}/picos/#{pico_id}"
 
-  defp pico_path(bridge_id, _pico_id), do: "/config/bridge/#{bridge_id}/picos"
+  defp pico_show_path(bridge_id, _pico_id), do: pico_index_path(bridge_id)
+
+  defp pico_index_path(bridge_id), do: "/config/bridge/#{bridge_id}/picos"
 end
