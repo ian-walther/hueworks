@@ -6,7 +6,16 @@ defmodule Hueworks.Bridges do
   import Ecto.Query, only: [from: 2, limit: 2]
 
   alias Hueworks.Repo
-  alias Hueworks.Schemas.{Bridge, BridgeImport, Group, GroupLight, Light, SceneComponentLight}
+
+  alias Hueworks.Schemas.{
+    Bridge,
+    BridgeImport,
+    Group,
+    GroupLight,
+    Light,
+    PicoDevice,
+    SceneComponentLight
+  }
 
   def latest_import(%Bridge{id: bridge_id}), do: latest_import(bridge_id)
 
@@ -48,6 +57,7 @@ defmodule Hueworks.Bridges do
 
       Repo.delete_all(from(g in Group, where: g.bridge_id == ^bridge.id))
       Repo.delete_all(from(l in Light, where: l.bridge_id == ^bridge.id))
+      Repo.delete_all(from(pd in PicoDevice, where: pd.bridge_id == ^bridge.id))
 
       Repo.update_all(
         from(b in Bridge, where: b.id == ^bridge.id),
@@ -87,6 +97,10 @@ defmodule Hueworks.Bridges do
         Repo.delete_all(from(l in Light, where: l.id in ^light_ids))
       end
 
+      if bridge.type == :caseta do
+        Repo.delete_all(from(pd in PicoDevice, where: pd.bridge_id == ^bridge.id))
+      end
+
       :ok
     end)
   end
@@ -121,7 +135,9 @@ defmodule Hueworks.Bridges do
   end
 
   defp maybe_limit(query, nil), do: query
-  defp maybe_limit(query, limit_value) when is_integer(limit_value), do: from(bi in query, limit: ^limit_value)
+
+  defp maybe_limit(query, limit_value) when is_integer(limit_value),
+    do: from(bi in query, limit: ^limit_value)
 
   defp normalize_ids(ids) do
     ids

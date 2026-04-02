@@ -23,6 +23,7 @@ defmodule HueworksWeb.Router do
     live("/config", ConfigLive, :index)
     live("/config/bridge/new", BridgeLive, :index)
     live("/config/bridge/:id/setup", BridgeSetupLive, :index)
+    live("/config/bridge/:id/picos", PicoConfigLive, :index)
     live("/explore", ExplorationLive, :index)
   end
 end

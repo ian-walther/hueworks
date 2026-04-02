@@ -86,6 +86,9 @@
               <% else %>
                 <a class="hw-button" href={"/config/bridge/#{bridge.id}/setup?reimport=1"}>Reimport</a>
               <% end %>
+              <%= if bridge.type == :caseta do %>
+                <a class="hw-button" href={"/config/bridge/#{bridge.id}/picos"}>Pico Config</a>
+              <% end %>
               <%= if bridge.import_complete do %>
               <button
                 class="hw-button"

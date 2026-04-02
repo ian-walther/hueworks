@@ -1,0 +1,316 @@
+<div class="hw-shell">
+  <div class="hw-topbar">
+    <div>
+      <h1 class="hw-title">Pico Config</h1>
+      <p class="hw-subtitle"><%= @bridge.name %> <span class="hw-meta">(<%= @bridge.host %>)</span></p>
+    </div>
+    <div class="hw-actions">
+      <a class="hw-button" href="/config">Back to Config</a>
+      <button type="button" class="hw-button hw-button-on" phx-click="sync_picos">Sync Picos</button>
+    </div>
+  </div>
+
+  <%= if @save_status do %>
+    <p class="hw-muted"><%= @save_status %></p>
+  <% end %>
+
+  <%= if @save_error do %>
+    <p class="hw-error"><%= @save_error %></p>
+  <% end %>
+
+  <section class="hw-panel">
+    <div class="hw-panel-header">
+      <h2>Discovered Picos</h2>
+      <span class="hw-count"><%= length(@pico_devices) %></span>
+    </div>
+
+    <%= if @pico_devices == [] do %>
+      <p class="hw-muted">No Picos synced yet.</p>
+    <% else %>
+      <div class="hw-list">
+        <%= for pico <- @pico_devices do %>
+          <div class="hw-card" id={"pico-#{pico.id}"}>
+            <div class="hw-card-title">
+              <div class="hw-title-row">
+                <h3><%= pico.display_name || pico.name %></h3>
+              </div>
+              <p class="hw-meta">buttons: <%= length(pico.buttons) %></p>
+              <p class="hw-meta">room: <%= if pico.room, do: pico.room.display_name || pico.room.name, else: "Unassigned" %></p>
+              <div class="hw-actions">
+                <button type="button" class="hw-button" phx-click="select_pico" phx-value-id={pico.id}>
+                  <%= if @selected_pico && @selected_pico.id == pico.id, do: "Configuring", else: "Configure" %>
+                </button>
+              </div>
+            </div>
+          </div>
+        <% end %>
+      </div>
+    <% end %>
+  </section>
+
+  <%= if @selected_pico do %>
+    <section class="hw-panel">
+      <div class="hw-panel-header">
+        <h2><%= @selected_pico.display_name || @selected_pico.name %></h2>
+        <span class="hw-count"><%= length(@selected_pico.buttons) %> buttons</span>
+      </div>
+
+      <form class="hw-form" phx-submit="save_room_override">
+        <h3>Room Scope</h3>
+        <p class="hw-meta">
+          <%= if Hueworks.Picos.room_override?(@selected_pico) do %>
+            Using manual room override.
+          <% else %>
+            Using auto-detected room from Caseta import data.
+          <% end %>
+        </p>
+
+        <label class="hw-modal-label" for="pico-room-id">Room</label>
+        <select id="pico-room-id" name="room_id" class="hw-select">
+          <option value="" selected={!Hueworks.Picos.room_override?(@selected_pico)}>
+            Auto-detected
+          </option>
+          <%= for room <- @all_rooms do %>
+            <option value={room.id} selected={@selected_pico.room_id == room.id and Hueworks.Picos.room_override?(@selected_pico)}>
+              <%= room.display_name || room.name %>
+            </option>
+          <% end %>
+        </select>
+
+        <div class="hw-modal-actions">
+          <button type="submit" class="hw-button">Save Room Override</button>
+        </div>
+      </form>
+
+      <%= if is_nil(@selected_pico.room_id) do %>
+        <p class="hw-error">This Pico needs a room before control groups or button bindings can be configured.</p>
+      <% else %>
+        <div class="hw-form">
+          <h3>Control Groups</h3>
+          <p class="hw-meta">
+            Define room-scoped target sets for this Pico. Buttons can act on one control group or the union of all control groups.
+          </p>
+
+          <form id="pico-new-control-group-form" phx-change="update_new_control_group" phx-submit="create_control_group" class="hw-row">
+            <label class="hw-modal-label">New control group</label>
+            <input
+              id="pico-new-control-group-name"
+              class="hw-modal-input"
+              type="text"
+              name="name"
+              value={@new_control_group_name}
+              placeholder="Overhead"
+            />
+            <button type="submit" class="hw-button">Create</button>
+          </form>
+
+          <%= if @control_groups != [] do %>
+            <div class="hw-list">
+              <%= for group <- @control_groups do %>
+                <div class="hw-card" id={"pico-control-group-#{group["id"]}"}>
+                  <div class="hw-card-title">
+                    <div class="hw-title-row">
+                      <h3><%= group["name"] %></h3>
+                    </div>
+                    <p class="hw-meta">
+                      groups: <%= length(group["group_ids"]) %>, lights: <%= length(group["light_ids"]) %>
+                    </p>
+                    <div class="hw-actions">
+                      <button type="button" class="hw-button" phx-click="select_control_group" phx-value-id={group["id"]}>
+                        <%= if @selected_control_group_id == group["id"], do: "Editing", else: "Edit" %>
+                      </button>
+                      <button type="button" class="hw-button hw-delete-button" phx-click="delete_control_group" phx-value-id={group["id"]}>
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              <% end %>
+            </div>
+
+            <%= if @selected_control_group_id do %>
+              <div class="hw-form">
+                <h3>Edit Control Group</h3>
+
+                <form id="pico-edit-control-group-name-form" phx-change="edit_control_group_name" class="hw-row">
+                  <label class="hw-modal-label">Name</label>
+                  <input
+                    id="pico-edit-control-group-name"
+                    class="hw-modal-input"
+                    type="text"
+                    name="name"
+                    value={@control_group_name}
+                  />
+                </form>
+
+                <%= if Enum.reject(@room_groups, &(&1.id in @control_group_group_ids)) != [] do %>
+                  <div id="pico-control-group-add-group-row" class="hw-row">
+                    <label class="hw-modal-label">Add group</label>
+                    <form id="pico-control-group-group-form" phx-change="select_control_group_entity">
+                      <input type="hidden" name="entity" value="group" />
+                      <select id="pico-control-group-group-select" class="hw-select" name="id">
+                        <option value="">Select group</option>
+                        <%= for group <- Enum.reject(@room_groups, &(&1.id in @control_group_group_ids)) do %>
+                          <option value={group.id} selected={@selected_control_group_group_id == group.id}>
+                            <%= group.display_name || group.name %>
+                          </option>
+                        <% end %>
+                      </select>
+                    </form>
+                    <button id="pico-add-control-group-group" type="button" class="hw-button" phx-click="add_control_group_entity" phx-value-entity="group">
+                      Add
+                    </button>
+                  </div>
+                <% end %>
+
+                <%= if Enum.reject(@room_lights, &(&1.id in @control_group_light_ids)) != [] do %>
+                  <div id="pico-control-group-add-light-row" class="hw-row">
+                    <label class="hw-modal-label">Add light</label>
+                    <form id="pico-control-group-light-form" phx-change="select_control_group_entity">
+                      <input type="hidden" name="entity" value="light" />
+                      <select id="pico-control-group-light-select" class="hw-select" name="id">
+                        <option value="">Select light</option>
+                        <%= for light <- Enum.reject(@room_lights, &(&1.id in @control_group_light_ids)) do %>
+                          <option value={light.id} selected={@selected_control_group_light_id == light.id}>
+                            <%= light.display_name || light.name %>
+                          </option>
+                        <% end %>
+                      </select>
+                    </form>
+                    <button id="pico-add-control-group-light" type="button" class="hw-button" phx-click="add_control_group_entity" phx-value-entity="light">
+                      Add
+                    </button>
+                  </div>
+                <% end %>
+
+                <div class="hw-room-list">
+                  <%= for group_id <- @control_group_group_ids do %>
+                    <% group = Enum.find(@room_groups, &(&1.id == group_id)) %>
+                    <span class="hw-room-item hw-room-item-row">
+                      <span><%= if group, do: group.display_name || group.name, else: "Unknown group" %></span>
+                      <button
+                        type="button"
+                        class="hw-edit-button hw-delete-button"
+                        phx-click="remove_control_group_entity"
+                        phx-value-entity="group"
+                        phx-value-id={group_id}
+                      >
+                        Remove
+                      </button>
+                    </span>
+                  <% end %>
+
+                  <%= for light_id <- @control_group_light_ids do %>
+                    <% light = Enum.find(@room_lights, &(&1.id == light_id)) %>
+                    <span class="hw-room-item hw-room-item-row">
+                      <span><%= if light, do: light.display_name || light.name, else: "Unknown light" %></span>
+                      <button
+                        type="button"
+                        class="hw-edit-button hw-delete-button"
+                        phx-click="remove_control_group_entity"
+                        phx-value-entity="light"
+                        phx-value-id={light_id}
+                      >
+                        Remove
+                      </button>
+                    </span>
+                  <% end %>
+                </div>
+
+                <div class="hw-modal-actions">
+                  <button id="pico-save-control-group" type="button" phx-click="save_control_group" class="hw-button hw-button-on">
+                    Save Control Group
+                  </button>
+                </div>
+              </div>
+            <% end %>
+          <% else %>
+            <p class="hw-muted">Create at least one control group to start binding buttons.</p>
+          <% end %>
+        </div>
+
+        <div class="hw-form">
+          <h3>Bind Button By Press</h3>
+          <p class="hw-meta">
+            Choose an action, then press a physical Pico button to bind that action to the discovered button.
+          </p>
+
+          <form id="pico-binding-editor-form" phx-change="update_binding_editor" class="hw-row">
+            <label class="hw-modal-label">Target</label>
+            <select id="pico-binding-target-kind" class="hw-select" name="target_kind">
+              <option value="all_groups" selected={@binding_target_kind == "all_groups"}>
+                All Control Groups
+              </option>
+              <option value="control_group" selected={@binding_target_kind == "control_group"}>
+                One Control Group
+              </option>
+            </select>
+
+            <div id="pico-binding-target-id-container">
+              <select
+                id="pico-binding-target-id"
+                class="hw-select"
+                name="target_id"
+                disabled={@binding_target_kind != "control_group"}
+              >
+                <%= if @binding_target_kind == "control_group" do %>
+                  <option value="">Select control group</option>
+                  <%= for group <- @control_groups do %>
+                    <option value={group["id"]} selected={@binding_target_id == group["id"]}>
+                      <%= group["name"] %>
+                    </option>
+                  <% end %>
+                <% else %>
+                  <option value="">All Control Groups</option>
+                <% end %>
+              </select>
+            </div>
+
+            <select id="pico-binding-action" class="hw-select" name="action">
+              <option value="on" selected={@binding_action == "on"}>Turn On</option>
+              <option value="off" selected={@binding_action == "off"}>Turn Off</option>
+              <option value="toggle" selected={@binding_action == "toggle"}>Toggle</option>
+            </select>
+          </form>
+
+          <div class="hw-modal-actions">
+            <button id="pico-start-button-learning" type="button" phx-click="start_button_learning" class="hw-button hw-button-on">
+              <%= if @learning_binding, do: "Waiting For Press", else: "Assign By Press" %>
+            </button>
+            <%= if @learning_binding do %>
+              <button type="button" phx-click="cancel_button_learning" class="hw-button">
+                Cancel
+              </button>
+            <% end %>
+          </div>
+        </div>
+
+        <div class="hw-form">
+          <h3>Discovered Buttons</h3>
+          <div class="hw-list">
+            <%= for button <- @selected_pico.buttons do %>
+              <div class="hw-card" id={"pico-button-#{button.id}"}>
+                <div class="hw-card-title">
+                  <div class="hw-title-row">
+                    <h3>Button <%= button.button_number %></h3>
+                  </div>
+                  <p class="hw-meta">
+                    binding: <%= Hueworks.Picos.button_binding_summary(button, @selected_pico) %>
+                  </p>
+                  <%= if button.last_pressed_at do %>
+                    <p class="hw-meta">last press: <%= button.last_pressed_at %></p>
+                  <% end %>
+                  <div class="hw-actions">
+                    <button type="button" class="hw-button hw-delete-button" phx-click="clear_button_binding" phx-value-id={button.id}>
+                      Clear
+                    </button>
+                  </div>
+                </div>
+              </div>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
+    </section>
+  <% end %>
+</div>

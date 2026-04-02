@@ -2,8 +2,9 @@ defmodule Hueworks.Subscription.CasetaEventStream.ConnectionTest do
   use Hueworks.DataCase, async: false
 
   alias Hueworks.Control.State
+  alias Hueworks.Control.DesiredState
   alias Hueworks.Repo
-  alias Hueworks.Schemas.{Bridge, Light, Room}
+  alias Hueworks.Schemas.{Bridge, Light, PicoButton, PicoDevice, Room}
   alias Hueworks.Subscription.CasetaEventStream.Connection
 
   setup do
@@ -59,8 +60,52 @@ defmodule Hueworks.Subscription.CasetaEventStream.ConnectionTest do
     assert State.get(:light, light.id) == %{power: :on, brightness: 75}
   end
 
-  test "button and invalid frames are ignored" do
-    state = %{bridge: %Bridge{name: "Caseta", host: "10.0.0.91"}, lights: %{}, buffer: ""}
+  test "button press frames trigger configured Pico button actions" do
+    room = Repo.insert!(%Room{name: "Living"})
+
+    bridge =
+      Repo.insert!(%Bridge{
+        type: :caseta,
+        name: "Caseta",
+        host: "10.0.0.91",
+        credentials: %{
+          "cert_path" => "/credentials/caseta.crt",
+          "key_path" => "/credentials/caseta.key",
+          "cacert_path" => "/credentials/caseta-ca.crt"
+        },
+        enabled: true
+      })
+
+    light =
+      Repo.insert!(%Light{
+        name: "Lamp",
+        source: :caseta,
+        source_id: "52",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        enabled: true
+      })
+
+    device =
+      Repo.insert!(%PicoDevice{
+        bridge_id: bridge.id,
+        room_id: room.id,
+        source_id: "device-1",
+        name: "Living Pico",
+        hardware_profile: "5_button"
+      })
+
+    _button =
+      Repo.insert!(%PicoButton{
+        pico_device_id: device.id,
+        source_id: "1",
+        button_number: 2,
+        slot_index: 0,
+        action_type: "turn_on",
+        action_config: %{"light_ids" => [light.id]}
+      })
+
+    state = %{bridge: bridge, lights: %{}, buffer: ""}
 
     button_payload = %{
       "Body" => %{
@@ -72,6 +117,70 @@ defmodule Hueworks.Subscription.CasetaEventStream.ConnectionTest do
     }
 
     assert {:noreply, ^state} = Connection.handle_frame(Jason.encode!(button_payload), state)
+    assert DesiredState.get(:light, light.id) == %{power: :on}
     assert {:noreply, ^state} = Connection.handle_frame("{not-json", state)
+  end
+
+  test "nested button event frames trigger configured Pico button actions" do
+    room = Repo.insert!(%Room{name: "Kitchen"})
+
+    bridge =
+      Repo.insert!(%Bridge{
+        type: :caseta,
+        name: "Caseta",
+        host: "10.0.0.92",
+        credentials: %{
+          "cert_path" => "/credentials/caseta.crt",
+          "key_path" => "/credentials/caseta.key",
+          "cacert_path" => "/credentials/caseta-ca.crt"
+        },
+        enabled: true
+      })
+
+    light =
+      Repo.insert!(%Light{
+        name: "Accent",
+        source: :caseta,
+        source_id: "62",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        enabled: true
+      })
+
+    device =
+      Repo.insert!(%PicoDevice{
+        bridge_id: bridge.id,
+        room_id: room.id,
+        source_id: "device-2",
+        name: "Kitchen Accent Pico",
+        hardware_profile: "5_button"
+      })
+
+    Repo.insert!(%PicoButton{
+      pico_device_id: device.id,
+      source_id: "101",
+      button_number: 2,
+      slot_index: 0,
+      action_type: "turn_on",
+      action_config: %{"light_ids" => [light.id]}
+    })
+
+    state = %{bridge: bridge, lights: %{}, pico_button_ids: ["101"], buffer: ""}
+
+    button_payload = %{
+      "Header" => %{
+        "Url" => "/button/101/status/event",
+        "MessageBodyType" => "OneButtonStatusEvent"
+      },
+      "Body" => %{
+        "ButtonStatus" => %{
+          "Button" => %{"href" => "/button/101"},
+          "ButtonEvent" => %{"EventType" => "Press"}
+        }
+      }
+    }
+
+    assert {:noreply, ^state} = Connection.handle_frame(Jason.encode!(button_payload), state)
+    assert DesiredState.get(:light, light.id) == %{power: :on}
   end
 end

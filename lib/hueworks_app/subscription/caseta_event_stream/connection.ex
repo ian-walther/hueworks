@@ -9,8 +9,9 @@ defmodule Hueworks.Subscription.CasetaEventStream.Connection do
 
   alias Hueworks.Control.State
   alias Hueworks.Control.StateParser
+  alias Hueworks.Picos
   alias Hueworks.Repo
-  alias Hueworks.Schemas.Light
+  alias Hueworks.Schemas.{Light, PicoButton, PicoDevice}
 
   @bridge_port 8081
 
@@ -28,13 +29,14 @@ defmodule Hueworks.Subscription.CasetaEventStream.Connection do
           bridge: bridge,
           socket: socket,
           lights: load_lights(bridge.id),
+          pico_button_ids: load_pico_button_ids(bridge.id),
           buffer: ""
         }
 
         read_initial_zone_status(socket, state)
 
         subscribe(socket, "/zone/status")
-        subscribe(socket, "/button/status/event")
+        subscribe_button_events(socket, state)
         :ssl.setopts(socket, active: :once, packet: :line)
 
         {:ok, state}
@@ -75,7 +77,8 @@ defmodule Hueworks.Subscription.CasetaEventStream.Connection do
         {:noreply, state}
 
       {:ok, %{"Body" => %{"ButtonStatus" => button_status}} = message} ->
-        log_pico_event(button_status, message)
+        handle_button_status(button_status, state)
+        log_pico_event(button_status, message, state)
         {:noreply, state}
 
       {:ok, _message} ->
@@ -104,8 +107,39 @@ defmodule Hueworks.Subscription.CasetaEventStream.Connection do
     end
   end
 
-  defp log_pico_event(button_status, message) do
-    Logger.info("Caseta pico event (stub): #{inspect(%{button: button_status, msg: message})}")
+  defp log_pico_event(button_status, message, state) do
+    button_id = button_status |> get_in(["Button", "href"]) |> href_id("button")
+    event_type = button_status["EventType"]
+
+    Logger.info(
+      "[pico-trace] caseta_button_event bridge_id=#{state.bridge.id} button_id=#{inspect(button_id)} event_type=#{inspect(event_type)} payload=#{inspect(button_status)} message=#{inspect(message)}"
+    )
+  end
+
+  defp handle_button_status(button_status, state) do
+    button_id = button_status |> get_in(["Button", "href"]) |> href_id("button")
+    event_type = button_status["EventType"] || get_in(button_status, ["ButtonEvent", "EventType"])
+
+    cond do
+      not is_binary(button_id) ->
+        Logger.warning(
+          "[pico-trace] caseta_button_event_ignored bridge_id=#{state.bridge.id} reason=:missing_button_id payload=#{inspect(button_status)}"
+        )
+
+      event_type != "Press" ->
+        Logger.info(
+          "[pico-trace] caseta_button_event_ignored bridge_id=#{state.bridge.id} button_id=#{inspect(button_id)} reason=:unsupported_event_type event_type=#{inspect(event_type)}"
+        )
+
+      true ->
+        result = Picos.handle_button_press(state.bridge.id, button_id)
+
+        Logger.info(
+          "[pico-trace] caseta_button_event_handled bridge_id=#{state.bridge.id} button_id=#{inspect(button_id)} result=#{inspect(result)}"
+        )
+    end
+
+    :ok
   end
 
   defp read_initial_zone_status(socket, state) do
@@ -136,6 +170,18 @@ defmodule Hueworks.Subscription.CasetaEventStream.Connection do
       })
 
     :ssl.send(socket, message <> "\r\n")
+  end
+
+  defp subscribe_button_events(socket, state) do
+    button_ids = Map.get(state, :pico_button_ids, [])
+
+    Logger.info(
+      "[pico-trace] caseta_button_subscribe_start bridge_id=#{state.bridge.id} button_count=#{length(button_ids)} button_ids=#{inspect(button_ids)}"
+    )
+
+    Enum.each(button_ids, fn button_id ->
+      subscribe(socket, "/button/#{button_id}/status/event")
+    end)
   end
 
   defp read_until_match(socket, url, timeout) do
@@ -190,6 +236,19 @@ defmodule Hueworks.Subscription.CasetaEventStream.Connection do
       )
     )
     |> Enum.reduce(%{}, fn light, acc -> Map.put(acc, light.source_id, light.id) end)
+  end
+
+  defp load_pico_button_ids(bridge_id) do
+    Repo.all(
+      from(pb in PicoButton,
+        join: pd in PicoDevice,
+        on: pd.id == pb.pico_device_id,
+        where: pd.bridge_id == ^bridge_id and pb.enabled == true,
+        select: pb.source_id,
+        order_by: [asc: pb.source_id]
+      )
+    )
+    |> Enum.reject(&(&1 in [nil, ""]))
   end
 
   defp zone_status_list(%{"Body" => %{"ZoneStatus" => statuses}}) when is_list(statuses),

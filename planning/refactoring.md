@@ -172,6 +172,31 @@ Result:
 
 ## Remaining High-Leverage Refactor Targets
 
+## UI Pitfalls
+
+### LiveView dynamic form controls need stable structure
+This has now bitten the Pico config UI multiple times.
+
+The failure pattern:
+- a `phx-change` form contains dynamic selects/inputs that appear or disappear
+- the dynamic nodes do not have stable ids or a stable placeholder container
+- morphdom reconciles sibling controls badly
+- the browser ends up showing duplicated or visually corrupted dropdowns
+
+This happened in the Pico config page for:
+- control-group add group/light selectors
+- the button-binding target selector
+
+What to do instead:
+- prefer stable wrapper containers with fixed ids
+- prefer persistent controls that become disabled or change options over controls that are inserted/removed entirely
+- give dynamic forms/selects explicit ids
+- avoid nested forms
+- when copying a pattern from another LiveView, keep the DOM structure simple and boring rather than clever
+
+Rule of thumb:
+- if a form control is part of a `phx-change` region and can conditionally appear, assume it needs a stable id and usually a stable container too
+
 ### 1) Keep collapsing the remaining LiveView-specific load/save wiring
 Priority: high
 
