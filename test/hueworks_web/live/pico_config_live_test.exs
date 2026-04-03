@@ -298,4 +298,117 @@ defmodule HueworksWeb.PicoConfigLiveTest do
     assert html =~ "Configure Pico"
     assert html =~ "Pico detected. Opening configuration."
   end
+
+  test "pico config can be cloned from another pico on the detail page", %{conn: conn} do
+    room = Repo.insert!(%Room{name: "Main Floor"})
+
+    bridge =
+      Repo.insert!(%Bridge{
+        type: :caseta,
+        name: "Caseta",
+        host: "10.0.0.64",
+        credentials: %{"cert_path" => "a", "key_path" => "b", "cacert_path" => "c"},
+        enabled: true,
+        import_complete: true
+      })
+
+    light =
+      Repo.insert!(%Light{
+        name: "Overhead",
+        source: :caseta,
+        source_id: "42",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        enabled: true
+      })
+
+    group =
+      Repo.insert!(%Group{
+        name: "Overhead Group",
+        source: :caseta,
+        source_id: "group-1",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        enabled: true
+      })
+
+    Repo.insert!(%GroupLight{group_id: group.id, light_id: light.id})
+
+    source =
+      Repo.insert!(%PicoDevice{
+        bridge_id: bridge.id,
+        room_id: room.id,
+        source_id: "source-pico",
+        name: "Source Pico",
+        hardware_profile: "5_button",
+        metadata: %{"room_override" => true}
+      })
+
+    destination =
+      Repo.insert!(%PicoDevice{
+        bridge_id: bridge.id,
+        room_id: room.id,
+        source_id: "destination-pico",
+        name: "Destination Pico",
+        hardware_profile: "5_button",
+        metadata: %{"room_override" => true}
+      })
+
+    for {device_id, source_id, button_number, slot_index} <- [
+          {source.id, "s1", 2, 0},
+          {source.id, "s2", 3, 1},
+          {destination.id, "d1", 2, 0},
+          {destination.id, "d2", 3, 1}
+        ] do
+      Repo.insert!(%PicoButton{
+        pico_device_id: device_id,
+        source_id: source_id,
+        button_number: button_number,
+        slot_index: slot_index,
+        enabled: true
+      })
+    end
+
+    {:ok, source} =
+      Picos.save_control_group(source, %{
+        "name" => "Overhead",
+        "group_ids" => [group.id],
+        "light_ids" => []
+      })
+
+    [control_group] = Picos.control_groups(source)
+
+    {:ok, _button} =
+      Picos.assign_button_binding(source, "s1", %{
+        "action" => "toggle",
+        "target_kind" => "control_group",
+        "target_id" => control_group["id"]
+      })
+
+    {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/picos/#{destination.id}")
+
+    assert render(view) =~ "Clone From Another Pico"
+    assert render(view) =~ "Source Pico"
+
+    view
+    |> form("#pico-clone-source-form", %{"id" => Integer.to_string(source.id)})
+    |> render_change()
+
+    render_click(element(view, "#pico-clone-config"))
+
+    assert [
+             %{
+               "group_ids" => group_ids,
+               "light_ids" => [],
+               "name" => "Overhead"
+             }
+           ] = Picos.control_groups(Picos.get_device(destination.id))
+
+    assert group_ids == [group.id]
+
+    html = render(view)
+    assert html =~ "Pico config copied."
+    assert html =~ "Overhead"
+    assert html =~ "Toggle Overhead"
+  end
 end

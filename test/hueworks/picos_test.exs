@@ -234,6 +234,133 @@ defmodule Hueworks.PicosTest do
     refute Enum.member?(control_group["group_ids"], other_group.id)
   end
 
+  test "clone_device_config copies room scope, control groups, and bindings onto another pico" do
+    bridge = insert_bridge(%{host: "10.0.0.511"})
+    room = Repo.insert!(%Room{name: "Kitchen"})
+
+    overhead =
+      Repo.insert!(%Light{
+        name: "Overhead",
+        source: :caseta,
+        source_id: "21",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        enabled: true
+      })
+
+    lamp =
+      Repo.insert!(%Light{
+        name: "Lamp",
+        source: :caseta,
+        source_id: "22",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        enabled: true
+      })
+
+    group =
+      Repo.insert!(%Group{
+        name: "Kitchen Overhead",
+        source: :caseta,
+        source_id: "group-21",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        enabled: true
+      })
+
+    Repo.insert!(%GroupLight{group_id: group.id, light_id: overhead.id})
+
+    source =
+      Repo.insert!(%PicoDevice{
+        bridge_id: bridge.id,
+        room_id: room.id,
+        source_id: "source-device",
+        name: "Source Pico",
+        hardware_profile: "5_button",
+        metadata: %{"room_override" => true}
+      })
+
+    destination =
+      Repo.insert!(%PicoDevice{
+        bridge_id: bridge.id,
+        room_id: nil,
+        source_id: "destination-device",
+        name: "Destination Pico",
+        hardware_profile: "5_button",
+        metadata: %{"detected_room_id" => nil, "room_override" => false}
+      })
+
+    for {device_id, source_id, button_number, slot_index} <- [
+          {source.id, "s1", 2, 0},
+          {source.id, "s2", 3, 1},
+          {source.id, "s3", 4, 2},
+          {destination.id, "d1", 2, 0},
+          {destination.id, "d2", 3, 1},
+          {destination.id, "d3", 4, 2}
+        ] do
+      Repo.insert!(%PicoButton{
+        pico_device_id: device_id,
+        source_id: source_id,
+        button_number: button_number,
+        slot_index: slot_index,
+        enabled: true
+      })
+    end
+
+    assert {:ok, source} =
+             Picos.save_control_group(source, %{
+               "name" => "Overhead",
+               "group_ids" => [group.id],
+               "light_ids" => [lamp.id]
+             })
+
+    [control_group] = Picos.control_groups(source)
+
+    assert {:ok, _button} =
+             Picos.assign_button_binding(source, "s1", %{
+               "action" => "toggle",
+               "target_kind" => "control_group",
+               "target_id" => control_group["id"]
+             })
+
+    assert {:ok, _button} =
+             Picos.assign_button_binding(source, "s2", %{
+               "action" => "off",
+               "target_kind" => "all_groups"
+             })
+
+    assert {:ok, cloned} = Picos.clone_device_config(destination, source)
+
+    assert cloned.room_id == room.id
+    assert Picos.room_override?(cloned)
+
+    [cloned_group] = Picos.control_groups(cloned)
+    assert cloned_group["name"] == "Overhead"
+    assert cloned_group["group_ids"] == [group.id]
+    assert cloned_group["light_ids"] == [lamp.id]
+    refute cloned_group["id"] == control_group["id"]
+
+    cloned_buttons =
+      Repo.all(from(pb in PicoButton, where: pb.pico_device_id == ^cloned.id))
+      |> Enum.sort_by(& &1.button_number)
+
+    toggle_button = Enum.find(cloned_buttons, &(&1.button_number == 2))
+    all_groups_button = Enum.find(cloned_buttons, &(&1.button_number == 3))
+    untouched_button = Enum.find(cloned_buttons, &(&1.button_number == 4))
+
+    assert toggle_button.action_type == "toggle_any_on"
+    assert toggle_button.action_config["target_kind"] == "control_group"
+    assert toggle_button.action_config["target_id"] == cloned_group["id"]
+    assert toggle_button.action_config["room_id"] == room.id
+
+    assert all_groups_button.action_type == "turn_off"
+    assert all_groups_button.action_config["target_kind"] == "all_groups"
+    assert all_groups_button.action_config["room_id"] == room.id
+
+    assert is_nil(untouched_button.action_type)
+    assert untouched_button.action_config == %{}
+  end
+
   test "manual room override survives sync and can be cleared back to auto-detected room" do
     bridge = insert_bridge(%{host: "10.0.0.52"})
     auto_room = Repo.insert!(%Room{name: "Auto Room"})

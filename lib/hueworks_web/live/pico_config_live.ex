@@ -22,6 +22,7 @@ defmodule HueworksWeb.PicoConfigLive do
        room_groups: [],
        room_lights: [],
        control_groups: [],
+       clone_source_pico_id: nil,
        new_control_group_name: "",
        selected_control_group_id: nil,
        control_group_name: "",
@@ -117,6 +118,34 @@ defmodule HueworksWeb.PicoConfigLive do
           {:error, reason} ->
             {:noreply, assign(socket, save_status: nil, save_error: inspect(reason))}
         end
+    end
+  end
+
+  def handle_event("select_clone_source", %{"id" => id}, socket) do
+    {:noreply, assign(socket, clone_source_pico_id: Util.parse_optional_integer(id))}
+  end
+
+  def handle_event("clone_pico_config", _params, socket) do
+    with %{} = destination <- socket.assigns.selected_pico,
+         source_id when is_integer(source_id) <- socket.assigns.clone_source_pico_id,
+         %{} = source <- Enum.find(socket.assigns.pico_devices, &(&1.id == source_id)),
+         {:ok, updated} <- Picos.clone_device_config(destination, source) do
+      {:noreply,
+       socket
+       |> assign(save_status: "Pico config copied.", save_error: nil)
+       |> reload_from_devices(Picos.list_devices_for_bridge(socket.assigns.bridge.id), updated.id)}
+    else
+      nil ->
+        {:noreply, assign(socket, save_status: nil, save_error: "Choose another Pico to copy from.")}
+
+      {:error, :same_device} ->
+        {:noreply, assign(socket, save_status: nil, save_error: "Choose a different Pico to copy from.")}
+
+      {:error, :missing_source_room} ->
+        {:noreply, assign(socket, save_status: nil, save_error: "The source Pico needs a room before it can be copied.")}
+
+      {:error, reason} ->
+        {:noreply, assign(socket, save_status: nil, save_error: inspect(reason))}
     end
   end
 
@@ -454,6 +483,8 @@ defmodule HueworksWeb.PicoConfigLive do
         room_groups: groups,
         room_lights: lights,
         control_groups: control_groups,
+        clone_source_pico_id:
+          normalize_clone_source_id(devices, selected, socket.assigns[:clone_source_pico_id]),
         selected_control_group_id: selected_control_group_id,
         binding_target_kind:
           normalize_binding_target_kind(socket.assigns[:binding_target_kind], control_groups),
@@ -504,6 +535,26 @@ defmodule HueworksWeb.PicoConfigLive do
 
   defp normalize_selected_control_group_id([first | _], _selected_id), do: first["id"]
   defp normalize_selected_control_group_id([], _selected_id), do: nil
+
+  defp normalize_clone_source_id(devices, %{} = selected, source_id) when is_integer(source_id) do
+    if Enum.any?(devices, &(&1.id == source_id and &1.id != selected.id)) do
+      source_id
+    else
+      normalize_clone_source_id(devices, selected, nil)
+    end
+  end
+
+  defp normalize_clone_source_id(devices, %{} = selected, _source_id) do
+    devices
+    |> Enum.reject(&(&1.id == selected.id))
+    |> List.first()
+    |> case do
+      nil -> nil
+      pico -> pico.id
+    end
+  end
+
+  defp normalize_clone_source_id(_devices, _selected, _source_id), do: nil
 
   defp normalize_binding_target_kind("control_group", control_groups) when control_groups != [],
     do: "control_group"

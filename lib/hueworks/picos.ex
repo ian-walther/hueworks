@@ -165,6 +165,86 @@ defmodule Hueworks.Picos do
     |> normalize_control_groups()
   end
 
+  def clone_device_config(%PicoDevice{} = destination, %PicoDevice{} = source) do
+    destination = get_device(destination.id)
+    source = get_device(source.id)
+
+    cond do
+      is_nil(destination) or is_nil(source) ->
+        {:error, :device_not_found}
+
+      destination.id == source.id ->
+        {:error, :same_device}
+
+      destination.bridge_id != source.bridge_id ->
+        {:error, :different_bridge}
+
+      not is_integer(source.room_id) ->
+        {:error, :missing_source_room}
+
+      true ->
+        cloned_groups = clone_control_groups(source)
+        group_id_map = Map.new(cloned_groups, &{&1["source_id"], &1["id"]})
+
+        Repo.transaction(fn ->
+          destination
+          |> PicoDevice.changeset(%{room_id: source.room_id})
+          |> Repo.update!()
+
+          update_device_metadata!(destination, fn metadata ->
+            metadata
+            |> Map.put("control_groups", Enum.map(cloned_groups, &Map.drop(&1, ["source_id"])))
+            |> Map.put("room_override", true)
+          end)
+
+          destination_buttons =
+            Repo.all(
+              from(pb in PicoButton,
+                where: pb.pico_device_id == ^destination.id
+              )
+            )
+
+          source_buttons =
+            Repo.all(
+              from(pb in PicoButton,
+                where: pb.pico_device_id == ^source.id
+              )
+            )
+
+          source_by_button_number =
+            Map.new(source_buttons, &{&1.button_number, &1})
+
+          Enum.each(destination_buttons, fn destination_button ->
+            source_button = Map.get(source_by_button_number, destination_button.button_number)
+
+            attrs =
+              case source_button do
+                nil ->
+                  %{action_type: nil, action_config: %{}, enabled: true}
+
+                %PicoButton{} ->
+                  %{
+                    action_type: source_button.action_type,
+                    action_config:
+                      clone_action_config(
+                        source_button.action_config || %{},
+                        group_id_map,
+                        source.room_id
+                      ),
+                    enabled: source_button.enabled
+                  }
+              end
+
+            destination_button
+            |> PicoButton.changeset(attrs)
+            |> Repo.update!()
+          end)
+        end)
+
+        {:ok, get_device(destination.id)}
+    end
+  end
+
   def save_control_group(%PicoDevice{} = device, attrs) when is_map(attrs) do
     with room_id when is_integer(room_id) <- device.room_id,
          name when is_binary(name) and name != "" <- String.trim(attrs["name"] || ""),
@@ -806,6 +886,44 @@ defmodule Hueworks.Picos do
   end
 
   defp normalize_control_groups(_groups), do: []
+
+  defp clone_control_groups(%PicoDevice{} = source) do
+    source
+    |> control_groups()
+    |> Enum.map(fn group ->
+      %{
+        "id" => Ecto.UUID.generate(),
+        "source_id" => group["id"],
+        "name" => group["name"],
+        "group_ids" => group["group_ids"],
+        "light_ids" => group["light_ids"]
+      }
+    end)
+  end
+
+  defp clone_action_config(%{"target_kind" => "control_group", "target_id" => target_id}, group_id_map, room_id) do
+    %{
+      "target_kind" => "control_group",
+      "target_id" => Map.get(group_id_map, target_id),
+      "room_id" => room_id
+    }
+  end
+
+  defp clone_action_config(%{"target_kind" => "all_groups"}, _group_id_map, room_id) do
+    %{
+      "target_kind" => "all_groups",
+      "room_id" => room_id
+    }
+  end
+
+  defp clone_action_config(%{"light_ids" => light_ids}, _group_id_map, room_id) do
+    %{
+      "light_ids" => normalize_integer_ids(light_ids),
+      "room_id" => room_id
+    }
+  end
+
+  defp clone_action_config(_config, _group_id_map, _room_id), do: %{}
 
   defp update_device_metadata(%PicoDevice{} = device, fun) when is_function(fun, 1) do
     device

@@ -89,6 +89,31 @@
         <span class="hw-count"><%= length(@selected_pico.buttons) %> buttons</span>
       </div>
 
+      <%= if Enum.reject(@pico_devices, &(&1.id == @selected_pico.id)) != [] do %>
+        <div class="hw-form">
+          <h3>Clone From Another Pico</h3>
+          <p class="hw-meta">
+            Copy room scope, control groups, and button bindings from another Pico on this bridge.
+          </p>
+
+          <div class="hw-row">
+            <form id="pico-clone-source-form" phx-change="select_clone_source">
+              <label class="hw-modal-label" for="pico-clone-source">Source Pico</label>
+              <select id="pico-clone-source" name="id" class="hw-select">
+                <%= for pico <- Enum.reject(@pico_devices, &(&1.id == @selected_pico.id)) do %>
+                  <option value={pico.id} selected={@clone_source_pico_id == pico.id}>
+                    <%= pico.display_name || pico.name %>
+                  </option>
+                <% end %>
+              </select>
+            </form>
+            <button id="pico-clone-config" type="button" class="hw-button" phx-click="clone_pico_config">
+              Copy
+            </button>
+          </div>
+        </div>
+      <% end %>
+
       <form class="hw-form" phx-submit="save_room_override">
         <h3>Room Scope</h3>
         <p class="hw-meta">
