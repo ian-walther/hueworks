@@ -24,20 +24,20 @@ defmodule Hueworks.LightsManualControlTest do
 
     original_enabled = Application.get_env(:hueworks, :control_executor_enabled)
     original_server = Application.get_env(:hueworks, :control_executor_server)
-    original_delay = Application.get_env(:hueworks, :manual_control_reconcile_delay_ms)
+    original_delays = Application.get_env(:hueworks, :manual_control_reconcile_delays_ms)
 
     Application.put_env(:hueworks, :control_executor_enabled, true)
     Application.put_env(:hueworks, :control_executor_server, server)
-    Application.put_env(:hueworks, :manual_control_reconcile_delay_ms, 25)
+    Application.put_env(:hueworks, :manual_control_reconcile_delays_ms, [25])
 
     on_exit(fn ->
       Application.put_env(:hueworks, :control_executor_enabled, original_enabled)
       Application.put_env(:hueworks, :control_executor_server, original_server)
 
-      if is_nil(original_delay) do
-        Application.delete_env(:hueworks, :manual_control_reconcile_delay_ms)
+      if is_nil(original_delays) do
+        Application.delete_env(:hueworks, :manual_control_reconcile_delays_ms)
       else
-        Application.put_env(:hueworks, :manual_control_reconcile_delay_ms, original_delay)
+        Application.put_env(:hueworks, :manual_control_reconcile_delays_ms, original_delays)
       end
     end)
 

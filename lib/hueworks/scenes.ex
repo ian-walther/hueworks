@@ -10,7 +10,7 @@ defmodule Hueworks.Scenes do
   alias Hueworks.ActiveScenes
   alias Hueworks.DebugLogging
   alias Hueworks.Rooms
-  alias Hueworks.Control.DesiredState
+  alias Hueworks.Control.Apply, as: ControlApply
   alias Hueworks.Scenes.Intent
   alias Hueworks.Schemas.{LightState, Scene, SceneComponent, SceneComponentLight}
 
@@ -244,22 +244,15 @@ defmodule Hueworks.Scenes do
         power_overrides: power_overrides
       )
 
-    result = DesiredState.commit(txn)
+    result = ControlApply.commit_transaction(txn, force_apply: force_apply)
 
     case result do
-      {:ok, %{intent_diff: intent_diff, reconcile_diff: reconcile_diff, updated: updated}} ->
-        plan_diff =
-          if force_apply do
-            txn.changes
-          else
-            merge_plan_diff(intent_diff, reconcile_diff)
-          end
-
+      {:ok, %{plan_diff: plan_diff, updated: updated}} ->
         log_trace(trace, "apply_scene_diff", diff_size: map_size(plan_diff))
 
         if map_size(plan_diff) > 0 do
           planner_started_ms = monotonic_ms()
-          plan = Hueworks.Control.Planner.plan_room(scene.room_id, plan_diff, trace: trace)
+          plan = ControlApply.build_plan(scene.room_id, plan_diff, trace: trace)
           planner_ms = monotonic_ms() - planner_started_ms
 
           log_trace(
@@ -275,7 +268,7 @@ defmodule Hueworks.Scenes do
 
           enqueued_at_ms = monotonic_ms()
           traced_plan = attach_trace(plan, trace, scene, occupied, enqueued_at_ms)
-          _ = Hueworks.Control.Executor.enqueue(traced_plan)
+          _ = ControlApply.enqueue_plan(traced_plan)
           log_trace(trace, "plan_enqueued", actions_total: length(traced_plan))
         end
 
@@ -448,15 +441,6 @@ defmodule Hueworks.Scenes do
     Enum.count(actions, fn action ->
       desired = Map.get(action, :desired) || %{}
       (Map.get(desired, :power) || Map.get(desired, "power")) == power
-    end)
-  end
-
-  defp merge_plan_diff(left, right) when left == %{}, do: right
-  defp merge_plan_diff(left, right) when right == %{}, do: left
-
-  defp merge_plan_diff(left, right) when is_map(left) and is_map(right) do
-    Map.merge(left, right, fn _key, left_attrs, right_attrs ->
-      Map.merge(left_attrs, right_attrs)
     end)
   end
 
