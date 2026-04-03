@@ -4,6 +4,7 @@ defmodule Hueworks.ControlStateActiveSceneTest do
   alias Hueworks.ActiveScenes
   alias Hueworks.Control.DesiredState
   alias Hueworks.Control.State
+  alias Hueworks.Scenes
   alias Hueworks.Repo
 
   alias Hueworks.Schemas.{
@@ -184,6 +185,28 @@ defmodule Hueworks.ControlStateActiveSceneTest do
     _ = DesiredState.put(:light, light.id, %{power: :on, brightness: 46, kelvin: 3000})
 
     _ = State.put(:light, light.id, %{power: :off, brightness: 46, kelvin: 3000})
+
+    assert Repo.get_by!(ActiveScene, room_id: room.id).scene_id == scene.id
+  end
+
+  test "manual scene reapply refreshes pending window before physical updates land" do
+    room = insert_room()
+    bridge = insert_bridge()
+    light = insert_light(room, bridge, %{supports_temp: true})
+    scene = insert_scene(room)
+
+    {:ok, _} = ActiveScenes.set_active(scene)
+    active = Repo.get_by!(ActiveScene, room_id: room.id)
+
+    active
+    |> Ecto.Changeset.change(pending_until: DateTime.add(DateTime.utc_now(), -5, :second))
+    |> Repo.update!()
+
+    assert {:ok, _diff, _updated} =
+             Scenes.reapply_active_scene_lights(room.id, [light.id], power_override: :off)
+
+    _ = DesiredState.put(:light, light.id, %{power: :off})
+    _ = State.put(:light, light.id, %{power: :on, brightness: 50, kelvin: 3000})
 
     assert Repo.get_by!(ActiveScene, room_id: room.id).scene_id == scene.id
   end

@@ -301,21 +301,30 @@ defmodule Hueworks.Scenes do
             {:error, :not_found}
 
           scene ->
+            _ = ActiveScenes.mark_applied(active_scene)
+
             power_overrides =
               case Keyword.get(opts, :power_override) do
                 nil -> %{}
                 power -> Map.new(light_ids, &{&1, power})
               end
 
-            apply_scene(scene,
-              brightness_override: false,
-              occupied: Rooms.room_occupied?(room_id),
-              target_light_ids: light_ids,
-              circadian_only: Keyword.get(opts, :circadian_only, false),
-              power_overrides: power_overrides,
-              now: Keyword.get(opts, :now, DateTime.utc_now()),
-              trace: Keyword.get(opts, :trace)
-            )
+            case apply_scene(scene,
+                   brightness_override: false,
+                   occupied: Rooms.room_occupied?(room_id),
+                   target_light_ids: light_ids,
+                   circadian_only: Keyword.get(opts, :circadian_only, false),
+                   power_overrides: power_overrides,
+                   now: Keyword.get(opts, :now, DateTime.utc_now()),
+                   trace: Keyword.get(opts, :trace)
+                 ) do
+              {:ok, _diff, _updated} = ok ->
+                _ = ActiveScenes.mark_applied(active_scene)
+                ok
+
+              other ->
+                other
+            end
         end
     end
   end
