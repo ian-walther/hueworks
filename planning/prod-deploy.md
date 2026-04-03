@@ -1,20 +1,7 @@
 # Production Deployment (Docker)
 
 ## Goal
-Maintain a reliable, repeatable Docker-based production deployment path for HueWorks, with only minor operational hardening left to do.
-
-## Current Baseline
-- Deployment target is Dockerized Phoenix release.
-- SQLite remains the DB in V1, stored at `/data/hueworks.db`.
-- Initial deployment mode is single app container (no orchestrator requirement).
-- Runtime config is primarily environment-driven, with bridge bootstrap data coming from a mounted `secrets.json`.
-- Security hardening is incremental; baseline first, then tighten.
-- Runtime pieces now in place:
-  - `docker-compose.yml`
-  - release helper module in `lib/hueworks/release.ex`
-  - startup wrapper in `docker/start.sh`
-  - `.env.example`
-  - README deployment/bootstrap instructions
+Maintain a reliable, repeatable Docker-based production deployment path for HueWorks with only minor operational hardening left to do.
 
 ## Locked Decisions
 - SQLite stays for v1 operations and should remain easy to inspect and back up.
@@ -33,85 +20,65 @@ Maintain a reliable, repeatable Docker-based production deployment path for HueW
 - Automatic certificate management in-app.
 - External managed DB migration away from SQLite.
 
-## Runtime Requirements
-- Persistent storage:
-  - `/data/hueworks.db`
-  - `/data/.bridges_seeded`
-- Mounted secrets:
-  - `/run/hueworks/secrets.json` (or override via `BRIDGE_SECRETS_PATH`)
-  - `/credentials/*` for Caseta cert/key material when needed
-- Required env:
-  - `SECRET_KEY_BASE`
-  - `DATABASE_PATH`
-  - `PHX_HOST`
-  - `PORT` (optional, default 4000)
-  - `POOL_SIZE` (optional)
-- Recommended:
-  - bind app behind reverse proxy/TLS terminator
-  - mount backup target path or external backup job
+## Runtime Contract
+### Persistent Storage
+- `/data/hueworks.db`
+- `/data/.bridges_seeded`
 
-## Current Compose Shape
-- `./data:/data`
-- `./credentials:/credentials`
-- `./secrets.json:/run/hueworks/secrets.json:ro`
-- `CREDENTIALS_ROOT=/credentials`
-- one-time bridge bootstrap marker written to `/data/.bridges_seeded`
+### Mounted Secrets
+- `/run/hueworks/secrets.json` (or override via `BRIDGE_SECRETS_PATH`)
+- `/credentials/*` for Caseta cert/key material when needed
 
-## Migration Strategy
-Current startup flow:
-  1. pull/build new image
-  2. container runs release migrations on boot
-  3. bridge seed bootstrap runs if no seed marker exists yet
-  4. app starts
+### Required Environment
+- `SECRET_KEY_BASE`
+- `DATABASE_PATH`
+- `PHX_HOST`
+- `PORT` (optional, default `4000`)
+- `POOL_SIZE` (optional)
 
-Standard manual commands remain:
+### Recommended Deployment Shape
+- bind app behind reverse proxy/TLS terminator
+- mount a backup target path or run an external backup job
+- keep the container non-root
+- keep secret material out of the image
+
+## Startup / Migration Expectations
+Expected startup flow:
+1. pull/build new image
+2. run release migrations on boot
+3. seed bridges if no seed marker exists yet
+4. start app
+
+Standard manual commands should remain available:
 - `bin/hueworks eval "Hueworks.Release.migrate()"`
 - `bin/hueworks eval "Hueworks.Release.seed_bridges()"`
 
-## Backup / Recovery Baseline
-- README now includes:
-  - backup command/path
-  - restore steps
-  - pre-upgrade backup guidance
-  - rollback notes
-- File permissions for DB and credential artifacts still need a hardening pass.
-- A real restore drill is still worth doing once the deployment is used routinely.
+## Backup / Recovery Expectations
+- Keep backup/restore instructions current in `README.md`.
+- Preserve pre-upgrade backup guidance.
+- Preserve rollback notes.
+- Treat a real restore drill as required confidence work, not optional polish.
 
-## Security Baseline
-- Run as non-root user in container.
-- Keep image minimal and pinned.
-- Do not bake secrets into image.
-- Add guidance for secret injection at runtime.
-- Add network exposure guidance (LAN-only or reverse proxy).
+## Security Expectations
+- Run as non-root user in the container.
+- Keep the image minimal and pinned.
+- Do not bake secrets into the image.
+- Keep secret injection runtime-driven.
+- Keep network exposure guidance explicit (LAN-only or reverse proxy).
 
-## Observability Baseline
-- Current logs cover:
+## Observability Expectations
+- Deployment docs should continue to include a smoke-check checklist.
+- Logs should be sufficient to verify:
   - app start
   - migration start/finish
   - bridge bootstrap
-- README now includes a deployment smoke-check checklist.
-- Remaining useful polish:
-  - optional deployment sanity checks beyond log inspection
-- Basic “is it alive” checks:
-  - HTTP endpoint reachability
-  - DB file writable
+- Useful optional follow-up:
+  - a dedicated health endpoint if the current browser/log-based smoke checks stop being enough
 
-## Deliverables
-- Already delivered:
-  - `docker-compose.yml`
-  - release migration helper module
-  - deployment/bootstrap section in `README.md`
-  - backup/restore runbook section
-  - upgrade/rollback notes
-  - smoke-check checklist
-- Remaining deliverables:
-  - permission-hardening guidance
-  - restore-drill confidence pass
-
-## Remaining Execution Plan
-1. Revisit permissions/secrets hardening after the baseline flow is stable in daily use.
-2. Do a real restore drill and tighten the runbook if anything surprising shows up.
-3. Decide whether a dedicated health endpoint is worth adding beyond the current log/browser smoke checks.
+## Remaining Work
+- tighten file-permission guidance for DB and credential artifacts
+- do a real restore drill and tighten the runbook based on what it reveals
+- decide whether a dedicated health endpoint is worth adding
 
 ## Open Questions
 - What backup retention window is acceptable for first deployment?

@@ -3,6 +3,14 @@
 ## Goal
 Ensure coordination behavior so scene/control execution is predictably synchronized across bridges and failures are explicit.
 
+## Architectural Constraint
+This work belongs below the desired-state commit boundary described in `/Users/ianwalther/code/hueworks/planning/architecture-reset.md`.
+
+That means:
+- upstream inputs should still only decide desired state
+- planner/executor should own cross-bridge coordination, sequencing, partial-failure handling, and batching behavior
+- this doc should not be used to justify special-case convergence logic in scene/manual/UI layers
+
 ## Scope
 - Define and enforce cross-bridge dispatch timing expectations.
 - Formalize partial-failure behavior (result shape + UI surfacing path).
