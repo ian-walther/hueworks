@@ -202,14 +202,14 @@
                   />
                 </form>
 
-                <%= if Enum.reject(@room_groups, &(&1.id in @control_group_group_ids)) != [] do %>
+                <%= if Enum.reject(@selectable_room_groups, &(&1.id in @control_group_group_ids)) != [] do %>
                   <div id="pico-control-group-add-group-row" class="hw-row">
                     <label class="hw-modal-label">Add group</label>
                     <form id="pico-control-group-group-form" phx-change="select_control_group_entity">
                       <input type="hidden" name="entity" value="group" />
                       <select id="pico-control-group-group-select" class="hw-select" name="id">
                         <option value="">Select group</option>
-                        <%= for group <- Enum.reject(@room_groups, &(&1.id in @control_group_group_ids)) do %>
+                        <%= for group <- Enum.reject(@selectable_room_groups, &(&1.id in @control_group_group_ids)) do %>
                           <option value={group.id} selected={@selected_control_group_group_id == group.id}>
                             <%= group.display_name || group.name %>
                           </option>
@@ -222,14 +222,14 @@
                   </div>
                 <% end %>
 
-                <%= if Enum.reject(@room_lights, &(&1.id in @control_group_light_ids)) != [] do %>
+                <%= if Enum.reject(@selectable_room_lights, &(&1.id in @control_group_light_ids)) != [] do %>
                   <div id="pico-control-group-add-light-row" class="hw-row">
                     <label class="hw-modal-label">Add light</label>
                     <form id="pico-control-group-light-form" phx-change="select_control_group_entity">
                       <input type="hidden" name="entity" value="light" />
                       <select id="pico-control-group-light-select" class="hw-select" name="id">
                         <option value="">Select light</option>
-                        <%= for light <- Enum.reject(@room_lights, &(&1.id in @control_group_light_ids)) do %>
+                        <%= for light <- Enum.reject(@selectable_room_lights, &(&1.id in @control_group_light_ids)) do %>
                           <option value={light.id} selected={@selected_control_group_light_id == light.id}>
                             <%= light.display_name || light.name %>
                           </option>

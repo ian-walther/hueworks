@@ -411,4 +411,102 @@ defmodule HueworksWeb.PicoConfigLiveTest do
     assert html =~ "Overhead"
     assert html =~ "Toggle Overhead"
   end
+
+  test "pico control group dropdowns hide disabled and linked targets", %{conn: conn} do
+    room = Repo.insert!(%Room{name: "Office"})
+
+    bridge =
+      Repo.insert!(%Bridge{
+        type: :caseta,
+        name: "Caseta",
+        host: "10.0.0.65",
+        credentials: %{"cert_path" => "a", "key_path" => "b", "cacert_path" => "c"},
+        enabled: true,
+        import_complete: true
+      })
+
+    root_light =
+      Repo.insert!(%Light{
+        name: "Desk Lamp",
+        source: :caseta,
+        source_id: "51",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        enabled: true
+      })
+
+    _disabled_light =
+      Repo.insert!(%Light{
+        name: "Disabled Lamp",
+        source: :caseta,
+        source_id: "52",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        enabled: false
+      })
+
+    _linked_light =
+      Repo.insert!(%Light{
+        name: "Linked Lamp",
+        source: :caseta,
+        source_id: "53",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        enabled: true,
+        canonical_light_id: root_light.id
+      })
+
+    _enabled_group =
+      Repo.insert!(%Group{
+        name: "Desk Group",
+        source: :caseta,
+        source_id: "group-51",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        enabled: true
+      })
+
+    _disabled_group =
+      Repo.insert!(%Group{
+        name: "Disabled Group",
+        source: :caseta,
+        source_id: "group-52",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        enabled: false
+      })
+
+    device =
+      Repo.insert!(%PicoDevice{
+        bridge_id: bridge.id,
+        room_id: room.id,
+        source_id: "office-pico",
+        name: "Office Pico",
+        hardware_profile: "5_button",
+        metadata: %{
+          "room_override" => true,
+          "control_groups" => [
+            %{"id" => "group-a", "name" => "Overhead", "group_ids" => [], "light_ids" => []}
+          ]
+        }
+      })
+
+    Repo.insert!(%PicoButton{
+      pico_device_id: device.id,
+      source_id: "b1",
+      button_number: 2,
+      slot_index: 0,
+      enabled: true
+    })
+
+    {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/picos/#{device.id}")
+
+    html = render(view)
+
+    assert html =~ "Desk Lamp"
+    assert html =~ "Desk Group"
+    refute html =~ "Disabled Lamp"
+    refute html =~ "Linked Lamp"
+    refute html =~ "Disabled Group"
+  end
 end

@@ -21,6 +21,8 @@ defmodule HueworksWeb.PicoConfigLive do
        all_rooms: [],
        room_groups: [],
        room_lights: [],
+       selectable_room_groups: [],
+       selectable_room_lights: [],
        control_groups: [],
        clone_source_pico_id: nil,
        new_control_group_name: "",
@@ -482,6 +484,8 @@ defmodule HueworksWeb.PicoConfigLive do
         selected_pico: selected,
         room_groups: groups,
         room_lights: lights,
+        selectable_room_groups: selectable_groups(groups),
+        selectable_room_lights: selectable_lights(lights),
         control_groups: control_groups,
         clone_source_pico_id:
           normalize_clone_source_id(devices, selected, socket.assigns[:clone_source_pico_id]),
@@ -566,6 +570,18 @@ defmodule HueworksWeb.PicoConfigLive do
 
   defp normalize_binding_target_id("control_group", _target_id), do: nil
   defp normalize_binding_target_id(_kind, _target_id), do: nil
+
+  defp selectable_groups(groups) do
+    Enum.reject(groups, fn group ->
+      Map.get(group, :enabled) == false or Map.get(group, :canonical_group_id)
+    end)
+  end
+
+  defp selectable_lights(lights) do
+    Enum.reject(lights, fn light ->
+      Map.get(light, :enabled) == false or Map.get(light, :canonical_light_id)
+    end)
+  end
 
   defp valid_learning_binding?(
          %{"action" => action, "target_kind" => "all_groups"},
