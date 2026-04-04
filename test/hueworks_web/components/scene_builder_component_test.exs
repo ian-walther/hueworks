@@ -391,7 +391,7 @@ defmodule Hueworks.SceneBuilderComponentTest do
     html = render(view)
 
     assert html =~ "option value=\"#{state.id}\" selected"
-    assert html =~ ~r/>\s*Soft \(manual\)\s*</
+    assert html =~ ~r/>\s*Soft \(manual temp\)\s*</
   end
 
   test "creating a manual light state adds it to the dropdown and selects it", %{conn: conn} do
@@ -416,7 +416,7 @@ defmodule Hueworks.SceneBuilderComponentTest do
 
     html = render(view)
 
-    assert html =~ ~r/>\s*Warm \(manual\)\s*</
+    assert html =~ ~r/>\s*Warm \(manual temp\)\s*</
     assert html =~ "selected"
   end
 
@@ -441,6 +441,51 @@ defmodule Hueworks.SceneBuilderComponentTest do
     html = render(view)
 
     assert html =~ "can&#39;t be blank"
+  end
+
+  test "creating a manual color light state saves color config and labels it accordingly", %{
+    conn: conn
+  } do
+    {:ok, view, _html} = live_isolated(conn, TestLive)
+
+    view
+    |> form("form[phx-change='update_light_state_form'][data-component-id='1']", %{
+      "component_id" => "1",
+      "mode" => "color",
+      "brightness" => "80",
+      "temperature" => "3000"
+    })
+    |> render_change()
+
+    view
+    |> form("form[phx-change='update_light_state_form'][data-component-id='1']", %{
+      "component_id" => "1",
+      "mode" => "color",
+      "brightness" => "80",
+      "hue" => "210",
+      "saturation" => "60"
+    })
+    |> render_change()
+
+    view
+    |> form("form[phx-change='select_light_state_name'][data-component-id='1']", %{
+      "name" => "Blue"
+    })
+    |> render_change()
+
+    view
+    |> element("button[phx-click='save_light_state_name'][phx-value-component_id='1']")
+    |> render_click()
+
+    html = render(view)
+
+    assert html =~ ~r/>\s*Blue \(manual color\)\s*</
+
+    state = Hueworks.Repo.get_by!(Hueworks.Schemas.LightState, name: "Blue")
+    assert state.config["mode"] == "color"
+    assert state.config["brightness"] == 80
+    assert state.config["hue"] == 210
+    assert state.config["saturation"] == 60
   end
 
   test "editing a manual light state updates its config and warns about shared edits", %{
@@ -472,8 +517,37 @@ defmodule Hueworks.SceneBuilderComponentTest do
     assert html =~ "Edits affect all scenes using this state."
 
     updated = Hueworks.Repo.get!(Hueworks.Schemas.LightState, state.id)
-    assert updated.config["brightness"] == "42"
-    assert updated.config["temperature"] == "3200"
+    assert updated.config["brightness"] == 42
+    assert updated.config["temperature"] == 3200
+  end
+
+  test "switching manual mode to color shows hue and saturation controls", %{conn: conn} do
+    {:ok, view, _html} = live_isolated(conn, TestLive)
+
+    view
+    |> form("form[phx-change='update_light_state_form'][data-component-id='1']", %{
+      "component_id" => "1",
+      "mode" => "color",
+      "brightness" => "75",
+      "temperature" => "3000"
+    })
+    |> render_change()
+
+    view
+    |> form("form[phx-change='update_light_state_form'][data-component-id='1']", %{
+      "component_id" => "1",
+      "mode" => "color",
+      "brightness" => "75",
+      "hue" => "210",
+      "saturation" => "60"
+    })
+    |> render_change()
+
+    html = render(view)
+
+    assert html =~ "Hue"
+    assert html =~ "Saturation"
+    refute html =~ "<label class=\"hw-modal-label\">Temperature</label>"
   end
 
   test "duplicating a manual light state creates a new selectable copy", %{conn: conn} do

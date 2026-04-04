@@ -22,4 +22,17 @@ defmodule Hueworks.Control.HuePayloadTest do
              "transitiontime" => 5
            }
   end
+
+  test "set_state uses xy payload when desired state includes color" do
+    payload =
+      HuePayload.action_payload(
+        {:set_state, %{power: :on, brightness: 60, x: 0.4112, y: 0.321}},
+        %{}
+      )
+
+    assert payload["on"] == true
+    assert payload["bri"] == 152
+    assert payload["xy"] == [0.4112, 0.321]
+    refute Map.has_key?(payload, "ct")
+  end
 end

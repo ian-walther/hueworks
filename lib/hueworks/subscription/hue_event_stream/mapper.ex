@@ -90,6 +90,7 @@ defmodule Hueworks.Subscription.HueEventStream.Mapper do
     |> Map.merge(extract_power(event))
     |> Map.merge(extract_brightness(event))
     |> Map.merge(extract_kelvin(event))
+    |> Map.merge(extract_color(event))
   end
 
   defp event_state_from_group(event), do: event_state_from_light(event)
@@ -111,6 +112,10 @@ defmodule Hueworks.Subscription.HueEventStream.Mapper do
       end
 
     StateParser.kelvin_from_mired(mired)
+  end
+
+  defp extract_color(event) do
+    StateParser.color_from_hue_event(event)
   end
 
   defp load_group_lights(bridge_id) do

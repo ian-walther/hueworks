@@ -171,6 +171,15 @@ defmodule HueworksWeb.SceneEditorLive do
                  "Each component must use a saved manual or circadian light state before saving."
              )}
 
+          {:error, :invalid_color_targets} ->
+            _ = Scenes.delete_scene(scene)
+
+            {:noreply,
+             assign(
+               socket,
+               scene_save_error: "Manual color states can only target lights that support color."
+             )}
+
           {:error, _} ->
             _ = Scenes.delete_scene(scene)
             {:noreply, assign(socket, scene_save_error: "Unable to save scene components.")}
@@ -207,6 +216,14 @@ defmodule HueworksWeb.SceneEditorLive do
                    socket,
                    scene_save_error:
                      "Each component must use a saved manual or circadian light state before saving."
+                 )}
+
+              {:error, :invalid_color_targets} ->
+                {:noreply,
+                 assign(
+                   socket,
+                   scene_save_error:
+                     "Manual color states can only target lights that support color."
                  )}
 
               {:error, _} ->

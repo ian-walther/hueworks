@@ -4,6 +4,7 @@ defmodule Hueworks.Scenes.Intent do
   require Logger
 
   alias Hueworks.AppSettings
+  alias Hueworks.Color
   alias Hueworks.Circadian
   alias Hueworks.Control.DesiredState
   alias Hueworks.Schemas.{LightState, Scene}
@@ -62,10 +63,12 @@ defmodule Hueworks.Scenes.Intent do
 
   defp desired_from_light_state(%LightState{type: :manual, config: config}, _now) do
     base = %{power: :on}
+    mode = manual_mode(config)
 
     base
     |> maybe_put(:brightness, config, ["brightness"])
-    |> maybe_put(:kelvin, config, ["temperature", "kelvin"])
+    |> maybe_put_manual_color(mode, config)
+    |> maybe_put_manual_temperature(mode, config)
   end
 
   defp desired_from_light_state(%LightState{type: :circadian, config: config}, now) do
@@ -85,6 +88,29 @@ defmodule Hueworks.Scenes.Intent do
   end
 
   defp desired_from_light_state(_, _now), do: %{}
+
+  defp maybe_put_manual_temperature(attrs, "temperature", config) do
+    maybe_put(attrs, :kelvin, config, ["temperature", "kelvin"])
+  end
+
+  defp maybe_put_manual_temperature(attrs, _mode, _config), do: attrs
+
+  defp maybe_put_manual_color(attrs, "color", config) do
+    hue = config_lookup(config, "hue")
+    saturation = config_lookup(config, "saturation")
+
+    case Color.hs_to_xy(hue, saturation) do
+      {x, y} ->
+        attrs
+        |> Map.put(:x, x)
+        |> Map.put(:y, y)
+
+      _ ->
+        attrs
+    end
+  end
+
+  defp maybe_put_manual_color(attrs, _mode, _config), do: attrs
 
   defp maybe_apply_default_power(desired, %LightState{type: type}, power_policy, occupied)
        when type in [:manual, :circadian] do
@@ -112,11 +138,7 @@ defmodule Hueworks.Scenes.Intent do
   end
 
   defp maybe_put(attrs, key, config, keys) do
-    value =
-      Enum.find_value(keys, fn config_key ->
-        Map.get(config, config_key) ||
-          Map.get(config, map_key_atom(config_key))
-      end)
+    value = Enum.find_value(keys, &config_lookup(config, &1))
 
     if is_nil(value) do
       attrs
@@ -128,7 +150,40 @@ defmodule Hueworks.Scenes.Intent do
   defp map_key_atom("brightness"), do: :brightness
   defp map_key_atom("temperature"), do: :temperature
   defp map_key_atom("kelvin"), do: :kelvin
+  defp map_key_atom("hue"), do: :hue
+  defp map_key_atom("saturation"), do: :saturation
+  defp map_key_atom("mode"), do: :mode
   defp map_key_atom(_), do: nil
+
+  defp config_lookup(config, key) when is_map(config) do
+    cond do
+      Map.has_key?(config, key) ->
+        Map.get(config, key)
+
+      true ->
+        case map_key_atom(key) do
+          nil ->
+            nil
+
+          atom ->
+            if is_map(config) and Map.has_key?(config, atom) do
+              Map.get(config, atom)
+            else
+              nil
+            end
+        end
+    end
+  end
+
+  defp config_lookup(_config, _key), do: nil
+
+  defp manual_mode(config) do
+    case config_lookup(config, "mode") do
+      "color" -> "color"
+      :color -> "color"
+      _ -> "temperature"
+    end
+  end
 
   defp light_default_lookup(defaults, light_id) when is_map(defaults) do
     cond do

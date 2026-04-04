@@ -184,6 +184,7 @@ defmodule Hueworks.Subscription.Z2MEventStream.Connection do
 
     defp maybe_put_light(light, payload, state) do
       update = build_state(payload, light)
+
       if update != %{} do
         State.put(:light, light.id, update)
         refresh_groups_for_light(light.source_id, state)
@@ -192,6 +193,7 @@ defmodule Hueworks.Subscription.Z2MEventStream.Connection do
 
     defp maybe_put_group(group, payload, state) do
       update = build_state(payload, group)
+
       if update != %{} do
         State.put(:group, group.id, update)
         refresh_group_from_members(group.source_id, state)
@@ -203,6 +205,7 @@ defmodule Hueworks.Subscription.Z2MEventStream.Connection do
       |> Map.merge(StateParser.power_map(payload["state"] || payload["power"]))
       |> Map.merge(StateParser.brightness_from_z2m_attrs(payload))
       |> Map.merge(StateParser.kelvin_from_z2m_attrs(payload, entity))
+      |> Map.merge(StateParser.color_from_z2m_attrs(payload))
     end
 
     defp entity_from_topic(topic_levels, state) do
@@ -331,7 +334,11 @@ defmodule Hueworks.Subscription.Z2MEventStream.Connection do
         |> Enum.reject(&is_nil/1)
 
       if brightness_values != [] and length(brightness_values) == length(on_states) do
-        Map.put(group_state, :brightness, round(Enum.sum(brightness_values) / length(brightness_values)))
+        Map.put(
+          group_state,
+          :brightness,
+          round(Enum.sum(brightness_values) / length(brightness_values))
+        )
       else
         group_state
       end

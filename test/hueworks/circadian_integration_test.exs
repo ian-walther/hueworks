@@ -221,7 +221,12 @@ defmodule Hueworks.CircadianIntegrationTest do
 
     html = render(view)
 
-    assert State.get(:group, fixture.z2m_group.id) == %{power: :on, brightness: 37, kelvin: 2000}
+    assert Map.take(State.get(:group, fixture.z2m_group.id), [:power, :brightness, :kelvin]) == %{
+             power: :on,
+             brightness: 37,
+             kelvin: 2000
+           }
+
     assert match?(%{power: :off}, State.get(:light, fixture.z2m_upper.id))
     assert_value(html, "#group-brightness-value-#{fixture.z2m_group.id}", "37%")
     assert_value(html, "#group-temp-value-#{fixture.z2m_group.id}", "2000K")
@@ -273,7 +278,12 @@ defmodule Hueworks.CircadianIntegrationTest do
 
     html = render(view)
 
-    assert State.get(:group, fixture.z2m_group.id) == %{power: :on, brightness: 37, kelvin: 2000}
+    assert Map.take(State.get(:group, fixture.z2m_group.id), [:power, :brightness, :kelvin]) == %{
+             power: :on,
+             brightness: 37,
+             kelvin: 2000
+           }
+
     assert match?(%{power: :off}, State.get(:light, fixture.z2m_upper.id))
     assert_value(html, "#group-temp-value-#{fixture.z2m_group.id}", "2000K")
     assert has_element?(view, "#light-#{fixture.z2m_upper.id} button.hw-button-off", "On/Off")
@@ -501,8 +511,8 @@ defmodule Hueworks.CircadianIntegrationTest do
 
     assert result.updated[{:light, manual_light.id}] == %{
              power: :on,
-             brightness: "25",
-             kelvin: "2500"
+             brightness: 25,
+             kelvin: 2500
            }
 
     assert result.updated[{:light, circadian_light.id}] == %{
@@ -513,8 +523,8 @@ defmodule Hueworks.CircadianIntegrationTest do
 
     assert DesiredState.get(:light, manual_light.id) == %{
              power: :on,
-             brightness: "25",
-             kelvin: "2500"
+             brightness: 25,
+             kelvin: 2500
            }
 
     assert DesiredState.get(:light, circadian_light.id) == %{
@@ -757,7 +767,13 @@ defmodule Hueworks.CircadianIntegrationTest do
     html = render(view)
 
     assert %ActiveScene{} = ActiveScenes.get_for_room(room.id)
-    assert State.get(:group, fixture.z2m_group.id) == %{power: :on, brightness: 37, kelvin: 2000}
+
+    assert Map.take(State.get(:group, fixture.z2m_group.id), [:power, :brightness, :kelvin]) == %{
+             power: :on,
+             brightness: 37,
+             kelvin: 2000
+           }
+
     assert match?(%{power: :off}, State.get(:light, fixture.z2m_upper.id))
     assert_value(html, "#group-temp-value-#{fixture.z2m_group.id}", "2000K")
     assert has_element?(view, "#light-#{fixture.z2m_upper.id} button.hw-button-off", "On/Off")

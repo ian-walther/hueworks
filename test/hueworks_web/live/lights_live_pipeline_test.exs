@@ -553,11 +553,11 @@ defmodule Hueworks.LightsLivePipelineTest do
     actions = Agent.get(actions_agent, & &1)
 
     assert [
-             %{type: :light, id: light_id, desired: %{power: :on, brightness: "42", kelvin: 3100}}
+             %{type: :light, id: light_id, desired: %{power: :on, brightness: 42, kelvin: 3100}}
            ] = actions
 
     assert light_id == light.id
-    assert DesiredState.get(:light, light.id) == %{power: :on, brightness: "42", kelvin: "3100"}
+    assert DesiredState.get(:light, light.id) == %{power: :on, brightness: 42, kelvin: 3100}
   end
 
   test "group/light filter prefs persist across page reload", %{conn: conn} do

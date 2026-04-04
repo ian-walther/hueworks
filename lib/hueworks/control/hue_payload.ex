@@ -22,7 +22,12 @@ defmodule Hueworks.Control.HuePayload do
       _ ->
         brightness = value_or_nil(desired, [:brightness, "brightness"])
         kelvin = value_or_nil(desired, [:kelvin, "kelvin", :temperature, "temperature"])
-        needs_on = power in [:on, "on"] or not is_nil(brightness) or not is_nil(kelvin)
+        x = normalized_xy(value_or_nil(desired, [:x, "x"]))
+        y = normalized_xy(value_or_nil(desired, [:y, "y"]))
+
+        needs_on =
+          power in [:on, "on"] or not is_nil(brightness) or not is_nil(kelvin) or
+            (not is_nil(x) and not is_nil(y))
 
         payload = %{}
         payload = maybe_put(payload, "on", needs_on)
@@ -34,9 +39,15 @@ defmodule Hueworks.Control.HuePayload do
           end
 
         payload =
-          case kelvin do
-            nil -> payload
-            value -> maybe_put(payload, "ct", kelvin_to_mired(value))
+          cond do
+            not is_nil(x) and not is_nil(y) ->
+              maybe_put(payload, "xy", [x, y])
+
+            is_nil(kelvin) ->
+              payload
+
+            true ->
+              maybe_put(payload, "ct", kelvin_to_mired(kelvin))
           end
 
         with_transition(payload, opts)
@@ -82,7 +93,20 @@ defmodule Hueworks.Control.HuePayload do
   end
 
   defp value_or_nil(desired, keys) do
-    Enum.find_value(keys, fn key -> Map.get(desired, key) end)
+    Enum.reduce_while(keys, nil, fn key, _acc ->
+      if Map.has_key?(desired, key) do
+        {:halt, Map.get(desired, key)}
+      else
+        {:cont, nil}
+      end
+    end)
+  end
+
+  defp normalized_xy(value) do
+    case Util.to_number(value) do
+      nil -> nil
+      number -> Float.round(number, 4)
+    end
   end
 
   defp with_transition(payload, opts) when is_map(payload) do

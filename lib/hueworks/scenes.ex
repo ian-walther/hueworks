@@ -12,7 +12,7 @@ defmodule Hueworks.Scenes do
   alias Hueworks.Rooms
   alias Hueworks.Control.Apply, as: ControlApply
   alias Hueworks.Scenes.Intent
-  alias Hueworks.Schemas.{LightState, Scene, SceneComponent, SceneComponentLight}
+  alias Hueworks.Schemas.{Light, LightState, Scene, SceneComponent, SceneComponentLight}
 
   def list_scenes_for_room(room_id) do
     Repo.all(from(s in Scene, where: s.room_id == ^room_id, order_by: [asc: s.name]))
@@ -351,29 +351,35 @@ defmodule Hueworks.Scenes do
             Repo.rollback(reason)
 
           {:ok, light_state} ->
-            scene_component =
-              %SceneComponent{}
-              |> SceneComponent.changeset(%{
-                name: Map.get(component, :name),
-                scene_id: scene.id,
-                light_state_id: light_state.id,
-                metadata: %{}
-              })
-              |> Repo.insert!()
+            case validate_component_targets(component, light_state) do
+              :ok ->
+                scene_component =
+                  %SceneComponent{}
+                  |> SceneComponent.changeset(%{
+                    name: Map.get(component, :name),
+                    scene_id: scene.id,
+                    light_state_id: light_state.id,
+                    metadata: %{}
+                  })
+                  |> Repo.insert!()
 
-            light_ids = Map.get(component, :light_ids, [])
+                light_ids = Map.get(component, :light_ids, [])
 
-            Enum.each(light_ids, fn light_id ->
-              %SceneComponentLight{}
-              |> SceneComponentLight.changeset(%{
-                scene_component_id: scene_component.id,
-                light_id: light_id,
-                default_power: Intent.default_power_for_light(component, light_id)
-              })
-              |> Repo.insert!()
-            end)
+                Enum.each(light_ids, fn light_id ->
+                  %SceneComponentLight{}
+                  |> SceneComponentLight.changeset(%{
+                    scene_component_id: scene_component.id,
+                    light_id: light_id,
+                    default_power: Intent.default_power_for_light(component, light_id)
+                  })
+                  |> Repo.insert!()
+                end)
 
-            {:cont, :ok}
+                {:cont, :ok}
+
+              {:error, reason} ->
+                Repo.rollback(reason)
+            end
         end
       end)
     end)
@@ -404,6 +410,33 @@ defmodule Hueworks.Scenes do
         end
     end
   end
+
+  defp validate_component_targets(component, %LightState{type: :manual, config: config}) do
+    if manual_color_mode?(config) and component_has_non_color_lights?(component) do
+      {:error, :invalid_color_targets}
+    else
+      :ok
+    end
+  end
+
+  defp validate_component_targets(_component, _light_state), do: :ok
+
+  defp component_has_non_color_lights?(component) do
+    light_ids = Map.get(component, :light_ids, [])
+
+    Repo.exists?(
+      from(l in Light,
+        where: l.id in ^light_ids and l.supports_color != true
+      )
+    )
+  end
+
+  defp manual_color_mode?(config) when is_map(config) do
+    mode = Map.get(config, "mode") || Map.get(config, :mode)
+    mode in ["color", :color]
+  end
+
+  defp manual_color_mode?(_config), do: false
 
   defp parse_id(value), do: Hueworks.Util.parse_id(value)
 

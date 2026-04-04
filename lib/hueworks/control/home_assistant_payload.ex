@@ -17,29 +17,34 @@ defmodule Hueworks.Control.HomeAssistantPayload do
     power = Map.get(desired, :power) || Map.get(desired, "power")
     brightness = value_or_nil(desired, [:brightness, "brightness"])
     kelvin = value_or_nil(desired, [:kelvin, "kelvin", :temperature, "temperature"])
+    x = normalized_xy(value_or_nil(desired, [:x, "x"]))
+    y = normalized_xy(value_or_nil(desired, [:y, "y"]))
 
     cond do
       power in [:off, "off"] ->
         {"turn_off", with_transition(%{"entity_id" => entity.source_id}, opts)}
 
-      power in [:on, "on"] or not is_nil(brightness) or not is_nil(kelvin) ->
+      power in [:on, "on"] or not is_nil(brightness) or not is_nil(kelvin) or
+          (not is_nil(x) and not is_nil(y)) ->
         payload =
           %{"entity_id" => entity.source_id}
           |> maybe_put("brightness", brightness && percent_to_brightness(brightness))
 
         payload =
-          case kelvin do
-            nil ->
+          cond do
+            not is_nil(x) and not is_nil(y) ->
+              Map.put(payload, "xy_color", [x, y])
+
+            is_nil(kelvin) ->
               payload
 
-            value ->
-              if entity.extended_kelvin_range && value < 2700 do
-                {x, y} = extended_xy(value)
-                Map.put(payload, "xy_color", [x, y])
-              else
-                kelvin = Kelvin.map_for_control(entity, value)
-                Map.put(payload, "color_temp_kelvin", round(kelvin))
-              end
+            entity.extended_kelvin_range && kelvin < 2700 ->
+              {x, y} = extended_xy(kelvin)
+              Map.put(payload, "xy_color", [x, y])
+
+            true ->
+              kelvin = Kelvin.map_for_control(entity, kelvin)
+              Map.put(payload, "color_temp_kelvin", round(kelvin))
           end
 
         {"turn_on", with_transition(payload, opts)}
@@ -101,7 +106,20 @@ defmodule Hueworks.Control.HomeAssistantPayload do
   end
 
   defp value_or_nil(desired, keys) do
-    Enum.find_value(keys, fn key -> Map.get(desired, key) end)
+    Enum.reduce_while(keys, nil, fn key, _acc ->
+      if Map.has_key?(desired, key) do
+        {:halt, Map.get(desired, key)}
+      else
+        {:cont, nil}
+      end
+    end)
+  end
+
+  defp normalized_xy(value) do
+    case Util.to_number(value) do
+      nil -> nil
+      number -> Float.round(number, 4)
+    end
   end
 
   defp with_transition(payload, opts) do

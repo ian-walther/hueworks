@@ -5,6 +5,7 @@ defmodule Hueworks.ScenesComponentsTest do
   alias Hueworks.Scenes
   alias Hueworks.AppSettings
   alias Hueworks.ActiveScenes
+  alias Hueworks.Color
   alias Hueworks.Control.DesiredState
 
   alias Hueworks.Schemas.{
@@ -79,6 +80,27 @@ defmodule Hueworks.ScenesComponentsTest do
     assert {:error, :invalid_light_state} =
              Scenes.replace_scene_components(scene, [
                %{name: "Component 1", light_ids: [light.id]}
+             ])
+  end
+
+  test "replace_scene_components rejects manual color states for non-color lights" do
+    room = insert_room()
+    bridge = insert_bridge()
+    light = insert_light(room, bridge, %{name: "Lamp", supports_color: false})
+
+    {:ok, state} =
+      Scenes.create_manual_light_state("Color", %{
+        "mode" => "color",
+        "brightness" => "70",
+        "hue" => "210",
+        "saturation" => "60"
+      })
+
+    {:ok, scene} = Scenes.create_scene(%{name: "Chill", room_id: room.id})
+
+    assert {:error, :invalid_color_targets} =
+             Scenes.replace_scene_components(scene, [
+               %{name: "Component 1", light_ids: [light.id], light_state_id: to_string(state.id)}
              ])
   end
 
@@ -228,7 +250,7 @@ defmodule Hueworks.ScenesComponentsTest do
     {:ok, _} = ActiveScenes.set_active(scene)
     {:ok, _diff, _updated} = Scenes.apply_scene(scene)
 
-    assert DesiredState.get(:light, light.id) == %{power: :on, brightness: "40", kelvin: "3000"}
+    assert DesiredState.get(:light, light.id) == %{power: :on, brightness: 40, kelvin: 3000}
 
     {:ok, _} =
       Scenes.replace_scene_components(scene, [
@@ -236,7 +258,7 @@ defmodule Hueworks.ScenesComponentsTest do
       ])
 
     assert {:ok, _diff, _updated} = Scenes.refresh_active_scene(scene.id)
-    assert DesiredState.get(:light, light.id) == %{power: :on, brightness: "60", kelvin: "3500"}
+    assert DesiredState.get(:light, light.id) == %{power: :on, brightness: 60, kelvin: 3500}
     assert %ActiveScene{} = ActiveScenes.get_for_room(room.id)
   end
 
@@ -258,7 +280,7 @@ defmodule Hueworks.ScenesComponentsTest do
     {:ok, _} = ActiveScenes.set_active(scene)
     {:ok, _diff, _updated} = Scenes.apply_scene(scene)
 
-    assert DesiredState.get(:light, light.id) == %{power: :on, brightness: "40", kelvin: "3000"}
+    assert DesiredState.get(:light, light.id) == %{power: :on, brightness: 40, kelvin: 3000}
 
     {:ok, _updated_state} =
       Scenes.update_light_state(state.id, %{
@@ -267,7 +289,7 @@ defmodule Hueworks.ScenesComponentsTest do
 
     assert {:ok, refreshed} = Scenes.refresh_active_scenes_for_light_state(state.id)
     assert Enum.map(refreshed, & &1.id) == [scene.id]
-    assert DesiredState.get(:light, light.id) == %{power: :on, brightness: "55", kelvin: "3200"}
+    assert DesiredState.get(:light, light.id) == %{power: :on, brightness: 55, kelvin: 3200}
   end
 
   test "activate_scene updates desired state for scene lights" do
@@ -292,8 +314,102 @@ defmodule Hueworks.ScenesComponentsTest do
 
     {:ok, diff, _updated} = Scenes.activate_scene(scene.id)
 
-    assert diff[{:light, light1.id}][:brightness] == "40"
+    assert diff[{:light, light1.id}][:brightness] == 40
     assert DesiredState.get(:light, light1.id)[:power] == :on
+  end
+
+  test "activate_scene materializes manual color states as xy desired state" do
+    room = insert_room()
+    bridge = insert_bridge()
+    light = insert_light(room, bridge, %{name: "Lamp", supports_color: true})
+
+    {:ok, state} =
+      Scenes.create_manual_light_state("Blue", %{
+        "mode" => "color",
+        "brightness" => "75",
+        "hue" => "210",
+        "saturation" => "60"
+      })
+
+    {:ok, scene} = Scenes.create_scene(%{name: "Color", room_id: room.id})
+
+    {:ok, _} =
+      Scenes.replace_scene_components(scene, [
+        %{name: "Component 1", light_ids: [light.id], light_state_id: to_string(state.id)}
+      ])
+
+    {:ok, diff, _updated} = Scenes.activate_scene(scene.id)
+    {expected_x, expected_y} = Color.hs_to_xy(210, 60)
+
+    assert diff[{:light, light.id}][:power] == :on
+    assert diff[{:light, light.id}][:brightness] == 75
+    assert_in_delta diff[{:light, light.id}][:x], expected_x, 0.0001
+    assert_in_delta diff[{:light, light.id}][:y], expected_y, 0.0001
+  end
+
+  test "refresh_active_scene clears stale kelvin when a light moves from circadian to manual color" do
+    room = insert_room()
+    bridge = insert_bridge()
+
+    light1 =
+      insert_light(room, bridge, %{name: "Lamp 1", supports_color: true, supports_temp: true})
+
+    light2 =
+      insert_light(room, bridge, %{name: "Lamp 2", supports_color: true, supports_temp: true})
+
+    {:ok, circadian} =
+      Scenes.create_light_state("Circadian", :circadian, %{
+        "sunrise_time" => "06:00:00",
+        "sunset_time" => "18:00:00",
+        "min_brightness" => 10,
+        "max_brightness" => 90,
+        "min_color_temp" => 2200,
+        "max_color_temp" => 5000
+      })
+
+    {:ok, color} =
+      Scenes.create_manual_light_state("Blue", %{
+        "mode" => "color",
+        "brightness" => "75",
+        "hue" => "210",
+        "saturation" => "60"
+      })
+
+    {:ok, scene} = Scenes.create_scene(%{name: "Mixed", room_id: room.id})
+
+    {:ok, _} =
+      Scenes.replace_scene_components(scene, [
+        %{
+          name: "Circadian",
+          light_ids: [light1.id, light2.id],
+          light_state_id: to_string(circadian.id)
+        }
+      ])
+
+    {:ok, _} = ActiveScenes.set_active(scene)
+    {:ok, _diff, _updated} = Scenes.activate_scene(scene.id)
+
+    assert DesiredState.get(:light, light2.id)[:kelvin]
+
+    {:ok, _} =
+      Scenes.replace_scene_components(scene, [
+        %{name: "Circadian", light_ids: [light1.id], light_state_id: to_string(circadian.id)},
+        %{name: "Blue", light_ids: [light2.id], light_state_id: to_string(color.id)}
+      ])
+
+    {:ok, diff, _updated} = Scenes.refresh_active_scene(scene.id)
+    {expected_x, expected_y} = Color.hs_to_xy(210, 60)
+
+    assert diff[{:light, light2.id}][:brightness] == 75
+    assert_in_delta diff[{:light, light2.id}][:x], expected_x, 0.0001
+    assert_in_delta diff[{:light, light2.id}][:y], expected_y, 0.0001
+    refute Map.has_key?(diff[{:light, light2.id}], :kelvin)
+
+    desired = DesiredState.get(:light, light2.id)
+    assert desired[:brightness] == 75
+    assert_in_delta desired[:x], expected_x, 0.0001
+    assert_in_delta desired[:y], expected_y, 0.0001
+    refute Map.has_key?(desired, :kelvin)
   end
 
   test "apply_scene computes circadian brightness and kelvin for circadian light states" do
@@ -359,13 +475,13 @@ defmodule Hueworks.ScenesComponentsTest do
 
     {:ok, first_diff, _updated} = Scenes.apply_scene(scene)
 
-    assert first_diff[{:light, light.id}] == %{power: :on, brightness: "40", kelvin: "3000"}
+    assert first_diff[{:light, light.id}] == %{power: :on, brightness: 40, kelvin: 3000}
 
-    assert DesiredState.get(:light, light.id) == %{power: :on, brightness: "40", kelvin: "3000"}
+    assert DesiredState.get(:light, light.id) == %{power: :on, brightness: 40, kelvin: 3000}
 
     {:ok, second_diff, _updated} = Scenes.apply_scene(scene)
 
-    assert second_diff[{:light, light.id}] == %{brightness: "40", kelvin: "3000"}
+    assert second_diff[{:light, light.id}] == %{brightness: 40, kelvin: 3000}
   end
 
   test "apply_scene preserves manual power-off latch during circadian reapply" do
@@ -541,8 +657,8 @@ defmodule Hueworks.ScenesComponentsTest do
     desired_light2 = DesiredState.get(:light, light2.id)
 
     assert desired_light1[:power] == :on
-    assert desired_light1[:brightness] == "40"
-    assert desired_light1[:kelvin] == "3000"
+    assert desired_light1[:brightness] == 40
+    assert desired_light1[:kelvin] == 3000
 
     assert desired_light2[:power] == :off
     refute Map.has_key?(desired_light2, :brightness)

@@ -49,7 +49,12 @@ defmodule Hueworks.Control.DesiredState do
   def apply(%Transaction{} = txn, type, id, attrs) when is_map(attrs) do
     key = {type, id}
     current = Map.get(txn.changes, key) || get(type, id) || %{}
-    desired = normalize_desired(Map.merge(current, attrs))
+
+    desired =
+      current
+      |> Map.merge(attrs)
+      |> normalize_desired(attrs)
+
     %{txn | changes: Map.put(txn.changes, key, desired)}
   end
 
@@ -100,18 +105,41 @@ defmodule Hueworks.Control.DesiredState do
 
   @impl true
   def handle_call({:put, type, id, attrs}, _from, state) do
-    updated = normalize_desired(Map.merge(get(type, id) || %{}, attrs))
+    updated =
+      get(type, id)
+      |> Kernel.||(%{})
+      |> Map.merge(attrs)
+      |> normalize_desired(attrs)
+
     :ets.insert(@table, {{type, id}, updated})
     {:reply, updated, state}
   end
 
-  defp normalize_desired(attrs) do
+  defp normalize_desired(attrs, incoming_attrs) do
+    attrs = harmonize_color_and_temperature(attrs, incoming_attrs)
+
     case Map.get(attrs, :power) || Map.get(attrs, "power") do
       :off -> drop_light_levels(attrs)
       "off" -> drop_light_levels(attrs)
       _ -> attrs
     end
   end
+
+  defp harmonize_color_and_temperature(attrs, incoming_attrs)
+       when is_map(attrs) and is_map(incoming_attrs) do
+    cond do
+      incoming_has_xy?(incoming_attrs) ->
+        drop_kelvin(attrs)
+
+      incoming_has_kelvin?(incoming_attrs) ->
+        drop_xy(attrs)
+
+      true ->
+        attrs
+    end
+  end
+
+  defp harmonize_color_and_temperature(attrs, _incoming_attrs), do: attrs
 
   defp drop_light_levels(attrs) do
     attrs
@@ -121,7 +149,41 @@ defmodule Hueworks.Control.DesiredState do
     |> Map.delete("kelvin")
     |> Map.delete(:temperature)
     |> Map.delete("temperature")
+    |> Map.delete(:x)
+    |> Map.delete("x")
+    |> Map.delete(:y)
+    |> Map.delete("y")
   end
+
+  defp drop_kelvin(attrs) do
+    attrs
+    |> Map.delete(:kelvin)
+    |> Map.delete("kelvin")
+    |> Map.delete(:temperature)
+    |> Map.delete("temperature")
+  end
+
+  defp drop_xy(attrs) do
+    attrs
+    |> Map.delete(:x)
+    |> Map.delete("x")
+    |> Map.delete(:y)
+    |> Map.delete("y")
+  end
+
+  defp incoming_has_xy?(attrs) when is_map(attrs) do
+    Map.has_key?(attrs, :x) or Map.has_key?(attrs, "x") or Map.has_key?(attrs, :y) or
+      Map.has_key?(attrs, "y")
+  end
+
+  defp incoming_has_xy?(_attrs), do: false
+
+  defp incoming_has_kelvin?(attrs) when is_map(attrs) do
+    Map.has_key?(attrs, :kelvin) or Map.has_key?(attrs, "kelvin") or
+      Map.has_key?(attrs, :temperature) or Map.has_key?(attrs, "temperature")
+  end
+
+  defp incoming_has_kelvin?(_attrs), do: false
 
   defp diff_state(physical, desired, opts) do
     LightStateSemantics.diff_state(physical, desired, opts)

@@ -307,8 +307,8 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
 
     assert scene_component.light_state.type == :manual
     assert scene_component.light_state.name == "Warm"
-    assert scene_component.light_state.config["brightness"] == "55"
-    assert scene_component.light_state.config["temperature"] == "3000"
+    assert scene_component.light_state.config["brightness"] == 55
+    assert scene_component.light_state.config["temperature"] == 3000
 
     join_count =
       Repo.aggregate(
@@ -419,8 +419,8 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
              Enum.sort([light1.id, light2.id])
 
     assert scene_component.light_state.name == "Bright"
-    assert scene_component.light_state.config["brightness"] == "70"
-    assert scene_component.light_state.config["temperature"] == "3600"
+    assert scene_component.light_state.config["brightness"] == 70
+    assert scene_component.light_state.config["temperature"] == 3600
   end
 
   test "circadian state form persists all circadian config inputs", %{conn: conn} do

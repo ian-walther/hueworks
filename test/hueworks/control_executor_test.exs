@@ -17,4 +17,14 @@ defmodule Hueworks.Control.ExecutorTest do
     action = %{desired: %{brightness: 55}}
     assert Executor.commands_for_action(action) == [{:brightness, 55}]
   end
+
+  test "commands_for_action includes xy color when desired state targets color" do
+    action = %{desired: %{power: :on, brightness: 60, x: 0.4112, y: 0.321}}
+
+    assert Executor.commands_for_action(action) == [
+             :on,
+             {:brightness, 60},
+             {:xy, {0.4112, 0.321}}
+           ]
+  end
 end

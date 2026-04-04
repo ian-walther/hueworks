@@ -133,9 +133,13 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.Connection do
 
   defp handle_event(_event, _state), do: :ok
 
-  defp scene_entity_ids_from_service_data(%{"service_data" => service_data}) when is_map(service_data) do
+  defp scene_entity_ids_from_service_data(%{"service_data" => service_data})
+       when is_map(service_data) do
     direct_ids = normalize_entity_ids(service_data["entity_id"])
-    target_ids = service_data |> Map.get("target", %{}) |> Map.get("entity_id") |> normalize_entity_ids()
+
+    target_ids =
+      service_data |> Map.get("target", %{}) |> Map.get("entity_id") |> normalize_entity_ids()
+
     Enum.uniq(direct_ids ++ target_ids)
   end
 
@@ -153,6 +157,7 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.Connection do
     |> Map.merge(StateParser.power_map(state["state"]))
     |> Map.merge(StateParser.brightness_from_0_255(attrs["brightness"]))
     |> Map.merge(StateParser.kelvin_from_ha_attrs(attrs, entity))
+    |> Map.merge(StateParser.color_from_ha_attrs(attrs))
   end
 
   defp load_lights(bridge_id) do

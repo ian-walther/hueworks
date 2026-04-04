@@ -15,15 +15,19 @@ defmodule Hueworks.Control.Z2MPayload do
     power = Map.get(desired, :power) || Map.get(desired, "power")
     brightness = value_or_nil(desired, [:brightness, "brightness"])
     kelvin = value_or_nil(desired, [:kelvin, "kelvin", :temperature, "temperature"])
+    x = normalized_xy(value_or_nil(desired, [:x, "x"]))
+    y = normalized_xy(value_or_nil(desired, [:y, "y"]))
 
     cond do
       power in [:off, "off"] ->
         with_transition(%{"state" => "OFF"}, opts)
 
-      power in [:on, "on"] or not is_nil(brightness) or not is_nil(kelvin) ->
+      power in [:on, "on"] or not is_nil(brightness) or not is_nil(kelvin) or
+          (not is_nil(x) and not is_nil(y)) ->
         %{}
-        |> maybe_put_state(power, brightness, kelvin)
+        |> maybe_put_state(power, brightness, kelvin, x, y)
         |> maybe_put_brightness(brightness)
+        |> maybe_put_xy_color(x, y)
         |> maybe_put_color_temp(kelvin, entity)
         |> with_transition(opts)
 
@@ -57,8 +61,11 @@ defmodule Hueworks.Control.Z2MPayload do
     |> then(fn value -> round(1_000_000 / value) end)
   end
 
-  defp maybe_put_state(payload, power, brightness, kelvin) do
-    needs_on = power in [:on, "on"] or not is_nil(brightness) or not is_nil(kelvin)
+  defp maybe_put_state(payload, power, brightness, kelvin, x, y) do
+    needs_on =
+      power in [:on, "on"] or not is_nil(brightness) or not is_nil(kelvin) or
+        (not is_nil(x) and not is_nil(y))
+
     if needs_on, do: Map.put(payload, "state", "ON"), else: payload
   end
 
@@ -68,7 +75,16 @@ defmodule Hueworks.Control.Z2MPayload do
     Map.put(payload, "brightness", percent_to_brightness(level))
   end
 
+  defp maybe_put_xy_color(payload, nil, _y), do: payload
+  defp maybe_put_xy_color(payload, _x, nil), do: payload
+
+  defp maybe_put_xy_color(payload, x, y) do
+    Map.put(payload, "color", %{"x" => x, "y" => y})
+  end
+
   defp maybe_put_color_temp(payload, nil, _entity), do: payload
+
+  defp maybe_put_color_temp(%{"color" => _} = payload, _kelvin, _entity), do: payload
 
   defp maybe_put_color_temp(payload, kelvin, entity) do
     if extended_low_kelvin?(entity, kelvin) do
@@ -80,7 +96,20 @@ defmodule Hueworks.Control.Z2MPayload do
   end
 
   defp value_or_nil(desired, keys) do
-    Enum.find_value(keys, fn key -> Map.get(desired, key) end)
+    Enum.reduce_while(keys, nil, fn key, _acc ->
+      if Map.has_key?(desired, key) do
+        {:halt, Map.get(desired, key)}
+      else
+        {:cont, nil}
+      end
+    end)
+  end
+
+  defp normalized_xy(value) do
+    case Util.to_number(value) do
+      nil -> nil
+      number -> Float.round(number, 4)
+    end
   end
 
   defp extended_low_kelvin?(entity, kelvin) when is_number(kelvin) do

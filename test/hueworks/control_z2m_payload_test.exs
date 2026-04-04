@@ -115,4 +115,17 @@ defmodule Hueworks.Control.Z2MPayloadTest do
     assert payload["state"] == "ON"
     assert payload["color_temp"] == 442
   end
+
+  test "set_state uses xy color payload when desired state includes color" do
+    payload =
+      Z2MPayload.action_payload(
+        {:set_state, %{power: :on, brightness: 60, x: 0.4112, y: 0.321}},
+        %{}
+      )
+
+    assert payload["state"] == "ON"
+    assert payload["brightness"] == 152
+    assert payload["color"] == %{"x" => 0.4112, "y" => 0.321}
+    refute Map.has_key?(payload, "color_temp")
+  end
 end

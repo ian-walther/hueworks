@@ -19,6 +19,40 @@ defmodule Hueworks.Control.StateParserTest do
     assert StateParser.brightness_from_z2m_attrs(attrs) == %{brightness: 31}
   end
 
+  test "color_from_ha_attrs returns xy color when HA reports color mode" do
+    assert StateParser.color_from_ha_attrs(%{
+             "color_mode" => "xy",
+             "xy_color" => [0.1234, 0.5678]
+           }) == %{x: 0.1234, y: 0.5678}
+  end
+
+  test "color_from_ha_attrs can derive xy from hs_color payloads" do
+    color = StateParser.color_from_ha_attrs(%{"color_mode" => "hs", "hs_color" => [210, 60]})
+    assert is_float(color.x)
+    assert is_float(color.y)
+  end
+
+  test "color_from_ha_attrs ignores xy when HA is in color_temp mode" do
+    assert StateParser.color_from_ha_attrs(%{
+             "color_mode" => "color_temp",
+             "xy_color" => [0.1234, 0.5678],
+             "color_temp_kelvin" => 3000
+           }) == %{}
+  end
+
+  test "color_from_z2m_attrs returns xy color when z2m reports xy mode" do
+    assert StateParser.color_from_z2m_attrs(%{
+             "color_mode" => "xy",
+             "color" => %{"x" => 0.2222, "y" => 0.3333}
+           }) == %{x: 0.2222, y: 0.3333}
+  end
+
+  test "color_from_hue_event extracts xy color from Hue v2 light payloads" do
+    assert StateParser.color_from_hue_event(%{
+             "color" => %{"xy" => %{"x" => 0.4112, "y" => 0.321}}
+           }) == %{x: 0.4112, y: 0.321}
+  end
+
   test "kelvin_from_z2m_attrs handles mired and kelvin payloads" do
     assert StateParser.kelvin_from_z2m_attrs(%{"color_temp" => 250}, nil) == %{kelvin: 4000}
 

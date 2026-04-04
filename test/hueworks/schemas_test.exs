@@ -267,7 +267,7 @@ defmodule Hueworks.SchemasTest do
     assert "prefer_rgb_color is not supported" in errors[:config]
   end
 
-  test "light_state manual config is unchanged by circadian validation" do
+  test "light_state manual config is normalized with default mode" do
     changeset =
       LightState.changeset(%LightState{}, %{
         name: "Manual",
@@ -276,7 +276,30 @@ defmodule Hueworks.SchemasTest do
       })
 
     assert changeset.valid?
-    assert get_change(changeset, :config) == %{"temperature" => "3000", "custom" => "ok"}
+
+    assert get_change(changeset, :config) == %{
+             "mode" => "temperature",
+             "temperature" => 3000,
+             "custom" => "ok"
+           }
+  end
+
+  test "light_state manual color config normalizes numeric values" do
+    changeset =
+      LightState.changeset(%LightState{}, %{
+        name: "Color",
+        type: :manual,
+        config: %{"mode" => "color", "brightness" => "80", "hue" => "210", "saturation" => "60"}
+      })
+
+    assert changeset.valid?
+
+    assert get_change(changeset, :config) == %{
+             "mode" => "color",
+             "brightness" => 80,
+             "hue" => 210,
+             "saturation" => 60
+           }
   end
 
   test "scene_component_light requires scene_component_id and light_id" do

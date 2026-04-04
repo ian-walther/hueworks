@@ -9,7 +9,7 @@ defmodule HueworksWeb.SceneBuilderComponent do
   @new_manual_state_alias "new_manual"
   @new_circadian_state_id "new_circadian"
 
-  @manual_keys ["brightness", "temperature"]
+  @manual_keys ["mode", "brightness", "temperature", "hue", "saturation"]
 
   @circadian_numeric_fields [
     {"min_brightness", "Min Brightness (%)", 1, 100, 1},
@@ -160,6 +160,12 @@ defmodule HueworksWeb.SceneBuilderComponent do
               <div class="hw-row">
                 <form phx-change="update_light_state_form" phx-target={@myself} data-component-id={component.id}>
                   <input type="hidden" name="component_id" value={component.id} />
+                  <label class="hw-modal-label">Mode</label>
+                  <% manual_mode = manual_mode(@light_state_edits, @light_states, component) %>
+                  <select class="hw-select" name="mode">
+                    <option value="temperature" selected={manual_mode == "temperature"}>Temperature</option>
+                    <option value="color" selected={manual_mode == "color"}>Color</option>
+                  </select>
                   <div class="hw-row">
                     <label class="hw-modal-label">Brightness</label>
                     <span class="hw-slider-value">
@@ -174,20 +180,52 @@ defmodule HueworksWeb.SceneBuilderComponent do
                     max="100"
                     value={edit_value(@light_state_edits, @light_states, component, "brightness")}
                   />
-                  <div class="hw-row">
-                    <label class="hw-modal-label">Temperature</label>
-                    <span class="hw-slider-value">
-                      <%= slider_display(@light_state_edits, @light_states, component, "temperature", "K") %>
-                    </span>
-                  </div>
-                  <input
-                    type="range"
-                    name="temperature"
-                    class="hw-modal-input"
-                    min="2000"
-                    max="6500"
-                    value={edit_value(@light_state_edits, @light_states, component, "temperature")}
-                  />
+
+                  <%= if manual_mode == "color" do %>
+                    <div class="hw-row">
+                      <label class="hw-modal-label">Hue</label>
+                      <span class="hw-slider-value">
+                        <%= slider_display(@light_state_edits, @light_states, component, "hue", "°") %>
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      name="hue"
+                      class="hw-modal-input"
+                      min="0"
+                      max="360"
+                      value={edit_value(@light_state_edits, @light_states, component, "hue")}
+                    />
+                    <div class="hw-row">
+                      <label class="hw-modal-label">Saturation</label>
+                      <span class="hw-slider-value">
+                        <%= slider_display(@light_state_edits, @light_states, component, "saturation", "%") %>
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      name="saturation"
+                      class="hw-modal-input"
+                      min="0"
+                      max="100"
+                      value={edit_value(@light_state_edits, @light_states, component, "saturation")}
+                    />
+                  <% else %>
+                    <div class="hw-row">
+                      <label class="hw-modal-label">Temperature</label>
+                      <span class="hw-slider-value">
+                        <%= slider_display(@light_state_edits, @light_states, component, "temperature", "K") %>
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      name="temperature"
+                      class="hw-modal-input"
+                      min="2000"
+                      max="6500"
+                      value={edit_value(@light_state_edits, @light_states, component, "temperature")}
+                    />
+                  <% end %>
                 </form>
               </div>
             <% end %>
@@ -564,9 +602,14 @@ defmodule HueworksWeb.SceneBuilderComponent do
     edits =
       case mode do
         :manual ->
-          current
-          |> Map.put("brightness", Map.get(params, "brightness"))
-          |> Map.put("temperature", Map.get(params, "temperature"))
+          Enum.reduce(@manual_keys, current, fn key, acc ->
+            if Map.has_key?(params, key) do
+              Map.put(acc, key, Map.get(params, key))
+            else
+              acc
+            end
+          end)
+          |> Map.put_new("mode", "temperature")
 
         :circadian ->
           circadian_form_keys()
@@ -749,7 +792,8 @@ defmodule HueworksWeb.SceneBuilderComponent do
           group_ids = Enum.uniq(component.group_ids ++ [group_id])
 
           defaults =
-            Enum.reduce(group_light_ids, Map.get(component, :light_defaults, %{}), fn light_id, acc ->
+            Enum.reduce(group_light_ids, Map.get(component, :light_defaults, %{}), fn light_id,
+                                                                                      acc ->
               Map.put_new(acc, light_id, :force_on)
             end)
 
@@ -997,7 +1041,18 @@ defmodule HueworksWeb.SceneBuilderComponent do
   defp normalize_new_state_id(state_id), do: to_string(state_id)
 
   defp state_option_label(%{type: :circadian, name: name}), do: "#{name} (circadian)"
-  defp state_option_label(%{type: :manual, name: name}), do: "#{name} (manual)"
+
+  defp state_option_label(%{type: :manual, name: name, config: config}) do
+    suffix =
+      case manual_mode_from_config(config) do
+        "color" -> "manual color"
+        _ -> "manual temp"
+      end
+
+    "#{name} (#{suffix})"
+  end
+
+  defp state_option_label(%{type: :manual, name: name}), do: "#{name} (manual temp)"
   defp state_option_label(%{name: name}), do: name
 
   defp hydrate_light_state_edits(socket, component_id, state_id) do
@@ -1027,8 +1082,11 @@ defmodule HueworksWeb.SceneBuilderComponent do
 
                 _ ->
                   %{
+                    "mode" => manual_mode_from_config(config),
                     "brightness" => config_lookup(config, "brightness") || "",
-                    "temperature" => config_lookup(config, "temperature") || ""
+                    "temperature" => config_lookup(config, "temperature") || "",
+                    "hue" => config_lookup(config, "hue") || "",
+                    "saturation" => config_lookup(config, "saturation") || ""
                   }
               end
           end
@@ -1118,15 +1176,30 @@ defmodule HueworksWeb.SceneBuilderComponent do
   defp stringify_config_value(value), do: to_string(value)
 
   defp config_lookup(config, key) do
-    Map.get(config, key) ||
-      case key_to_atom(key) do
-        nil -> nil
-        atom -> Map.get(config, atom)
-      end
+    cond do
+      Map.has_key?(config, key) ->
+        Map.get(config, key)
+
+      true ->
+        case key_to_atom(key) do
+          nil ->
+            nil
+
+          atom ->
+            if is_map(config) and Map.has_key?(config, atom) do
+              Map.get(config, atom)
+            else
+              nil
+            end
+        end
+    end
   end
 
   defp key_to_atom("brightness"), do: :brightness
   defp key_to_atom("temperature"), do: :temperature
+  defp key_to_atom("hue"), do: :hue
+  defp key_to_atom("saturation"), do: :saturation
+  defp key_to_atom("mode"), do: :mode
   defp key_to_atom("min_brightness"), do: :min_brightness
   defp key_to_atom("max_brightness"), do: :max_brightness
   defp key_to_atom("min_color_temp"), do: :min_color_temp
@@ -1291,6 +1364,22 @@ defmodule HueworksWeb.SceneBuilderComponent do
   defp normalize_light_state_id(state_id, ids) do
     state_id = to_string(state_id)
     if MapSet.member?(ids, state_id), do: state_id, else: @new_manual_state_id
+  end
+
+  defp manual_mode(edits, light_states, component) do
+    case edit_value(edits, light_states, component, "mode") do
+      "color" -> "color"
+      :color -> "color"
+      _ -> "temperature"
+    end
+  end
+
+  defp manual_mode_from_config(config) do
+    case config_lookup(config || %{}, "mode") do
+      "color" -> "color"
+      :color -> "color"
+      _ -> "temperature"
+    end
   end
 
   defp normalize_light_defaults_map(defaults) when is_map(defaults) do

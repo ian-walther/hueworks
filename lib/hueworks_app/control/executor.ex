@@ -337,23 +337,38 @@ defmodule Hueworks.Control.Executor do
     commands = if power in [:on, "on"], do: [:on], else: []
     brightness = value_or_nil(desired, [:brightness, "brightness"])
     kelvin = value_or_nil(desired, [:kelvin, "kelvin", :temperature, "temperature"])
+    x = value_or_nil(desired, [:x, "x"])
+    y = value_or_nil(desired, [:y, "y"])
 
     commands
     |> maybe_add(:brightness, brightness)
-    |> maybe_add(:color_temp, kelvin)
+    |> maybe_add_color(kelvin, x, y)
   end
 
   defp maybe_add(commands, _key, nil), do: commands
   defp maybe_add(commands, key, value), do: commands ++ [{key, normalize_value(value)}]
 
+  defp maybe_add_color(commands, _kelvin, x, y) when not is_nil(x) and not is_nil(y) do
+    commands ++ [{:xy, {normalize_value(x), normalize_value(y)}}]
+  end
+
+  defp maybe_add_color(commands, kelvin, _x, _y), do: maybe_add(commands, :color_temp, kelvin)
+
   defp value_or_nil(desired, keys) do
-    Enum.find_value(keys, fn key -> Map.get(desired, key) end)
+    Enum.reduce_while(keys, nil, fn key, _acc ->
+      if Map.has_key?(desired, key) do
+        {:halt, Map.get(desired, key)}
+      else
+        {:cont, nil}
+      end
+    end)
   end
 
   defp normalize_value(value) when is_binary(value) do
-    case Integer.parse(value) do
-      {int, _} -> int
-      :error -> value
+    case Float.parse(value) do
+      {number, ""} when floor(number) == number -> trunc(number)
+      {number, ""} -> number
+      _ -> value
     end
   end
 

@@ -15,6 +15,7 @@ defmodule Hueworks.Control.Planner do
   alias Hueworks.Schemas.Light
   @brightness_tolerance 2
   @temperature_physical_mired_tolerance 1
+  @xy_tolerance 0.01
 
   def plan_room(room_id, diff, opts \\ []) when is_integer(room_id) and is_map(diff) do
     room_id
@@ -255,7 +256,8 @@ defmodule Hueworks.Control.Planner do
     map_size(
       LightStateSemantics.diff_state(physical, desired,
         brightness_tolerance: @brightness_tolerance,
-        temperature_mired_tolerance: @temperature_physical_mired_tolerance
+        temperature_mired_tolerance: @temperature_physical_mired_tolerance,
+        xy_tolerance: @xy_tolerance
       )
     ) > 0
   end

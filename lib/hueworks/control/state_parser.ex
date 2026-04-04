@@ -1,6 +1,7 @@
 defmodule Hueworks.Control.StateParser do
   @moduledoc false
 
+  alias Hueworks.Color
   alias Hueworks.Control.HomeAssistantPayload
   alias Hueworks.Kelvin
   alias Hueworks.Util
@@ -58,6 +59,59 @@ defmodule Hueworks.Control.StateParser do
   end
 
   def brightness_from_z2m_attrs(_attrs), do: %{}
+
+  def color_from_ha_attrs(attrs) when is_map(attrs) do
+    xy = xy_from_attrs(attrs)
+    color_mode = ha_color_mode(attrs)
+
+    cond do
+      is_tuple(xy) and color_mode in ["xy", "hs", "rgb", "rgbw", "rgbww"] ->
+        xy_map(xy)
+
+      is_tuple(xy) and has_any_temp_attrs?(attrs) ->
+        %{}
+
+      is_tuple(xy) ->
+        xy_map(xy)
+
+      true ->
+        %{}
+    end
+  end
+
+  def color_from_ha_attrs(_attrs), do: %{}
+
+  def color_from_z2m_attrs(attrs) when is_map(attrs) do
+    xy = xy_from_attrs(attrs)
+
+    cond do
+      not is_tuple(xy) ->
+        %{}
+
+      has_any_temp_attrs?(attrs) ->
+        %{}
+
+      is_tuple(xy) and z2m_color_mode(attrs) in ["xy", "hs", "rgb", "rgbw", "rgbww"] ->
+        xy_map(xy)
+
+      is_tuple(xy) ->
+        xy_map(xy)
+
+      true ->
+        %{}
+    end
+  end
+
+  def color_from_z2m_attrs(_attrs), do: %{}
+
+  def color_from_hue_event(event) when is_map(event) do
+    case hue_xy_from_event(event) do
+      {x, y} -> xy_map({x, y})
+      _ -> %{}
+    end
+  end
+
+  def color_from_hue_event(_event), do: %{}
 
   def kelvin_from_mired(mired) when is_number(mired) and mired > 0 do
     %{kelvin: round(1_000_000 / mired)}
@@ -202,6 +256,7 @@ defmodule Hueworks.Control.StateParser do
 
   defp xy_from_attrs(attrs) when is_map(attrs) do
     xy_color = attrs["xy_color"] || attrs[:xy_color]
+    hs_color = attrs["hs_color"] || attrs[:hs_color]
     color = attrs["color"] || attrs[:color]
 
     cond do
@@ -214,6 +269,10 @@ defmodule Hueworks.Control.StateParser do
           nil
         end
 
+      is_list(hs_color) and length(hs_color) == 2 ->
+        [hue, saturation] = hs_color
+        Color.hs_to_xy(hue, saturation)
+
       true ->
         case color do
           %{"x" => x, "y" => y} when is_number(x) and is_number(y) -> {x, y}
@@ -224,6 +283,18 @@ defmodule Hueworks.Control.StateParser do
   end
 
   defp xy_from_attrs(_attrs), do: nil
+
+  defp hue_xy_from_event(event) when is_map(event) do
+    case event["color"] || event[:color] do
+      %{"xy" => %{"x" => x, "y" => y}} when is_number(x) and is_number(y) -> {x, y}
+      %{xy: %{x: x, y: y}} when is_number(x) and is_number(y) -> {x, y}
+      %{"x" => x, "y" => y} when is_number(x) and is_number(y) -> {x, y}
+      %{x: x, y: y} when is_number(x) and is_number(y) -> {x, y}
+      _ -> nil
+    end
+  end
+
+  defp hue_xy_from_event(_event), do: nil
 
   defp inverse_extended_xy(x, y) do
     Enum.min_by(2000..2700, fn kelvin ->
@@ -305,6 +376,13 @@ defmodule Hueworks.Control.StateParser do
 
   defp z2m_color_mode(_attrs), do: nil
 
+  defp ha_color_mode(attrs) when is_map(attrs) do
+    mode = attrs["color_mode"] || attrs[:color_mode]
+    if is_binary(mode), do: mode, else: nil
+  end
+
+  defp ha_color_mode(_attrs), do: nil
+
   defp z2m_direct_kelvin(attrs) when is_map(attrs) do
     cond do
       is_number(attrs["color_temp_kelvin"]) ->
@@ -322,6 +400,21 @@ defmodule Hueworks.Control.StateParser do
   end
 
   defp z2m_direct_kelvin(_attrs), do: nil
+
+  defp has_any_temp_attrs?(attrs) when is_map(attrs) do
+    is_number(attrs["color_temp"]) or is_number(attrs[:color_temp]) or
+      is_number(attrs["color_temp_kelvin"]) or is_number(attrs[:color_temp_kelvin])
+  end
+
+  defp has_any_temp_attrs?(_attrs), do: false
+
+  defp xy_map({x, y}) do
+    %{x: round_xy(x), y: round_xy(y)}
+  end
+
+  defp round_xy(value) when is_float(value), do: Float.round(value, 4)
+  defp round_xy(value) when is_integer(value), do: (value * 1.0) |> Float.round(4)
+  defp round_xy(value), do: value
 
   defp map_field(entity, key) when is_map(entity) do
     Map.get(entity, key) || Map.get(entity, Atom.to_string(key))
