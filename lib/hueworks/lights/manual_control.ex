@@ -1,26 +1,31 @@
 defmodule Hueworks.Lights.ManualControl do
   @moduledoc false
 
+  alias Hueworks.ActiveScenes
   alias Hueworks.Control.Apply, as: ControlApply
   alias Hueworks.Control.DesiredState
+  alias Hueworks.Control.ManualBaseline
   alias Hueworks.Scenes
 
-  def apply_updates(room_id, light_ids, desired_update)
-      when is_list(light_ids) and is_map(desired_update) do
-    txn = DesiredState.begin(:manual_ui)
+  def apply_updates(room_id, light_ids, desired_update, opts \\ [])
+      when is_list(light_ids) and is_map(desired_update) and is_list(opts) do
+    if scene_active_manual_adjustment_blocked?(room_id, desired_update) do
+      {:error, :scene_active_manual_adjustment_not_allowed}
+    else
+      txn = DesiredState.begin(:manual_ui)
 
-    txn =
-      Enum.reduce(light_ids, txn, fn light_id, acc ->
-        DesiredState.apply(acc, :light, light_id, desired_update)
-      end)
+      txn =
+        Enum.reduce(light_ids, txn, fn light_id, acc ->
+          DesiredState.apply(acc, :light, light_id, desired_update)
+        end)
 
-    case ControlApply.commit_transaction(txn) do
-      {:ok, %{plan_diff: plan_diff}} ->
-        _ = enqueue_diff(room_id, plan_diff)
-        {:ok, plan_diff}
+      case ControlApply.commit_and_enqueue(txn, room_id) do
+        {:ok, %{plan_diff: plan_diff}} ->
+          {:ok, plan_diff}
 
-      other ->
-        other
+        other ->
+          other
+      end
     end
   end
 
@@ -32,48 +37,37 @@ defmodule Hueworks.Lights.ManualControl do
       started_at_ms: System.monotonic_time(:millisecond)
     }
 
-    case Scenes.reapply_active_scene_lights(room_id, light_ids,
-           power_override: :on,
-           trace: trace
-         ) do
-      {:ok, _diff, updated} when map_size(updated) > 0 ->
-        result = {:ok, merged_updated_light_attrs(updated, light_ids)}
-        schedule_reconcile_passes(room_id, light_ids)
-        result
+    case ActiveScenes.get_for_room(room_id) do
+      nil ->
+        baseline = ManualBaseline.power_on_state()
 
-      {:ok, _diff, _updated} ->
-        with {:ok, _diff} <- apply_updates(room_id, light_ids, %{power: :on}) do
-          result = {:ok, %{power: :on}}
-          schedule_reconcile_passes(room_id, light_ids)
-          result
+        with {:ok, _diff} <- apply_updates(room_id, light_ids, baseline) do
+          {:ok, baseline}
         end
 
-      other ->
-        other
+      _active_scene ->
+        case Scenes.recompute_active_scene_lights(room_id, light_ids,
+               power_override: :on,
+               trace: trace
+             ) do
+          {:ok, _diff, updated} when map_size(updated) > 0 ->
+            {:ok, merged_updated_light_attrs(updated, light_ids)}
+
+          {:ok, _diff, _updated} ->
+            {:ok, %{power: :on}}
+
+          other ->
+            other
+        end
     end
   end
 
   def apply_power_action(room_id, light_ids, action)
       when is_integer(room_id) and is_list(light_ids) and action in [:off, "off"] do
-    with {:ok, _diff} <- apply_updates(room_id, light_ids, %{power: :off}) do
-      result = {:ok, %{power: :off}}
-      schedule_reconcile_passes(room_id, light_ids)
-      result
+    with {:ok, _diff} <-
+           apply_updates(room_id, light_ids, %{power: :off}) do
+      {:ok, %{power: :off}}
     end
-  end
-
-  defp enqueue_diff(_room_id, diff) when map_size(diff) == 0, do: :ok
-
-  defp enqueue_diff(room_id, diff) when is_integer(room_id) and is_map(diff) do
-    plan = ControlApply.build_plan(room_id, diff)
-    _ = ControlApply.enqueue_plan(plan)
-    :ok
-  end
-
-  defp enqueue_diff(_room_id, diff) when is_map(diff) do
-    plan = ControlApply.build_plan(nil, diff)
-    _ = ControlApply.enqueue_plan(plan)
-    :ok
   end
 
   defp merged_updated_light_attrs(updated, light_ids) do
@@ -83,45 +77,22 @@ defmodule Hueworks.Lights.ManualControl do
     end)
   end
 
-  defp schedule_reconcile_passes(room_id, light_ids)
-       when is_integer(room_id) and is_list(light_ids) do
-    delays_ms =
-      Application.get_env(
-        :hueworks,
-        :manual_control_reconcile_delays_ms,
-        if(Mix.env() == :test, do: [], else: [500])
-      )
+  defp scene_active_manual_adjustment_blocked?(room_id, desired_update)
+       when is_integer(room_id) and is_map(desired_update) do
+    ActiveScenes.get_for_room(room_id) != nil and manual_adjustment_keys?(desired_update)
+  end
 
-    unique_light_ids = Enum.uniq(light_ids)
+  defp scene_active_manual_adjustment_blocked?(_room_id, _desired_update), do: false
 
-    Enum.each(List.wrap(delays_ms), fn delay_ms ->
-      if unique_light_ids != [] do
-        Task.start(fn ->
-          if delay_ms > 0 do
-            Process.sleep(delay_ms)
-          end
-
-          enqueue_current_desired(room_id, unique_light_ids)
-        end)
-      end
+  defp manual_adjustment_keys?(attrs) when is_map(attrs) do
+    Enum.any?(Map.keys(attrs), fn
+      :brightness -> true
+      "brightness" -> true
+      :kelvin -> true
+      "kelvin" -> true
+      :temperature -> true
+      "temperature" -> true
+      _ -> false
     end)
-
-    :ok
   end
-
-  defp enqueue_current_desired(room_id, light_ids) do
-    diff =
-      Enum.reduce(light_ids, %{}, fn light_id, acc ->
-        desired = DesiredState.get(:light, light_id) || %{}
-
-        if desired == %{} do
-          acc
-        else
-          Map.put(acc, {:light, light_id}, desired)
-        end
-      end)
-
-    enqueue_diff(room_id, diff)
-  end
-
 end

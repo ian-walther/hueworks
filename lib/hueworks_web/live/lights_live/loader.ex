@@ -1,6 +1,7 @@
 defmodule HueworksWeb.LightsLive.Loader do
   @moduledoc false
 
+  alias Hueworks.ActiveScenes
   alias Hueworks.Groups
   alias Hueworks.Lights
   alias Hueworks.Rooms
@@ -60,8 +61,14 @@ defmodule HueworksWeb.LightsLive.Loader do
       rooms: Rooms.list_rooms(),
       groups: groups,
       lights: lights,
+      active_scene_by_room: active_scene_by_room(),
       group_state: DisplayState.build_group_state(groups),
       light_state: DisplayState.build_light_state(lights)
     }
+  end
+
+  defp active_scene_by_room do
+    ActiveScenes.list_active_scenes()
+    |> Map.new(fn active_scene -> {active_scene.room_id, active_scene.scene_id} end)
   end
 end

@@ -3,13 +3,20 @@ defmodule Hueworks.Control.Executor do
   Executes control plans with per-bridge throttling.
   """
 
+  import Ecto.Query, only: [from: 2]
   use GenServer
   require Logger
 
   alias Hueworks.DebugLogging
-  alias Hueworks.Control.{Group, Light}
+  alias Hueworks.Control.DesiredState
+  alias Hueworks.Control.Group, as: ControlGroup
+  alias Hueworks.Control.Light, as: ControlLight
+  alias Hueworks.Control.Planner
   alias Hueworks.Repo
   alias Hueworks.Schemas.Bridge
+  alias Hueworks.Schemas.Group, as: GroupSchema
+  alias Hueworks.Schemas.GroupLight
+  alias Hueworks.Schemas.Light, as: LightSchema
 
   @default_rates %{hue: 10, ha: 5, caseta: 5, z2m: 5}
   @default_max_retries 3
@@ -103,6 +110,28 @@ defmodule Hueworks.Control.Executor do
         schedule_next(state)
       else
         %{state | timer_ref: nil}
+      end
+
+    {:noreply, state}
+  end
+
+  @impl true
+  def handle_info({:verify_convergence, action}, state) do
+    now = state.now_fn.(:millisecond)
+    recovery_actions = recovery_actions_for(action, now)
+
+    state =
+      case recovery_actions do
+        [] ->
+          maybe_log_convergence_ok(action)
+          state
+
+        actions ->
+          maybe_log_convergence_retry(action, actions)
+
+          state
+          |> enqueue_actions(actions, :append)
+          |> ensure_timer()
       end
 
     {:noreply, state}
@@ -243,6 +272,7 @@ defmodule Hueworks.Control.Executor do
               {updated_queue, last_acc} =
                 case result do
                   :ok ->
+                    maybe_schedule_convergence_check(action, state)
                     {updated_queue, Map.put(last_acc, bridge_id, now)}
 
                   {:error, _} ->
@@ -268,22 +298,22 @@ defmodule Hueworks.Control.Executor do
   defp default_dispatch(action), do: dispatch_action(action)
 
   defp dispatch_action(%{type: :light, id: id, desired: desired}) do
-    case Repo.get(Hueworks.Schemas.Light, id) do
+    case Repo.get(LightSchema, id) do
       nil ->
         :ok
 
       light ->
-        Light.set_state(light, desired)
+        ControlLight.set_state(light, desired)
     end
   end
 
   defp dispatch_action(%{type: :group, id: id, desired: desired}) do
-    case Repo.get(Hueworks.Schemas.Group, id) do
+    case Repo.get(GroupSchema, id) do
       nil ->
         :ok
 
       group ->
-        Group.set_state(group, desired)
+        ControlGroup.set_state(group, desired)
     end
   end
 
@@ -409,6 +439,133 @@ defmodule Hueworks.Control.Executor do
     case Map.get(action, :trace_started_at_ms) do
       value when is_integer(value) -> dispatch_completed_ms - value
       _ -> nil
+    end
+  end
+
+  defp maybe_schedule_convergence_check(action, state) do
+    if action.attempts < state.max_retries do
+      Process.send_after(self(), {:verify_convergence, action}, convergence_delay_ms())
+    end
+  end
+
+  defp recovery_actions_for(action, now) do
+    case action_target_context(action) do
+      {:ok, room_id, light_ids} ->
+        diff = current_desired_diff(light_ids)
+        trace = action_trace(action)
+
+        room_id
+        |> Planner.plan_room(diff, trace: trace)
+        |> Enum.map(&decorate_recovery_action(&1, action, now))
+
+      :error ->
+        []
+    end
+  end
+
+  defp action_target_context(%{type: :light, id: id}) when is_integer(id) do
+    case Repo.get(LightSchema, id) do
+      %LightSchema{room_id: room_id} -> {:ok, room_id, [id]}
+      _ -> :error
+    end
+  end
+
+  defp action_target_context(%{type: :group, id: id}) when is_integer(id) do
+    case Repo.get(GroupSchema, id) do
+      %GroupSchema{room_id: room_id} ->
+        light_ids =
+          Repo.all(from(gl in GroupLight, where: gl.group_id == ^id, select: gl.light_id))
+
+        {:ok, room_id, light_ids}
+
+      _ ->
+        :error
+    end
+  end
+
+  defp action_target_context(_action), do: :error
+
+  defp current_desired_diff(light_ids) do
+    Enum.reduce(light_ids, %{}, fn light_id, acc ->
+      desired = DesiredState.get(:light, light_id) || %{}
+
+      if desired == %{} do
+        acc
+      else
+        Map.put(acc, {:light, light_id}, desired)
+      end
+    end)
+  end
+
+  defp decorate_recovery_action(recovery_action, action, now) do
+    recovery_action
+    |> Map.put(:attempts, action.attempts + 1)
+    |> Map.put(:not_before, now)
+    |> Map.put(:enqueued_at_ms, now)
+    |> maybe_copy_trace(action)
+  end
+
+  defp maybe_copy_trace(recovery_action, action) do
+    trace_keys = [
+      :trace_id,
+      :trace_source,
+      :trace_room_id,
+      :trace_scene_id,
+      :trace_target_occupied,
+      :trace_started_at_ms
+    ]
+
+    Enum.reduce(trace_keys, recovery_action, fn key, acc ->
+      case Map.fetch(action, key) do
+        {:ok, value} -> Map.put(acc, key, value)
+        :error -> acc
+      end
+    end)
+  end
+
+  defp action_trace(action) do
+    %{}
+    |> maybe_put_trace(:trace_id, Map.get(action, :trace_id))
+    |> maybe_put_trace(:source, Map.get(action, :trace_source))
+  end
+
+  defp maybe_put_trace(trace, _key, nil), do: trace
+  defp maybe_put_trace(trace, key, value), do: Map.put(trace, key, value)
+
+  defp maybe_log_convergence_ok(action) do
+    case Map.get(action, :trace_id) do
+      nil ->
+        :ok
+
+      trace_id ->
+        DebugLogging.info(
+          "[occ-trace #{trace_id}] convergence_ok type=#{action.type} id=#{action.id} attempts=#{action.attempts}"
+        )
+    end
+  end
+
+  defp maybe_log_convergence_retry(action, recovery_actions) do
+    case Map.get(action, :trace_id) do
+      nil ->
+        :ok
+
+      trace_id ->
+        DebugLogging.info(
+          "[occ-trace #{trace_id}] convergence_retry type=#{action.type} id=#{action.id} attempts=#{action.attempts} recovery_actions=#{length(recovery_actions)}"
+        )
+    end
+  end
+
+  defp convergence_delay_ms do
+    Application.get_env(:hueworks, :control_executor_convergence_delay_ms) ||
+      convergence_delay_fallback()
+  end
+
+  defp convergence_delay_fallback do
+    case Application.get_env(:hueworks, :manual_control_reconcile_delays_ms) do
+      [delay | _] when is_integer(delay) -> delay
+      delay when is_integer(delay) -> delay
+      _ -> 500
     end
   end
 end

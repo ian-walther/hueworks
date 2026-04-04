@@ -92,12 +92,12 @@ defmodule Hueworks.LightsLivePipelineTest do
              %{
                type: :light,
                id: light_id,
-               desired: %{power: :on}
+               desired: %{power: :on, brightness: 100, kelvin: 3000}
              }
            ] = actions
 
     assert light_id == light.id
-    assert DesiredState.get(:light, light.id) == %{power: :on}
+    assert DesiredState.get(:light, light.id) == %{power: :on, brightness: 100, kelvin: 3000}
 
     physical = State.get(:light, light.id)
     assert physical[:power] in [:off, "off", false]
@@ -270,13 +270,13 @@ defmodule Hueworks.LightsLivePipelineTest do
              %{
                type: :group,
                id: group_id,
-               desired: %{power: :on}
+               desired: %{power: :on, brightness: 100, kelvin: 3000}
              }
            ] = actions
 
     assert group_id == group.id
-    assert DesiredState.get(:light, light_a.id) == %{power: :on}
-    assert DesiredState.get(:light, light_b.id) == %{power: :on}
+    assert DesiredState.get(:light, light_a.id) == %{power: :on, brightness: 100, kelvin: 3000}
+    assert DesiredState.get(:light, light_b.id) == %{power: :on, brightness: 100, kelvin: 3000}
   end
 
   test "manual light toggle can be used repeatedly without reload",
@@ -327,13 +327,71 @@ defmodule Hueworks.LightsLivePipelineTest do
     actions = Agent.get(actions_agent, & &1)
 
     assert [
-             %{type: :light, id: first_id, desired: %{power: :on}},
+             %{
+               type: :light,
+               id: first_id,
+               desired: %{power: :on, brightness: 100, kelvin: 3000}
+             },
              %{type: :light, id: second_id, desired: %{power: :off}}
            ] = actions
 
     assert first_id == light.id
     assert second_id == light.id
     assert DesiredState.get(:light, light.id) == %{power: :off}
+  end
+
+  test "manual temperature changes are disabled and rejected while a scene is active",
+       %{
+         conn: conn,
+         actions_agent: actions_agent,
+         executor_server: executor_server
+       } do
+    room = Repo.insert!(%Room{name: "Scene Room"})
+
+    bridge =
+      Repo.insert!(%Bridge{
+        name: "Hue Bridge",
+        type: :hue,
+        host: "192.168.1.88",
+        credentials: %{"api_key" => "test"}
+      })
+
+    light =
+      Repo.insert!(%Light{
+        name: "Scene Lamp",
+        display_name: "Scene Lamp",
+        source: :hue,
+        source_id: "scene-lamp",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        supports_temp: true,
+        reported_min_kelvin: 2000,
+        reported_max_kelvin: 6500
+      })
+
+    {:ok, scene} = Scenes.create_scene(%{name: "Evening", room_id: room.id})
+    {:ok, _} = ActiveScenes.set_active(scene)
+
+    {:ok, view, html} = live(conn, "/lights")
+    {:ok, document} = Floki.parse_document(html)
+
+    assert Floki.find(document, "#light-level-#{light.id}[disabled]") != []
+    assert Floki.find(document, "#light-temp-#{light.id}[disabled]") != []
+
+    _ =
+      render_hook(view, "set_color_temp", %{
+        "type" => "light",
+        "id" => Integer.to_string(light.id),
+        "kelvin" => "2400"
+      })
+
+    drain_executor(executor_server)
+
+    assert render(view) =~
+             "Brightness and temperature are read-only while a scene is active. Deactivate the scene to adjust them manually."
+
+    assert Agent.get(actions_agent, & &1) == []
+    assert DesiredState.get(:light, light.id) == nil
   end
 
   test "manual power-on while a circadian scene is active immediately reapplies circadian values for only that light",
@@ -408,7 +466,6 @@ defmodule Hueworks.LightsLivePipelineTest do
         timezone: "Etc/UTC"
       })
 
-    _ = ActiveScenes.set_brightness_override(room.id, true)
     _ = DesiredState.put(:light, light_a.id, %{power: :off})
     _ = DesiredState.put(:light, light_b.id, %{power: :off})
     _ = State.put(:light, light_a.id, %{power: :off})

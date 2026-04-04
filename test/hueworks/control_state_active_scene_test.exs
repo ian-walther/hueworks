@@ -4,8 +4,8 @@ defmodule Hueworks.ControlStateActiveSceneTest do
   alias Hueworks.ActiveScenes
   alias Hueworks.Control.DesiredState
   alias Hueworks.Control.State
-  alias Hueworks.Scenes
   alias Hueworks.Repo
+  alias Hueworks.Scenes
 
   alias Hueworks.Schemas.{
     ActiveScene,
@@ -14,11 +14,6 @@ defmodule Hueworks.ControlStateActiveSceneTest do
     Room,
     Scene
   }
-
-  setup do
-    :ok = State.clear_scene_clear_suppression()
-    :ok
-  end
 
   defp insert_room do
     Repo.insert!(%Room{name: "Studio", metadata: %{}})
@@ -52,27 +47,7 @@ defmodule Hueworks.ControlStateActiveSceneTest do
     Repo.insert!(%Scene{name: "Chill", room_id: room.id, metadata: %{}})
   end
 
-  test "external state divergence clears active scene for the room" do
-    room = insert_room()
-    bridge = insert_bridge()
-    light = insert_light(room, bridge)
-    scene = insert_scene(room)
-
-    {:ok, _} = ActiveScenes.set_active(scene)
-    active = Repo.get_by!(ActiveScene, room_id: room.id)
-
-    active
-    |> Ecto.Changeset.change(pending_until: DateTime.add(DateTime.utc_now(), -5, :second))
-    |> Repo.update!()
-
-    _ = DesiredState.put(:light, light.id, %{power: :on, brightness: 50, kelvin: 3000})
-
-    _ = State.put(:light, light.id, %{power: :on, brightness: 40, kelvin: 3000})
-
-    refute Repo.get_by(ActiveScene, room_id: room.id)
-  end
-
-  test "external state divergence does not clear active scene while pending" do
+  test "external state divergence does not clear active scene for the room" do
     room = insert_room()
     bridge = insert_bridge()
     light = insert_light(room, bridge)
@@ -83,90 +58,8 @@ defmodule Hueworks.ControlStateActiveSceneTest do
 
     _ = State.put(:light, light.id, %{power: :on, brightness: 40, kelvin: 3000})
 
-    assert Repo.get_by!(ActiveScene, room_id: room.id).scene_id == scene.id
-  end
-
-  test "state updates that match desired do not clear active scene" do
-    room = insert_room()
-    bridge = insert_bridge()
-    light = insert_light(room, bridge)
-    scene = insert_scene(room)
-
-    {:ok, _} = ActiveScenes.set_active(scene)
-    _ = DesiredState.put(:light, light.id, %{power: :on, brightness: "50", kelvin: "3000"})
-
-    _ = State.put(:light, light.id, %{power: :on, brightness: 50, kelvin: 3000})
-
-    assert Repo.get_by!(ActiveScene, room_id: room.id).scene_id == scene.id
-  end
-
-  test "state updates that match the reported kelvin floor do not clear active scene" do
-    room = insert_room()
-    bridge = insert_bridge(:hue)
-
-    light =
-      insert_light(room, bridge, %{
-        source: :hue,
-        supports_temp: true,
-        reported_min_kelvin: 2203,
-        reported_max_kelvin: 6500,
-        metadata: %{}
-      })
-
-    scene = insert_scene(room)
-
-    {:ok, _} = ActiveScenes.set_active(scene)
-    active = Repo.get_by!(ActiveScene, room_id: room.id)
-
-    active
-    |> Ecto.Changeset.change(pending_until: DateTime.add(DateTime.utc_now(), -5, :second))
-    |> Repo.update!()
-
-    _ = DesiredState.put(:light, light.id, %{power: :on, brightness: 71, kelvin: 2000})
-
-    _ = State.put(:light, light.id, %{power: :on, brightness: 71, kelvin: 2203})
-
-    assert Repo.get_by!(ActiveScene, room_id: room.id).scene_id == scene.id
-  end
-
-  test "state updates within brightness tolerance do not clear active scene" do
-    room = insert_room()
-    bridge = insert_bridge()
-    light = insert_light(room, bridge)
-    scene = insert_scene(room)
-
-    {:ok, _} = ActiveScenes.set_active(scene)
-    active = Repo.get_by!(ActiveScene, room_id: room.id)
-
-    active
-    |> Ecto.Changeset.change(pending_until: DateTime.add(DateTime.utc_now(), -5, :second))
-    |> Repo.update!()
-
-    _ = DesiredState.put(:light, light.id, %{power: :on, brightness: 46, kelvin: 3000})
-
-    _ = State.put(:light, light.id, %{power: :on, brightness: 47, kelvin: 3000})
-
-    assert Repo.get_by!(ActiveScene, room_id: room.id).scene_id == scene.id
-  end
-
-  test "state updates within adjacent mirek tolerance do not clear active scene" do
-    room = insert_room()
-    bridge = insert_bridge()
-    light = insert_light(room, bridge, %{supports_temp: true})
-    scene = insert_scene(room)
-
-    {:ok, _} = ActiveScenes.set_active(scene)
-    active = Repo.get_by!(ActiveScene, room_id: room.id)
-
-    active
-    |> Ecto.Changeset.change(pending_until: DateTime.add(DateTime.utc_now(), -5, :second))
-    |> Repo.update!()
-
-    _ = DesiredState.put(:light, light.id, %{power: :on, brightness: 100, kelvin: 3715})
-
-    _ = State.put(:light, light.id, %{power: :on, brightness: 100, kelvin: 3704})
-
-    assert Repo.get_by!(ActiveScene, room_id: room.id).scene_id == scene.id
+    assert %ActiveScene{scene_id: scene_id} = Repo.get_by(ActiveScene, room_id: room.id)
+    assert scene_id == scene.id
   end
 
   test "power-only state changes do not clear active scene" do
@@ -176,39 +69,12 @@ defmodule Hueworks.ControlStateActiveSceneTest do
     scene = insert_scene(room)
 
     {:ok, _} = ActiveScenes.set_active(scene)
-    active = Repo.get_by!(ActiveScene, room_id: room.id)
-
-    active
-    |> Ecto.Changeset.change(pending_until: DateTime.add(DateTime.utc_now(), -5, :second))
-    |> Repo.update!()
-
     _ = DesiredState.put(:light, light.id, %{power: :on, brightness: 46, kelvin: 3000})
 
     _ = State.put(:light, light.id, %{power: :off, brightness: 46, kelvin: 3000})
 
-    assert Repo.get_by!(ActiveScene, room_id: room.id).scene_id == scene.id
-  end
-
-  test "manual scene reapply refreshes pending window before physical updates land" do
-    room = insert_room()
-    bridge = insert_bridge()
-    light = insert_light(room, bridge, %{supports_temp: true})
-    scene = insert_scene(room)
-
-    {:ok, _} = ActiveScenes.set_active(scene)
-    active = Repo.get_by!(ActiveScene, room_id: room.id)
-
-    active
-    |> Ecto.Changeset.change(pending_until: DateTime.add(DateTime.utc_now(), -5, :second))
-    |> Repo.update!()
-
-    assert {:ok, _diff, _updated} =
-             Scenes.reapply_active_scene_lights(room.id, [light.id], power_override: :off)
-
-    _ = DesiredState.put(:light, light.id, %{power: :off})
-    _ = State.put(:light, light.id, %{power: :on, brightness: 50, kelvin: 3000})
-
-    assert Repo.get_by!(ActiveScene, room_id: room.id).scene_id == scene.id
+    assert %ActiveScene{scene_id: scene_id} = Repo.get_by(ActiveScene, room_id: room.id)
+    assert scene_id == scene.id
   end
 
   test "bootstrap state refresh does not clear active scene" do
@@ -218,38 +84,30 @@ defmodule Hueworks.ControlStateActiveSceneTest do
     scene = insert_scene(room)
 
     {:ok, _} = ActiveScenes.set_active(scene)
-    active = Repo.get_by!(ActiveScene, room_id: room.id)
-
-    active
-    |> Ecto.Changeset.change(pending_until: DateTime.add(DateTime.utc_now(), -5, :second))
-    |> Repo.update!()
-
     _ = DesiredState.put(:light, light.id, %{power: :on, brightness: 24, kelvin: 3000})
 
     _ =
       State.put(:light, light.id, %{power: :on, brightness: 31, kelvin: 3000}, source: :bootstrap)
 
-    assert Repo.get_by!(ActiveScene, room_id: room.id).scene_id == scene.id
+    assert %ActiveScene{scene_id: scene_id} = Repo.get_by(ActiveScene, room_id: room.id)
+    assert scene_id == scene.id
   end
 
-  test "refresh suppression covers echoed live updates during reload" do
+  test "manual scene reapply keeps the active scene row after later physical updates land" do
     room = insert_room()
     bridge = insert_bridge()
-    light = insert_light(room, bridge)
+    light = insert_light(room, bridge, %{supports_temp: true})
     scene = insert_scene(room)
 
     {:ok, _} = ActiveScenes.set_active(scene)
-    active = Repo.get_by!(ActiveScene, room_id: room.id)
 
-    active
-    |> Ecto.Changeset.change(pending_until: DateTime.add(DateTime.utc_now(), -5, :second))
-    |> Repo.update!()
+    assert {:ok, _diff, _updated} =
+             Scenes.recompute_active_scene_lights(room.id, [light.id], power_override: :off)
 
-    _ = DesiredState.put(:light, light.id, %{power: :on, brightness: 24, kelvin: 3000})
+    _ = DesiredState.put(:light, light.id, %{power: :off})
+    _ = State.put(:light, light.id, %{power: :on, brightness: 50, kelvin: 3000})
 
-    :ok = State.suppress_scene_clear_for_refresh()
-    _ = State.put(:light, light.id, %{power: :on, brightness: 31, kelvin: 3000})
-
-    assert Repo.get_by!(ActiveScene, room_id: room.id).scene_id == scene.id
+    assert %ActiveScene{scene_id: scene_id} = Repo.get_by(ActiveScene, room_id: room.id)
+    assert scene_id == scene.id
   end
 end

@@ -90,7 +90,9 @@ defmodule HueworksWeb.RoomsLive do
           _ = ActiveScenes.clear_for_room(scene.room_id)
 
         current_active ->
-          trace = activation_trace(scene.room_id, Map.get(current_active || %{}, :scene_id), scene_id)
+          trace =
+            activation_trace(scene.room_id, Map.get(current_active || %{}, :scene_id), scene_id)
+
           _ = Scenes.activate_scene(scene_id, trace: trace)
       end
 
@@ -115,13 +117,11 @@ defmodule HueworksWeb.RoomsLive do
           _ = Rooms.set_occupied(room_id, next_occupied)
 
           _ =
-            Scenes.apply_scene(scene,
-              brightness_override: active_scene.brightness_override,
+            Scenes.apply_active_scene(scene, active_scene,
               occupied: next_occupied,
+              preserve_power_latches: false,
               trace: trace
             )
-
-          _ = ActiveScenes.mark_applied(active_scene)
 
         nil ->
           # If an external update cleared active_scenes but the UI still shows an active scene,
@@ -131,8 +131,8 @@ defmodule HueworksWeb.RoomsLive do
 
           _ =
             Scenes.apply_scene(scene,
-              brightness_override: false,
               occupied: next_occupied,
+              preserve_power_latches: false,
               trace: trace
             )
       end
@@ -216,8 +216,7 @@ defmodule HueworksWeb.RoomsLive do
     %{
       active_scene_by_room:
         Map.new(active_scenes, fn active -> {active.room_id, active.scene_id} end),
-      occupancy_by_room:
-        Map.new(rooms, fn room -> {room.id, Map.get(room, :occupied, true)} end)
+      occupancy_by_room: Map.new(rooms, fn room -> {room.id, Map.get(room, :occupied, true)} end)
     }
   end
 

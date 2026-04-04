@@ -61,14 +61,12 @@ defmodule Hueworks.Control.CircadianPoller do
               started_at_ms: System.monotonic_time(:millisecond)
             }
 
-            case Scenes.apply_scene(scene,
-                   brightness_override: active.brightness_override,
+            case Scenes.apply_active_scene(scene, active,
                    occupied: Rooms.room_occupied?(active.room_id),
+                   preserve_power_latches: true,
                    trace: trace
                  ) do
               {:ok, diff, _updated} ->
-                _ = ActiveScenes.mark_applied(active)
-
                 DebugLogging.info(
                   "circadian_scene_apply result=ok room_id=#{scene.room_id} scene_id=#{scene.id} diff_size=#{map_size(diff)}"
                 )

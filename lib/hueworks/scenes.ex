@@ -153,7 +153,10 @@ defmodule Hueworks.Scenes do
       %Scene{} = scene ->
         case ActiveScenes.get_for_room(scene.room_id) do
           %{scene_id: ^scene_id} = active_scene ->
-            apply_active_scene(scene, active_scene)
+            apply_active_scene(scene, active_scene,
+              preserve_power_latches: true,
+              occupied: Rooms.room_occupied?(scene.room_id)
+            )
 
           _ ->
             {:ok, %{}, %{}}
@@ -183,7 +186,10 @@ defmodule Hueworks.Scenes do
 
     refreshed =
       Enum.reduce(scenes_and_active, [], fn {scene, active_scene}, acc ->
-        case apply_active_scene(scene, active_scene) do
+        case apply_active_scene(scene, active_scene,
+               preserve_power_latches: true,
+               occupied: Rooms.room_occupied?(scene.room_id)
+             ) do
           {:ok, _diff, _updated} -> [scene | acc]
           _ -> acc
         end
@@ -202,7 +208,7 @@ defmodule Hueworks.Scenes do
         _ = ActiveScenes.set_active(scene)
 
         apply_scene(scene,
-          brightness_override: false,
+          preserve_power_latches: false,
           force_apply: true,
           trace: Keyword.get(opts, :trace)
         )
@@ -214,11 +220,11 @@ defmodule Hueworks.Scenes do
       scene
       |> Repo.preload(scene_components: [:lights, :light_state, :scene_component_lights])
 
-    brightness_override = Keyword.get(opts, :brightness_override, false)
+    preserve_power_latches = Keyword.get(opts, :preserve_power_latches, true)
     # TODO: replace this temporary fallback with HA-provided occupancy input.
     occupied = Keyword.get_lazy(opts, :occupied, fn -> Rooms.room_occupied?(scene.room_id) end)
     force_apply = Keyword.get(opts, :force_apply, false)
-    trace = Keyword.get(opts, :trace)
+    trace = enrich_trace(Keyword.get(opts, :trace), scene, occupied)
     now = Keyword.get(opts, :now, DateTime.utc_now())
     target_light_ids = opts |> Keyword.get(:target_light_ids, []) |> MapSet.new()
     circadian_only = Keyword.get(opts, :circadian_only, false)
@@ -230,13 +236,13 @@ defmodule Hueworks.Scenes do
       room_id: scene.room_id,
       scene_id: scene.id,
       occupied: occupied,
-      brightness_override: brightness_override,
+      preserve_power_latches: preserve_power_latches,
       force_apply: force_apply
     )
 
     txn =
       Intent.build_transaction(scene,
-        brightness_override: brightness_override,
+        preserve_power_latches: preserve_power_latches,
         occupied: occupied,
         now: now,
         target_light_ids: target_light_ids,
@@ -244,33 +250,15 @@ defmodule Hueworks.Scenes do
         power_overrides: power_overrides
       )
 
-    result = ControlApply.commit_transaction(txn, force_apply: force_apply)
+    result =
+      ControlApply.commit_and_enqueue(txn, scene.room_id,
+        force_apply: force_apply,
+        trace: trace
+      )
 
     case result do
       {:ok, %{plan_diff: plan_diff, updated: updated}} ->
         log_trace(trace, "apply_scene_diff", diff_size: map_size(plan_diff))
-
-        if map_size(plan_diff) > 0 do
-          planner_started_ms = monotonic_ms()
-          plan = ControlApply.build_plan(scene.room_id, plan_diff, trace: trace)
-          planner_ms = monotonic_ms() - planner_started_ms
-
-          log_trace(
-            trace,
-            "plan_built",
-            planner_ms: planner_ms,
-            actions_total: length(plan),
-            group_actions: count_action_type(plan, :group),
-            light_actions: count_action_type(plan, :light),
-            off_actions: count_power(plan, :off),
-            on_actions: count_power(plan, :on)
-          )
-
-          enqueued_at_ms = monotonic_ms()
-          traced_plan = attach_trace(plan, trace, scene, occupied, enqueued_at_ms)
-          _ = ControlApply.enqueue_plan(traced_plan)
-          log_trace(trace, "plan_enqueued", actions_total: length(traced_plan))
-        end
 
         {:ok, plan_diff, updated}
 
@@ -279,9 +267,20 @@ defmodule Hueworks.Scenes do
     end
   end
 
-  def reapply_active_scene_lights(room_id, light_ids, opts \\ [])
+  def apply_active_scene(%Scene{} = scene, active_scene, opts \\ []) when is_list(opts) do
+    case apply_scene(scene, opts) do
+      {:ok, _diff, _updated} = ok ->
+        _ = ActiveScenes.mark_applied(active_scene)
+        ok
 
-  def reapply_active_scene_lights(room_id, light_ids, opts)
+      other ->
+        other
+    end
+  end
+
+  def recompute_active_scene_lights(room_id, light_ids, opts \\ [])
+
+  def recompute_active_scene_lights(room_id, light_ids, opts)
       when is_integer(room_id) and is_list(light_ids) do
     light_ids =
       light_ids
@@ -301,44 +300,46 @@ defmodule Hueworks.Scenes do
             {:error, :not_found}
 
           scene ->
-            _ = ActiveScenes.mark_applied(active_scene)
-
             power_overrides =
               case Keyword.get(opts, :power_override) do
                 nil -> %{}
                 power -> Map.new(light_ids, &{&1, power})
               end
 
-            case apply_scene(scene,
-                   brightness_override: false,
-                   occupied: Rooms.room_occupied?(room_id),
-                   target_light_ids: light_ids,
-                   circadian_only: Keyword.get(opts, :circadian_only, false),
-                   power_overrides: power_overrides,
-                   now: Keyword.get(opts, :now, DateTime.utc_now()),
-                   trace: Keyword.get(opts, :trace)
-                 ) do
-              {:ok, _diff, _updated} = ok ->
-                _ = ActiveScenes.mark_applied(active_scene)
-                ok
-
-              other ->
-                other
-            end
+            apply_active_scene(scene, active_scene,
+              preserve_power_latches: true,
+              occupied: Rooms.room_occupied?(room_id),
+              target_light_ids: light_ids,
+              circadian_only: Keyword.get(opts, :circadian_only, false),
+              power_overrides: power_overrides,
+              now: Keyword.get(opts, :now, DateTime.utc_now()),
+              trace: Keyword.get(opts, :trace)
+            )
         end
     end
   end
 
-  def reapply_active_scene_lights(_room_id, _light_ids, _opts), do: {:error, :invalid_args}
+  def recompute_active_scene_lights(_room_id, _light_ids, _opts), do: {:error, :invalid_args}
 
-  def reapply_active_circadian_lights(room_id, light_ids, opts \\ [])
+  def recompute_active_circadian_lights(room_id, light_ids, opts \\ [])
 
-  def reapply_active_circadian_lights(room_id, light_ids, opts)
+  def recompute_active_circadian_lights(room_id, light_ids, opts)
       when is_integer(room_id) and is_list(light_ids) do
-    reapply_active_scene_lights(room_id, light_ids, Keyword.put(opts, :circadian_only, true))
+    recompute_active_scene_lights(room_id, light_ids, Keyword.put(opts, :circadian_only, true))
   end
 
-  def reapply_active_circadian_lights(_room_id, _light_ids, _opts), do: {:error, :invalid_args}
+  def recompute_active_circadian_lights(_room_id, _light_ids, _opts),
+    do: {:error, :invalid_args}
+
+  # Temporary compatibility wrappers while callers migrate to the clearer
+  # "recompute" naming.
+  def reapply_active_scene_lights(room_id, light_ids, opts \\ []) do
+    recompute_active_scene_lights(room_id, light_ids, opts)
+  end
+
+  def reapply_active_circadian_lights(room_id, light_ids, opts \\ []) do
+    recompute_active_circadian_lights(room_id, light_ids, opts)
+  end
 
   def replace_scene_components(%Scene{} = scene, components) when is_list(components) do
     Repo.transaction(fn ->
@@ -404,56 +405,7 @@ defmodule Hueworks.Scenes do
     end
   end
 
-  defp apply_active_scene(%Scene{} = scene, active_scene) do
-    case apply_scene(scene,
-           brightness_override: Map.get(active_scene, :brightness_override, false),
-           occupied: Rooms.room_occupied?(scene.room_id)
-         ) do
-      {:ok, _diff, _updated} = ok ->
-        _ = ActiveScenes.mark_applied(active_scene)
-        ok
-
-      other ->
-        other
-    end
-  end
-
   defp parse_id(value), do: Hueworks.Util.parse_id(value)
-
-  defp attach_trace(plan, nil, _scene, _occupied, _enqueued_at_ms), do: plan
-
-  defp attach_trace(plan, trace, scene, occupied, enqueued_at_ms)
-       when is_list(plan) and is_map(trace) do
-    trace_id = Map.get(trace, :trace_id) || Map.get(trace, "trace_id")
-    source = Map.get(trace, :source) || Map.get(trace, "source")
-    started_at_ms = Map.get(trace, :started_at_ms) || Map.get(trace, "started_at_ms")
-
-    Enum.map(plan, fn action ->
-      action
-      |> Map.put(:trace_id, trace_id)
-      |> Map.put(:trace_source, source)
-      |> Map.put(:trace_room_id, scene.room_id)
-      |> Map.put(:trace_scene_id, scene.id)
-      |> Map.put(:trace_target_occupied, occupied)
-      |> Map.put(:trace_started_at_ms, started_at_ms)
-      |> Map.put(:enqueued_at_ms, enqueued_at_ms)
-    end)
-  end
-
-  defp attach_trace(plan, _trace, _scene, _occupied, _enqueued_at_ms), do: plan
-
-  defp count_action_type(actions, type) do
-    Enum.count(actions, &(&1.type == type))
-  end
-
-  defp count_power(actions, power) do
-    Enum.count(actions, fn action ->
-      desired = Map.get(action, :desired) || %{}
-      (Map.get(desired, :power) || Map.get(desired, "power")) == power
-    end)
-  end
-
-  defp monotonic_ms, do: System.monotonic_time(:millisecond)
 
   defp log_trace(nil, _event, _kv), do: :ok
 
@@ -466,5 +418,14 @@ defmodule Hueworks.Scenes do
       |> Enum.map_join(" ", fn {key, value} -> "#{key}=#{inspect(value)}" end)
 
     DebugLogging.info("[occ-trace #{trace_id}] #{event} source=#{source} #{attrs}")
+  end
+
+  defp enrich_trace(nil, _scene, _occupied), do: nil
+
+  defp enrich_trace(trace, scene, occupied) when is_map(trace) do
+    trace
+    |> Map.put_new(:trace_room_id, scene.room_id)
+    |> Map.put_new(:trace_scene_id, scene.id)
+    |> Map.put_new(:trace_target_occupied, occupied)
   end
 end

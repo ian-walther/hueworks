@@ -55,13 +55,13 @@ not toward:
 - convergence logic
 - persistence translation logic
 
-### 4) Unwind `brightness_override`
-`brightness_override` remains a naming and ownership smell.
+### 4) Keep manual power-latch semantics explicit
+The old `brightness_override` flag is gone, which is good. The remaining goal is to keep manual power-latch behavior from becoming another fuzzy ownership layer.
 
 Guidance:
-- either rename it to reflect what it actually means
-- or split it into more explicit concepts
-- do not let it keep accumulating meaning indefinitely
+- prefer explicit names like `preserve_power_latches` over overloaded lifecycle flags
+- keep latch semantics narrow and traceable
+- do not let new hidden ownership rules accumulate in scene lifecycle code
 
 ### 5) Keep planner loading/orchestration separate from a pure planning core
 The planner remains one of the highest-value places to simplify.
@@ -151,7 +151,7 @@ Question:
 
 ### 4) Manual power latches surviving circadian reapply
 Question:
-- should this remain bundled with `brightness_override`, or should it become a more explicit ownership concept?
+- should this remain expressed in scene-intent construction, or eventually move lower into planner/executor reconciliation?
 
 ## Recommended Sequence
 
@@ -171,7 +171,7 @@ Question:
 - clean up broad `rescue` usage in the import pipeline
 
 ### Phase 5
-- revisit refresh causality and active-scene ownership semantics only in ways that stay aligned with `architecture-reset.md`
+- revisit refresh causality and active-scene power-latch ownership only in ways that stay aligned with `architecture-reset.md`
 
 ### Phase 6
 - evaluate whether the highest-cost features should be simplified or re-scoped
@@ -184,7 +184,7 @@ Question:
 - add focused regression tests when a refactor clarifies previously implicit behavior
 
 ## Open Questions
-- Should `brightness_override` be renamed, split, or removed entirely over time?
+- Should manual power-latch semantics remain in scene-intent construction, or move lower over time?
 - Is the current extended-range low-end display behavior worth its code complexity?
 - Is timing-based scene-clear suppression acceptable as an implementation detail, or should lower-level causality become more explicit?
 - Are manual-on/default-off semantics stable enough to refactor around confidently, or should they be revisited as a product decision first?

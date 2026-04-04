@@ -94,6 +94,7 @@
 
             <div class="hw-controls">
               <% group_power = get_state_value(@group_state, group.id, :power, :off) %>
+              <% manual_adjustment_locked = manual_adjustment_locked?(@active_scene_by_room, group.room_id) %>
               <button
                 class={"hw-button #{if group_power in [:on, "on", true], do: "hw-button-on", else: "hw-button-off"}"}
                 phx-click="toggle"
@@ -112,6 +113,7 @@
                   data-type="group"
                   data-id={group.id}
                   data-output-id={"group-brightness-value-#{group.id}"}
+                  disabled={manual_adjustment_locked}
                 />
                 <span id={"group-brightness-label-#{group.id}"}>Brightness</span>
                 <span id={"group-brightness-value-#{group.id}"} class="hw-slider-value">
@@ -132,6 +134,7 @@
                     data-type="group"
                     data-id={group.id}
                     data-output-id={"group-temp-value-#{group.id}"}
+                    disabled={manual_adjustment_locked}
                   />
                   <span id={"group-temp-label-#{group.id}"}>Temperature</span>
                   <span id={"group-temp-value-#{group.id}"} class="hw-slider-value">
@@ -236,6 +239,7 @@
 
             <div class="hw-controls">
               <% light_power = get_state_value(@light_state, light.id, :power, :off) %>
+              <% manual_adjustment_locked = manual_adjustment_locked?(@active_scene_by_room, light.room_id) %>
               <button
                 class={"hw-button #{if light_power in [:on, "on", true], do: "hw-button-on", else: "hw-button-off"}"}
                 phx-click="toggle"
@@ -254,6 +258,7 @@
                   data-type="light"
                   data-id={light.id}
                   data-output-id={"light-brightness-value-#{light.id}"}
+                  disabled={manual_adjustment_locked}
                 />
                 <span id={"light-brightness-label-#{light.id}"}>Brightness</span>
                 <span id={"light-brightness-value-#{light.id}"} class="hw-slider-value">
@@ -274,6 +279,7 @@
                     data-type="light"
                     data-id={light.id}
                     data-output-id={"light-temp-value-#{light.id}"}
+                    disabled={manual_adjustment_locked}
                   />
                   <span id={"light-temp-label-#{light.id}"}>Temperature</span>
                   <span id={"light-temp-value-#{light.id}"} class="hw-slider-value">

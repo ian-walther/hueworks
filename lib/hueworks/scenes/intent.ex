@@ -9,12 +9,12 @@ defmodule Hueworks.Scenes.Intent do
   alias Hueworks.Schemas.{LightState, Scene}
 
   def build_transaction(%Scene{} = scene, opts \\ []) do
-    brightness_override = Keyword.get(opts, :brightness_override, false)
     occupied = Keyword.get(opts, :occupied, false)
     now = Keyword.get(opts, :now, DateTime.utc_now())
     target_light_ids = opts |> Keyword.get(:target_light_ids, []) |> MapSet.new()
     circadian_only = Keyword.get(opts, :circadian_only, false)
     power_overrides = Keyword.get(opts, :power_overrides, %{})
+    preserve_power_latches = Keyword.get(opts, :preserve_power_latches, true)
 
     txn = DesiredState.begin(scene.id)
 
@@ -22,12 +22,13 @@ defmodule Hueworks.Scenes.Intent do
       if skip_component?(component, circadian_only) do
         acc
       else
-        desired = desired_from_light_state(component.light_state, brightness_override, now)
+        desired = desired_from_light_state(component.light_state, now)
         default_power_by_light = component_default_power_map(component)
         component_lights = target_component_lights(component.lights, target_light_ids)
 
         Enum.reduce(component_lights, acc, fn light, txn ->
           current_desired = DesiredState.get(:light, light.id) || %{}
+          power_override = Map.get(power_overrides, light.id)
 
           light_desired =
             desired
@@ -36,8 +37,11 @@ defmodule Hueworks.Scenes.Intent do
               Map.get(default_power_by_light, light.id, :force_on),
               occupied
             )
-            |> maybe_preserve_manual_power_override(current_desired, brightness_override)
-            |> maybe_apply_power_override(Map.get(power_overrides, light.id))
+            |> maybe_preserve_manual_power_latch(
+              current_desired,
+              preserve_power_latches and is_nil(power_override)
+            )
+            |> maybe_apply_power_override(power_override)
 
           DesiredState.apply(txn, :light, light.id, light_desired)
         end)
@@ -56,43 +60,23 @@ defmodule Hueworks.Scenes.Intent do
     |> parse_default_power()
   end
 
-  defp desired_from_light_state(
-         %LightState{type: :manual, config: config},
-         brightness_override,
-         _now
-       ) do
+  defp desired_from_light_state(%LightState{type: :manual, config: config}, _now) do
     base = %{power: :on}
 
-    base =
-      if brightness_override do
-        base
-      else
-        maybe_put(base, :brightness, config, ["brightness"])
-      end
-
     base
+    |> maybe_put(:brightness, config, ["brightness"])
     |> maybe_put(:kelvin, config, ["temperature", "kelvin"])
   end
 
-  defp desired_from_light_state(
-         %LightState{type: :circadian, config: config},
-         brightness_override,
-         now
-       ) do
+  defp desired_from_light_state(%LightState{type: :circadian, config: config}, now) do
     solar_config = AppSettings.global_map()
+    base = %{power: :on}
 
     case Circadian.calculate(config || %{}, solar_config, now) do
       {:ok, circadian} ->
-        base = %{power: :on}
-
-        base =
-          if brightness_override do
-            base
-          else
-            Map.put(base, :brightness, circadian.brightness)
-          end
-
-        Map.put(base, :kelvin, circadian.kelvin)
+        base
+        |> Map.put(:brightness, circadian.brightness)
+        |> Map.put(:kelvin, circadian.kelvin)
 
       {:error, reason} ->
         Logger.warning("Skipping circadian apply due to calculation error: #{inspect(reason)}")
@@ -100,7 +84,7 @@ defmodule Hueworks.Scenes.Intent do
     end
   end
 
-  defp desired_from_light_state(_, _brightness_override, _now), do: %{}
+  defp desired_from_light_state(_, _now), do: %{}
 
   defp maybe_apply_default_power(desired, %LightState{type: type}, power_policy, occupied)
        when type in [:manual, :circadian] do
@@ -190,7 +174,7 @@ defmodule Hueworks.Scenes.Intent do
 
   defp target_component_lights(lights, _target_light_ids), do: lights
 
-  defp maybe_preserve_manual_power_override(desired, current_desired, true) do
+  defp maybe_preserve_manual_power_latch(desired, current_desired, true) do
     cond do
       explicit_off_intent?(current_desired) and not explicit_off_intent?(desired) ->
         %{power: :off}
@@ -203,7 +187,7 @@ defmodule Hueworks.Scenes.Intent do
     end
   end
 
-  defp maybe_preserve_manual_power_override(desired, _current_desired, _brightness_override),
+  defp maybe_preserve_manual_power_latch(desired, _current_desired, _preserve_power_latches),
     do: desired
 
   defp maybe_apply_power_override(desired, nil), do: desired

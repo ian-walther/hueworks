@@ -15,7 +15,6 @@ defmodule Hueworks.CircadianIntegrationTest do
   setup do
     clear_ets(:hueworks_control_state)
     clear_ets(:hueworks_desired_state)
-    :ok = State.clear_scene_clear_suppression()
 
     :ok
   end
@@ -131,33 +130,25 @@ defmodule Hueworks.CircadianIntegrationTest do
     assert_value(html, "#light-temp-value-#{fixture.z2m_upper.id}", "2681K")
   end
 
-  test "scene clear suppression ignores echoed refresh updates until the refresh window closes" do
+  test "echoed refresh updates do not clear the active scene" do
     %{room: room, scene: scene, solo_hue: solo_hue} = setup_mixed_scene_fixture()
 
     {:ok, _} = ActiveScenes.set_active(scene)
     _ = apply_scene_at(scene, "2026-03-31 05:00:00")
-    expire_pending!(room.id)
 
     assert %ActiveScene{} = ActiveScenes.get_for_room(room.id)
 
-    :ok = State.suppress_scene_clear_for_refresh()
     _ = State.put(:light, solo_hue.id, %{power: :on, brightness: 45, kelvin: 2000})
 
     assert %ActiveScene{} = ActiveScenes.get_for_room(room.id)
-
-    :ok = State.clear_scene_clear_suppression()
-    _ = State.put(:light, solo_hue.id, %{power: :on, brightness: 45, kelvin: 2000})
-
-    assert ActiveScenes.get_for_room(room.id) == nil
   end
 
-  test "active scene only clears for real post-pending divergence" do
+  test "active scene stays active through post-pending physical divergence" do
     %{room: room, scene: scene, solo_hue: solo_hue, hue_floor_a: hue_floor_a} =
       setup_mixed_scene_fixture()
 
     {:ok, _} = ActiveScenes.set_active(scene)
     _ = apply_scene_at(scene, "2026-03-31 05:00:00")
-    expire_pending!(room.id)
 
     _ = State.put(:light, solo_hue.id, %{power: :on, brightness: 39, kelvin: 2000})
     assert %ActiveScene{} = ActiveScenes.get_for_room(room.id)
@@ -166,16 +157,15 @@ defmodule Hueworks.CircadianIntegrationTest do
     assert %ActiveScene{} = ActiveScenes.get_for_room(room.id)
 
     _ = State.put(:light, solo_hue.id, %{power: :on, brightness: 45, kelvin: 2000})
-    assert ActiveScenes.get_for_room(room.id) == nil
+    assert %ActiveScene{} = ActiveScenes.get_for_room(room.id)
   end
 
-  test "brightness tolerance sweep only clears once drift exceeds the configured threshold" do
+  test "brightness drift beyond prior tolerance does not clear the active scene" do
     %{room: room, scene: scene, solo_hue: solo_hue} = setup_mixed_scene_fixture("tolerance")
 
     {:ok, _} = ActiveScenes.set_active(scene)
     result = apply_scene_at(scene, "2026-03-31 05:00:00")
     desired = result.updated[{:light, solo_hue.id}]
-    expire_pending!(room.id)
 
     for delta <- -2..2 do
       _ =
@@ -195,7 +185,7 @@ defmodule Hueworks.CircadianIntegrationTest do
         kelvin: desired.kelvin
       })
 
-    assert ActiveScenes.get_for_room(room.id) == nil
+    assert %ActiveScene{} = ActiveScenes.get_for_room(room.id)
   end
 
   test "z2m group stays truthful when only some members are on during an active circadian scene",
@@ -701,7 +691,6 @@ defmodule Hueworks.CircadianIntegrationTest do
 
     {:ok, _} = ActiveScenes.set_active(scene)
     _ = apply_scene_at(scene, "2026-03-31 05:00:00")
-    expire_pending!(room.id)
 
     {:ok, view, _html} = live(conn, "/lights")
 
@@ -713,10 +702,6 @@ defmodule Hueworks.CircadianIntegrationTest do
 
     _ = State.put(:light, solo_hue.id, %{power: :on, brightness: 45, kelvin: 2000})
     assert %ActiveScene{} = ActiveScenes.get_for_room(room.id)
-
-    :ok = State.clear_scene_clear_suppression()
-    _ = State.put(:light, solo_hue.id, %{power: :on, brightness: 45, kelvin: 2000})
-    assert ActiveScenes.get_for_room(room.id) == nil
   end
 
   test "reload plus mixed z2m echoes keeps partial-member truth while the scene stays active", %{
@@ -838,12 +823,10 @@ defmodule Hueworks.CircadianIntegrationTest do
              kelvin: 4000
            }
 
-    expire_pending!(fixture_a.room.id)
-    expire_pending!(fixture_b.room.id)
-
     _ = State.put(:light, fixture_a.solo_hue.id, %{power: :on, brightness: 45, kelvin: 2000})
 
-    assert ActiveScenes.get_for_room(fixture_a.room.id) == nil
+    assert %ActiveScene{scene_id: scene_a_id} = ActiveScenes.get_for_room(fixture_a.room.id)
+    assert scene_a_id == fixture_a.scene.id
     assert %ActiveScene{scene_id: scene_id} = ActiveScenes.get_for_room(fixture_b.room.id)
     assert scene_id == fixture_b.scene.id
 
@@ -1306,17 +1289,6 @@ defmodule Hueworks.CircadianIntegrationTest do
     |> Floki.find(selector)
     |> Floki.text(sep: " ")
     |> String.trim()
-  end
-
-  defp expire_pending!(room_id) do
-    room_id
-    |> active_scene_for_room!()
-    |> Ecto.Changeset.change(pending_until: DateTime.add(DateTime.utc_now(), -5, :second))
-    |> Repo.update!()
-  end
-
-  defp active_scene_for_room!(room_id) do
-    Repo.get_by!(ActiveScene, room_id: room_id)
   end
 
   defp ny_dt(local_time) do

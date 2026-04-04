@@ -117,7 +117,7 @@ defmodule Hueworks.Subscription.CasetaEventStream.ConnectionTest do
     }
 
     assert {:noreply, ^state} = Connection.handle_frame(Jason.encode!(button_payload), state)
-    assert DesiredState.get(:light, light.id) == %{power: :on}
+    assert DesiredState.get(:light, light.id) == %{power: :on, brightness: 100, kelvin: 3000}
     assert {:noreply, ^state} = Connection.handle_frame("{not-json", state)
   end
 
@@ -181,6 +181,6 @@ defmodule Hueworks.Subscription.CasetaEventStream.ConnectionTest do
     }
 
     assert {:noreply, ^state} = Connection.handle_frame(Jason.encode!(button_payload), state)
-    assert DesiredState.get(:light, light.id) == %{power: :on}
+    assert DesiredState.get(:light, light.id) == %{power: :on, brightness: 100, kelvin: 3000}
   end
 end

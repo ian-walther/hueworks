@@ -1,7 +1,6 @@
 defmodule HueworksWeb.LightsLive do
   use Phoenix.LiveView
 
-  alias Hueworks.ActiveScenes
   alias Hueworks.Control.State
   alias Hueworks.Groups
   alias Hueworks.Lights.ManualControl
@@ -46,7 +45,6 @@ defmodule HueworksWeb.LightsLive do
 
   @impl true
   def handle_event("refresh", _params, socket) do
-    :ok = State.suppress_scene_clear_for_refresh()
     State.bootstrap()
 
     socket =
@@ -200,12 +198,13 @@ defmodule HueworksWeb.LightsLive do
          {:ok, parsed} <- Util.parse_level(level),
          {:ok, _diff} <-
            ManualControl.apply_updates(light.room_id, [light.id], %{brightness: parsed}) do
-      _ = ActiveScenes.handle_manual_change(light.room_id, %{brightness: parsed})
-
       socket
       |> update_light_state_assign(light.id, %{brightness: parsed})
       |> assign(status: "BRIGHTNESS light #{Util.display_name(light)} -> #{parsed}%")
     else
+      {:error, :scene_active_manual_adjustment_not_allowed} ->
+        assign(socket, status: scene_active_manual_adjustment_message())
+
       {:error, reason} ->
         assign(socket, status: "ERROR light #{id}: #{Util.format_reason(reason)}")
     end
@@ -215,12 +214,13 @@ defmodule HueworksWeb.LightsLive do
     with {:ok, light} <- Entities.fetch_light(id),
          {:ok, parsed} <- Util.parse_kelvin(kelvin),
          {:ok, _diff} <- ManualControl.apply_updates(light.room_id, [light.id], %{kelvin: parsed}) do
-      _ = ActiveScenes.handle_manual_change(light.room_id, %{kelvin: parsed})
-
       socket
       |> update_light_state_assign(light.id, %{kelvin: parsed})
       |> assign(status: "TEMP light #{Util.display_name(light)} -> #{parsed}K")
     else
+      {:error, :scene_active_manual_adjustment_not_allowed} ->
+        assign(socket, status: scene_active_manual_adjustment_message())
+
       {:error, reason} ->
         assign(socket, status: "ERROR light #{id}: #{Util.format_reason(reason)}")
     end
@@ -232,14 +232,15 @@ defmodule HueworksWeb.LightsLive do
          light_ids when light_ids != [] <- group_light_ids(group.id),
          {:ok, _diff} <-
            ManualControl.apply_updates(group.room_id, light_ids, %{brightness: parsed}) do
-      _ = ActiveScenes.handle_manual_change(group.room_id, %{brightness: parsed})
-
       socket
       |> update_group_state_assign(group.id, %{brightness: parsed})
       |> assign(status: "BRIGHTNESS group #{Util.display_name(group)} -> #{parsed}%")
     else
       [] ->
         assign(socket, status: "ERROR group #{id}: no_members")
+
+      {:error, :scene_active_manual_adjustment_not_allowed} ->
+        assign(socket, status: scene_active_manual_adjustment_message())
 
       {:error, reason} ->
         assign(socket, status: "ERROR group #{id}: #{Util.format_reason(reason)}")
@@ -251,14 +252,15 @@ defmodule HueworksWeb.LightsLive do
          {:ok, parsed} <- Util.parse_kelvin(kelvin),
          light_ids when light_ids != [] <- group_light_ids(group.id),
          {:ok, _diff} <- ManualControl.apply_updates(group.room_id, light_ids, %{kelvin: parsed}) do
-      _ = ActiveScenes.handle_manual_change(group.room_id, %{kelvin: parsed})
-
       socket
       |> update_group_state_assign(group.id, %{kelvin: parsed})
       |> assign(status: "TEMP group #{Util.display_name(group)} -> #{parsed}K")
     else
       [] ->
         assign(socket, status: "ERROR group #{id}: no_members")
+
+      {:error, :scene_active_manual_adjustment_not_allowed} ->
+        assign(socket, status: scene_active_manual_adjustment_message())
 
       {:error, reason} ->
         assign(socket, status: "ERROR group #{id}: #{Util.format_reason(reason)}")
@@ -269,8 +271,6 @@ defmodule HueworksWeb.LightsLive do
     with {:ok, light} <- Entities.fetch_light(id),
          {:ok, updated_attrs} <-
            ManualControl.apply_power_action(light.room_id, [light.id], action) do
-      _ = ActiveScenes.handle_manual_change(light.room_id, %{power: action})
-
       socket
       |> update_light_state_assign(light.id, updated_attrs)
       |> assign(status: "#{action_label(action)} light #{Util.display_name(light)}")
@@ -285,8 +285,6 @@ defmodule HueworksWeb.LightsLive do
          light_ids when light_ids != [] <- group_light_ids(group.id),
          {:ok, updated_attrs} <-
            ManualControl.apply_power_action(group.room_id, light_ids, action) do
-      _ = ActiveScenes.handle_manual_change(group.room_id, %{power: action})
-
       socket
       |> update_group_state_assign(group.id, updated_attrs)
       |> assign(status: "#{action_label(action)} group #{Util.display_name(group)}")
@@ -394,6 +392,17 @@ defmodule HueworksWeb.LightsLive do
     state_map
     |> Map.get(id, %{})
     |> Map.get(key, fallback)
+  end
+
+  defp manual_adjustment_locked?(active_scene_by_room, room_id)
+       when is_map(active_scene_by_room) do
+    is_integer(room_id) and Map.has_key?(active_scene_by_room, room_id)
+  end
+
+  defp manual_adjustment_locked?(_active_scene_by_room, _room_id), do: false
+
+  defp scene_active_manual_adjustment_message do
+    "Brightness and temperature are read-only while a scene is active. Deactivate the scene to adjust them manually."
   end
 
   defp filter_entities(entities, filter, room_filter, show_disabled) do

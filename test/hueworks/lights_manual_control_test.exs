@@ -4,7 +4,7 @@ defmodule Hueworks.LightsManualControlTest do
   alias Hueworks.Control.{DesiredState, Executor, State}
   alias Hueworks.Lights.ManualControl
   alias Hueworks.Repo
-  alias Hueworks.Schemas.{Bridge, Light, Room}
+  alias Hueworks.Schemas.{Bridge, Light, Room, Scene}
 
   setup do
     actions_id = {:executor_manual_control_actions, self()}
@@ -65,22 +65,34 @@ defmodule Hueworks.LightsManualControlTest do
         source_id: "kitchen-accent",
         bridge_id: bridge.id,
         room_id: room.id,
-        enabled: true
+        enabled: true,
+        supports_temp: true,
+        reported_min_kelvin: 2000,
+        reported_max_kelvin: 6500
       })
 
     _ = DesiredState.put(:light, light.id, %{power: :off})
     _ = State.put(:light, light.id, %{power: :off})
 
-    assert {:ok, %{power: :on}} = ManualControl.apply_power_action(room.id, [light.id], :on)
+    assert {:ok, %{power: :on, brightness: 100, kelvin: 3000}} =
+             ManualControl.apply_power_action(room.id, [light.id], :on)
 
-    Process.sleep(60)
+    wait_for_action_count(actions_agent, 2)
     drain_executor(executor_server)
 
     actions = Agent.get(actions_agent, & &1)
 
     assert [
-             %{type: :light, id: light_id, desired: %{power: :on}},
-             %{type: :light, id: retry_light_id, desired: %{power: :on}}
+             %{
+               type: :light,
+               id: light_id,
+               desired: %{power: :on, brightness: 100, kelvin: 3000}
+             },
+             %{
+               type: :light,
+               id: retry_light_id,
+               desired: %{power: :on, brightness: 100, kelvin: 3000}
+             }
            ] = actions
 
     assert light_id == light.id
@@ -108,25 +120,43 @@ defmodule Hueworks.LightsManualControlTest do
         source_id: "office-lamp",
         bridge_id: bridge.id,
         room_id: room.id,
-        enabled: true
+        enabled: true,
+        supports_temp: true,
+        reported_min_kelvin: 2000,
+        reported_max_kelvin: 6500
       })
 
     _ = DesiredState.put(:light, light.id, %{power: :off})
     _ = State.put(:light, light.id, %{power: :off})
 
-    assert {:ok, %{power: :on}} = ManualControl.apply_power_action(room.id, [light.id], :on)
-    _ = State.put(:light, light.id, %{power: :on})
+    assert {:ok, %{power: :on, brightness: 100, kelvin: 3000}} =
+             ManualControl.apply_power_action(room.id, [light.id], :on)
 
-    Process.sleep(60)
+    _ = State.put(:light, light.id, %{power: :on, brightness: 100, kelvin: 3000})
+
+    Process.sleep(120)
     drain_executor(executor_server)
 
     actions = Agent.get(actions_agent, & &1)
 
     assert [
-             %{type: :light, id: light_id, desired: %{power: :on}}
+             %{
+               type: :light,
+               id: light_id,
+               desired: %{power: :on, brightness: 100, kelvin: 3000}
+             }
            ] = actions
 
     assert light_id == light.id
+  end
+
+  test "manual brightness changes are rejected while a scene is active" do
+    room = Repo.insert!(%Room{name: "Active Scene Room"})
+    scene = Repo.insert!(%Scene{name: "Evening", room_id: room.id, metadata: %{}})
+    {:ok, _} = Hueworks.ActiveScenes.set_active(scene)
+
+    assert {:error, :scene_active_manual_adjustment_not_allowed} =
+             ManualControl.apply_updates(room.id, [123], %{brightness: 40})
   end
 
   defp drain_executor(server, attempts \\ 5)
@@ -142,6 +172,19 @@ defmodule Hueworks.LightsManualControlTest do
     else
       Executor.tick(server, force: true)
       drain_executor(server, attempts - 1)
+    end
+  end
+
+  defp wait_for_action_count(actions_agent, expected_count, attempts \\ 20)
+
+  defp wait_for_action_count(_actions_agent, _expected_count, 0), do: :ok
+
+  defp wait_for_action_count(actions_agent, expected_count, attempts) do
+    if Agent.get(actions_agent, &length/1) >= expected_count do
+      :ok
+    else
+      Process.sleep(10)
+      wait_for_action_count(actions_agent, expected_count, attempts - 1)
     end
   end
 end

@@ -7,18 +7,56 @@ defmodule Hueworks.Control.Planner do
   require Logger
 
   alias Hueworks.DebugLogging
-  alias Hueworks.Control.DesiredState
   alias Hueworks.Control.LightStateSemantics
-  alias Hueworks.Control.State, as: PhysicalState
+  alias Hueworks.Control.RoomSnapshot
   alias Hueworks.Repo
-  alias Hueworks.Schemas.{Group, GroupLight, Light}
+  alias Hueworks.Schemas.Light
   @brightness_tolerance 2
   @temperature_physical_mired_tolerance 1
 
   def plan_room(room_id, diff, opts \\ []) when is_integer(room_id) and is_map(diff) do
     room_id
-    |> load_room_snapshot()
+    |> RoomSnapshot.load()
     |> plan_snapshot(diff, opts)
+  end
+
+  def plan_direct(diff) when is_map(diff) do
+    light_ids =
+      diff
+      |> Map.keys()
+      |> Enum.flat_map(fn
+        {:light, id} when is_integer(id) -> [id]
+        {"light", id} when is_integer(id) -> [id]
+        _ -> []
+      end)
+      |> Enum.uniq()
+
+    bridge_by_light_id =
+      Repo.all(
+        from(l in Light,
+          where: l.id in ^light_ids,
+          select: {l.id, l.bridge_id}
+        )
+      )
+      |> Map.new()
+
+    diff
+    |> Enum.flat_map(fn
+      {{:light, id}, desired} when is_integer(id) and is_map(desired) ->
+        case Map.get(bridge_by_light_id, id) do
+          nil -> []
+          bridge_id -> [%{type: :light, id: id, bridge_id: bridge_id, desired: desired}]
+        end
+
+      {{"light", id}, desired} when is_integer(id) and is_map(desired) ->
+        case Map.get(bridge_by_light_id, id) do
+          nil -> []
+          bridge_id -> [%{type: :light, id: id, bridge_id: bridge_id, desired: desired}]
+        end
+
+      _ ->
+        []
+    end)
   end
 
   def plan_snapshot(snapshot, diff, opts \\ []) when is_map(snapshot) and is_map(diff) do
@@ -118,79 +156,11 @@ defmodule Hueworks.Control.Planner do
     actions
   end
 
-  defp load_room_snapshot(room_id) do
-    room_lights =
-      Repo.all(
-        from(l in Light,
-          where: l.room_id == ^room_id,
-          select: %{
-            id: l.id,
-            bridge_id: l.bridge_id,
-            supports_temp: l.supports_temp,
-            reported_min_kelvin: l.reported_min_kelvin,
-            reported_max_kelvin: l.reported_max_kelvin,
-            actual_min_kelvin: l.actual_min_kelvin,
-            actual_max_kelvin: l.actual_max_kelvin,
-            extended_kelvin_range: l.extended_kelvin_range
-          }
-        )
-      )
-
-    %{
-      room_id: room_id,
-      room_lights: room_lights,
-      desired_by_light:
-        Map.new(room_lights, fn light ->
-          {light.id, DesiredState.get(:light, light.id)}
-        end),
-      physical_by_light:
-        Map.new(room_lights, fn light ->
-          {light.id, PhysicalState.get(:light, light.id) || %{}}
-        end),
-      group_memberships: load_group_memberships(room_id)
-    }
-  end
-
   defp light_bridge(room_lights, id) do
     case Enum.find(room_lights, &(&1.id == id)) do
       nil -> nil
       %{bridge_id: bridge_id} -> bridge_id
     end
-  end
-
-  defp load_group_memberships(room_id) do
-    groups =
-      Repo.all(
-        from(g in Group,
-          where: g.room_id == ^room_id,
-          select: %{id: g.id, bridge_id: g.bridge_id}
-        )
-      )
-
-    memberships =
-      Repo.all(
-        from(gl in GroupLight,
-          join: g in Group,
-          on: g.id == gl.group_id,
-          where: g.room_id == ^room_id,
-          select: {g.id, gl.light_id}
-        )
-      )
-
-    base =
-      Enum.map(groups, fn group ->
-        %{id: group.id, bridge_id: group.bridge_id, lights: MapSet.new()}
-      end)
-
-    Enum.reduce(memberships, base, fn {group_id, light_id}, acc ->
-      Enum.map(acc, fn group ->
-        if group.id == group_id do
-          %{group | lights: MapSet.put(group.lights, light_id)}
-        else
-          group
-        end
-      end)
-    end)
   end
 
   defp plan_groups(groups, candidate_set, remaining_diff, desired, trace) do

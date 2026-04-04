@@ -211,15 +211,6 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
              "Unoccupied"
            )
 
-    stale_pending =
-      DateTime.utc_now()
-      |> DateTime.add(-10, :second)
-
-    Repo.update_all(
-      from(a in ActiveScene, where: a.room_id == ^room.id),
-      set: [pending_until: stale_pending]
-    )
-
     _ = State.put(:light, light.id, %{power: :on, brightness: 10, kelvin: 2200})
 
     assert Repo.get_by!(ActiveScene, room_id: room.id).scene_id == scene.id
