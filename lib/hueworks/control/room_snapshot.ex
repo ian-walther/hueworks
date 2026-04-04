@@ -16,6 +16,7 @@ defmodule Hueworks.Control.RoomSnapshot do
           select: %{
             id: l.id,
             bridge_id: l.bridge_id,
+            supports_color: l.supports_color,
             supports_temp: l.supports_temp,
             reported_min_kelvin: l.reported_min_kelvin,
             reported_max_kelvin: l.reported_max_kelvin,

@@ -325,6 +325,58 @@ defmodule Hueworks.Control.PlannerTest do
     assert Planner.plan_room(room.id, diff) == []
   end
 
+  test "plan_room preserves xy desired state for color-capable lights" do
+    room = Repo.insert!(%Room{name: "Color Room"})
+
+    bridge =
+      Repo.insert!(%Bridge{
+        name: "Hue Color",
+        type: :hue,
+        host: "bridge-color-#{System.unique_integer([:positive])}",
+        credentials: %{}
+      })
+
+    light = insert_light(room, bridge, "Color Lamp", supports_color: true, supports_temp: true)
+
+    desired = %{power: :on, brightness: 75, x: 0.1854, y: 0.2234}
+    DesiredState.put(:light, light.id, desired)
+
+    plan = Planner.plan_room(room.id, %{{:light, light.id} => desired})
+
+    assert [%{type: :light, id: planned_id, desired: planned_desired}] = plan
+    assert planned_id == light.id
+    assert planned_desired[:power] == :on
+    assert planned_desired[:brightness] == 75
+    assert_in_delta planned_desired[:x], 0.1854, 0.0001
+    assert_in_delta planned_desired[:y], 0.2234, 0.0001
+  end
+
+  test "plan_room drops xy desired state for non-color lights" do
+    room = Repo.insert!(%Room{name: "Mono Room"})
+
+    bridge =
+      Repo.insert!(%Bridge{
+        name: "Hue Mono",
+        type: :hue,
+        host: "bridge-mono-#{System.unique_integer([:positive])}",
+        credentials: %{}
+      })
+
+    light = insert_light(room, bridge, "Mono Lamp", supports_color: false, supports_temp: true)
+
+    desired = %{power: :on, brightness: 75, x: 0.1854, y: 0.2234}
+    DesiredState.put(:light, light.id, desired)
+
+    plan = Planner.plan_room(room.id, %{{:light, light.id} => desired})
+
+    assert [%{type: :light, id: planned_id, desired: planned_desired}] = plan
+    assert planned_id == light.id
+    assert planned_desired[:power] == :on
+    assert planned_desired[:brightness] == 75
+    refute Map.has_key?(planned_desired, :x)
+    refute Map.has_key?(planned_desired, :y)
+  end
+
   test "plan_room removes kelvin from non-temp partitions while preserving temp partitions" do
     room = Repo.insert!(%Room{name: "Mixed"})
 
@@ -584,6 +636,7 @@ defmodule Hueworks.Control.PlannerTest do
       source_id: "light-#{name}-#{System.unique_integer([:positive])}",
       bridge_id: bridge.id,
       room_id: room.id,
+      supports_color: Keyword.get(opts, :supports_color, false),
       supports_temp: Keyword.get(opts, :supports_temp, true),
       reported_min_kelvin: Keyword.get(opts, :reported_min_kelvin, 2000),
       reported_max_kelvin: Keyword.get(opts, :reported_max_kelvin, 6500)

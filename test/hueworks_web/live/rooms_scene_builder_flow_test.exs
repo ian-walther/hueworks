@@ -6,6 +6,7 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
 
   alias Hueworks.Repo
   alias Hueworks.Control.State
+  alias Hueworks.Control.DesiredState
 
   alias Hueworks.Schemas.{
     ActiveScene,
@@ -421,6 +422,119 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
     assert scene_component.light_state.name == "Bright"
     assert scene_component.light_state.config["brightness"] == 70
     assert scene_component.light_state.config["temperature"] == 3600
+  end
+
+  test "editing an active scene can move a light from a circadian component into a manual color component",
+       %{
+         conn: conn
+       } do
+    room = insert_room()
+    bridge = insert_bridge()
+
+    light1 =
+      insert_light(room, bridge, %{name: "Lamp 1", supports_color: true, supports_temp: true})
+
+    light2 =
+      insert_light(room, bridge, %{name: "Lamp 2", supports_color: true, supports_temp: true})
+
+    {:ok, circadian} =
+      Hueworks.Scenes.create_light_state("Circadian", :circadian, %{
+        "sunrise_time" => "06:00:00",
+        "sunset_time" => "18:00:00",
+        "min_brightness" => 10,
+        "max_brightness" => 90,
+        "min_color_temp" => 2200,
+        "max_color_temp" => 5000
+      })
+
+    {:ok, blue} =
+      Hueworks.Scenes.create_manual_light_state("Blue", %{
+        "mode" => "color",
+        "brightness" => "75",
+        "hue" => "210",
+        "saturation" => "60"
+      })
+
+    {:ok, scene} = Hueworks.Scenes.create_scene(%{name: "Color Mix", room_id: room.id})
+
+    {:ok, _} =
+      Hueworks.Scenes.replace_scene_components(scene, [
+        %{
+          name: "Component 1",
+          light_ids: [light1.id, light2.id],
+          light_state_id: to_string(circadian.id)
+        }
+      ])
+
+    {:ok, _} = Hueworks.ActiveScenes.set_active(scene)
+    {:ok, _diff, _updated} = Hueworks.Scenes.activate_scene(scene.id)
+
+    assert DesiredState.get(:light, light2.id)[:kelvin]
+
+    {:ok, view, _html} = live(conn, "/rooms/#{room.id}/scenes/#{scene.id}/edit")
+
+    view
+    |> element("button[phx-click='add_component']")
+    |> render_click()
+
+    view
+    |> element(
+      "button[phx-click='remove_light'][phx-value-component_id='1'][phx-value-light_id='#{light2.id}']"
+    )
+    |> render_click()
+
+    view
+    |> form("form[phx-change='select_light'][data-component-id='2']", %{
+      "component_id" => "2",
+      "light_id" => Integer.to_string(light2.id)
+    })
+    |> render_change()
+
+    view
+    |> element("button[phx-click='add_light'][phx-value-component_id='2']")
+    |> render_click()
+
+    view
+    |> form("form[phx-change='select_light_state'][data-component-id='2']", %{
+      "component_id" => "2",
+      "light_state_id" => Integer.to_string(blue.id)
+    })
+    |> render_change()
+
+    assert {:error, {:live_redirect, %{to: "/rooms"}}} =
+             view
+             |> element("button[phx-click='save_scene']")
+             |> render_click()
+
+    updated_scene = Repo.get!(Scene, scene.id)
+    assert {:ok, _diff, _updated} = Hueworks.Scenes.refresh_active_scene(updated_scene.id)
+
+    updated_scene =
+      Repo.get!(Scene, scene.id)
+      |> Repo.preload(scene_components: [:lights, :light_state])
+
+    assert Enum.count(updated_scene.scene_components) == 2
+
+    circadian_component =
+      Enum.find(updated_scene.scene_components, fn component ->
+        component.light_state_id == circadian.id
+      end)
+
+    color_component =
+      Enum.find(updated_scene.scene_components, fn component ->
+        component.light_state_id == blue.id
+      end)
+
+    assert Enum.map(circadian_component.lights, & &1.id) == [light1.id]
+    assert Enum.map(color_component.lights, & &1.id) == [light2.id]
+
+    desired = DesiredState.get(:light, light2.id)
+    {expected_x, expected_y} = Hueworks.Color.hs_to_xy(210, 60)
+
+    assert desired[:brightness] == 75
+    assert_in_delta desired[:x], expected_x, 0.0001
+    assert_in_delta desired[:y], expected_y, 0.0001
+    refute Map.has_key?(desired, :kelvin)
   end
 
   test "circadian state form persists all circadian config inputs", %{conn: conn} do
