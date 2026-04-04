@@ -17,6 +17,7 @@ defmodule HueworksWeb.ConfigLive do
        latitude: format_coord(app_setting.latitude),
        longitude: format_coord(app_setting.longitude),
        timezone: timezone,
+       default_transition_ms: format_integer(app_setting.default_transition_ms || 0),
        settings_status: nil,
        settings_error: nil
      )}
@@ -34,6 +35,8 @@ defmodule HueworksWeb.ConfigLive do
        latitude: Map.get(params, "latitude", socket.assigns.latitude),
        longitude: Map.get(params, "longitude", socket.assigns.longitude),
        timezone: timezone,
+       default_transition_ms:
+         Map.get(params, "default_transition_ms", socket.assigns.default_transition_ms),
        timezones: timezone_options(timezone),
        settings_status: nil,
        settings_error: nil
@@ -44,7 +47,9 @@ defmodule HueworksWeb.ConfigLive do
     attrs = %{
       latitude: Map.get(params, "latitude", socket.assigns.latitude),
       longitude: Map.get(params, "longitude", socket.assigns.longitude),
-      timezone: Map.get(params, "timezone", socket.assigns.timezone)
+      timezone: Map.get(params, "timezone", socket.assigns.timezone),
+      default_transition_ms:
+        Map.get(params, "default_transition_ms", socket.assigns.default_transition_ms)
     }
 
     case AppSettings.upsert_global(attrs) do
@@ -55,6 +60,7 @@ defmodule HueworksWeb.ConfigLive do
            latitude: format_coord(app_setting.latitude),
            longitude: format_coord(app_setting.longitude),
            timezone: app_setting.timezone,
+           default_transition_ms: format_integer(app_setting.default_transition_ms || 0),
            timezones: timezone_options(app_setting.timezone),
            settings_status: "Global solar settings saved.",
            settings_error: nil
@@ -81,7 +87,8 @@ defmodule HueworksWeb.ConfigLive do
           trimmed = String.trim(value)
           if trimmed == "", do: socket.assigns.timezone, else: trimmed
 
-        _ -> socket.assigns.timezone
+        _ ->
+          socket.assigns.timezone
       end
 
     {:noreply,
@@ -89,6 +96,7 @@ defmodule HueworksWeb.ConfigLive do
        latitude: format_coord(latitude),
        longitude: format_coord(longitude),
        timezone: timezone,
+       default_transition_ms: socket.assigns.default_transition_ms,
        timezones: timezone_options(timezone),
        settings_status: "Location and timezone received from browser.",
        settings_error: nil
@@ -137,6 +145,9 @@ defmodule HueworksWeb.ConfigLive do
   defp format_coord(value) when is_integer(value), do: format_coord(value * 1.0)
   defp format_coord(value) when is_float(value), do: :erlang.float_to_binary(value, decimals: 6)
   defp format_coord(_value), do: ""
+
+  defp format_integer(value) when is_integer(value), do: Integer.to_string(value)
+  defp format_integer(_value), do: "0"
 
   defp timezone_options(current_timezone) do
     base_timezones = [

@@ -51,7 +51,11 @@ defmodule Hueworks.Control.Apply do
   def build_plan(_room_id, diff, _opts) when map_size(diff) == 0, do: []
 
   def build_plan(room_id, diff, opts) when is_integer(room_id) and is_map(diff) do
-    Planner.plan_room(room_id, diff, trace: Keyword.get(opts, :trace))
+    planner_opts =
+      opts
+      |> Keyword.take([:trace, :transition_ms])
+
+    Planner.plan_room(room_id, diff, planner_opts)
   end
 
   def plan_and_enqueue(room_id, diff, opts \\ [])

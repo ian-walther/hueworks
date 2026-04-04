@@ -1,20 +1,23 @@
 defmodule Hueworks.Control.HuePayload do
   @moduledoc false
 
+  alias Hueworks.Control.Transition
   alias Hueworks.Util
 
-  def action_payload(:on), do: %{"on" => true}
-  def action_payload(:off), do: %{"on" => false}
+  def action_payload(action, opts \\ %{})
 
-  def action_payload({:set_state, desired}) when is_map(desired) do
+  def action_payload(:on, opts), do: with_transition(%{"on" => true}, opts)
+  def action_payload(:off, opts), do: with_transition(%{"on" => false}, opts)
+
+  def action_payload({:set_state, desired}, opts) when is_map(desired) do
     power = Map.get(desired, :power) || Map.get(desired, "power")
 
     case power do
       :off ->
-        %{"on" => false}
+        with_transition(%{"on" => false}, opts)
 
       "off" ->
-        %{"on" => false}
+        with_transition(%{"on" => false}, opts)
 
       _ ->
         brightness = value_or_nil(desired, [:brightness, "brightness"])
@@ -36,23 +39,23 @@ defmodule Hueworks.Control.HuePayload do
             value -> maybe_put(payload, "ct", kelvin_to_mired(value))
           end
 
-        payload
+        with_transition(payload, opts)
     end
   end
 
-  def action_payload({:brightness, level}) do
-    %{"on" => true, "bri" => percent_to_bri(level)}
+  def action_payload({:brightness, level}, opts) do
+    with_transition(%{"on" => true, "bri" => percent_to_bri(level)}, opts)
   end
 
-  def action_payload({:color_temp, kelvin}) do
-    %{"on" => true, "ct" => kelvin_to_mired(kelvin)}
+  def action_payload({:color_temp, kelvin}, opts) do
+    with_transition(%{"on" => true, "ct" => kelvin_to_mired(kelvin)}, opts)
   end
 
-  def action_payload({:color, {hue, sat}}) do
-    %{"on" => true, "hue" => hue_to_hue(hue), "sat" => sat_to_sat(sat)}
+  def action_payload({:color, {hue, sat}}, opts) do
+    with_transition(%{"on" => true, "hue" => hue_to_hue(hue), "sat" => sat_to_sat(sat)}, opts)
   end
 
-  def action_payload(_action), do: %{}
+  def action_payload(_action, _opts), do: %{}
 
   def percent_to_bri(level) do
     level
@@ -80,6 +83,13 @@ defmodule Hueworks.Control.HuePayload do
 
   defp value_or_nil(desired, keys) do
     Enum.find_value(keys, fn key -> Map.get(desired, key) end)
+  end
+
+  defp with_transition(payload, opts) when is_map(payload) do
+    case Transition.hue_transitiontime(opts) do
+      value when is_integer(value) -> Map.put(payload, "transitiontime", value)
+      _ -> payload
+    end
   end
 
   defp maybe_put(payload, _key, false), do: payload

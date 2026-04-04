@@ -6,9 +6,11 @@ defmodule Hueworks.Control.Planner do
   import Ecto.Query, only: [from: 2]
   require Logger
 
+  alias Hueworks.AppSettings
   alias Hueworks.DebugLogging
   alias Hueworks.Control.LightStateSemantics
   alias Hueworks.Control.RoomSnapshot
+  alias Hueworks.Control.Transition
   alias Hueworks.Repo
   alias Hueworks.Schemas.Light
   @brightness_tolerance 2
@@ -20,7 +22,9 @@ defmodule Hueworks.Control.Planner do
     |> plan_snapshot(diff, opts)
   end
 
-  def plan_direct(diff) when is_map(diff) do
+  def plan_direct(diff, opts \\ []) when is_map(diff) do
+    apply_opts = action_apply_opts(opts)
+
     light_ids =
       diff
       |> Map.keys()
@@ -44,14 +48,26 @@ defmodule Hueworks.Control.Planner do
     |> Enum.flat_map(fn
       {{:light, id}, desired} when is_integer(id) and is_map(desired) ->
         case Map.get(bridge_by_light_id, id) do
-          nil -> []
-          bridge_id -> [%{type: :light, id: id, bridge_id: bridge_id, desired: desired}]
+          nil ->
+            []
+
+          bridge_id ->
+            [
+              %{type: :light, id: id, bridge_id: bridge_id, desired: desired}
+              |> maybe_put_apply_opts(apply_opts)
+            ]
         end
 
       {{"light", id}, desired} when is_integer(id) and is_map(desired) ->
         case Map.get(bridge_by_light_id, id) do
-          nil -> []
-          bridge_id -> [%{type: :light, id: id, bridge_id: bridge_id, desired: desired}]
+          nil ->
+            []
+
+          bridge_id ->
+            [
+              %{type: :light, id: id, bridge_id: bridge_id, desired: desired}
+              |> maybe_put_apply_opts(apply_opts)
+            ]
         end
 
       _ ->
@@ -61,6 +77,7 @@ defmodule Hueworks.Control.Planner do
 
   def plan_snapshot(snapshot, diff, opts \\ []) when is_map(snapshot) and is_map(diff) do
     trace = Keyword.get(opts, :trace)
+    apply_opts = action_apply_opts(opts)
     room_id = Map.get(snapshot, :room_id)
     room_lights = Map.get(snapshot, :room_lights, [])
     desired_by_light = Map.get(snapshot, :desired_by_light, %{})
@@ -134,7 +151,7 @@ defmodule Hueworks.Control.Planner do
         groups = Enum.filter(group_memberships, &(&1.bridge_id == bridge_id))
 
         {group_actions, remaining} =
-          plan_groups(groups, candidate_ids, MapSet.new(ids), desired, trace)
+          plan_groups(groups, candidate_ids, MapSet.new(ids), desired, apply_opts, trace)
 
         log_trace(trace, "planner_partition_result",
           bridge_id: bridge_id,
@@ -143,7 +160,7 @@ defmodule Hueworks.Control.Planner do
           remaining_light_ids: remaining |> MapSet.to_list() |> Enum.sort()
         )
 
-        group_actions ++ plan_lights(remaining, bridge_id, desired)
+        group_actions ++ plan_lights(remaining, bridge_id, desired, apply_opts)
       end)
 
     log_trace(trace, "planner_output",
@@ -163,7 +180,7 @@ defmodule Hueworks.Control.Planner do
     end
   end
 
-  defp plan_groups(groups, candidate_set, remaining_diff, desired, trace) do
+  defp plan_groups(groups, candidate_set, remaining_diff, desired, apply_opts, trace) do
     case pick_group(groups, candidate_set, remaining_diff) do
       nil ->
         {[], remaining_diff}
@@ -181,10 +198,13 @@ defmodule Hueworks.Control.Planner do
         updated_remaining = MapSet.difference(remaining_diff, group.lights)
 
         {rest, final_remaining} =
-          plan_groups(groups, candidate_set, updated_remaining, desired, trace)
+          plan_groups(groups, candidate_set, updated_remaining, desired, apply_opts, trace)
 
-        {[%{type: :group, id: group.id, bridge_id: group.bridge_id, desired: desired} | rest],
-         final_remaining}
+        {[
+           %{type: :group, id: group.id, bridge_id: group.bridge_id, desired: desired}
+           |> maybe_put_apply_opts(apply_opts)
+           | rest
+         ], final_remaining}
     end
   end
 
@@ -198,11 +218,12 @@ defmodule Hueworks.Control.Planner do
     |> List.first()
   end
 
-  defp plan_lights(remaining_diff, bridge_id, desired) do
+  defp plan_lights(remaining_diff, bridge_id, desired, apply_opts) do
     remaining_diff
     |> MapSet.to_list()
     |> Enum.map(fn id ->
       %{type: :light, id: id, bridge_id: bridge_id, desired: desired}
+      |> maybe_put_apply_opts(apply_opts)
     end)
   end
 
@@ -240,6 +261,26 @@ defmodule Hueworks.Control.Planner do
   end
 
   defp desired_differs_from_physical_values?(_desired, _physical), do: true
+
+  defp action_apply_opts(opts) do
+    opts
+    |> transition_ms()
+    |> Transition.apply_opts()
+  end
+
+  defp transition_ms(opts) do
+    case Transition.transition_ms(opts) do
+      value when is_integer(value) -> value
+      _ -> default_transition_ms()
+    end
+  end
+
+  defp default_transition_ms do
+    AppSettings.get_global().default_transition_ms || 0
+  end
+
+  defp maybe_put_apply_opts(action, apply_opts) when map_size(apply_opts) == 0, do: action
+  defp maybe_put_apply_opts(action, apply_opts), do: Map.put(action, :apply_opts, apply_opts)
 
   defp explicit_off_intent?(desired) when is_map(desired) do
     case Map.get(desired, :power) || Map.get(desired, "power") do

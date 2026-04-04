@@ -57,6 +57,21 @@
         autocomplete="off"
       />
 
+      <label class="hw-modal-label" for="global_default_transition_ms">
+        Default Transition (ms)
+      </label>
+      <input
+        id="global_default_transition_ms"
+        name="default_transition_ms"
+        type="number"
+        min="0"
+        step="1"
+        value={@default_transition_ms}
+        class="hw-modal-input"
+        placeholder="0"
+        autocomplete="off"
+      />
+
       <div class="hw-modal-actions">
         <button type="submit" class="hw-button hw-button-on">Save Global Settings</button>
       </div>

@@ -52,7 +52,8 @@ defmodule Hueworks.AppSettings do
     %{
       latitude: app_setting.latitude,
       longitude: app_setting.longitude,
-      timezone: app_setting.timezone
+      timezone: app_setting.timezone,
+      default_transition_ms: app_setting.default_transition_ms || 0
     }
   end
 
@@ -62,7 +63,8 @@ defmodule Hueworks.AppSettings do
     current_attrs = %{
       latitude: current.latitude,
       longitude: current.longitude,
-      timezone: current.timezone
+      timezone: current.timezone,
+      default_transition_ms: current.default_transition_ms || 0
     }
 
     Map.merge(current_attrs, attrs)
@@ -75,7 +77,8 @@ defmodule Hueworks.AppSettings do
       scope: @global_scope,
       latitude: parse_number(config[:latitude] || config["latitude"]),
       longitude: parse_number(config[:longitude] || config["longitude"]),
-      timezone: parse_timezone(config[:timezone] || config["timezone"])
+      timezone: parse_timezone(config[:timezone] || config["timezone"]),
+      default_transition_ms: Application.get_env(:hueworks, :default_transition_ms, 0)
     }
   end
 
@@ -90,7 +93,11 @@ defmodule Hueworks.AppSettings do
     %{
       latitude: parse_number(Map.get(attrs, :latitude) || Map.get(attrs, "latitude")),
       longitude: parse_number(Map.get(attrs, :longitude) || Map.get(attrs, "longitude")),
-      timezone: parse_timezone(Map.get(attrs, :timezone) || Map.get(attrs, "timezone"))
+      timezone: parse_timezone(Map.get(attrs, :timezone) || Map.get(attrs, "timezone")),
+      default_transition_ms:
+        parse_transition_ms(
+          Map.get(attrs, :default_transition_ms) || Map.get(attrs, "default_transition_ms")
+        )
     }
     |> Enum.reject(fn {_key, value} -> is_nil(value) end)
     |> Map.new()
@@ -114,4 +121,23 @@ defmodule Hueworks.AppSettings do
   end
 
   defp parse_timezone(_value), do: nil
+
+  defp parse_transition_ms(value) when is_integer(value) and value >= 0, do: value
+
+  defp parse_transition_ms(value) when is_binary(value) do
+    trimmed = String.trim(value)
+
+    cond do
+      trimmed == "" ->
+        nil
+
+      true ->
+        case Integer.parse(trimmed) do
+          {number, ""} when number >= 0 -> number
+          _ -> nil
+        end
+    end
+  end
+
+  defp parse_transition_ms(_value), do: nil
 end

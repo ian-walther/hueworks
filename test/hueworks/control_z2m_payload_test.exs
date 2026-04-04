@@ -21,6 +21,17 @@ defmodule Hueworks.Control.Z2MPayloadTest do
     assert payload["color_temp"] == 250
   end
 
+  test "payload includes transition seconds when configured" do
+    payload =
+      Z2MPayload.action_payload(
+        {:set_state, %{power: :on, brightness: 50, kelvin: 4000}},
+        %{},
+        %{transition_ms: 750}
+      )
+
+    assert payload["transition"] == 0.75
+  end
+
   test "set_state returns ignore for empty desired" do
     assert Z2MPayload.action_payload({:set_state, %{}}, %{}) == :ignore
   end

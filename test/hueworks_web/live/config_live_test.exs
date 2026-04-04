@@ -17,12 +17,14 @@ defmodule HueworksWeb.ConfigLiveTest do
 
     assert html =~ "Global Solar Settings"
     assert html =~ "Save Global Settings"
+    assert html =~ "Default Transition (ms)"
 
     view
     |> form("form[phx-submit='save_global_solar']", %{
       "timezone" => "America/Chicago",
       "latitude" => "41.8781",
-      "longitude" => "-87.6298"
+      "longitude" => "-87.6298",
+      "default_transition_ms" => "900"
     })
     |> render_submit()
 
@@ -32,6 +34,7 @@ defmodule HueworksWeb.ConfigLiveTest do
     assert settings.latitude == 41.8781
     assert settings.longitude == -87.6298
     assert settings.timezone == "America/Chicago"
+    assert settings.default_transition_ms == 900
   end
 
   test "handles geolocation event by prefilling lat/lon and timezone", %{conn: conn} do
@@ -57,12 +60,14 @@ defmodule HueworksWeb.ConfigLiveTest do
       scope: "global",
       latitude: 40.7128,
       longitude: -74.0060,
-      timezone: "America/Indiana/Indianapolis"
+      timezone: "America/Indiana/Indianapolis",
+      default_transition_ms: 750
     })
 
     {:ok, _view, html} = live(conn, "/config")
 
     assert html =~ ~s(value="America/Indiana/Indianapolis")
+    assert html =~ ~s(value="750")
 
     assert html =~
              ~r/<option[^>]*value="America\/Indiana\/Indianapolis"[^>]*selected/

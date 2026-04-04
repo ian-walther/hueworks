@@ -2,42 +2,47 @@ defmodule Hueworks.Control.Z2MPayload do
   @moduledoc false
 
   alias Hueworks.Control.HomeAssistantPayload
+  alias Hueworks.Control.Transition
   alias Hueworks.Kelvin
   alias Hueworks.Util
 
-  def action_payload(:on, _entity), do: %{"state" => "ON"}
-  def action_payload(:off, _entity), do: %{"state" => "OFF"}
+  def action_payload(action, entity, opts \\ %{})
 
-  def action_payload({:set_state, desired}, entity) when is_map(desired) do
+  def action_payload(:on, _entity, opts), do: with_transition(%{"state" => "ON"}, opts)
+  def action_payload(:off, _entity, opts), do: with_transition(%{"state" => "OFF"}, opts)
+
+  def action_payload({:set_state, desired}, entity, opts) when is_map(desired) do
     power = Map.get(desired, :power) || Map.get(desired, "power")
     brightness = value_or_nil(desired, [:brightness, "brightness"])
     kelvin = value_or_nil(desired, [:kelvin, "kelvin", :temperature, "temperature"])
 
     cond do
       power in [:off, "off"] ->
-        %{"state" => "OFF"}
+        with_transition(%{"state" => "OFF"}, opts)
 
       power in [:on, "on"] or not is_nil(brightness) or not is_nil(kelvin) ->
         %{}
         |> maybe_put_state(power, brightness, kelvin)
         |> maybe_put_brightness(brightness)
         |> maybe_put_color_temp(kelvin, entity)
+        |> with_transition(opts)
 
       true ->
         :ignore
     end
   end
 
-  def action_payload({:brightness, level}, _entity) do
-    %{"state" => "ON", "brightness" => percent_to_brightness(level)}
+  def action_payload({:brightness, level}, _entity, opts) do
+    with_transition(%{"state" => "ON", "brightness" => percent_to_brightness(level)}, opts)
   end
 
-  def action_payload({:color_temp, kelvin}, entity) do
+  def action_payload({:color_temp, kelvin}, entity, opts) do
     %{"state" => "ON"}
     |> maybe_put_color_temp(kelvin, entity)
+    |> with_transition(opts)
   end
 
-  def action_payload(_action, _entity), do: :ignore
+  def action_payload(_action, _entity, _opts), do: :ignore
 
   def percent_to_brightness(level) do
     level
@@ -86,4 +91,13 @@ defmodule Hueworks.Control.Z2MPayload do
   end
 
   defp extended_low_kelvin?(_entity, _kelvin), do: false
+
+  defp with_transition(:ignore, _opts), do: :ignore
+
+  defp with_transition(payload, opts) when is_map(payload) do
+    case Transition.seconds(opts) do
+      value when is_number(value) -> Map.put(payload, "transition", value)
+      _ -> payload
+    end
+  end
 end

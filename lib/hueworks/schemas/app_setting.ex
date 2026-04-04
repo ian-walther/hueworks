@@ -7,17 +7,19 @@ defmodule Hueworks.Schemas.AppSetting do
     field(:latitude, :float)
     field(:longitude, :float)
     field(:timezone, :string)
+    field(:default_transition_ms, :integer, default: 0)
 
     timestamps()
   end
 
   def changeset(app_setting, attrs) do
     app_setting
-    |> cast(attrs, [:scope, :latitude, :longitude, :timezone])
+    |> cast(attrs, [:scope, :latitude, :longitude, :timezone, :default_transition_ms])
     |> validate_required([:scope])
     |> validate_inclusion(:scope, ["global"])
     |> validate_number(:latitude, greater_than_or_equal_to: -90, less_than_or_equal_to: 90)
     |> validate_number(:longitude, greater_than_or_equal_to: -180, less_than_or_equal_to: 180)
+    |> validate_number(:default_transition_ms, greater_than_or_equal_to: 0)
     |> unique_constraint(:scope)
   end
 

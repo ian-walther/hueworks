@@ -4,9 +4,11 @@ defmodule Hueworks.Control.PlannerTest do
 
   alias Hueworks.Control.{DesiredState, Planner, State}
   alias Hueworks.Repo
-  alias Hueworks.Schemas.{Bridge, Group, GroupLight, Light, Room}
+  alias Hueworks.Schemas.{AppSetting, Bridge, Group, GroupLight, Light, Room}
 
   setup do
+    Repo.delete_all(AppSetting)
+
     if :ets.whereis(:hueworks_desired_state) != :undefined do
       :ets.delete_all_objects(:hueworks_desired_state)
     end
@@ -127,6 +129,38 @@ defmodule Hueworks.Control.PlannerTest do
              %{type: :light, id: light_a.id, bridge_id: bridge.id, desired: desired},
              %{type: :light, id: light_b.id, bridge_id: bridge.id, desired: desired}
            ]
+  end
+
+  test "plan_room attaches global transition apply_opts to actions" do
+    Repo.insert!(%AppSetting{
+      scope: "global",
+      latitude: 40.7128,
+      longitude: -74.0060,
+      timezone: "America/New_York",
+      default_transition_ms: 800
+    })
+
+    room = Repo.insert!(%Room{name: "Transition Room"})
+
+    bridge =
+      Repo.insert!(%Bridge{
+        name: "Hue",
+        type: :hue,
+        host: "bridge-transition",
+        credentials: %{}
+      })
+
+    light = insert_light(room, bridge, "Lamp")
+    desired = %{power: :on, brightness: 55}
+
+    DesiredState.put(:light, light.id, desired)
+
+    diff = %{{:light, light.id} => desired}
+    [action] = Planner.plan_room(room.id, diff)
+
+    assert action.type == :light
+    assert action.id == light.id
+    assert action.apply_opts == %{transition_ms: 800}
   end
 
   test "plan_room falls back to individual lights when no exact-match group exists" do

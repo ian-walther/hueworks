@@ -297,23 +297,27 @@ defmodule Hueworks.Control.Executor do
 
   defp default_dispatch(action), do: dispatch_action(action)
 
-  defp dispatch_action(%{type: :light, id: id, desired: desired}) do
+  defp dispatch_action(%{type: :light, id: id, desired: desired} = action) do
+    apply_opts = Map.get(action, :apply_opts, %{})
+
     case Repo.get(LightSchema, id) do
       nil ->
         :ok
 
       light ->
-        ControlLight.set_state(light, desired)
+        ControlLight.set_state(light, desired, apply_opts)
     end
   end
 
-  defp dispatch_action(%{type: :group, id: id, desired: desired}) do
+  defp dispatch_action(%{type: :group, id: id, desired: desired} = action) do
+    apply_opts = Map.get(action, :apply_opts, %{})
+
     case Repo.get(GroupSchema, id) do
       nil ->
         :ok
 
       group ->
-        ControlGroup.set_state(group, desired)
+        ControlGroup.set_state(group, desired, apply_opts)
     end
   end
 

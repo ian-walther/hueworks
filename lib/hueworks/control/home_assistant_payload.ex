@@ -1,20 +1,26 @@
 defmodule Hueworks.Control.HomeAssistantPayload do
   @moduledoc false
 
+  alias Hueworks.Control.Transition
   alias Hueworks.Kelvin
   alias Hueworks.Util
 
-  def action_payload(:on, entity), do: {"turn_on", %{"entity_id" => entity.source_id}}
-  def action_payload(:off, entity), do: {"turn_off", %{"entity_id" => entity.source_id}}
+  def action_payload(action, entity, opts \\ %{})
 
-  def action_payload({:set_state, desired}, entity) when is_map(desired) do
+  def action_payload(:on, entity, opts),
+    do: {"turn_on", with_transition(%{"entity_id" => entity.source_id}, opts)}
+
+  def action_payload(:off, entity, opts),
+    do: {"turn_off", with_transition(%{"entity_id" => entity.source_id}, opts)}
+
+  def action_payload({:set_state, desired}, entity, opts) when is_map(desired) do
     power = Map.get(desired, :power) || Map.get(desired, "power")
     brightness = value_or_nil(desired, [:brightness, "brightness"])
     kelvin = value_or_nil(desired, [:kelvin, "kelvin", :temperature, "temperature"])
 
     cond do
       power in [:off, "off"] ->
-        {"turn_off", %{"entity_id" => entity.source_id}}
+        {"turn_off", with_transition(%{"entity_id" => entity.source_id}, opts)}
 
       power in [:on, "on"] or not is_nil(brightness) or not is_nil(kelvin) ->
         payload =
@@ -36,32 +42,45 @@ defmodule Hueworks.Control.HomeAssistantPayload do
               end
           end
 
-        {"turn_on", payload}
+        {"turn_on", with_transition(payload, opts)}
 
       true ->
         :ignore
     end
   end
 
-  def action_payload({:brightness, level}, entity) do
-    {"turn_on", %{"entity_id" => entity.source_id, "brightness" => percent_to_brightness(level)}}
+  def action_payload({:brightness, level}, entity, opts) do
+    {"turn_on",
+     with_transition(
+       %{"entity_id" => entity.source_id, "brightness" => percent_to_brightness(level)},
+       opts
+     )}
   end
 
-  def action_payload({:color_temp, kelvin}, entity) do
+  def action_payload({:color_temp, kelvin}, entity, opts) do
     if entity.extended_kelvin_range && kelvin < 2700 do
       {x, y} = extended_xy(kelvin)
-      {"turn_on", %{"entity_id" => entity.source_id, "xy_color" => [x, y]}}
+      {"turn_on", with_transition(%{"entity_id" => entity.source_id, "xy_color" => [x, y]}, opts)}
     else
       kelvin = Kelvin.map_for_control(entity, kelvin)
-      {"turn_on", %{"entity_id" => entity.source_id, "color_temp_kelvin" => round(kelvin)}}
+
+      {"turn_on",
+       with_transition(
+         %{"entity_id" => entity.source_id, "color_temp_kelvin" => round(kelvin)},
+         opts
+       )}
     end
   end
 
-  def action_payload({:color, {hue, sat}}, entity) do
-    {"turn_on", %{"entity_id" => entity.source_id, "hs_color" => [round(hue), round(sat)]}}
+  def action_payload({:color, {hue, sat}}, entity, opts) do
+    {"turn_on",
+     with_transition(
+       %{"entity_id" => entity.source_id, "hs_color" => [round(hue), round(sat)]},
+       opts
+     )}
   end
 
-  def action_payload(_action, _entity), do: :ignore
+  def action_payload(_action, _entity, _opts), do: :ignore
 
   def percent_to_brightness(level) do
     level
@@ -83,6 +102,13 @@ defmodule Hueworks.Control.HomeAssistantPayload do
 
   defp value_or_nil(desired, keys) do
     Enum.find_value(keys, fn key -> Map.get(desired, key) end)
+  end
+
+  defp with_transition(payload, opts) do
+    case Transition.seconds(opts) do
+      value when is_number(value) -> Map.put(payload, "transition", value)
+      _ -> payload
+    end
   end
 
   defp maybe_put(payload, _key, nil), do: payload
