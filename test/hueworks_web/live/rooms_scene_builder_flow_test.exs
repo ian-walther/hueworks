@@ -92,6 +92,20 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
     assert to == "/rooms/#{room.id}/scenes/#{scene.id}/edit"
   end
 
+  test "rooms page clone-scene action navigates to a prefilled new scene editor", %{conn: conn} do
+    room = insert_room()
+    {:ok, scene} = Hueworks.Scenes.create_scene(%{name: "Chill", room_id: room.id})
+
+    {:ok, view, _html} = live(conn, "/rooms")
+
+    assert {:error, {:live_redirect, %{to: to}}} =
+             view
+             |> element("#room-#{room.id} [phx-click='open_scene_clone']")
+             |> render_click()
+
+    assert to == "/rooms/#{room.id}/scenes/new?clone_scene_id=#{scene.id}"
+  end
+
   test "rooms page shows active scenes and toggles activate button to deactivate", %{conn: conn} do
     room = insert_room()
     {:ok, scene} = Hueworks.Scenes.create_scene(%{name: "Chill", room_id: room.id})
@@ -537,6 +551,70 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
     refute Map.has_key?(desired, :kelvin)
   end
 
+  test "cloning a scene preloads its inputs and saves a new copy", %{conn: conn} do
+    room = insert_room()
+    bridge = insert_bridge()
+    light1 = insert_light(room, bridge, %{name: "Lamp", supports_color: true})
+    light2 = insert_light(room, bridge, %{name: "Ceiling", supports_color: true})
+
+    {:ok, warm} =
+      Hueworks.Scenes.create_manual_light_state("Warm", %{
+        "brightness" => "55",
+        "temperature" => "3000"
+      })
+
+    {:ok, blue} =
+      Hueworks.Scenes.create_manual_light_state("Blue", %{
+        "mode" => "color",
+        "brightness" => "75",
+        "hue" => "210",
+        "saturation" => "60"
+      })
+
+    {:ok, scene} = Hueworks.Scenes.create_scene(%{name: "Original", room_id: room.id})
+
+    {:ok, _} =
+      Hueworks.Scenes.replace_scene_components(scene, [
+        %{
+          name: "Component 1",
+          light_ids: [light1.id],
+          light_state_id: to_string(warm.id),
+          light_defaults: %{light1.id => :force_off}
+        },
+        %{
+          name: "Component 2",
+          light_ids: [light2.id],
+          light_state_id: to_string(blue.id),
+          light_defaults: %{light2.id => :force_on}
+        }
+      ])
+
+    {:ok, view, _html} = live(conn, "/rooms/#{room.id}/scenes/new?clone_scene_id=#{scene.id}")
+
+    html = render(view)
+    assert html =~ ~s(value="Original Copy")
+    assert html =~ "Lamp"
+    assert html =~ "Ceiling"
+    assert html =~ "Warm"
+    assert html =~ "Blue"
+
+    assert {:error, {:live_redirect, %{to: "/rooms"}}} =
+             view
+             |> element("button[phx-click='save_scene']")
+             |> render_click()
+
+    clones =
+      Repo.all(from(s in Scene, where: s.room_id == ^room.id, order_by: [asc: s.id]))
+
+    assert Enum.count(clones) == 2
+
+    cloned_scene = List.last(clones)
+    refute cloned_scene.id == scene.id
+    assert cloned_scene.name == "Original Copy"
+
+    assert scene_component_fingerprint(cloned_scene.id) == scene_component_fingerprint(scene.id)
+  end
+
   test "circadian state form persists all circadian config inputs", %{conn: conn} do
     room = insert_room()
     bridge = insert_bridge()
@@ -811,5 +889,25 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
 
     assert html =~ ~r/name=\"brightness\"[^>]*value=\"65\"/
     assert html =~ ~r/name=\"temperature\"[^>]*value=\"3100\"/
+  end
+
+  defp scene_component_fingerprint(scene_id) do
+    Repo.all(
+      from(sc in SceneComponent,
+        where: sc.scene_id == ^scene_id,
+        order_by: [asc: sc.name, asc: sc.id],
+        preload: [:scene_component_lights]
+      )
+    )
+    |> Enum.map(fn component ->
+      %{
+        name: component.name,
+        light_state_id: component.light_state_id,
+        lights:
+          component.scene_component_lights
+          |> Enum.map(&{&1.light_id, &1.default_power})
+          |> Enum.sort()
+      }
+    end)
   end
 end

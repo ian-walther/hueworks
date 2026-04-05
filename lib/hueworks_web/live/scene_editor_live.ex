@@ -37,13 +37,14 @@ defmodule HueworksWeb.SceneEditorLive do
 
   def handle_params(params, _uri, socket) do
     room_id = parse_id(params["room_id"])
+    clone_scene_id = parse_id(params["clone_scene_id"])
 
     cond do
       is_nil(room_id) ->
         {:noreply, push_navigate(socket, to: "/rooms")}
 
       socket.assigns.live_action == :new ->
-        {:noreply, load_new_scene(socket, room_id)}
+        {:noreply, load_new_scene(socket, room_id, clone_scene_id)}
 
       socket.assigns.live_action == :edit ->
         scene_id = parse_id(params["id"])
@@ -92,28 +93,20 @@ defmodule HueworksWeb.SceneEditorLive do
     {:noreply, assign(socket, scene_light_states: light_states)}
   end
 
-  defp load_new_scene(socket, room_id) do
-    case Rooms.get_room(room_id) do
-      nil ->
+  defp load_new_scene(socket, room_id, clone_scene_id) do
+    case clone_source(room_id, clone_scene_id) do
+      {:error, :invalid_clone} ->
         push_navigate(socket, to: "/rooms")
 
-      room ->
-        {room_lights, room_groups} = scene_room_data(room_id)
-        light_states = Scenes.list_editable_light_states()
-        builder = Builder.build(room_lights, room_groups, [@blank_component])
+      {:ok, room, nil} ->
+        assign_new_scene(socket, room, "", [@blank_component])
 
-        assign(socket,
-          room_id: room_id,
-          room_name: Hueworks.Util.display_name(room),
-          scene_mode: :new,
-          scene_id: nil,
-          scene_name: "",
-          scene_components: [@blank_component],
-          scene_builder: builder,
-          scene_room_lights: room_lights,
-          scene_room_groups: room_groups,
-          scene_light_states: light_states,
-          scene_save_error: nil
+      {:ok, room, scene} ->
+        assign_new_scene(
+          socket,
+          room,
+          cloned_scene_name(scene),
+          load_scene_components(scene)
         )
     end
   end
@@ -234,6 +227,54 @@ defmodule HueworksWeb.SceneEditorLive do
             {:noreply, assign(socket, scene_save_error: "Scene name is required.")}
         end
     end
+  end
+
+  defp assign_new_scene(socket, room, scene_name, components) do
+    room_id = room.id
+    {room_lights, room_groups} = scene_room_data(room_id)
+    light_states = Scenes.list_editable_light_states()
+    builder = Builder.build(room_lights, room_groups, components)
+
+    assign(socket,
+      room_id: room_id,
+      room_name: Hueworks.Util.display_name(room),
+      scene_mode: :new,
+      scene_id: nil,
+      scene_name: scene_name,
+      scene_components: components,
+      scene_builder: builder,
+      scene_room_lights: room_lights,
+      scene_room_groups: room_groups,
+      scene_light_states: light_states,
+      scene_save_error: nil
+    )
+  end
+
+  defp clone_source(room_id, nil) do
+    case Rooms.get_room(room_id) do
+      nil -> {:error, :invalid_clone}
+      room -> {:ok, room, nil}
+    end
+  end
+
+  defp clone_source(room_id, clone_scene_id) do
+    case {Rooms.get_room(room_id), Scenes.get_scene(clone_scene_id)} do
+      {nil, _} ->
+        {:error, :invalid_clone}
+
+      {_, nil} ->
+        {:error, :invalid_clone}
+
+      {_room, scene} when scene.room_id != room_id ->
+        {:error, :invalid_clone}
+
+      {room, scene} ->
+        {:ok, room, scene}
+    end
+  end
+
+  defp cloned_scene_name(scene) do
+    "#{Hueworks.Util.display_name(scene)} Copy"
   end
 
   defp maybe_clear_scene_save_error(socket) do

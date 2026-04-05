@@ -71,6 +71,19 @@ defmodule HueworksWeb.RoomsLive do
     end
   end
 
+  def handle_event("open_scene_clone", %{"id" => id}, socket) do
+    case Scenes.get_scene(Hueworks.Util.parse_id(id)) do
+      nil ->
+        {:noreply, socket}
+
+      scene ->
+        {:noreply,
+         push_navigate(socket,
+           to: "/rooms/#{scene.room_id}/scenes/new?clone_scene_id=#{scene.id}"
+         )}
+    end
+  end
+
   def handle_event("delete_scene", %{"id" => id}, socket) do
     case Scenes.get_scene(String.to_integer(id)) do
       nil ->
