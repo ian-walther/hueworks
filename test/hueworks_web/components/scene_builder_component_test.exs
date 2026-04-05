@@ -550,6 +550,37 @@ defmodule Hueworks.SceneBuilderComponentTest do
     refute html =~ "<label class=\"hw-modal-label\">Temperature</label>"
   end
 
+  test "manual color mode shows a live preview swatch and color scales", %{conn: conn} do
+    {:ok, view, _html} = live_isolated(conn, TestLive)
+
+    view
+    |> form("form[phx-change='update_light_state_form'][data-component-id='1']", %{
+      "component_id" => "1",
+      "mode" => "color",
+      "brightness" => "80",
+      "temperature" => "3000"
+    })
+    |> render_change()
+
+    view
+    |> form("form[phx-change='update_light_state_form'][data-component-id='1']", %{
+      "component_id" => "1",
+      "mode" => "color",
+      "brightness" => "80",
+      "hue" => "210",
+      "saturation" => "60"
+    })
+    |> render_change()
+
+    html = render(view)
+
+    assert html =~ "Preview: 210°, 60% saturation, 80% brightness"
+    assert html =~ "hw-color-swatch"
+    assert html =~ "background-color: rgb("
+    assert html =~ "hw-hue-scale"
+    assert html =~ "linear-gradient(90deg"
+  end
+
   test "duplicating a manual light state creates a new selectable copy", %{conn: conn} do
     {:ok, state} = Scenes.create_manual_light_state("Soft")
     {:ok, view, _html} = live_isolated(conn, TestLive)

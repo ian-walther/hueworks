@@ -1,6 +1,7 @@
 defmodule HueworksWeb.SceneBuilderComponent do
   use Phoenix.LiveComponent
 
+  alias Hueworks.Color
   alias Hueworks.Circadian.Config, as: CircadianConfig
   alias Hueworks.Scenes.Builder
   alias Hueworks.Util
@@ -182,6 +183,16 @@ defmodule HueworksWeb.SceneBuilderComponent do
                   />
 
                   <%= if manual_mode == "color" do %>
+                    <div class="hw-color-preview">
+                      <span
+                        class="hw-color-swatch"
+                        style={manual_color_preview_style(@light_state_edits, @light_states, component)}
+                      >
+                      </span>
+                      <span class="hw-muted">
+                        <%= manual_color_preview_label(@light_state_edits, @light_states, component) %>
+                      </span>
+                    </div>
                     <div class="hw-row">
                       <label class="hw-modal-label">Hue</label>
                       <span class="hw-slider-value">
@@ -196,6 +207,7 @@ defmodule HueworksWeb.SceneBuilderComponent do
                       max="360"
                       value={edit_value(@light_state_edits, @light_states, component, "hue")}
                     />
+                    <div class="hw-color-scale hw-hue-scale" aria-hidden="true"></div>
                     <div class="hw-row">
                       <label class="hw-modal-label">Saturation</label>
                       <span class="hw-slider-value">
@@ -210,6 +222,12 @@ defmodule HueworksWeb.SceneBuilderComponent do
                       max="100"
                       value={edit_value(@light_state_edits, @light_states, component, "saturation")}
                     />
+                    <div
+                      class="hw-color-scale"
+                      style={manual_saturation_scale_style(@light_state_edits, @light_states, component)}
+                      aria-hidden="true"
+                    >
+                    </div>
                   <% else %>
                     <div class="hw-row">
                       <label class="hw-modal-label">Temperature</label>
@@ -1379,6 +1397,55 @@ defmodule HueworksWeb.SceneBuilderComponent do
       "color" -> "color"
       :color -> "color"
       _ -> "temperature"
+    end
+  end
+
+  defp manual_color_preview_style(edits, light_states, component) do
+    {r, g, b} =
+      case manual_color_rgb(edits, light_states, component) do
+        {r, g, b} -> {r, g, b}
+        _ -> {143, 177, 255}
+      end
+
+    "background-color: rgb(#{r} #{g} #{b});"
+  end
+
+  defp manual_color_preview_label(edits, light_states, component) do
+    hue = edit_value(edits, light_states, component, "hue") |> normalize_preview_number(0)
+
+    saturation =
+      edit_value(edits, light_states, component, "saturation") |> normalize_preview_number(100)
+
+    brightness =
+      edit_value(edits, light_states, component, "brightness") |> normalize_preview_number(100)
+
+    "Preview: #{hue}°, #{saturation}% saturation, #{brightness}% brightness"
+  end
+
+  defp manual_saturation_scale_style(edits, light_states, component) do
+    hue = edit_value(edits, light_states, component, "hue") |> normalize_preview_number(0)
+
+    brightness =
+      edit_value(edits, light_states, component, "brightness") |> normalize_preview_number(100)
+
+    {r1, g1, b1} = Color.hsb_to_rgb(hue, 0, brightness) || {255, 255, 255}
+    {r2, g2, b2} = Color.hsb_to_rgb(hue, 100, brightness) || {255, 255, 255}
+
+    "background: linear-gradient(90deg, rgb(#{r1} #{g1} #{b1}), rgb(#{r2} #{g2} #{b2}));"
+  end
+
+  defp manual_color_rgb(edits, light_states, component) do
+    hue = edit_value(edits, light_states, component, "hue")
+    saturation = edit_value(edits, light_states, component, "saturation")
+    brightness = edit_value(edits, light_states, component, "brightness")
+
+    Color.hsb_to_rgb(hue, saturation, brightness)
+  end
+
+  defp normalize_preview_number(value, fallback) do
+    case Util.to_number(value) do
+      value when is_number(value) -> round(value)
+      _ -> fallback
     end
   end
 

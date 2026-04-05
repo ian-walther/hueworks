@@ -3,6 +3,21 @@ defmodule Hueworks.Color do
 
   alias Hueworks.Util
 
+  def hsb_to_rgb(hue, saturation, brightness) do
+    with hue when is_number(hue) <- Util.to_number(hue),
+         saturation when is_number(saturation) <- Util.to_number(saturation),
+         brightness when is_number(brightness) <- Util.to_number(brightness) do
+      hue = Util.normalize_hue_degrees(hue)
+      saturation = Util.normalize_saturation(saturation) / 100.0
+      brightness = Util.normalize_percent(brightness) / 100.0
+
+      {r, g, b} = hsv_to_rgb(hue, saturation, brightness)
+      {rgb_channel(r), rgb_channel(g), rgb_channel(b)}
+    else
+      _ -> nil
+    end
+  end
+
   def hs_to_xy(hue, saturation) do
     with hue when is_number(hue) <- Util.to_number(hue),
          saturation when is_number(saturation) <- Util.to_number(saturation) do
@@ -63,4 +78,12 @@ defmodule Hueworks.Color do
 
   defp round_float(value) when is_float(value), do: Float.round(value, 4)
   defp round_float(value), do: value
+
+  defp rgb_channel(value) do
+    value
+    |> Kernel.*(255)
+    |> round()
+    |> min(255)
+    |> max(0)
+  end
 end
