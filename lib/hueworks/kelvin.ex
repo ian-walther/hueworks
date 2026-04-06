@@ -3,7 +3,6 @@ defmodule Hueworks.Kelvin do
   Kelvin mapping helpers for translating between reported and actual ranges.
   """
 
-  alias Hueworks.Color
   alias Hueworks.Util
 
   def mapping_supported?(entity) do
@@ -87,14 +86,11 @@ defmodule Hueworks.Kelvin do
     case extended_range(entity) do
       {min_kelvin, max_kelvin} ->
         kelvin = Util.clamp(kelvin, min_kelvin, max_kelvin)
-        span = max_kelvin - min_kelvin
-        t_base = if span > 0, do: (kelvin - min_kelvin) / span, else: 0.0
+        t_base = extended_curve_base(kelvin, min_kelvin, max_kelvin)
         t = min(1.0, t_base + 0.25 * (1.0 - t_base))
         s = 4.0 * t * (1.0 - t)
-        {x_start, y_start} = Color.kelvin_to_xy(min_kelvin) || {0.522, 0.405}
-        {x_end, y_end} = Color.kelvin_to_xy(max_kelvin) || {0.459, 0.41}
-        x = x_start + (x_end - x_start) * t
-        y = y_start + (y_end - y_start) * t + 0.03 * s
+        x = 0.522 + (0.459 - 0.522) * t
+        y = 0.405 + (0.41 - 0.405) * t + 0.03 * s
         {Float.round(x, 6), Float.round(y, 6)}
 
       _ ->
@@ -256,6 +252,14 @@ defmodule Hueworks.Kelvin do
   defp kelvin_to_mired(kelvin) when is_number(kelvin) and kelvin > 0 do
     1_000_000 / kelvin
   end
+
+  defp extended_curve_base(kelvin, min_kelvin, max_kelvin)
+       when is_number(kelvin) and is_number(min_kelvin) and is_number(max_kelvin) and
+              max_kelvin > min_kelvin do
+    (kelvin - min_kelvin) / (max_kelvin - min_kelvin)
+  end
+
+  defp extended_curve_base(_kelvin, _min_kelvin, _max_kelvin), do: 0.0
 
   defp extended_kelvin_range?(entity) do
     get_field(entity, :extended_kelvin_range) == true

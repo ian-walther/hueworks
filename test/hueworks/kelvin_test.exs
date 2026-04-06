@@ -62,6 +62,18 @@ defmodule Hueworks.KelvinTest do
     assert Kelvin.inverse_extended_xy(entity, x, y) == 1850
   end
 
+  test "extended xy preserves the legacy curve for the default 2000K..2700K band" do
+    entity = %{
+      extended_kelvin_range: true,
+      extended_min_kelvin: 2000,
+      actual_min_kelvin: 2700
+    }
+
+    assert Kelvin.extended_xy(entity, 2000) == {0.50625, 0.42875}
+    assert Kelvin.extended_xy(entity, 2200) == {0.49275, 0.437168}
+    assert Kelvin.extended_xy(entity, 2700) == {0.459, 0.41}
+  end
+
   test "map_extended_reported_floor respects custom extended minimum" do
     entity = %{
       extended_kelvin_range: true,
