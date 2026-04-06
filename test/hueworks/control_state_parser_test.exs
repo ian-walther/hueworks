@@ -251,4 +251,43 @@ defmodule Hueworks.Control.StateParserTest do
 
     assert StateParser.kelvin_from_z2m_attrs(attrs, entity) == %{kelvin: 3900}
   end
+
+  test "kelvin_from_z2m_attrs uses configured extended low-end range for xy round-trips" do
+    entity = %{
+      extended_kelvin_range: true,
+      extended_min_kelvin: 1800,
+      actual_min_kelvin: 3000,
+      actual_max_kelvin: 6500,
+      reported_min_kelvin: 2200,
+      reported_max_kelvin: 6500
+    }
+
+    {x, y} = HomeAssistantPayload.extended_xy(entity, 1850)
+
+    attrs = %{
+      "color_mode" => "xy",
+      "color" => %{"x" => x, "y" => y},
+      "color_temp_kelvin" => 2200
+    }
+
+    assert StateParser.kelvin_from_z2m_attrs(attrs, entity) == %{kelvin: 1850}
+  end
+
+  test "kelvin_from_z2m_attrs preserves direct low kelvin below configured boundary" do
+    entity = %{
+      extended_kelvin_range: true,
+      extended_min_kelvin: 1800,
+      actual_min_kelvin: 3000,
+      actual_max_kelvin: 6500,
+      reported_min_kelvin: 2200,
+      reported_max_kelvin: 6500
+    }
+
+    attrs = %{
+      "color_mode" => "color_temp",
+      "color_temp_kelvin" => 2900
+    }
+
+    assert StateParser.kelvin_from_z2m_attrs(attrs, entity) == %{kelvin: 2900}
+  end
 end

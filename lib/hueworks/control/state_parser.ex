@@ -2,7 +2,6 @@ defmodule Hueworks.Control.StateParser do
   @moduledoc false
 
   alias Hueworks.Color
-  alias Hueworks.Control.HomeAssistantPayload
   alias Hueworks.Kelvin
   alias Hueworks.Util
 
@@ -142,7 +141,7 @@ defmodule Hueworks.Control.StateParser do
 
   def kelvin_from_z2m_attrs(attrs, entity) when is_map(attrs) do
     extended_xy_kelvin = raw_extended_xy_kelvin(attrs, entity)
-    crossover_xy? = prefer_z2m_extended_xy_crossover?(attrs, extended_xy_kelvin)
+    crossover_xy? = prefer_z2m_extended_xy_crossover?(attrs, entity, extended_xy_kelvin)
 
     case z2m_color_mode(attrs) do
       "xy" ->
@@ -157,7 +156,7 @@ defmodule Hueworks.Control.StateParser do
       _other ->
         cond do
           is_number(extended_xy_kelvin) ->
-            if extended_xy_applicable?(attrs) or crossover_xy? do
+            if extended_xy_applicable?(attrs, entity) or crossover_xy? do
               %{kelvin: round(extended_xy_kelvin)}
             else
               parse_z2m_color_temp(attrs, entity)
@@ -201,7 +200,7 @@ defmodule Hueworks.Control.StateParser do
   defp parse_z2m_color_temp(_attrs, _entity), do: %{}
 
   defp parse_z2m_direct_kelvin(kelvin, attrs, entity) when is_number(kelvin) do
-    case map_extended_reported_floor(kelvin, entity) do
+    case Kelvin.map_extended_reported_floor(entity, kelvin) do
       mapped when is_number(mapped) ->
         %{kelvin: mapped}
 
@@ -219,24 +218,28 @@ defmodule Hueworks.Control.StateParser do
   defp parse_z2m_direct_kelvin(_kelvin, _attrs, _entity), do: %{}
 
   defp preserve_z2m_direct_low_kelvin?(attrs, entity, kelvin) when is_number(kelvin) do
-    extended_kelvin_range_enabled?(entity) and kelvin < 2700 and
+    Kelvin.extended_low_kelvin?(entity, kelvin) and
       (z2m_color_mode(attrs) == "color_temp" or is_tuple(xy_from_attrs(attrs)))
   end
 
   defp preserve_z2m_direct_low_kelvin?(_attrs, _entity, _kelvin), do: false
 
-  defp prefer_z2m_extended_xy_crossover?(attrs, extended_xy_kelvin)
+  defp prefer_z2m_extended_xy_crossover?(attrs, entity, extended_xy_kelvin)
        when is_number(extended_xy_kelvin) do
     direct_kelvin = z2m_direct_kelvin(attrs)
+    extended_max = Kelvin.extended_boundary_kelvin(entity)
+    extended_min = Kelvin.extended_min_kelvin(entity)
+    crossover_floor = max(extended_min, extended_max - 100)
+    mapped_direct = if is_number(direct_kelvin), do: Kelvin.map_from_event(entity, direct_kelvin)
 
-    is_number(direct_kelvin) and direct_kelvin > 2700 and direct_kelvin < 3800 and
-      extended_xy_kelvin >= 2600 and extended_xy_kelvin < 2700
+    is_number(direct_kelvin) and is_number(mapped_direct) and mapped_direct > extended_max and
+      extended_xy_kelvin >= crossover_floor and extended_xy_kelvin < extended_max
   end
 
-  defp prefer_z2m_extended_xy_crossover?(_attrs, _extended_xy_kelvin), do: false
+  defp prefer_z2m_extended_xy_crossover?(_attrs, _entity, _extended_xy_kelvin), do: false
 
   defp extended_xy_kelvin(attrs, entity) do
-    if extended_kelvin_range_enabled?(entity) and extended_xy_applicable?(attrs) do
+    if extended_kelvin_range_enabled?(entity) and extended_xy_applicable?(attrs, entity) do
       raw_extended_xy_kelvin(attrs, entity)
     else
       nil
@@ -246,7 +249,7 @@ defmodule Hueworks.Control.StateParser do
   defp raw_extended_xy_kelvin(attrs, entity) do
     if extended_kelvin_range_enabled?(entity) do
       case xy_from_attrs(attrs) do
-        {x, y} when is_number(x) and is_number(y) -> inverse_extended_xy(x, y)
+        {x, y} when is_number(x) and is_number(y) -> Kelvin.inverse_extended_xy(entity, x, y)
         _ -> nil
       end
     else
@@ -296,71 +299,38 @@ defmodule Hueworks.Control.StateParser do
 
   defp hue_xy_from_event(_event), do: nil
 
-  defp inverse_extended_xy(x, y) do
-    Enum.min_by(2000..2700, fn kelvin ->
-      {px, py} = HomeAssistantPayload.extended_xy(kelvin)
-      :math.pow(px - x, 2) + :math.pow(py - y, 2)
-    end)
-  end
-
   # Some integrations include xy color coordinates alongside ordinary
   # white-temperature reports. Only treat xy as the source of truth when the
   # event is clearly in the extended low-end band; otherwise we'd incorrectly
-  # remap normal >2700K whites back into 2000K-2700K.
-  defp extended_xy_applicable?(attrs) when is_map(attrs) do
+  # remap normal whites back into the logical extended band.
+  defp extended_xy_applicable?(attrs, entity) when is_map(attrs) do
+    boundary = Kelvin.extended_boundary_kelvin(entity)
+
     cond do
       is_number(attrs["color_temp_kelvin"]) ->
-        attrs["color_temp_kelvin"] < 2700
+        attrs["color_temp_kelvin"] < boundary
 
       is_number(attrs["color_temp"]) and attrs["color_temp"] > 0 and attrs["color_temp"] <= 1000 ->
-        round(1_000_000 / attrs["color_temp"]) < 2700
+        round(1_000_000 / attrs["color_temp"]) < boundary
 
       is_number(attrs["color_temp"]) and attrs["color_temp"] > 1000 ->
-        attrs["color_temp"] < 2700
+        attrs["color_temp"] < boundary
 
       true ->
         true
     end
   end
 
-  defp extended_xy_applicable?(_attrs), do: false
+  defp extended_xy_applicable?(_attrs, _entity), do: false
 
   defp parse_low_extended_kelvin(kelvin, entity) when is_number(kelvin) do
-    case map_extended_reported_floor(kelvin, entity) do
+    case Kelvin.map_extended_reported_floor(entity, kelvin) do
       mapped when is_number(mapped) -> %{kelvin: mapped}
       nil -> %{kelvin: Kelvin.map_from_event(entity, kelvin)}
     end
   end
 
   defp parse_low_extended_kelvin(_kelvin, _entity), do: %{}
-
-  # Some extended-range devices only report their native low-end color_temp floor
-  # on events, even after we drove them lower via XY color. Remap that reported
-  # floor back into the logical 2000K-2700K band so the UI doesn't snap upward.
-  defp map_extended_reported_floor(kelvin, entity) when is_number(kelvin) do
-    reported_min = map_field(entity, :reported_min_kelvin)
-
-    cond do
-      not extended_kelvin_range_enabled?(entity) ->
-        nil
-
-      not is_number(reported_min) ->
-        nil
-
-      reported_min <= 2000 or reported_min >= 2700 ->
-        nil
-
-      kelvin > reported_min + 25 ->
-        nil
-
-      true ->
-        ratio = (kelvin - reported_min) / (2700 - reported_min)
-        mapped = 2000 + ratio * 700
-        round(Util.clamp(mapped, 2000, 2700))
-    end
-  end
-
-  defp map_extended_reported_floor(_kelvin, _entity), do: nil
 
   defp extended_kelvin_range_enabled?(entity) when is_map(entity) do
     Map.get(entity, :extended_kelvin_range) == true or
@@ -415,10 +385,4 @@ defmodule Hueworks.Control.StateParser do
   defp round_xy(value) when is_float(value), do: Float.round(value, 4)
   defp round_xy(value) when is_integer(value), do: (value * 1.0) |> Float.round(4)
   defp round_xy(value), do: value
-
-  defp map_field(entity, key) when is_map(entity) do
-    Map.get(entity, key) || Map.get(entity, Atom.to_string(key))
-  end
-
-  defp map_field(_entity, _key), do: nil
 end

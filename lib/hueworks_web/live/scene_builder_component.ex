@@ -239,8 +239,8 @@ defmodule HueworksWeb.SceneBuilderComponent do
                       type="range"
                       name="temperature"
                       class="hw-modal-input"
-                      min="2000"
-                      max="6500"
+                      min="1000"
+                      max="10000"
                       value={edit_value(@light_state_edits, @light_states, component, "temperature")}
                     />
                   <% end %>

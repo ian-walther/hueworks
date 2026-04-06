@@ -22,6 +22,7 @@ defmodule Hueworks.Control.RoomSnapshot do
             reported_max_kelvin: l.reported_max_kelvin,
             actual_min_kelvin: l.actual_min_kelvin,
             actual_max_kelvin: l.actual_max_kelvin,
+            extended_min_kelvin: l.extended_min_kelvin,
             extended_kelvin_range: l.extended_kelvin_range
           }
         )

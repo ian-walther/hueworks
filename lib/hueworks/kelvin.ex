@@ -3,6 +3,7 @@ defmodule Hueworks.Kelvin do
   Kelvin mapping helpers for translating between reported and actual ranges.
   """
 
+  alias Hueworks.Color
   alias Hueworks.Util
 
   def mapping_supported?(entity) do
@@ -37,11 +38,115 @@ defmodule Hueworks.Kelvin do
       end
 
     if extended_kelvin_range?(entity) do
-      {min(2000, min_kelvin), max_kelvin}
+      {min(extended_min_kelvin(entity), min_kelvin), max_kelvin}
     else
       {min_kelvin, max_kelvin}
     end
   end
+
+  def extended_range(entity) do
+    if extended_kelvin_range?(entity) do
+      min_kelvin = extended_min_kelvin(entity)
+      max_kelvin = extended_boundary_kelvin(entity)
+
+      if is_number(min_kelvin) and is_number(max_kelvin) and max_kelvin > min_kelvin do
+        {round(min_kelvin), round(max_kelvin)}
+      else
+        nil
+      end
+    else
+      nil
+    end
+  end
+
+  def extended_min_kelvin(entity) do
+    get_field(entity, :extended_min_kelvin)
+    |> case do
+      value when is_number(value) -> round(value)
+      _ -> 2000
+    end
+  end
+
+  def extended_boundary_kelvin(entity) do
+    case get_field(entity, :actual_min_kelvin) do
+      value when is_number(value) -> round(value)
+      _ -> 2700
+    end
+  end
+
+  def extended_low_kelvin?(entity, kelvin) when is_number(kelvin) do
+    case extended_range(entity) do
+      {min_kelvin, max_kelvin} -> kelvin >= min_kelvin and kelvin < max_kelvin
+      _ -> false
+    end
+  end
+
+  def extended_low_kelvin?(_entity, _kelvin), do: false
+
+  def extended_xy(entity, kelvin) when is_number(kelvin) do
+    case extended_range(entity) do
+      {min_kelvin, max_kelvin} ->
+        kelvin = Util.clamp(kelvin, min_kelvin, max_kelvin)
+        span = max_kelvin - min_kelvin
+        t_base = if span > 0, do: (kelvin - min_kelvin) / span, else: 0.0
+        t = min(1.0, t_base + 0.25 * (1.0 - t_base))
+        s = 4.0 * t * (1.0 - t)
+        {x_start, y_start} = Color.kelvin_to_xy(min_kelvin) || {0.522, 0.405}
+        {x_end, y_end} = Color.kelvin_to_xy(max_kelvin) || {0.459, 0.41}
+        x = x_start + (x_end - x_start) * t
+        y = y_start + (y_end - y_start) * t + 0.03 * s
+        {Float.round(x, 6), Float.round(y, 6)}
+
+      _ ->
+        nil
+    end
+  end
+
+  def extended_xy(_entity, _kelvin), do: nil
+
+  def inverse_extended_xy(entity, x, y) when is_number(x) and is_number(y) do
+    case extended_range(entity) do
+      {min_kelvin, max_kelvin} ->
+        Enum.min_by(min_kelvin..max_kelvin, fn kelvin ->
+          case extended_xy(entity, kelvin) do
+            {px, py} -> :math.pow(px - x, 2) + :math.pow(py - y, 2)
+            _ -> :infinity
+          end
+        end)
+
+      _ ->
+        nil
+    end
+  end
+
+  def inverse_extended_xy(_entity, _x, _y), do: nil
+
+  def map_extended_reported_floor(entity, kelvin) when is_number(kelvin) do
+    reported_min = get_field(entity, :reported_min_kelvin)
+    logical_min = extended_min_kelvin(entity)
+    logical_max = extended_boundary_kelvin(entity)
+
+    cond do
+      not extended_kelvin_range?(entity) ->
+        nil
+
+      not is_number(reported_min) ->
+        nil
+
+      reported_min <= logical_min or reported_min >= logical_max ->
+        nil
+
+      kelvin > reported_min + 25 ->
+        nil
+
+      true ->
+        ratio = (kelvin - reported_min) / (logical_max - reported_min)
+        mapped = logical_min + ratio * (logical_max - logical_min)
+        round(Util.clamp(mapped, logical_min, logical_max))
+    end
+  end
+
+  def map_extended_reported_floor(_entity, _kelvin), do: nil
 
   def map_for_control(entity, kelvin) when is_number(kelvin) do
     map_between_ranges_mired(kelvin, actual_range(entity), reported_range(entity))

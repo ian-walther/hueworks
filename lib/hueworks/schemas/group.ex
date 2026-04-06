@@ -17,6 +17,7 @@ defmodule Hueworks.Schemas.Group do
     field(:reported_max_kelvin, :integer)
     field(:actual_min_kelvin, :integer)
     field(:actual_max_kelvin, :integer)
+    field(:extended_min_kelvin, :integer)
     field(:extended_kelvin_range, :boolean, default: false)
     field(:enabled, :boolean, default: true)
     field(:metadata, :map, default: %{})
@@ -45,6 +46,7 @@ defmodule Hueworks.Schemas.Group do
       :reported_max_kelvin,
       :actual_min_kelvin,
       :actual_max_kelvin,
+      :extended_min_kelvin,
       :extended_kelvin_range,
       :enabled,
       :metadata,
@@ -74,11 +76,14 @@ defmodule Hueworks.Schemas.Group do
     source = get_field(changeset, :source)
     actual_min = get_field(changeset, :actual_min_kelvin)
     actual_max = get_field(changeset, :actual_max_kelvin)
+    extended_min = get_field(changeset, :extended_min_kelvin)
 
-    if source && source not in [:ha, :z2m] && (not is_nil(actual_min) or not is_nil(actual_max)) do
+    if source && source not in [:ha, :z2m] &&
+         (not is_nil(actual_min) or not is_nil(actual_max) or not is_nil(extended_min)) do
       changeset
       |> add_error(:actual_min_kelvin, "only supported for HA and Z2M entities")
       |> add_error(:actual_max_kelvin, "only supported for HA and Z2M entities")
+      |> add_error(:extended_min_kelvin, "only supported for HA and Z2M entities")
     else
       changeset
     end

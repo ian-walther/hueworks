@@ -55,6 +55,7 @@ defmodule Hueworks.Groups do
     attrs
     |> Map.update(:actual_min_kelvin, nil, &Util.normalize_kelvin/1)
     |> Map.update(:actual_max_kelvin, nil, &Util.normalize_kelvin/1)
+    |> Map.update(:extended_min_kelvin, nil, &Util.normalize_kelvin/1)
   end
 
   defp maybe_sync_room_lights({:ok, group} = result, attrs) when is_map(attrs) do

@@ -88,7 +88,7 @@ defmodule Hueworks.Control.Z2MPayload do
 
   defp maybe_put_color_temp(payload, kelvin, entity) do
     if extended_low_kelvin?(entity, kelvin) do
-      {x, y} = HomeAssistantPayload.extended_xy(kelvin)
+      {x, y} = HomeAssistantPayload.extended_xy(entity, kelvin)
       Map.put(payload, "color", %{"x" => x, "y" => y})
     else
       Map.put(payload, "color_temp", kelvin_to_mired(kelvin, entity))
@@ -113,10 +113,7 @@ defmodule Hueworks.Control.Z2MPayload do
   end
 
   defp extended_low_kelvin?(entity, kelvin) when is_number(kelvin) do
-    extended =
-      Map.get(entity, :extended_kelvin_range) || Map.get(entity, "extended_kelvin_range")
-
-    extended == true and kelvin < 2700
+    Kelvin.extended_low_kelvin?(entity, kelvin)
   end
 
   defp extended_low_kelvin?(_entity, _kelvin), do: false

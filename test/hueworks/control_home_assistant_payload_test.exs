@@ -41,4 +41,28 @@ defmodule Hueworks.Control.HomeAssistantPayloadTest do
     assert payload["xy_color"] == [0.4112, 0.321]
     refute Map.has_key?(payload, "color_temp_kelvin")
   end
+
+  test "extended kelvin range uses configured low-end floor instead of hardcoded 2700K" do
+    entity = %{
+      source_id: "light.kitchen",
+      extended_kelvin_range: true,
+      extended_min_kelvin: 1800,
+      actual_min_kelvin: 3000,
+      actual_max_kelvin: 6500,
+      reported_min_kelvin: 2200,
+      reported_max_kelvin: 6500
+    }
+
+    assert {"turn_on", low_payload} =
+             HomeAssistantPayload.action_payload({:color_temp, 2500}, entity, %{})
+
+    assert {"turn_on", high_payload} =
+             HomeAssistantPayload.action_payload({:color_temp, 3200}, entity, %{})
+
+    assert is_list(low_payload["xy_color"])
+    refute Map.has_key?(low_payload, "color_temp_kelvin")
+
+    assert is_number(high_payload["color_temp_kelvin"])
+    refute Map.has_key?(high_payload, "xy_color")
+  end
 end

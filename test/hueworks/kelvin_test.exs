@@ -35,6 +35,44 @@ defmodule Hueworks.KelvinTest do
     assert Kelvin.derive_range(extended) == {2000, 6500}
   end
 
+  test "derive_range uses configured extended minimum when present" do
+    entity = %{
+      reported_min_kelvin: 3000,
+      reported_max_kelvin: 6500,
+      actual_min_kelvin: 3000,
+      actual_max_kelvin: 6500,
+      extended_kelvin_range: true,
+      extended_min_kelvin: 1800
+    }
+
+    assert Kelvin.derive_range(entity) == {1800, 6500}
+    assert Kelvin.extended_range(entity) == {1800, 3000}
+  end
+
+  test "extended xy helpers round-trip across a custom low-end range" do
+    entity = %{
+      extended_kelvin_range: true,
+      extended_min_kelvin: 1800,
+      actual_min_kelvin: 3000
+    }
+
+    {x, y} = Kelvin.extended_xy(entity, 1850)
+    assert is_float(x)
+    assert is_float(y)
+    assert Kelvin.inverse_extended_xy(entity, x, y) == 1850
+  end
+
+  test "map_extended_reported_floor respects custom extended minimum" do
+    entity = %{
+      extended_kelvin_range: true,
+      extended_min_kelvin: 1800,
+      actual_min_kelvin: 3000,
+      reported_min_kelvin: 2400
+    }
+
+    assert Kelvin.map_extended_reported_floor(entity, 2400) == 1800
+  end
+
   test "mapping_supported includes HA and Z2M sources" do
     assert Kelvin.mapping_supported?(%{source: :ha})
     assert Kelvin.mapping_supported?(%{source: :z2m})

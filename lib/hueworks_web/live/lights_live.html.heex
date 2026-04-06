@@ -366,6 +366,19 @@
           </label>
           <div class="hw-modal-grid">
             <div>
+              <label class="hw-modal-label" for="extended_min_kelvin">
+                Extended min kelvin
+              </label>
+              <input
+                id="extended_min_kelvin"
+                name="extended_min_kelvin"
+                type="number"
+                inputmode="numeric"
+                value={@edit_extended_min_kelvin}
+                class="hw-modal-input"
+              />
+            </div>
+            <div>
               <label class="hw-modal-label" for="actual_min_kelvin">
                 Actual min kelvin (<%= @edit_reported_min_kelvin %>)
               </label>

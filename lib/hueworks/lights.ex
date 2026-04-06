@@ -77,6 +77,7 @@ defmodule Hueworks.Lights do
     attrs
     |> Map.update(:actual_min_kelvin, nil, &Util.normalize_kelvin/1)
     |> Map.update(:actual_max_kelvin, nil, &Util.normalize_kelvin/1)
+    |> Map.update(:extended_min_kelvin, nil, &Util.normalize_kelvin/1)
   end
 
   defp validate_no_dependents(_light, nil), do: :ok

@@ -128,4 +128,25 @@ defmodule Hueworks.Control.Z2MPayloadTest do
     assert payload["color"] == %{"x" => 0.4112, "y" => 0.321}
     refute Map.has_key?(payload, "color_temp")
   end
+
+  test "extended kelvin range uses configured low-end floor instead of hardcoded 2700K" do
+    entity = %{
+      source: :z2m,
+      extended_kelvin_range: true,
+      extended_min_kelvin: 1800,
+      actual_min_kelvin: 3000,
+      actual_max_kelvin: 6500,
+      reported_min_kelvin: 2200,
+      reported_max_kelvin: 6500
+    }
+
+    low_payload = Z2MPayload.action_payload({:color_temp, 2500}, entity)
+    high_payload = Z2MPayload.action_payload({:color_temp, 3200}, entity)
+
+    assert is_map(low_payload["color"])
+    refute Map.has_key?(low_payload, "color_temp")
+
+    assert is_number(high_payload["color_temp"])
+    refute Map.has_key?(high_payload, "color")
+  end
 end

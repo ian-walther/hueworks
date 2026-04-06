@@ -38,8 +38,8 @@ defmodule Hueworks.Control.HomeAssistantPayload do
             is_nil(kelvin) ->
               payload
 
-            entity.extended_kelvin_range && kelvin < 2700 ->
-              {x, y} = extended_xy(kelvin)
+            Kelvin.extended_low_kelvin?(entity, kelvin) ->
+              {x, y} = extended_xy(entity, kelvin)
               Map.put(payload, "xy_color", [x, y])
 
             true ->
@@ -63,8 +63,8 @@ defmodule Hueworks.Control.HomeAssistantPayload do
   end
 
   def action_payload({:color_temp, kelvin}, entity, opts) do
-    if entity.extended_kelvin_range && kelvin < 2700 do
-      {x, y} = extended_xy(kelvin)
+    if Kelvin.extended_low_kelvin?(entity, kelvin) do
+      {x, y} = extended_xy(entity, kelvin)
       {"turn_on", with_transition(%{"entity_id" => entity.source_id, "xy_color" => [x, y]}, opts)}
     else
       kelvin = Kelvin.map_for_control(entity, kelvin)
@@ -93,16 +93,10 @@ defmodule Hueworks.Control.HomeAssistantPayload do
     |> then(fn pct -> round(pct / 100 * 255) end)
   end
 
-  def extended_xy(kelvin) do
-    k_fake = kelvin |> min(2700) |> max(2000)
-    t_base = (k_fake - 2000) / 700
-    t = min(1.0, t_base + 0.25 * (1.0 - t_base))
-    s = 4.0 * t * (1.0 - t)
-    x_core = 0.522 + (0.459 - 0.522) * t
-    y_core = 0.405 + (0.41 - 0.405) * t
-    x = x_core
-    y = y_core + 0.03 * s
-    {x, y}
+  def extended_xy(kelvin), do: extended_xy(%{extended_kelvin_range: true}, kelvin)
+
+  def extended_xy(entity, kelvin) do
+    Kelvin.extended_xy(entity, kelvin)
   end
 
   defp value_or_nil(desired, keys) do

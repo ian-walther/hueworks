@@ -19,6 +19,7 @@ defmodule HueworksWeb.LightsLive.Editor do
       edit_room_id: nil,
       edit_actual_min_kelvin: "",
       edit_actual_max_kelvin: "",
+      edit_extended_min_kelvin: "",
       edit_reported_min_kelvin: "",
       edit_reported_max_kelvin: "",
       edit_enabled: true,
@@ -43,6 +44,7 @@ defmodule HueworksWeb.LightsLive.Editor do
          edit_room_id: target.room_id,
          edit_actual_min_kelvin: Util.format_integer(target.actual_min_kelvin),
          edit_actual_max_kelvin: Util.format_integer(target.actual_max_kelvin),
+         edit_extended_min_kelvin: Util.format_integer(target.extended_min_kelvin || 2000),
          edit_reported_min_kelvin: Util.format_integer(target.reported_min_kelvin),
          edit_reported_max_kelvin: Util.format_integer(target.reported_max_kelvin),
          edit_enabled: target.enabled,
@@ -63,6 +65,8 @@ defmodule HueworksWeb.LightsLive.Editor do
         Map.get(params, "actual_min_kelvin", assigns.edit_actual_min_kelvin),
       edit_actual_max_kelvin:
         Map.get(params, "actual_max_kelvin", assigns.edit_actual_max_kelvin),
+      edit_extended_min_kelvin:
+        Map.get(params, "extended_min_kelvin", assigns.edit_extended_min_kelvin),
       edit_room_id: Util.parse_optional_integer(Map.get(params, "room_id", assigns.edit_room_id)),
       edit_enabled: Util.parse_optional_bool(Map.get(params, "enabled", assigns.edit_enabled)),
       edit_extended_kelvin_range:
@@ -112,6 +116,7 @@ defmodule HueworksWeb.LightsLive.Editor do
       room_id: room_id,
       actual_min_kelvin: Util.parse_optional_integer(Map.get(params, "actual_min_kelvin")),
       actual_max_kelvin: Util.parse_optional_integer(Map.get(params, "actual_max_kelvin")),
+      extended_min_kelvin: Util.parse_optional_integer(Map.get(params, "extended_min_kelvin")),
       extended_kelvin_range: Util.parse_optional_bool(Map.get(params, "extended_kelvin_range")),
       enabled: Util.parse_optional_bool(Map.get(params, "enabled"))
     ]

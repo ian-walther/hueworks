@@ -108,10 +108,10 @@ defmodule Hueworks.Schemas.LightState do
   defp normalize_manual_numeric(value, "brightness"), do: Util.normalize_percent(value)
 
   defp normalize_manual_numeric(value, "temperature"),
-    do: Util.normalize_kelvin_value(value, 2000, 6500)
+    do: Util.normalize_kelvin_value(value, 1000, 10000)
 
   defp normalize_manual_numeric(value, "kelvin"),
-    do: Util.normalize_kelvin_value(value, 2000, 6500)
+    do: Util.normalize_kelvin_value(value, 1000, 10000)
 
   defp normalize_manual_numeric(value, "hue"), do: Util.normalize_hue_degrees(value)
   defp normalize_manual_numeric(value, "saturation"), do: Util.normalize_saturation(value)

@@ -1,6 +1,7 @@
 defmodule HueworksWeb.LightsLive.DisplayState do
   @moduledoc false
 
+  alias Hueworks.Kelvin
   alias Hueworks.Control.State
 
   def build_group_state(groups), do: build_entity_state(groups, :group)
@@ -43,9 +44,11 @@ defmodule HueworksWeb.LightsLive.DisplayState do
        ) do
     current_kelvin = existing[:kelvin]
     incoming_kelvin = updates[:kelvin]
-    ambiguous_floor = light.actual_min_kelvin || 2700
+    ambiguous_floor = Kelvin.extended_boundary_kelvin(light)
+    extended_boundary = Kelvin.extended_boundary_kelvin(light)
 
-    is_number(current_kelvin) and current_kelvin < 2700 and is_number(incoming_kelvin) and
+    is_number(current_kelvin) and current_kelvin < extended_boundary and
+      is_number(incoming_kelvin) and
       incoming_kelvin == ambiguous_floor
   end
 

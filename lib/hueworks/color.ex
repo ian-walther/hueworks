@@ -31,6 +31,23 @@ defmodule Hueworks.Color do
     end
   end
 
+  def kelvin_to_xy(kelvin) do
+    with kelvin when is_number(kelvin) <- Util.to_number(kelvin) do
+      {r, g, b} =
+        kelvin
+        |> normalize_kelvin()
+        |> kelvin_to_rgb()
+
+      r = r / 255.0
+      g = g / 255.0
+      b = b / 255.0
+
+      rgb_to_xy(r, g, b)
+    else
+      _ -> nil
+    end
+  end
+
   defp hsv_to_rgb(hue, saturation, value) do
     chroma = value * saturation
     hue_prime = rem(Float.floor(hue / 60) |> trunc(), 6)
@@ -78,6 +95,53 @@ defmodule Hueworks.Color do
 
   defp round_float(value) when is_float(value), do: Float.round(value, 4)
   defp round_float(value), do: value
+
+  defp kelvin_to_rgb(kelvin) do
+    temperature = kelvin / 100.0
+
+    red =
+      cond do
+        temperature <= 66 ->
+          255
+
+        true ->
+          329.698_727_446 * :math.pow(temperature - 60, -0.133_204_759_2)
+      end
+
+    green =
+      cond do
+        temperature <= 66 ->
+          99.470_802_586_1 * :math.log(temperature) - 161.119_568_166_1
+
+        true ->
+          288.122_169_528_3 * :math.pow(temperature - 60, -0.075_514_849_2)
+      end
+
+    blue =
+      cond do
+        temperature >= 66 ->
+          255
+
+        temperature <= 19 ->
+          0
+
+        true ->
+          138.517_731_223_1 * :math.log(temperature - 10) - 305.044_792_730_7
+      end
+
+    {
+      rgb_channel(red / 255.0),
+      rgb_channel(green / 255.0),
+      rgb_channel(blue / 255.0)
+    }
+  end
+
+  defp normalize_kelvin(kelvin) do
+    kelvin
+    |> round()
+    |> min(40_000)
+    |> max(1_000)
+  end
 
   defp rgb_channel(value) do
     value
