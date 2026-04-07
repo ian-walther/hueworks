@@ -39,6 +39,29 @@ defmodule Hueworks.Circadian do
 
   def calculate(_config, _solar_config, _now), do: {:error, :invalid_args}
 
+  @spec day_events_for_date(map(), map(), Date.t()) ::
+          {:ok, keyword(DateTime.t())} | {:error, term()}
+  def day_events_for_date(config, solar_config, %Date{} = date)
+      when is_map(config) and is_map(solar_config) do
+    with {:ok, normalized} <- normalize_config(config),
+         {:ok, timezone} <- timezone_name(solar_config),
+         {:ok, sunrise} <- sunrise(normalized, solar_config, timezone, date),
+         {:ok, sunset} <- sunset(normalized, solar_config, timezone, date),
+         {:ok, noon, midnight} <-
+           noon_and_midnight(normalized, solar_config, timezone, date, sunrise, sunset),
+         :ok <-
+           validate_sun_event_order(
+             sunrise: sunrise,
+             sunset: sunset,
+             noon: noon,
+             midnight: midnight
+           ) do
+      {:ok, [sunrise: sunrise, sunset: sunset, noon: noon, midnight: midnight]}
+    end
+  end
+
+  def day_events_for_date(_config, _solar_config, _date), do: {:error, :invalid_args}
+
   defp normalize_config(config) do
     config
     |> stringify_keys()
@@ -69,8 +92,15 @@ defmodule Hueworks.Circadian do
 
     with {:ok, sunrise} <- sunrise(config, solar_config, timezone, date),
          {:ok, sunset} <- sunset(config, solar_config, timezone, date),
-         {:ok, noon, midnight} <- noon_and_midnight(config, solar_config, timezone, date, sunrise, sunset),
-         :ok <- validate_sun_event_order([sunrise: sunrise, sunset: sunset, noon: noon, midnight: midnight]) do
+         {:ok, noon, midnight} <-
+           noon_and_midnight(config, solar_config, timezone, date, sunrise, sunset),
+         :ok <-
+           validate_sun_event_order(
+             sunrise: sunrise,
+             sunset: sunset,
+             noon: noon,
+             midnight: midnight
+           ) do
       {:ok, [sunrise: sunrise, sunset: sunset, noon: noon, midnight: midnight]}
     end
   end
@@ -179,8 +209,11 @@ defmodule Hueworks.Circadian do
     target = DateTime.add(now_utc, offset * 86_400, :second)
 
     case sun_events(context.config, context.solar_config, context.timezone, target) do
-      {:ok, events} -> events
-      {:error, reason} -> raise ArgumentError, "failed to calculate neighboring sun events: #{inspect(reason)}"
+      {:ok, events} ->
+        events
+
+      {:error, reason} ->
+        raise ArgumentError, "failed to calculate neighboring sun events: #{inspect(reason)}"
     end
   end
 
@@ -222,10 +255,22 @@ defmodule Hueworks.Circadian do
         brightness =
           case {mode, event} do
             {"linear", :sunrise} ->
-              lerp(delta_seconds, -dark, light, config["min_brightness"], config["max_brightness"])
+              lerp(
+                delta_seconds,
+                -dark,
+                light,
+                config["min_brightness"],
+                config["max_brightness"]
+              )
 
             {"linear", :sunset} ->
-              lerp(delta_seconds, -light, dark, config["max_brightness"], config["min_brightness"])
+              lerp(
+                delta_seconds,
+                -light,
+                dark,
+                config["max_brightness"],
+                config["min_brightness"]
+              )
 
             {"tanh", :sunrise} ->
               scaled_tanh(delta_seconds,
@@ -301,8 +346,11 @@ defmodule Hueworks.Circadian do
   end
 
   defp coordinates(solar_config) do
-    latitude = normalize_number(Map.get(solar_config, :latitude) || Map.get(solar_config, "latitude"))
-    longitude = normalize_number(Map.get(solar_config, :longitude) || Map.get(solar_config, "longitude"))
+    latitude =
+      normalize_number(Map.get(solar_config, :latitude) || Map.get(solar_config, "latitude"))
+
+    longitude =
+      normalize_number(Map.get(solar_config, :longitude) || Map.get(solar_config, "longitude"))
 
     if is_number(latitude) and is_number(longitude) do
       {:ok, latitude * 1.0, longitude * 1.0}
@@ -365,8 +413,11 @@ defmodule Hueworks.Circadian do
 
   defp combine_local_time!(date, time_string, timezone) do
     case combine_local_time(date, time_string, timezone) do
-      {:ok, datetime} -> datetime
-      {:error, reason} -> raise ArgumentError, "invalid circadian time #{inspect(time_string)}: #{inspect(reason)}"
+      {:ok, datetime} ->
+        datetime
+
+      {:error, reason} ->
+        raise ArgumentError, "invalid circadian time #{inspect(time_string)}: #{inspect(reason)}"
     end
   end
 

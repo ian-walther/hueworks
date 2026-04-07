@@ -5,7 +5,22 @@ defmodule HueworksWeb.LightStateEditorLiveTest do
 
   alias Hueworks.Repo
   alias Hueworks.Scenes
-  alias Hueworks.Schemas.{Bridge, LightState, Room, SceneComponent}
+  alias Hueworks.Schemas.{AppSetting, Bridge, LightState, Room, SceneComponent}
+
+  setup do
+    Repo.delete_all(AppSetting)
+    HueworksApp.Cache.flush_namespace(:app_settings)
+
+    Repo.insert!(%AppSetting{
+      scope: "global",
+      latitude: 40.7128,
+      longitude: -74.0060,
+      timezone: "America/New_York",
+      default_transition_ms: 0
+    })
+
+    :ok
+  end
 
   defp insert_room do
     Repo.insert!(%Room{name: "Studio", metadata: %{}})
@@ -17,6 +32,7 @@ defmodule HueworksWeb.LightStateEditorLiveTest do
     assert html =~ "New Manual Light State"
     assert html =~ "Temperature"
     assert html =~ "Brightness"
+    refute html =~ "Circadian Preview"
 
     assert {:error, {:live_redirect, %{to: "/config"}}} =
              view
@@ -63,7 +79,8 @@ defmodule HueworksWeb.LightStateEditorLiveTest do
   end
 
   test "edit editor updates an existing manual state", %{conn: conn} do
-    {:ok, state} = Scenes.create_manual_light_state("Soft", %{"brightness" => "40", "temperature" => "2700"})
+    {:ok, state} =
+      Scenes.create_manual_light_state("Soft", %{"brightness" => "40", "temperature" => "2700"})
 
     {:ok, view, html} = live(conn, "/config/light-states/#{state.id}/edit")
 
@@ -93,6 +110,13 @@ defmodule HueworksWeb.LightStateEditorLiveTest do
     assert html =~ "Brightness Mode"
     assert html =~ "Min Brightness (%)"
     assert html =~ "Sunrise Time"
+    assert html =~ "Circadian Preview"
+    assert html =~ "Brightness Curve"
+    assert html =~ "Temperature Curve"
+    assert html =~ "Preview Date"
+    assert html =~ "Preview Latitude"
+    assert html =~ ~s(phx-hook="CircadianChart")
+    assert html =~ ~s(data-role="tooltip")
 
     assert {:error, {:live_redirect, %{to: "/config"}}} =
              view
@@ -135,6 +159,28 @@ defmodule HueworksWeb.LightStateEditorLiveTest do
     assert state.config["brightness_mode_time_light"] == 5400
   end
 
+  test "circadian preview responds to preview input changes", %{conn: conn} do
+    {:ok, view, _html} = live(conn, "/config/light-states/new/circadian")
+
+    html =
+      view
+      |> form("form[phx-change='update_form']", %{
+        "preview_date" => "2026-03-08",
+        "preview_timezone" => "America/New_York",
+        "preview_latitude" => "40.712800",
+        "preview_longitude" => "-74.006000",
+        "sunrise_time" => "06:30:00",
+        "sunset_time" => "19:15:00"
+      })
+      |> render_change()
+
+    assert html =~ ~s(value="2026-03-08")
+    assert html =~ ~s(value="America/New_York" selected)
+    assert html =~ "Brightness Curve"
+    assert html =~ "Temperature Curve"
+    assert html =~ ~s(data-points=)
+  end
+
   test "edit editor shows where a light state is used", %{conn: conn} do
     room = insert_room()
 
@@ -149,7 +195,12 @@ defmodule HueworksWeb.LightStateEditorLiveTest do
 
     {:ok, state} = Scenes.create_manual_light_state("Soft")
     {:ok, scene} = Scenes.create_scene(%{name: "Chill", room_id: room.id})
-    Repo.insert!(%SceneComponent{name: "Component 1", scene_id: scene.id, light_state_id: state.id})
+
+    Repo.insert!(%SceneComponent{
+      name: "Component 1",
+      scene_id: scene.id,
+      light_state_id: state.id
+    })
 
     {:ok, _view, html} = live(conn, "/config/light-states/#{state.id}/edit")
 

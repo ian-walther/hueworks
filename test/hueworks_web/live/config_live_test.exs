@@ -10,6 +10,7 @@ defmodule HueworksWeb.ConfigLiveTest do
 
   setup do
     Repo.delete_all(AppSetting)
+    HueworksApp.Cache.flush_namespace(:app_settings)
     :ok
   end
 
@@ -82,7 +83,12 @@ defmodule HueworksWeb.ConfigLiveTest do
     room = Repo.insert!(%Room{name: "Studio", metadata: %{}})
     {:ok, state} = Scenes.create_manual_light_state("Soft")
     {:ok, scene} = Scenes.create_scene(%{name: "Chill", room_id: room.id})
-    Repo.insert!(%SceneComponent{name: "Component 1", scene_id: scene.id, light_state_id: state.id})
+
+    Repo.insert!(%SceneComponent{
+      name: "Component 1",
+      scene_id: scene.id,
+      light_state_id: state.id
+    })
 
     {:ok, view, html} = live(conn, "/config")
 

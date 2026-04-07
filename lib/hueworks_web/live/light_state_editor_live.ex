@@ -1,12 +1,18 @@
 defmodule HueworksWeb.LightStateEditorLive do
   use Phoenix.LiveView
 
+  alias Hueworks.AppSettings
   alias Hueworks.Color
   alias Hueworks.Circadian.Config, as: CircadianConfig
+  alias Hueworks.CircadianPreview
   alias Hueworks.Scenes
   alias Hueworks.Util
 
   @manual_keys ["mode", "brightness", "temperature", "hue", "saturation"]
+  @preview_interval_minutes 10
+  @chart_width 760
+  @chart_height 240
+  @chart_padding %{left: 52, right: 18, top: 18, bottom: 34}
 
   @circadian_numeric_fields [
     {"min_brightness", "Min Brightness (%)", 1, 100, 1},
@@ -29,6 +35,9 @@ defmodule HueworksWeb.LightStateEditorLive do
   ]
 
   def mount(_params, _session, socket) do
+    app_setting = AppSettings.get_global()
+    preview_timezone = app_setting.timezone || "Etc/UTC"
+
     {:ok,
      assign(socket,
        page_title: "Light State",
@@ -37,6 +46,13 @@ defmodule HueworksWeb.LightStateEditorLive do
        light_state_name: "",
        light_state_config: manual_default_edits(),
        light_state_usages: [],
+       preview_date: default_preview_date(preview_timezone),
+       preview_latitude: format_coord(app_setting.latitude),
+       preview_longitude: format_coord(app_setting.longitude),
+       preview_timezone: preview_timezone,
+       preview_timezones: timezone_options(preview_timezone),
+       circadian_preview: nil,
+       circadian_preview_error: nil,
        save_error: nil,
        dirty: false
      )}
@@ -55,19 +71,25 @@ defmodule HueworksWeb.LightStateEditorLive do
           assign_existing_state(socket, params["id"])
       end
 
-    {:noreply, socket}
+    {:noreply, refresh_circadian_preview(socket)}
   end
 
   def handle_event("update_form", params, socket) do
     {name, config} = merge_form_params(socket, params)
+    preview_assigns = merge_preview_params(socket, params)
 
-    {:noreply,
-     assign(socket,
-       light_state_name: name,
-       light_state_config: config,
-       save_error: nil,
-       dirty: true
-     )}
+    socket =
+      socket
+      |> assign(
+        light_state_name: name,
+        light_state_config: config,
+        save_error: nil,
+        dirty: true
+      )
+      |> assign(preview_assigns)
+      |> refresh_circadian_preview()
+
+    {:noreply, socket}
   end
 
   def handle_event("save", params, socket) do
@@ -86,6 +108,39 @@ defmodule HueworksWeb.LightStateEditorLive do
       {:error, message} ->
         {:noreply, assign(socket, save_error: message)}
     end
+  end
+
+  def handle_event(
+        "geolocation_success",
+        %{"latitude" => latitude, "longitude" => longitude} = params,
+        socket
+      ) do
+    timezone =
+      case Map.get(params, "timezone") do
+        value when is_binary(value) ->
+          trimmed = String.trim(value)
+          if trimmed == "", do: socket.assigns.preview_timezone, else: trimmed
+
+        _ ->
+          socket.assigns.preview_timezone
+      end
+
+    socket =
+      socket
+      |> assign(
+        preview_latitude: format_coord(latitude),
+        preview_longitude: format_coord(longitude),
+        preview_timezone: timezone,
+        preview_timezones: timezone_options(timezone),
+        circadian_preview_error: nil
+      )
+      |> refresh_circadian_preview()
+
+    {:noreply, socket}
+  end
+
+  def handle_event("geolocation_error", %{"message" => message}, socket) do
+    {:noreply, assign(socket, circadian_preview_error: "Location error: #{message}")}
   end
 
   defp save_light_state(%{assigns: %{light_state_id: nil}} = socket, attrs) do
@@ -263,15 +318,21 @@ defmodule HueworksWeb.LightStateEditorLive do
 
   defp manual_color_preview_label(assigns) do
     hue = Map.get(assigns.light_state_config, "hue") |> normalize_preview_number(0)
-    saturation = Map.get(assigns.light_state_config, "saturation") |> normalize_preview_number(100)
-    brightness = Map.get(assigns.light_state_config, "brightness") |> normalize_preview_number(100)
+
+    saturation =
+      Map.get(assigns.light_state_config, "saturation") |> normalize_preview_number(100)
+
+    brightness =
+      Map.get(assigns.light_state_config, "brightness") |> normalize_preview_number(100)
 
     "Preview: #{hue}°, #{saturation}% saturation, #{brightness}% brightness"
   end
 
   defp manual_saturation_scale_style(assigns) do
     hue = Map.get(assigns.light_state_config, "hue") |> normalize_preview_number(0)
-    brightness = Map.get(assigns.light_state_config, "brightness") |> normalize_preview_number(100)
+
+    brightness =
+      Map.get(assigns.light_state_config, "brightness") |> normalize_preview_number(100)
 
     {r1, g1, b1} = Color.hsb_to_rgb(hue, 0, brightness) || {255, 255, 255}
     {r2, g2, b2} = Color.hsb_to_rgb(hue, 100, brightness) || {255, 255, 255}
@@ -292,6 +353,165 @@ defmodule HueworksWeb.LightStateEditorLive do
       number when is_number(number) -> round(number)
       _ -> fallback
     end
+  end
+
+  defp refresh_circadian_preview(%{assigns: %{light_state_type: :circadian}} = socket) do
+    solar_config = %{
+      latitude: socket.assigns.preview_latitude,
+      longitude: socket.assigns.preview_longitude,
+      timezone: socket.assigns.preview_timezone
+    }
+
+    case CircadianPreview.sample_day(
+           socket.assigns.light_state_config,
+           solar_config,
+           socket.assigns.preview_date,
+           interval_minutes: @preview_interval_minutes
+         ) do
+      {:ok, preview} ->
+        assign(socket, circadian_preview: preview, circadian_preview_error: nil)
+
+      {:error, reason} ->
+        assign(
+          socket,
+          circadian_preview: nil,
+          circadian_preview_error: preview_error_message(reason)
+        )
+    end
+  end
+
+  defp refresh_circadian_preview(socket) do
+    assign(socket, circadian_preview: nil, circadian_preview_error: nil)
+  end
+
+  defp preview_error_message(:missing_latitude), do: "Preview needs a latitude."
+  defp preview_error_message(:missing_longitude), do: "Preview needs a longitude."
+  defp preview_error_message(:missing_timezone), do: "Preview needs a timezone."
+  defp preview_error_message(:invalid_date), do: "Preview date must be valid."
+  defp preview_error_message(:invalid_interval), do: "Preview interval must be positive."
+
+  defp preview_error_message(:missing_coordinates),
+    do: "Preview needs both latitude and longitude."
+
+  defp preview_error_message(reason), do: "Preview unavailable: #{inspect(reason)}"
+
+  defp chart_view_box, do: "0 0 #{@chart_width} #{@chart_height}"
+
+  defp chart_path(nil, _metric), do: ""
+
+  defp chart_path(preview, metric) do
+    preview.points
+    |> Enum.map(fn point ->
+      "#{x_position(point.minute)} #{y_position(point[metric], chart_domain(preview, metric))}"
+    end)
+    |> case do
+      [] -> ""
+      [first | rest] -> "M #{first} " <> Enum.map_join(rest, " ", &"L #{&1}")
+    end
+  end
+
+  defp chart_points_json(nil, _metric), do: "[]"
+
+  defp chart_points_json(preview, metric) do
+    preview.points
+    |> Enum.map(fn point ->
+      value = point[metric]
+
+      %{
+        minute: point.minute,
+        time_label: minute_label(point.minute),
+        value: value,
+        value_label: chart_value_label(metric, value),
+        x: x_position(point.minute),
+        y: y_position(value, chart_domain(preview, metric))
+      }
+    end)
+    |> Jason.encode!()
+  end
+
+  defp marker_x_position(minute), do: x_position(minute)
+
+  defp x_ticks do
+    [
+      %{minute: 0, label: "00:00"},
+      %{minute: 360, label: "06:00"},
+      %{minute: 720, label: "12:00"},
+      %{minute: 1080, label: "18:00"},
+      %{minute: 1440, label: "24:00"}
+    ]
+  end
+
+  defp y_ticks(preview, :brightness) do
+    domain = chart_domain(preview, :brightness)
+
+    [0, 25, 50, 75, 100]
+    |> Enum.filter(fn value -> value >= elem(domain, 0) and value <= elem(domain, 1) end)
+    |> Enum.map(&%{value: &1, label: "#{&1}%"})
+  end
+
+  defp y_ticks(preview, :kelvin) do
+    {min_kelvin, max_kelvin} = chart_domain(preview, :kelvin)
+    step = max(round((max_kelvin - min_kelvin) / 4 / 25) * 25, 25)
+
+    Stream.iterate(min_kelvin, &(&1 + step))
+    |> Enum.take_while(&(&1 < max_kelvin))
+    |> Kernel.++([max_kelvin])
+    |> Enum.uniq()
+    |> Enum.map(&%{value: &1, label: "#{&1}K"})
+  end
+
+  defp marker_summary(nil, _key), do: "—"
+
+  defp marker_summary(preview, key) do
+    case Enum.find(preview.markers, &(&1.key == key)) do
+      nil -> "—"
+      marker -> marker.time_label
+    end
+  end
+
+  defp chart_domain(_preview, :brightness) do
+    {0, 100}
+  end
+
+  defp chart_domain(preview, :kelvin) do
+    min_kelvin = preview.min_kelvin
+    max_kelvin = preview.max_kelvin
+
+    if min_kelvin == max_kelvin do
+      {min_kelvin - 100, max_kelvin + 100}
+    else
+      {min_kelvin, max_kelvin}
+    end
+  end
+
+  defp plot_width, do: @chart_width - @chart_padding.left - @chart_padding.right
+  defp plot_height, do: @chart_height - @chart_padding.top - @chart_padding.bottom
+  defp chart_top_padding, do: @chart_padding.top
+  defp chart_left_padding, do: @chart_padding.left
+  defp chart_bottom_y, do: @chart_height - @chart_padding.bottom
+  defp chart_x_label_y, do: @chart_height - 8
+
+  defp minute_label(total_minutes) do
+    hour = div(total_minutes, 60)
+    minute = rem(total_minutes, 60)
+    :io_lib.format("~2..0B:~2..0B", [hour, minute]) |> IO.iodata_to_binary()
+  end
+
+  defp chart_value_label(:brightness, value), do: "#{value}%"
+  defp chart_value_label(:kelvin, value), do: "#{value}K"
+
+  defp x_position(minute) do
+    @chart_padding.left + plot_width() * minute / 1440
+  end
+
+  defp y_position(value, {min_value, max_value}) do
+    ratio =
+      cond do
+        max_value == min_value -> 0.5
+        true -> (value - min_value) / (max_value - min_value)
+      end
+
+    @chart_padding.top + plot_height() * (1 - ratio)
   end
 
   defp time_input_value(nil), do: ""
@@ -343,4 +563,70 @@ defmodule HueworksWeb.LightStateEditorLive do
 
     {name, config}
   end
+
+  defp merge_preview_params(socket, params) do
+    timezone = Map.get(params, "preview_timezone", socket.assigns.preview_timezone)
+
+    %{
+      preview_date: Map.get(params, "preview_date", socket.assigns.preview_date),
+      preview_latitude: Map.get(params, "preview_latitude", socket.assigns.preview_latitude),
+      preview_longitude: Map.get(params, "preview_longitude", socket.assigns.preview_longitude),
+      preview_timezone: timezone,
+      preview_timezones: timezone_options(timezone)
+    }
+  end
+
+  defp default_preview_date(timezone) do
+    case DateTime.now(timezone) do
+      {:ok, datetime} -> Date.to_iso8601(DateTime.to_date(datetime))
+      {:error, _reason} -> Date.to_iso8601(Date.utc_today())
+    end
+  end
+
+  defp format_coord(nil), do: ""
+
+  defp format_coord(value) when is_binary(value) do
+    case Float.parse(value) do
+      {number, _} -> format_coord(number)
+      :error -> ""
+    end
+  end
+
+  defp format_coord(value) when is_integer(value), do: format_coord(value * 1.0)
+  defp format_coord(value) when is_float(value), do: :erlang.float_to_binary(value, decimals: 6)
+  defp format_coord(_value), do: ""
+
+  defp timezone_options(current_timezone) do
+    base_timezones = [
+      "Etc/UTC",
+      "America/New_York",
+      "America/Chicago",
+      "America/Denver",
+      "America/Los_Angeles",
+      "America/Phoenix",
+      "America/Anchorage",
+      "Pacific/Honolulu",
+      "Europe/London",
+      "Europe/Paris",
+      "Europe/Berlin",
+      "Europe/Madrid",
+      "Europe/Rome",
+      "Asia/Tokyo",
+      "Asia/Seoul",
+      "Asia/Shanghai",
+      "Australia/Sydney"
+    ]
+
+    case normalize_timezone(current_timezone) do
+      nil -> base_timezones
+      timezone -> Enum.uniq([timezone | base_timezones])
+    end
+  end
+
+  defp normalize_timezone(value) when is_binary(value) do
+    trimmed = String.trim(value)
+    if trimmed == "", do: nil, else: trimmed
+  end
+
+  defp normalize_timezone(_value), do: nil
 end

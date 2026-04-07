@@ -497,6 +497,196 @@ body {
   );
 }
 
+.hw-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.hw-row-title {
+  font-weight: 600;
+}
+
+.hw-muted {
+  color: rgba(27, 27, 23, 0.62);
+}
+
+.hw-error {
+  margin: 0 0 1rem;
+  color: #8a1b1b;
+  background: rgba(198, 40, 40, 0.08);
+  border: 1px solid rgba(198, 40, 40, 0.2);
+  border-radius: 0.85rem;
+  padding: 0.75rem 0.9rem;
+}
+
+.hw-preview-panel {
+  margin-top: 1.75rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid rgba(27, 27, 23, 0.08);
+}
+
+.hw-preview-input-grid {
+  margin-bottom: 0.25rem;
+}
+
+.hw-preview-input-grid > div .hw-modal-input,
+.hw-preview-input-grid > div .hw-select {
+  margin-bottom: 0;
+}
+
+.hw-preview-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin: 0 0 1rem;
+}
+
+.hw-preview-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.hw-preview-stat {
+  border: 1px solid rgba(27, 27, 23, 0.08);
+  border-radius: 1rem;
+  padding: 0.8rem 0.9rem;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.hw-preview-stat-label {
+  display: block;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(27, 27, 23, 0.52);
+  margin-bottom: 0.3rem;
+}
+
+.hw-preview-stat-value {
+  display: block;
+  font-weight: 600;
+}
+
+.hw-preview-charts {
+  display: grid;
+  gap: 1rem;
+}
+
+.hw-chart-card {
+  border: 1px solid rgba(27, 27, 23, 0.08);
+  border-radius: 1rem;
+  padding: 1rem;
+  background:
+    radial-gradient(circle at top left, rgba(226, 132, 19, 0.08), transparent 50%),
+    rgba(255, 255, 255, 0.72);
+}
+
+.hw-chart {
+  width: 100%;
+  height: auto;
+  display: block;
+  overflow: visible;
+}
+
+.hw-chart-frame {
+  position: relative;
+  margin-top: 0.75rem;
+}
+
+.hw-chart-grid {
+  stroke: rgba(27, 27, 23, 0.11);
+  stroke-width: 1;
+}
+
+.hw-chart-grid-vertical {
+  stroke-dasharray: 3 5;
+}
+
+.hw-chart-line {
+  fill: none;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.hw-chart-line-brightness {
+  stroke: #e28413;
+}
+
+.hw-chart-line-kelvin {
+  stroke: #2a9d8f;
+}
+
+.hw-chart-hover-line {
+  stroke: rgba(27, 27, 23, 0.45);
+  stroke-width: 1.5;
+  stroke-dasharray: 6 5;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.hw-chart-focus-dot {
+  fill: white;
+  stroke: rgba(27, 27, 23, 0.88);
+  stroke-width: 2;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.hw-chart-marker {
+  stroke: rgba(27, 27, 23, 0.28);
+  stroke-width: 1.25;
+  stroke-dasharray: 6 6;
+}
+
+.hw-chart-marker-label,
+.hw-chart-x-label,
+.hw-chart-y-label {
+  fill: rgba(27, 27, 23, 0.68);
+  font-size: 0.78rem;
+  font-family: "Space Grotesk", "Segoe UI", sans-serif;
+}
+
+.hw-chart-marker-label {
+  font-size: 0.76rem;
+}
+
+.hw-chart-tooltip {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform: translate(-50%, calc(-100% - 0.65rem));
+  pointer-events: none;
+  background: rgba(27, 27, 23, 0.92);
+  color: #fff;
+  border-radius: 0.9rem;
+  padding: 0.55rem 0.7rem;
+  box-shadow: 0 10px 24px rgba(27, 27, 23, 0.2);
+  opacity: 0;
+  transition: opacity 120ms ease;
+  white-space: nowrap;
+}
+
+.hw-chart-tooltip strong,
+.hw-chart-tooltip span {
+  display: block;
+}
+
+.hw-chart-tooltip strong {
+  font-size: 0.76rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.68);
+  margin-bottom: 0.2rem;
+}
+
+.hw-chart-tooltip span {
+  font-weight: 600;
+}
+
 .hw-modal-actions {
   display: flex;
   gap: 0.75rem;

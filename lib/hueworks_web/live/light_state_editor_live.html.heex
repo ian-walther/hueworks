@@ -136,6 +136,264 @@
             value={time_input_value(Map.get(@light_state_config, key, ""))}
           />
         <% end %>
+
+        <div class="hw-preview-panel">
+          <div class="hw-panel-header">
+            <div>
+              <h2>Circadian Preview</h2>
+              <p class="hw-muted">
+                Sampled every <%= @circadian_preview && @circadian_preview.interval_minutes || 10 %> minutes using the current editor values.
+              </p>
+            </div>
+          </div>
+
+          <div class="hw-modal-grid hw-preview-input-grid">
+            <div>
+              <label class="hw-modal-label" for="preview_date">Preview Date</label>
+              <input
+                id="preview_date"
+                type="date"
+                class="hw-modal-input"
+                name="preview_date"
+                value={@preview_date}
+              />
+            </div>
+            <div>
+              <label class="hw-modal-label" for="preview_timezone">Preview Timezone</label>
+              <select id="preview_timezone" name="preview_timezone" class="hw-select">
+                <%= for timezone <- @preview_timezones do %>
+                  <option value={timezone} selected={timezone == @preview_timezone}><%= timezone %></option>
+                <% end %>
+              </select>
+            </div>
+            <div>
+              <label class="hw-modal-label" for="preview_latitude">Preview Latitude</label>
+              <input
+                id="preview_latitude"
+                type="text"
+                class="hw-modal-input"
+                name="preview_latitude"
+                value={@preview_latitude}
+              />
+            </div>
+            <div>
+              <label class="hw-modal-label" for="preview_longitude">Preview Longitude</label>
+              <input
+                id="preview_longitude"
+                type="text"
+                class="hw-modal-input"
+                name="preview_longitude"
+                value={@preview_longitude}
+              />
+            </div>
+          </div>
+
+          <div class="hw-preview-actions">
+            <button
+              id="circadian-preview-geolocate"
+              type="button"
+              class="hw-button hw-button-off"
+              phx-hook="GeoLocate"
+            >
+              Use Browser Location
+            </button>
+          </div>
+
+          <%= if @circadian_preview_error do %>
+            <p class="hw-error"><%= @circadian_preview_error %></p>
+          <% else %>
+            <div class="hw-preview-stats">
+              <div class="hw-preview-stat">
+                <span class="hw-preview-stat-label">Sunrise</span>
+                <span class="hw-preview-stat-value"><%= marker_summary(@circadian_preview, :sunrise) %></span>
+              </div>
+              <div class="hw-preview-stat">
+                <span class="hw-preview-stat-label">Noon</span>
+                <span class="hw-preview-stat-value"><%= marker_summary(@circadian_preview, :noon) %></span>
+              </div>
+              <div class="hw-preview-stat">
+                <span class="hw-preview-stat-label">Sunset</span>
+                <span class="hw-preview-stat-value"><%= marker_summary(@circadian_preview, :sunset) %></span>
+              </div>
+              <div class="hw-preview-stat">
+                <span class="hw-preview-stat-label">Brightness</span>
+                <span class="hw-preview-stat-value">
+                  <%= @circadian_preview.min_brightness %>% - <%= @circadian_preview.max_brightness %>%
+                </span>
+              </div>
+              <div class="hw-preview-stat">
+                <span class="hw-preview-stat-label">Temperature</span>
+                <span class="hw-preview-stat-value">
+                  <%= @circadian_preview.min_kelvin %>K - <%= @circadian_preview.max_kelvin %>K
+                </span>
+              </div>
+            </div>
+
+            <div class="hw-preview-charts">
+              <div
+                id="circadian-brightness-chart"
+                class="hw-chart-card hw-chart-card-interactive"
+                phx-hook="CircadianChart"
+                data-points={chart_points_json(@circadian_preview, :brightness)}
+              >
+                <div class="hw-row">
+                  <div class="hw-row-title">Brightness Curve</div>
+                  <div class="hw-muted">0% - 100%</div>
+                </div>
+                <div class="hw-chart-frame">
+                  <svg class="hw-chart" viewBox={chart_view_box()} role="img" aria-label="Brightness curve preview">
+                    <%= for tick <- y_ticks(@circadian_preview, :brightness) do %>
+                      <line
+                        x1={x_position(0)}
+                        y1={y_position(tick.value, chart_domain(@circadian_preview, :brightness))}
+                        x2={x_position(1440)}
+                        y2={y_position(tick.value, chart_domain(@circadian_preview, :brightness))}
+                        class="hw-chart-grid"
+                      />
+                      <text
+                        x={chart_left_padding() - 10}
+                        y={y_position(tick.value, chart_domain(@circadian_preview, :brightness)) + 4}
+                        class="hw-chart-y-label"
+                      ><%= tick.label %></text>
+                    <% end %>
+
+                    <%= for tick <- x_ticks() do %>
+                      <line
+                        x1={x_position(tick.minute)}
+                        y1={chart_top_padding()}
+                        x2={x_position(tick.minute)}
+                        y2={chart_bottom_y()}
+                        class="hw-chart-grid hw-chart-grid-vertical"
+                      />
+                      <text
+                        x={x_position(tick.minute)}
+                        y={chart_x_label_y()}
+                        text-anchor="middle"
+                        class="hw-chart-x-label"
+                      ><%= tick.label %></text>
+                    <% end %>
+
+                    <%= for marker <- @circadian_preview.markers do %>
+                      <line
+                        x1={marker_x_position(marker.minute)}
+                        y1={chart_top_padding()}
+                        x2={marker_x_position(marker.minute)}
+                        y2={chart_bottom_y()}
+                        class="hw-chart-marker"
+                      />
+                      <text
+                        x={marker_x_position(marker.minute)}
+                        y={14}
+                        text-anchor="middle"
+                        class="hw-chart-marker-label"
+                      ><%= marker.label %></text>
+                    <% end %>
+
+                    <line
+                      x1={chart_left_padding()}
+                      y1={chart_top_padding()}
+                      x2={chart_left_padding()}
+                      y2={chart_bottom_y()}
+                      class="hw-chart-hover-line"
+                      data-role="crosshair"
+                    />
+                    <circle
+                      cx={chart_left_padding()}
+                      cy={chart_bottom_y()}
+                      r="5"
+                      class="hw-chart-focus-dot"
+                      data-role="focus-dot"
+                    />
+
+                    <path d={chart_path(@circadian_preview, :brightness)} class="hw-chart-line hw-chart-line-brightness" />
+                  </svg>
+                  <div class="hw-chart-tooltip" data-role="tooltip"></div>
+                </div>
+              </div>
+
+              <div
+                id="circadian-kelvin-chart"
+                class="hw-chart-card hw-chart-card-interactive"
+                phx-hook="CircadianChart"
+                data-points={chart_points_json(@circadian_preview, :kelvin)}
+              >
+                <div class="hw-row">
+                  <div class="hw-row-title">Temperature Curve</div>
+                  <div class="hw-muted"><%= @circadian_preview.min_kelvin %>K - <%= @circadian_preview.max_kelvin %>K</div>
+                </div>
+                <div class="hw-chart-frame">
+                  <svg class="hw-chart" viewBox={chart_view_box()} role="img" aria-label="Temperature curve preview">
+                    <%= for tick <- y_ticks(@circadian_preview, :kelvin) do %>
+                      <line
+                        x1={x_position(0)}
+                        y1={y_position(tick.value, chart_domain(@circadian_preview, :kelvin))}
+                        x2={x_position(1440)}
+                        y2={y_position(tick.value, chart_domain(@circadian_preview, :kelvin))}
+                        class="hw-chart-grid"
+                      />
+                      <text
+                        x={chart_left_padding() - 10}
+                        y={y_position(tick.value, chart_domain(@circadian_preview, :kelvin)) + 4}
+                        class="hw-chart-y-label"
+                      ><%= tick.label %></text>
+                    <% end %>
+
+                    <%= for tick <- x_ticks() do %>
+                      <line
+                        x1={x_position(tick.minute)}
+                        y1={chart_top_padding()}
+                        x2={x_position(tick.minute)}
+                        y2={chart_bottom_y()}
+                        class="hw-chart-grid hw-chart-grid-vertical"
+                      />
+                      <text
+                        x={x_position(tick.minute)}
+                        y={chart_x_label_y()}
+                        text-anchor="middle"
+                        class="hw-chart-x-label"
+                      ><%= tick.label %></text>
+                    <% end %>
+
+                    <%= for marker <- @circadian_preview.markers do %>
+                      <line
+                        x1={marker_x_position(marker.minute)}
+                        y1={chart_top_padding()}
+                        x2={marker_x_position(marker.minute)}
+                        y2={chart_bottom_y()}
+                        class="hw-chart-marker"
+                      />
+                      <text
+                        x={marker_x_position(marker.minute)}
+                        y={14}
+                        text-anchor="middle"
+                        class="hw-chart-marker-label"
+                      ><%= marker.time_label %></text>
+                    <% end %>
+
+                    <line
+                      x1={chart_left_padding()}
+                      y1={chart_top_padding()}
+                      x2={chart_left_padding()}
+                      y2={chart_bottom_y()}
+                      class="hw-chart-hover-line"
+                      data-role="crosshair"
+                    />
+                    <circle
+                      cx={chart_left_padding()}
+                      cy={chart_bottom_y()}
+                      r="5"
+                      class="hw-chart-focus-dot"
+                      data-role="focus-dot"
+                    />
+
+                    <path d={chart_path(@circadian_preview, :kelvin)} class="hw-chart-line hw-chart-line-kelvin" />
+                  </svg>
+                  <div class="hw-chart-tooltip" data-role="tooltip"></div>
+                </div>
+              </div>
+            </div>
+          <% end %>
+        </div>
       <% end %>
 
       <div class="hw-modal-actions">

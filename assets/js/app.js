@@ -133,6 +133,99 @@ Hooks.GeoLocate = {
   }
 }
 
+Hooks.CircadianChart = {
+  mounted() {
+    this.svg = this.el.querySelector("svg")
+    this.crosshair = this.el.querySelector("[data-role='crosshair']")
+    this.focusDot = this.el.querySelector("[data-role='focus-dot']")
+    this.tooltip = this.el.querySelector("[data-role='tooltip']")
+
+    this.syncData = () => {
+      try {
+        this.points = JSON.parse(this.el.dataset.points || "[]")
+      } catch (_error) {
+        this.points = []
+      }
+
+      this.viewBox = this.svg?.viewBox?.baseVal || { width: 760, height: 240 }
+      this.hide()
+    }
+
+    this.hide = () => {
+      if (this.crosshair) this.crosshair.style.opacity = "0"
+      if (this.focusDot) this.focusDot.style.opacity = "0"
+      if (this.tooltip) this.tooltip.style.opacity = "0"
+    }
+
+    this.updateFromClientX = (clientX) => {
+      if (!this.svg || !this.points || this.points.length === 0) return
+
+      let svgRect = this.svg.getBoundingClientRect()
+      if (!svgRect.width) return
+
+      let svgX = ((clientX - svgRect.left) / svgRect.width) * this.viewBox.width
+      let nearestPoint = this.points.reduce((best, point) => {
+        if (!best) return point
+        return Math.abs(point.x - svgX) < Math.abs(best.x - svgX) ? point : best
+      }, null)
+
+      if (!nearestPoint) return
+
+      if (this.crosshair) {
+        this.crosshair.setAttribute("x1", nearestPoint.x)
+        this.crosshair.setAttribute("x2", nearestPoint.x)
+        this.crosshair.style.opacity = "1"
+      }
+
+      if (this.focusDot) {
+        this.focusDot.setAttribute("cx", nearestPoint.x)
+        this.focusDot.setAttribute("cy", nearestPoint.y)
+        this.focusDot.style.opacity = "1"
+      }
+
+      if (this.tooltip) {
+        this.tooltip.innerHTML = `<strong>${nearestPoint.time_label}</strong><span>${nearestPoint.value_label}</span>`
+
+        let wrapperRect = this.el.getBoundingClientRect()
+        let left = (svgRect.left - wrapperRect.left) + (nearestPoint.x / this.viewBox.width) * svgRect.width
+        let top = (svgRect.top - wrapperRect.top) + (nearestPoint.y / this.viewBox.height) * svgRect.height
+        let minLeft = 72
+        let maxLeft = Math.max(wrapperRect.width - 72, minLeft)
+        let clampedLeft = Math.max(minLeft, Math.min(maxLeft, left))
+
+        this.tooltip.style.left = `${clampedLeft}px`
+        this.tooltip.style.top = `${Math.max(top - 10, 20)}px`
+        this.tooltip.style.opacity = "1"
+      }
+    }
+
+    this.handleMouseMove = (event) => this.updateFromClientX(event.clientX)
+    this.handleTouchMove = (event) => {
+      if (event.touches && event.touches[0]) {
+        this.updateFromClientX(event.touches[0].clientX)
+      }
+    }
+
+    this.syncData()
+
+    this.svg?.addEventListener("mousemove", this.handleMouseMove)
+    this.svg?.addEventListener("mouseleave", this.hide)
+    this.svg?.addEventListener("touchmove", this.handleTouchMove, { passive: true })
+    this.svg?.addEventListener("touchend", this.hide, { passive: true })
+  },
+
+  updated() {
+    this.syncData()
+  },
+
+  destroyed() {
+    this.svg?.removeEventListener("mousemove", this.handleMouseMove)
+    this.svg?.removeEventListener("mouseleave", this.hide)
+    this.svg?.removeEventListener("touchmove", this.handleTouchMove)
+    this.svg?.removeEventListener("touchend", this.hide)
+  }
+}
+
 let liveSocket = new LiveSocket("/live", Socket, {
   params: { _csrf_token: csrfToken },
   hooks: Hooks
