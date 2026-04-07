@@ -4,6 +4,7 @@ defmodule HueworksWeb.ConfigLive do
   alias Hueworks.AppSettings
   alias Hueworks.Bridges
   alias Hueworks.Repo
+  alias Hueworks.Scenes
   alias Hueworks.Schemas.Bridge
 
   def mount(_params, _session, socket) do
@@ -13,13 +14,16 @@ defmodule HueworksWeb.ConfigLive do
     {:ok,
      assign(socket,
        bridges: list_bridges(),
+       light_states: list_light_states(),
        timezones: timezone_options(timezone),
        latitude: format_coord(app_setting.latitude),
        longitude: format_coord(app_setting.longitude),
        timezone: timezone,
        default_transition_ms: format_integer(app_setting.default_transition_ms || 0),
        settings_status: nil,
-       settings_error: nil
+       settings_error: nil,
+       light_state_status: nil,
+       light_state_error: nil
      )}
   end
 
@@ -129,8 +133,57 @@ defmodule HueworksWeb.ConfigLive do
     end
   end
 
+  def handle_event("duplicate_light_state", %{"id" => id}, socket) do
+    case Scenes.duplicate_light_state(Hueworks.Util.parse_id(id)) do
+      {:ok, state} ->
+        {:noreply,
+         socket
+         |> assign(
+           light_states: list_light_states(),
+           light_state_status: "Duplicated #{state.name}.",
+           light_state_error: nil
+         )
+         |> push_navigate(to: "/config/light-states/#{state.id}/edit")}
+
+      {:error, _reason} ->
+        {:noreply, assign(socket, light_state_status: nil, light_state_error: "Unable to duplicate light state.")}
+    end
+  end
+
+  def handle_event("delete_light_state", %{"id" => id}, socket) do
+    light_state_id = Hueworks.Util.parse_id(id)
+
+    case Scenes.delete_light_state(light_state_id) do
+      {:ok, _state} ->
+        {:noreply,
+         assign(socket,
+           light_states: list_light_states(),
+           light_state_status: "Light state deleted.",
+           light_state_error: nil
+         )}
+
+      {:error, :in_use} ->
+        usages =
+          Scenes.light_state_usages(light_state_id)
+          |> Enum.map_join(", ", fn usage -> "#{usage.room_name} / #{usage.scene_name}" end)
+
+        {:noreply,
+         assign(socket,
+           light_state_status: nil,
+           light_state_error: "Light state is in use by: #{usages}"
+         )}
+
+      {:error, _reason} ->
+        {:noreply, assign(socket, light_state_status: nil, light_state_error: "Unable to delete light state.")}
+    end
+  end
+
   defp list_bridges do
     Repo.all(Bridge)
+  end
+
+  defp list_light_states do
+    Scenes.list_editable_light_states_with_usage()
   end
 
   defp format_coord(nil), do: ""
@@ -186,4 +239,17 @@ defmodule HueworksWeb.ConfigLive do
   end
 
   defp normalize_timezone(_value), do: nil
+
+  def state_label(%{type: :circadian, name: name}), do: "#{name} (circadian)"
+
+  def state_label(%{type: :manual, name: name, config: config}) do
+    suffix =
+      case Map.get(config || %{}, "mode") || Map.get(config || %{}, :mode) do
+        "color" -> "manual color"
+        :color -> "manual color"
+        _ -> "manual temp"
+      end
+
+    "#{name} (#{suffix})"
+  end
 end

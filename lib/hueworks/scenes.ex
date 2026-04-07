@@ -12,7 +12,7 @@ defmodule Hueworks.Scenes do
   alias Hueworks.Rooms
   alias Hueworks.Control.Apply, as: ControlApply
   alias Hueworks.Scenes.Intent
-  alias Hueworks.Schemas.{Light, LightState, Scene, SceneComponent, SceneComponentLight}
+  alias Hueworks.Schemas.{Light, LightState, Room, Scene, SceneComponent, SceneComponentLight}
 
   def list_scenes_for_room(room_id) do
     Repo.all(from(s in Scene, where: s.room_id == ^room_id, order_by: [asc: s.name]))
@@ -35,6 +35,36 @@ defmodule Hueworks.Scenes do
       )
     )
   end
+
+  def list_editable_light_states_with_usage do
+    states = list_editable_light_states()
+    usage_by_state_id = light_state_usage_map(Enum.map(states, & &1.id))
+
+    Enum.map(states, fn state ->
+      usages = Map.get(usage_by_state_id, state.id, [])
+
+      %{
+        state: state,
+        usage_count: length(usages),
+        usages: usages
+      }
+    end)
+  end
+
+  def get_editable_light_state(id) when is_integer(id) do
+    case Repo.get(LightState, id) do
+      %LightState{type: type} = state when type in [:manual, :circadian] -> state
+      _ -> nil
+    end
+  end
+
+  def get_editable_light_state(_id), do: nil
+
+  def light_state_usages(id) when is_integer(id) do
+    Map.get(light_state_usage_map([id]), id, [])
+  end
+
+  def light_state_usages(_id), do: []
 
   def create_light_state(name, type, config \\ %{})
 
@@ -126,6 +156,32 @@ defmodule Hueworks.Scenes do
   def update_manual_light_state(id, attrs), do: update_light_state(id, attrs)
   def duplicate_manual_light_state(id), do: duplicate_light_state(id)
   def delete_manual_light_state(id, opts \\ []), do: delete_light_state(id, opts)
+
+  defp light_state_usage_map([]), do: %{}
+
+  defp light_state_usage_map(light_state_ids) do
+    Repo.all(
+      from(sc in SceneComponent,
+        join: s in Scene,
+        on: s.id == sc.scene_id,
+        join: r in Room,
+        on: r.id == s.room_id,
+        where: sc.light_state_id in ^light_state_ids,
+        order_by: [asc: s.name, asc: s.id],
+        select: {
+          sc.light_state_id,
+          %{
+            scene_id: s.id,
+            scene_name: s.name,
+            room_id: r.id,
+            room_name: r.name
+          }
+        }
+      )
+    )
+    |> Enum.uniq_by(fn {light_state_id, usage} -> {light_state_id, usage.scene_id} end)
+    |> Enum.group_by(fn {light_state_id, _usage} -> light_state_id end, fn {_light_state_id, usage} -> usage end)
+  end
 
   def create_scene(attrs) do
     %Scene{}

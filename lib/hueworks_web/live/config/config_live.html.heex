@@ -80,6 +80,66 @@
 
   <section class="hw-panel">
     <div class="hw-panel-header">
+      <h2>Light State Configs</h2>
+      <span class="hw-count"><%= length(@light_states) %></span>
+    </div>
+
+    <div class="hw-actions">
+      <a class="hw-button" href="/config/light-states/new/manual">New Manual</a>
+      <a class="hw-button" href="/config/light-states/new/circadian">New Circadian</a>
+    </div>
+
+    <%= if @light_state_status do %>
+      <p class="hw-muted"><%= @light_state_status %></p>
+    <% end %>
+
+    <%= if @light_state_error do %>
+      <p class="hw-error"><%= @light_state_error %></p>
+    <% end %>
+
+    <div class="hw-list">
+      <%= for entry <- @light_states do %>
+        <div class="hw-card" id={"light-state-#{entry.state.id}"}>
+          <div class="hw-card-title">
+            <div class="hw-title-row">
+              <h3><%= HueworksWeb.ConfigLive.state_label(entry.state) %></h3>
+            </div>
+            <p class="hw-meta">
+              Used by <%= entry.usage_count %> <%= if entry.usage_count == 1, do: "scene", else: "scenes" %>
+            </p>
+            <%= if entry.usages != [] do %>
+              <p class="hw-meta">
+                <%= Enum.map_join(entry.usages, ", ", fn usage -> "#{usage.room_name} / #{usage.scene_name}" end) %>
+              </p>
+            <% end %>
+            <div class="hw-actions">
+              <a class="hw-button" href={"/config/light-states/#{entry.state.id}/edit"}>Edit</a>
+              <button
+                class="hw-button"
+                type="button"
+                phx-click="duplicate_light_state"
+                phx-value-id={entry.state.id}
+              >
+                Duplicate
+              </button>
+              <button
+                class="hw-button"
+                type="button"
+                phx-click="delete_light_state"
+                phx-value-id={entry.state.id}
+                disabled={entry.usage_count > 0}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  </section>
+
+  <section class="hw-panel">
+    <div class="hw-panel-header">
       <h2>Bridges</h2>
       <span class="hw-count"><%= length(@bridges) %></span>
     </div>

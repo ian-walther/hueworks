@@ -14,7 +14,7 @@ defmodule HueworksWeb.SceneEditorLive do
     name: "Component 1",
     light_ids: [],
     group_ids: [],
-    light_state_id: "new",
+    light_state_id: nil,
     light_defaults: %{}
   }
 
@@ -87,10 +87,6 @@ defmodule HueworksWeb.SceneEditorLive do
       |> maybe_clear_scene_save_error()
 
     {:noreply, socket}
-  end
-
-  def handle_info({:scene_light_states_updated, light_states}, socket) do
-    {:noreply, assign(socket, scene_light_states: light_states)}
   end
 
   defp load_new_scene(socket, room_id, clone_scene_id) do

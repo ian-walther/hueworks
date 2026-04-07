@@ -1,0 +1,147 @@
+<div class="hw-shell">
+  <div class="hw-topbar">
+    <div>
+      <h1 class="hw-title"><%= @page_title %></h1>
+      <p class="hw-subtitle">
+        <%= if @light_state_type == :circadian, do: "Circadian light state", else: "Manual light state" %>
+      </p>
+    </div>
+    <div class="hw-actions">
+      <a class="hw-button hw-button-off" href="/config">Back to Config</a>
+    </div>
+  </div>
+
+  <section class="hw-panel">
+    <%= if @save_error do %>
+      <p class="hw-error"><%= @save_error %></p>
+    <% end %>
+
+    <%= if @light_state_id && @light_state_usages != [] do %>
+      <div class="hw-row">
+        <p class="hw-muted">
+          Used by <%= length(@light_state_usages) %> <%= if length(@light_state_usages) == 1, do: "scene", else: "scenes" %>:
+          <%= Enum.map_join(@light_state_usages, ", ", fn usage -> "#{usage.room_name} / #{usage.scene_name}" end) %>
+        </p>
+      </div>
+    <% end %>
+
+    <form phx-change="update_form" phx-submit="save">
+      <label class="hw-modal-label" for="light_state_name">Light state name</label>
+      <input
+        id="light_state_name"
+        name="name"
+        type="text"
+        class="hw-modal-input"
+        autocomplete="off"
+        value={@light_state_name}
+      />
+
+      <%= if @light_state_type == :manual do %>
+        <label class="hw-modal-label">Mode</label>
+        <% manual_mode = manual_mode(assigns) %>
+        <select class="hw-select" name="mode">
+          <option value="temperature" selected={manual_mode == "temperature"}>Temperature</option>
+          <option value="color" selected={manual_mode == "color"}>Color</option>
+        </select>
+
+        <div class="hw-row">
+          <label class="hw-modal-label">Brightness</label>
+          <span class="hw-slider-value"><%= Map.get(@light_state_config, "brightness", "") %>%</span>
+        </div>
+        <input
+          type="range"
+          name="brightness"
+          class="hw-modal-input"
+          min="1"
+          max="100"
+          value={Map.get(@light_state_config, "brightness", "")}
+        />
+
+        <%= if manual_mode == "color" do %>
+          <div class="hw-color-preview">
+            <span class="hw-color-swatch" style={manual_color_preview_style(assigns)}></span>
+            <span class="hw-muted"><%= manual_color_preview_label(assigns) %></span>
+          </div>
+          <div class="hw-row">
+            <label class="hw-modal-label">Hue</label>
+            <span class="hw-slider-value"><%= Map.get(@light_state_config, "hue", "") %>°</span>
+          </div>
+          <input
+            type="range"
+            name="hue"
+            class="hw-modal-input"
+            min="0"
+            max="360"
+            value={Map.get(@light_state_config, "hue", "")}
+          />
+          <div class="hw-color-scale hw-hue-scale" aria-hidden="true"></div>
+          <div class="hw-row">
+            <label class="hw-modal-label">Saturation</label>
+            <span class="hw-slider-value"><%= Map.get(@light_state_config, "saturation", "") %>%</span>
+          </div>
+          <input
+            type="range"
+            name="saturation"
+            class="hw-modal-input"
+            min="0"
+            max="100"
+            value={Map.get(@light_state_config, "saturation", "")}
+          />
+          <div class="hw-color-scale" style={manual_saturation_scale_style(assigns)} aria-hidden="true"></div>
+        <% else %>
+          <div class="hw-row">
+            <label class="hw-modal-label">Temperature</label>
+            <span class="hw-slider-value"><%= Map.get(@light_state_config, "temperature", "") %>K</span>
+          </div>
+          <input
+            type="range"
+            name="temperature"
+            class="hw-modal-input"
+            min="1000"
+            max="10000"
+            value={Map.get(@light_state_config, "temperature", "")}
+          />
+        <% end %>
+      <% else %>
+        <label class="hw-modal-label">Brightness Mode</label>
+        <% brightness_mode = Map.get(@light_state_config, "brightness_mode") %>
+        <select class="hw-select" name="brightness_mode">
+          <option value="default" selected={brightness_mode == "default"}>default</option>
+          <option value="linear" selected={brightness_mode == "linear"}>linear</option>
+          <option value="tanh" selected={brightness_mode == "tanh"}>tanh</option>
+        </select>
+
+        <%= for {key, label, min, max, step} <- circadian_numeric_fields() do %>
+          <label class="hw-modal-label" for={"light-state-#{key}"}><%= label %></label>
+          <input
+            id={"light-state-#{key}"}
+            type="number"
+            class="hw-modal-input"
+            name={key}
+            min={min}
+            max={max}
+            step={step}
+            value={Map.get(@light_state_config, key, "")}
+          />
+        <% end %>
+
+        <%= for {key, label} <- circadian_time_fields() do %>
+          <label class="hw-modal-label" for={"light-state-#{key}"}><%= label %></label>
+          <input
+            id={"light-state-#{key}"}
+            type="time"
+            class="hw-modal-input"
+            name={key}
+            step="1"
+            value={time_input_value(Map.get(@light_state_config, key, ""))}
+          />
+        <% end %>
+      <% end %>
+
+      <div class="hw-modal-actions">
+        <a class="hw-button hw-button-off" href="/config">Cancel</a>
+        <button type="submit" class="hw-button hw-button-on">Save</button>
+      </div>
+    </form>
+  </section>
+</div>
