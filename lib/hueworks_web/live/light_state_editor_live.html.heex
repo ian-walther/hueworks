@@ -103,40 +103,6 @@
           />
         <% end %>
       <% else %>
-        <label class="hw-modal-label">Brightness Mode</label>
-        <% brightness_mode = Map.get(@light_state_config, "brightness_mode") %>
-        <select class="hw-select" name="brightness_mode">
-          <option value="default" selected={brightness_mode == "default"}>default</option>
-          <option value="linear" selected={brightness_mode == "linear"}>linear</option>
-          <option value="tanh" selected={brightness_mode == "tanh"}>tanh</option>
-        </select>
-
-        <%= for {key, label, min, max, step} <- circadian_numeric_fields() do %>
-          <label class="hw-modal-label" for={"light-state-#{key}"}><%= label %></label>
-          <input
-            id={"light-state-#{key}"}
-            type="number"
-            class="hw-modal-input"
-            name={key}
-            min={min}
-            max={max}
-            step={step}
-            value={Map.get(@light_state_config, key, "")}
-          />
-        <% end %>
-
-        <%= for {key, label} <- circadian_time_fields() do %>
-          <label class="hw-modal-label" for={"light-state-#{key}"}><%= label %></label>
-          <input
-            id={"light-state-#{key}"}
-            type="time"
-            class="hw-modal-input"
-            name={key}
-            step="1"
-            value={time_input_value(Map.get(@light_state_config, key, ""))}
-          />
-        <% end %>
-
         <div class="hw-preview-panel">
           <div class="hw-panel-header">
             <div>
@@ -283,7 +249,7 @@
                       />
                       <text
                         x={marker_x_position(marker.minute)}
-                        y={14}
+                        y={13}
                         text-anchor="middle"
                         class="hw-chart-marker-label"
                       ><%= marker.label %></text>
@@ -364,7 +330,7 @@
                       />
                       <text
                         x={marker_x_position(marker.minute)}
-                        y={14}
+                        y={13}
                         text-anchor="middle"
                         class="hw-chart-marker-label"
                       ><%= marker.time_label %></text>
@@ -394,6 +360,40 @@
             </div>
           <% end %>
         </div>
+
+        <label class="hw-modal-label">Brightness Mode</label>
+        <% brightness_mode = Map.get(@light_state_config, "brightness_mode") %>
+        <select class="hw-select" name="brightness_mode">
+          <option value="default" selected={brightness_mode == "default"}>default</option>
+          <option value="linear" selected={brightness_mode == "linear"}>linear</option>
+          <option value="tanh" selected={brightness_mode == "tanh"}>tanh</option>
+        </select>
+
+        <%= for {key, label, min, max, step} <- circadian_numeric_fields() do %>
+          <label class="hw-modal-label" for={"light-state-#{key}"}><%= label %></label>
+          <input
+            id={"light-state-#{key}"}
+            type="number"
+            class="hw-modal-input"
+            name={key}
+            min={min}
+            max={max}
+            step={step}
+            value={Map.get(@light_state_config, key, "")}
+          />
+        <% end %>
+
+        <%= for {key, label} <- circadian_time_fields() do %>
+          <label class="hw-modal-label" for={"light-state-#{key}"}><%= label %></label>
+          <input
+            id={"light-state-#{key}"}
+            type="time"
+            class="hw-modal-input"
+            name={key}
+            step="1"
+            value={time_input_value(Map.get(@light_state_config, key, ""))}
+          />
+        <% end %>
       <% end %>
 
       <div class="hw-modal-actions">

@@ -10,9 +10,9 @@ defmodule HueworksWeb.LightStateEditorLive do
 
   @manual_keys ["mode", "brightness", "temperature", "hue", "saturation"]
   @preview_interval_minutes 10
-  @chart_width 760
-  @chart_height 240
-  @chart_padding %{left: 52, right: 18, top: 18, bottom: 34}
+  @chart_width 640
+  @chart_height 188
+  @chart_padding %{left: 42, right: 14, top: 16, bottom: 28}
 
   @circadian_numeric_fields [
     {"min_brightness", "Min Brightness (%)", 1, 100, 1},
