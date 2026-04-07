@@ -24,7 +24,8 @@ defmodule Hueworks.Subscription.Z2MEventStream.Connection do
     end
   end
 
-  def subscription_client_id(bridge_id), do: "hwz2ms#{bridge_id}"
+  def subscription_client_id(bridge_id),
+    do: Hueworks.Instance.z2m_client_id("hwz2ms", bridge_id)
 
   defp config_for_bridge(bridge) do
     credentials = bridge.credentials || %{}

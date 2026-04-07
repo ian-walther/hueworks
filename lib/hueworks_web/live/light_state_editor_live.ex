@@ -9,7 +9,7 @@ defmodule HueworksWeb.LightStateEditorLive do
   alias Hueworks.Util
 
   @manual_keys ["mode", "brightness", "temperature", "hue", "saturation"]
-  @preview_interval_minutes 10
+  @preview_interval_minutes 5
   @chart_width 640
   @chart_height 188
   @chart_padding %{left: 42, right: 14, top: 16, bottom: 28}

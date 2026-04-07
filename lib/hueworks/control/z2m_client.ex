@@ -14,7 +14,7 @@ defmodule Hueworks.Control.Z2MClient do
     end
   end
 
-  def control_client_id(bridge_id), do: "hwz2mc#{bridge_id}"
+  def control_client_id(bridge_id), do: Hueworks.Instance.z2m_client_id("hwz2mc", bridge_id)
 
   defp ensure_connection(client_id, config) do
     connection_mod = connection_module()

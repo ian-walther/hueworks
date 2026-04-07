@@ -56,7 +56,7 @@ defmodule Hueworks.Control.Z2MDispatchTest do
     assert :ok == Light.set_state(light, %{power: :on, brightness: 50, kelvin: 4000})
 
     assert_receive {:published, client_id, "zigbee2mqtt/kitchen_strip/set", payload, [qos: 0]}
-    assert client_id == "hwz2mc#{bridge.id}"
+    assert client_id == "hwz2mc#{bridge.id}-test"
 
     decoded = Jason.decode!(payload)
     assert decoded["state"] == "ON"

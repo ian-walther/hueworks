@@ -10,6 +10,7 @@ config :hueworks, Hueworks.Repo,
 config :hueworks,
   ecto_repos: [Hueworks.Repo],
   credentials_root: Path.expand("../priv/credentials", __DIR__),
+  instance_name: Atom.to_string(config_env()),
   global_solar_config: %{
     latitude: nil,
     longitude: nil,
