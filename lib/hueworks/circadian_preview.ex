@@ -28,10 +28,12 @@ defmodule Hueworks.CircadianPreview do
           interval_minutes: integer(),
           points: [preview_point()],
           markers: [preview_marker()],
-          min_brightness: integer(),
-          max_brightness: integer(),
-          min_kelvin: integer(),
-          max_kelvin: integer()
+         brightness_markers: [preview_marker()],
+         temperature_markers: [preview_marker()],
+         min_brightness: integer(),
+         max_brightness: integer(),
+         min_kelvin: integer(),
+         max_kelvin: integer()
         }
 
   @spec sample_day(map(), map(), Date.t() | String.t(), keyword()) ::
@@ -46,6 +48,20 @@ defmodule Hueworks.CircadianPreview do
          {:ok, parsed_date} <- parse_date(date),
          {:ok, events} <-
            Circadian.day_events_for_date(normalized_config, normalized_solar, parsed_date),
+         {:ok, brightness_events} <-
+           Circadian.day_events_for_date(
+             normalized_config,
+             normalized_solar,
+             parsed_date,
+             curve: :brightness
+           ),
+         {:ok, temperature_events} <-
+           Circadian.day_events_for_date(
+             normalized_config,
+             normalized_solar,
+             parsed_date,
+             curve: :temperature
+           ),
          {:ok, points} <-
            sample_points(normalized_config, normalized_solar, parsed_date, interval_minutes) do
       {:ok,
@@ -56,10 +72,14 @@ defmodule Hueworks.CircadianPreview do
          interval_minutes: interval_minutes,
          points: points,
          markers: build_markers(events, parsed_date, normalized_solar.timezone),
+         brightness_markers:
+           build_markers(brightness_events, parsed_date, normalized_solar.timezone),
+         temperature_markers:
+           build_markers(temperature_events, parsed_date, normalized_solar.timezone),
          min_brightness: normalized_config["min_brightness"],
          max_brightness: normalized_config["max_brightness"],
          min_kelvin: normalized_config["min_color_temp"],
-         max_kelvin: normalized_config["max_color_temp"]
+         max_kelvin: effective_max_kelvin(normalized_config)
        }}
     end
   end
@@ -209,4 +229,8 @@ defmodule Hueworks.CircadianPreview do
   end
 
   defp parse_timezone(_value), do: nil
+
+  defp effective_max_kelvin(config) do
+    config["temperature_ceiling_kelvin"] || config["max_color_temp"]
+  end
 end

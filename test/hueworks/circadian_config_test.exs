@@ -10,6 +10,7 @@ defmodule Hueworks.CircadianConfigTest do
                "max_brightness" => 90,
                "min_color_temp" => "2200",
                "max_color_temp" => 5000.0,
+               "temperature_ceiling_kelvin" => "4200",
                "sunrise_time" => "06:30",
                "min_sunrise_time" => "05:00:00",
                "max_sunrise_time" => "07:15",
@@ -18,13 +19,18 @@ defmodule Hueworks.CircadianConfigTest do
                "sunset_offset" => "00:15:30",
                "brightness_mode" => "linear",
                "brightness_mode_time_dark" => "00:10:00",
-               "brightness_mode_time_light" => "7200"
+               "brightness_mode_time_light" => "7200",
+               "brightness_sunrise_offset" => "-300",
+               "brightness_sunset_offset" => "600",
+               "temperature_sunrise_offset" => "-00:05:00",
+               "temperature_sunset_offset" => "00:10:00"
              })
 
     assert normalized["min_brightness"] == 10
     assert normalized["max_brightness"] == 90
     assert normalized["min_color_temp"] == 2200
     assert normalized["max_color_temp"] == 5000
+    assert normalized["temperature_ceiling_kelvin"] == 4200
     assert normalized["sunrise_time"] == "06:30:00"
     assert normalized["min_sunrise_time"] == "05:00:00"
     assert normalized["max_sunrise_time"] == "07:15:00"
@@ -34,6 +40,10 @@ defmodule Hueworks.CircadianConfigTest do
     assert normalized["brightness_mode"] == "linear"
     assert normalized["brightness_mode_time_dark"] == 600
     assert normalized["brightness_mode_time_light"] == 7200
+    assert normalized["brightness_sunrise_offset"] == -300
+    assert normalized["brightness_sunset_offset"] == 600
+    assert normalized["temperature_sunrise_offset"] == -300
+    assert normalized["temperature_sunset_offset"] == 600
   end
 
   test "normalize rejects unsupported, sleep, and rgb keys" do
@@ -66,5 +76,34 @@ defmodule Hueworks.CircadianConfigTest do
     assert {"max_color_temp", "must be greater than or equal to min_color_temp"} in errors
     assert {"min_sunrise_time", "must be less than or equal to max_sunrise_time"} in errors
     assert {"max_sunrise_time", "must be greater than or equal to min_sunrise_time"} in errors
+  end
+
+  test "normalize allows a blank temperature ceiling and rejects values outside the temperature range" do
+    assert {:ok, normalized} =
+             Config.normalize(%{
+               "min_color_temp" => 2200,
+               "max_color_temp" => 5000,
+               "temperature_ceiling_kelvin" => ""
+             })
+
+    assert normalized["temperature_ceiling_kelvin"] == nil
+
+    assert {:error, errors} =
+             Config.normalize(%{
+               "min_color_temp" => 2200,
+               "max_color_temp" => 5000,
+               "temperature_ceiling_kelvin" => 2000
+             })
+
+    assert {"temperature_ceiling_kelvin", "must be greater than or equal to min_color_temp"} in errors
+
+    assert {:error, errors} =
+             Config.normalize(%{
+               "min_color_temp" => 2200,
+               "max_color_temp" => 5000,
+               "temperature_ceiling_kelvin" => 5200
+             })
+
+    assert {"temperature_ceiling_kelvin", "must be less than or equal to max_color_temp"} in errors
   end
 end

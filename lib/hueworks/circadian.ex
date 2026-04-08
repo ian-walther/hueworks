@@ -26,12 +26,15 @@ defmodule Hueworks.Circadian do
     with {:ok, normalized} <- normalize_config(config),
          {:ok, timezone} <- timezone_name(solar_config),
          {:ok, context} <- build_context(normalized, solar_config, timezone, now) do
-      sun_position = sun_position(context, context.now_utc)
+      shared_context = curve_context(context, :shared)
+      brightness_context = curve_context(context, :brightness)
+      temperature_context = curve_context(context, :temperature)
+      sun_position = sun_position(shared_context, context.now_utc)
 
       {:ok,
        %{
-         brightness: round(brightness_pct(context.config, context, context.now_utc)),
-         kelvin: color_temp_kelvin(context.config, sun_position),
+         brightness: round(brightness_pct(context.config, brightness_context, context.now_utc)),
+         kelvin: color_temp_kelvin(context.config, temperature_context, context.now_utc),
          sun_position: sun_position
        }}
     end
@@ -39,28 +42,22 @@ defmodule Hueworks.Circadian do
 
   def calculate(_config, _solar_config, _now), do: {:error, :invalid_args}
 
-  @spec day_events_for_date(map(), map(), Date.t()) ::
+  @spec day_events_for_date(map(), map(), Date.t(), keyword()) ::
           {:ok, keyword(DateTime.t())} | {:error, term()}
-  def day_events_for_date(config, solar_config, %Date{} = date)
-      when is_map(config) and is_map(solar_config) do
+  def day_events_for_date(config, solar_config, date, opts \\ [])
+
+  def day_events_for_date(config, solar_config, %Date{} = date, opts)
+      when is_map(config) and is_map(solar_config) and is_list(opts) do
+    curve = Keyword.get(opts, :curve, :shared)
+
     with {:ok, normalized} <- normalize_config(config),
          {:ok, timezone} <- timezone_name(solar_config),
-         {:ok, sunrise} <- sunrise(normalized, solar_config, timezone, date),
-         {:ok, sunset} <- sunset(normalized, solar_config, timezone, date),
-         {:ok, noon, midnight} <-
-           noon_and_midnight(normalized, solar_config, timezone, date, sunrise, sunset),
-         :ok <-
-           validate_sun_event_order(
-             sunrise: sunrise,
-             sunset: sunset,
-             noon: noon,
-             midnight: midnight
-           ) do
-      {:ok, [sunrise: sunrise, sunset: sunset, noon: noon, midnight: midnight]}
+         {:ok, events} <- events_for_curve(normalized, solar_config, timezone, date, curve) do
+      {:ok, events}
     end
   end
 
-  def day_events_for_date(_config, _solar_config, _date), do: {:error, :invalid_args}
+  def day_events_for_date(_config, _solar_config, _date, _opts), do: {:error, :invalid_args}
 
   defp normalize_config(config) do
     config
@@ -71,13 +68,17 @@ defmodule Hueworks.Circadian do
 
   defp build_context(config, solar_config, timezone, now) do
     now_utc = ensure_utc(now)
+    date = DateTime.to_date(now_utc)
 
     with {:ok, _local_now} <- DateTime.shift_zone(now_utc, timezone),
-         {:ok, events} <- sun_events(config, solar_config, timezone, now_utc) do
+         {:ok, _shared_events} <- events_for_curve(config, solar_config, timezone, date, :shared),
+         {:ok, _brightness_events} <-
+           events_for_curve(config, solar_config, timezone, date, :brightness),
+         {:ok, _temperature_events} <-
+           events_for_curve(config, solar_config, timezone, date, :temperature) do
       {:ok,
        %{
          config: config,
-         events: events,
          now_utc: now_utc,
          solar_config: solar_config,
          timezone: timezone
@@ -85,11 +86,18 @@ defmodule Hueworks.Circadian do
     end
   end
 
+  defp curve_context(context, curve), do: Map.put(context, :curve, curve)
+
   defp ensure_utc(%DateTime{} = now), do: DateTime.shift_zone!(now, "Etc/UTC")
 
-  defp sun_events(config, solar_config, timezone, now_utc) do
-    date = DateTime.to_date(now_utc)
+  defp events_for_curve(config, solar_config, timezone, date, curve) do
+    with {:ok, events} <- base_events(config, solar_config, timezone, date),
+         {:ok, events} <- apply_curve_offsets(events, config, curve) do
+      {:ok, events}
+    end
+  end
 
+  defp base_events(config, solar_config, timezone, date) do
     with {:ok, sunrise} <- sunrise(config, solar_config, timezone, date),
          {:ok, sunset} <- sunset(config, solar_config, timezone, date),
          {:ok, noon, midnight} <-
@@ -102,6 +110,23 @@ defmodule Hueworks.Circadian do
              midnight: midnight
            ) do
       {:ok, [sunrise: sunrise, sunset: sunset, noon: noon, midnight: midnight]}
+    end
+  end
+
+  defp apply_curve_offsets(events, _config, :shared), do: {:ok, events}
+
+  defp apply_curve_offsets(events, config, curve) when curve in [:brightness, :temperature] do
+    sunrise_offset = config["#{curve}_sunrise_offset"]
+    sunset_offset = config["#{curve}_sunset_offset"]
+
+    events =
+      events
+      |> Keyword.update!(:sunrise, &DateTime.add(&1, sunrise_offset, :second))
+      |> Keyword.update!(:sunset, &DateTime.add(&1, sunset_offset, :second))
+
+    case validate_sun_event_order(events) do
+      :ok -> {:ok, events}
+      {:error, _reason} = error -> error
     end
   end
 
@@ -208,7 +233,13 @@ defmodule Hueworks.Circadian do
   defp events_for_offset(context, now_utc, offset) do
     target = DateTime.add(now_utc, offset * 86_400, :second)
 
-    case sun_events(context.config, context.solar_config, context.timezone, target) do
+    case events_for_curve(
+           context.config,
+           context.solar_config,
+           context.timezone,
+           DateTime.to_date(target),
+           Map.get(context, :curve, :shared)
+         ) do
       {:ok, events} ->
         events
 
@@ -236,7 +267,7 @@ defmodule Hueworks.Circadian do
 
   defp brightness_pct(config, context, now_utc) do
     case config["brightness_mode"] do
-      "default" ->
+      "quadratic" ->
         sun_position = sun_position(context, now_utc)
 
         if sun_position > 0 do
@@ -297,7 +328,7 @@ defmodule Hueworks.Circadian do
 
       other ->
         Logger.warning("Unsupported circadian brightness mode: #{inspect(other)}")
-        brightness_pct(Map.put(config, "brightness_mode", "default"), context, now_utc)
+        brightness_pct(Map.put(config, "brightness_mode", "tanh"), context, now_utc)
     end
   end
 
@@ -316,12 +347,22 @@ defmodule Hueworks.Circadian do
     end
   end
 
-  defp color_temp_kelvin(config, sun_position) when sun_position > 0 do
-    delta = config["max_color_temp"] - config["min_color_temp"]
-    round_to_5(delta * sun_position + config["min_color_temp"])
+  defp color_temp_kelvin(config, context, now_utc) do
+    sun_position = sun_position(context, now_utc)
+
+    kelvin =
+      if sun_position > 0 do
+        delta = config["max_color_temp"] - config["min_color_temp"]
+        round_to_5(delta * sun_position + config["min_color_temp"])
+      else
+        config["min_color_temp"]
+      end
+
+    apply_temperature_ceiling(kelvin, config["temperature_ceiling_kelvin"])
   end
 
-  defp color_temp_kelvin(config, _sun_position), do: config["min_color_temp"]
+  defp apply_temperature_ceiling(kelvin, nil), do: kelvin
+  defp apply_temperature_ceiling(kelvin, ceiling) when is_integer(ceiling), do: min(kelvin, ceiling)
 
   defp round_to_5(value), do: 5 * round(value / 5)
 

@@ -14,26 +14,6 @@ defmodule HueworksWeb.LightStateEditorLive do
   @chart_height 188
   @chart_padding %{left: 42, right: 14, top: 16, bottom: 28}
 
-  @circadian_numeric_fields [
-    {"min_brightness", "Min Brightness (%)", 1, 100, 1},
-    {"max_brightness", "Max Brightness (%)", 1, 100, 1},
-    {"min_color_temp", "Min Color Temp (K)", 1000, 10000, 50},
-    {"max_color_temp", "Max Color Temp (K)", 1000, 10000, 50},
-    {"sunrise_offset", "Sunrise Offset (s)", -86400, 86400, 60},
-    {"sunset_offset", "Sunset Offset (s)", -86400, 86400, 60},
-    {"brightness_mode_time_dark", "Brightness Ramp Dark (s)", 0, 86_400, 60},
-    {"brightness_mode_time_light", "Brightness Ramp Light (s)", 0, 86_400, 60}
-  ]
-
-  @circadian_time_fields [
-    {"sunrise_time", "Sunrise Time"},
-    {"min_sunrise_time", "Min Sunrise Time"},
-    {"max_sunrise_time", "Max Sunrise Time"},
-    {"sunset_time", "Sunset Time"},
-    {"min_sunset_time", "Min Sunset Time"},
-    {"max_sunset_time", "Max Sunset Time"}
-  ]
-
   def mount(_params, _session, socket) do
     app_setting = AppSettings.get_global()
     preview_timezone = app_setting.timezone || "Etc/UTC"
@@ -45,12 +25,18 @@ defmodule HueworksWeb.LightStateEditorLive do
        light_state_type: :manual,
        light_state_name: "",
        light_state_config: manual_default_edits(),
+       original_light_state_name: "",
+       original_light_state_config: manual_default_edits(),
        light_state_usages: [],
        preview_date: default_preview_date(preview_timezone),
        preview_latitude: format_coord(app_setting.latitude),
        preview_longitude: format_coord(app_setting.longitude),
        preview_timezone: preview_timezone,
        preview_timezones: timezone_options(preview_timezone),
+       original_preview_date: default_preview_date(preview_timezone),
+       original_preview_latitude: format_coord(app_setting.latitude),
+       original_preview_longitude: format_coord(app_setting.longitude),
+       original_preview_timezone: preview_timezone,
        circadian_preview: nil,
        circadian_preview_error: nil,
        save_error: nil,
@@ -94,6 +80,7 @@ defmodule HueworksWeb.LightStateEditorLive do
 
   def handle_event("save", params, socket) do
     {name, config} = merge_form_params(socket, params)
+    save_action = normalize_save_action(Map.get(params, "save_action"))
 
     attrs = %{
       name: name,
@@ -101,13 +88,32 @@ defmodule HueworksWeb.LightStateEditorLive do
       config: config
     }
 
-    case save_light_state(socket, attrs) do
+    case save_light_state(socket, attrs, save_action) do
       {:ok, updated_socket} ->
         {:noreply, updated_socket}
 
       {:error, message} ->
         {:noreply, assign(socket, save_error: message)}
     end
+  end
+
+  def handle_event("revert", _params, socket) do
+    socket =
+      socket
+      |> assign(
+        light_state_name: socket.assigns.original_light_state_name,
+        light_state_config: socket.assigns.original_light_state_config,
+        preview_date: socket.assigns.original_preview_date,
+        preview_latitude: socket.assigns.original_preview_latitude,
+        preview_longitude: socket.assigns.original_preview_longitude,
+        preview_timezone: socket.assigns.original_preview_timezone,
+        preview_timezones: timezone_options(socket.assigns.original_preview_timezone),
+        save_error: nil,
+        dirty: false
+      )
+      |> refresh_circadian_preview()
+
+    {:noreply, socket}
   end
 
   def handle_event(
@@ -143,10 +149,19 @@ defmodule HueworksWeb.LightStateEditorLive do
     {:noreply, assign(socket, circadian_preview_error: "Location error: #{message}")}
   end
 
-  defp save_light_state(%{assigns: %{light_state_id: nil}} = socket, attrs) do
+  defp save_light_state(%{assigns: %{light_state_id: nil}} = socket, attrs, action) do
     case Scenes.create_light_state(attrs.name, attrs.type, attrs.config) do
-      {:ok, _state} ->
-        {:ok, push_navigate(socket, to: "/config")}
+      {:ok, state} ->
+        case action do
+          :save_and_return ->
+            {:ok, push_navigate(socket, to: "/config")}
+
+          :save ->
+            {:ok,
+             socket
+             |> put_flash(:info, "Light state saved.")
+             |> push_patch(to: "/config/light-states/#{state.id}/edit")}
+        end
 
       {:error, %Ecto.Changeset{} = changeset} ->
         {:error, Util.format_changeset_error(changeset)}
@@ -156,11 +171,22 @@ defmodule HueworksWeb.LightStateEditorLive do
     end
   end
 
-  defp save_light_state(socket, attrs) do
+  defp save_light_state(socket, attrs, action) do
     case Scenes.update_light_state(socket.assigns.light_state_id, attrs) do
       {:ok, state} ->
         _ = Scenes.refresh_active_scenes_for_light_state(state.id)
-        {:ok, push_navigate(socket, to: "/config")}
+
+        socket =
+          socket
+          |> assign_saved_snapshot(state.name, default_edits(state.type, state.config || %{}))
+          |> assign(light_state_usages: Scenes.light_state_usages(state.id), save_error: nil, dirty: false)
+          |> refresh_circadian_preview()
+          |> put_flash(:info, "Light state saved.")
+
+        case action do
+          :save_and_return -> {:ok, push_navigate(socket, to: "/config")}
+          :save -> {:ok, socket}
+        end
 
       {:error, %Ecto.Changeset{} = changeset} ->
         {:error, Util.format_changeset_error(changeset)}
@@ -171,16 +197,20 @@ defmodule HueworksWeb.LightStateEditorLive do
   end
 
   defp assign_new_state(socket, type) do
-    assign(socket,
+    config = default_edits(type)
+
+    socket
+    |> assign(
       page_title: new_page_title(type),
       light_state_id: nil,
       light_state_type: type,
       light_state_name: "",
-      light_state_config: default_edits(type),
+      light_state_config: config,
       light_state_usages: [],
       save_error: nil,
       dirty: false
     )
+    |> remember_original_state("", config)
   end
 
   defp assign_existing_state(socket, id) do
@@ -189,18 +219,51 @@ defmodule HueworksWeb.LightStateEditorLive do
         push_navigate(socket, to: "/config")
 
       state ->
-        assign(socket,
+        config = default_edits(state.type, state.config || %{})
+
+        socket
+        |> assign(
           page_title: "Edit Light State",
           light_state_id: state.id,
           light_state_type: state.type,
           light_state_name: state.name,
-          light_state_config: default_edits(state.type, state.config || %{}),
+          light_state_config: config,
           light_state_usages: Scenes.light_state_usages(state.id),
           save_error: nil,
           dirty: false
         )
+        |> remember_original_state(state.name, config)
     end
   end
+
+  defp remember_original_state(socket, name, config) do
+    assign(
+      socket,
+      original_light_state_name: name,
+      original_light_state_config: config,
+      original_preview_date: socket.assigns.preview_date,
+      original_preview_latitude: socket.assigns.preview_latitude,
+      original_preview_longitude: socket.assigns.preview_longitude,
+      original_preview_timezone: socket.assigns.preview_timezone
+    )
+  end
+
+  defp assign_saved_snapshot(socket, name, config) do
+    assign(
+      socket,
+      light_state_name: name,
+      light_state_config: config,
+      original_light_state_name: name,
+      original_light_state_config: config,
+      original_preview_date: socket.assigns.preview_date,
+      original_preview_latitude: socket.assigns.preview_latitude,
+      original_preview_longitude: socket.assigns.preview_longitude,
+      original_preview_timezone: socket.assigns.preview_timezone
+    )
+  end
+
+  defp normalize_save_action("save_and_return"), do: :save_and_return
+  defp normalize_save_action(_value), do: :save
 
   defp new_page_title(:manual), do: "New Manual Light State"
   defp new_page_title(:circadian), do: "New Circadian Light State"
@@ -237,8 +300,6 @@ defmodule HueworksWeb.LightStateEditorLive do
   end
 
   defp circadian_form_keys, do: CircadianConfig.supported_keys()
-  defp circadian_numeric_fields, do: @circadian_numeric_fields
-  defp circadian_time_fields, do: @circadian_time_fields
 
   defp stringify_config_value(nil), do: ""
   defp stringify_config_value(value) when is_binary(value), do: value
@@ -282,6 +343,7 @@ defmodule HueworksWeb.LightStateEditorLive do
   defp key_to_atom("max_brightness"), do: :max_brightness
   defp key_to_atom("min_color_temp"), do: :min_color_temp
   defp key_to_atom("max_color_temp"), do: :max_color_temp
+  defp key_to_atom("temperature_ceiling_kelvin"), do: :temperature_ceiling_kelvin
   defp key_to_atom("sunrise_time"), do: :sunrise_time
   defp key_to_atom("min_sunrise_time"), do: :min_sunrise_time
   defp key_to_atom("max_sunrise_time"), do: :max_sunrise_time
@@ -293,6 +355,10 @@ defmodule HueworksWeb.LightStateEditorLive do
   defp key_to_atom("brightness_mode"), do: :brightness_mode
   defp key_to_atom("brightness_mode_time_dark"), do: :brightness_mode_time_dark
   defp key_to_atom("brightness_mode_time_light"), do: :brightness_mode_time_light
+  defp key_to_atom("brightness_sunrise_offset"), do: :brightness_sunrise_offset
+  defp key_to_atom("brightness_sunset_offset"), do: :brightness_sunset_offset
+  defp key_to_atom("temperature_sunrise_offset"), do: :temperature_sunrise_offset
+  defp key_to_atom("temperature_sunset_offset"), do: :temperature_sunset_offset
   defp key_to_atom(_key), do: nil
 
   defp manual_mode_from_config(config) do
@@ -395,6 +461,110 @@ defmodule HueworksWeb.LightStateEditorLive do
 
   defp preview_error_message(reason), do: "Preview unavailable: #{inspect(reason)}"
 
+  attr(:label, :string, required: true)
+  attr(:text, :string, required: true)
+
+  defp help_tooltip(assigns) do
+    ~H"""
+    <div class="hw-help-wrap">
+      <button
+        type="button"
+        class="hw-help-trigger"
+        aria-label={"Explain #{@label}"}
+        title={@text}
+      >
+        ?
+      </button>
+      <div class="hw-help-bubble" role="tooltip">
+        <%= @text %>
+      </div>
+    </div>
+    """
+  end
+
+  attr(:label, :string, required: true)
+  attr(:class, :string, required: true)
+  attr(:for, :string, default: nil)
+  attr(:help, :string, default: nil)
+
+  defp label_with_help(assigns) do
+    ~H"""
+    <div class="hw-label-with-help">
+      <%= if @for do %>
+        <label class={@class} for={@for}><%= @label %></label>
+      <% else %>
+        <div class={@class}><%= @label %></div>
+      <% end %>
+      <%= if @help do %>
+        <.help_tooltip label={@label} text={@help} />
+      <% end %>
+    </div>
+    """
+  end
+
+  defp help_text(:preview_date),
+    do: "Samples the selected local calendar day using the preview timezone."
+
+  defp help_text(:preview_timezone),
+    do:
+      "Controls the local day and local clock time used for sunrise, noon, sunset, and the chart x-axis."
+
+  defp help_text(:preview_latitude),
+    do:
+      "Used for astronomical sunrise, noon, and sunset whenever fixed sunrise or sunset times are left blank."
+
+  defp help_text(:preview_longitude),
+    do:
+      "Used with latitude to calculate astronomical sunrise, noon, and sunset whenever fixed times are blank."
+
+  defp help_text(:brightness_mode),
+    do:
+      "Quadratic uses the original parabolic overnight ramp and clips it at max brightness during the day. Linear uses straight ramps around sunrise and sunset. Tanh uses the same windows with a softer S-curve."
+
+  defp help_text(:brightness_range),
+    do:
+      "Sets the overnight floor and daytime ceiling for brightness. Every mode stays inside this range."
+
+  defp help_text(:temperature_range),
+    do:
+      "Kelvin stays pinned to Min whenever the sun is at or below the horizon. During the day it rises toward Max with sun position. Ceiling is optional: it caps the finished curve after calculation, flattening the midday top while preserving the edge transitions."
+
+  defp help_text(:sunrise_time),
+    do:
+      "If set, this replaces astronomical sunrise for the whole calculation. Leave blank to derive sunrise from latitude, longitude, date, and timezone."
+
+  defp help_text(:sunrise_window),
+    do:
+      "After sunrise is chosen and the sunrise offset is applied, clamp the final sunrise into this min/max window."
+
+  defp help_text(:sunrise_offset),
+    do:
+      "Shifts the shared sunrise event in seconds before clamping. Negative values move both curves earlier; positive values move both later."
+
+  defp help_text(:sunset_time),
+    do:
+      "If set, this replaces astronomical sunset for the whole calculation. Leave blank to derive sunset from latitude, longitude, date, and timezone."
+
+  defp help_text(:sunset_window),
+    do:
+      "After sunset is chosen and the sunset offset is applied, clamp the final sunset into this min/max window."
+
+  defp help_text(:sunset_offset),
+    do:
+      "Shifts the shared sunset event in seconds before clamping. Negative values move both curves earlier; positive values move both later."
+
+  defp help_text(:brightness_ramp),
+    do:
+      "Used only for linear and tanh. Dark is the ramp length before sunrise and after sunset. Light is the ramp length after sunrise and before sunset."
+
+  defp help_text(:brightness_curve_offsets),
+    do:
+      "Shifts only the brightness curve relative to the shared solar timing above. Sunrise moves the morning transition; sunset moves the evening transition."
+
+  defp help_text(:temperature_curve_offsets),
+    do:
+      "Shifts only the temperature curve relative to the shared solar timing above. Sunrise moves warming earlier or later; sunset moves cooling earlier or later."
+
   defp chart_view_box, do: "0 0 #{@chart_width} #{@chart_height}"
 
   defp chart_path(nil, _metric), do: ""
@@ -460,16 +630,24 @@ defmodule HueworksWeb.LightStateEditorLive do
     |> Enum.map(&%{value: &1, label: "#{&1}K"})
   end
 
-  defp marker_summary(nil, _key), do: "—"
+  defp marker_summary(nil, _key), do: "..."
 
   defp marker_summary(preview, key) do
     case Enum.find(preview.markers, &(&1.key == key)) do
-      nil -> "—"
+      nil -> "..."
       marker -> marker.time_label
     end
   end
 
+  defp preview_range_label(nil, _metric), do: "..."
+  defp preview_range_label(preview, :brightness), do: "#{preview.min_brightness}% - #{preview.max_brightness}%"
+  defp preview_range_label(preview, :kelvin), do: "#{preview.min_kelvin}K - #{preview.max_kelvin}K"
+
   defp chart_domain(_preview, :brightness) do
+    {0, 100}
+  end
+
+  defp chart_domain(nil, :kelvin) do
     {0, 100}
   end
 

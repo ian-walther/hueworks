@@ -107,98 +107,265 @@
           <div class="hw-panel-header">
             <div>
               <h2>Circadian Preview</h2>
-              <p class="hw-muted">
-                Sampled every <%= @circadian_preview && @circadian_preview.interval_minutes || 10 %> minutes using the current editor values.
-              </p>
             </div>
           </div>
 
-          <div class="hw-modal-grid hw-preview-input-grid">
-            <div>
-              <label class="hw-modal-label" for="preview_date">Preview Date</label>
-              <input
-                id="preview_date"
-                type="date"
-                class="hw-modal-input"
-                name="preview_date"
-                value={@preview_date}
-              />
+          <div class="hw-preview-controls">
+            <div class="hw-modal-grid hw-preview-input-grid">
+              <div class="hw-preview-field">
+                <.label_with_help
+                  class="hw-mini-label"
+                  for="preview_date"
+                  label="Preview Date"
+                  help={help_text(:preview_date)}
+                />
+                <input
+                  id="preview_date"
+                  type="date"
+                  class="hw-modal-input hw-compact-input"
+                  name="preview_date"
+                  value={@preview_date}
+                />
+              </div>
+              <div class="hw-preview-field hw-preview-field-wide">
+                <.label_with_help
+                  class="hw-mini-label"
+                  for="preview_timezone"
+                  label="Preview Timezone"
+                  help={help_text(:preview_timezone)}
+                />
+                <select id="preview_timezone" name="preview_timezone" class="hw-select hw-compact-select">
+                  <%= for timezone <- @preview_timezones do %>
+                    <option value={timezone} selected={timezone == @preview_timezone}><%= timezone %></option>
+                  <% end %>
+                </select>
+              </div>
+              <div class="hw-preview-field">
+                <.label_with_help
+                  class="hw-mini-label"
+                  for="preview_latitude"
+                  label="Preview Latitude"
+                  help={help_text(:preview_latitude)}
+                />
+                <input
+                  id="preview_latitude"
+                  type="text"
+                  class="hw-modal-input hw-compact-input"
+                  name="preview_latitude"
+                  value={@preview_latitude}
+                />
+              </div>
+              <div class="hw-preview-field">
+                <.label_with_help
+                  class="hw-mini-label"
+                  for="preview_longitude"
+                  label="Preview Longitude"
+                  help={help_text(:preview_longitude)}
+                />
+                <input
+                  id="preview_longitude"
+                  type="text"
+                  class="hw-modal-input hw-compact-input"
+                  name="preview_longitude"
+                  value={@preview_longitude}
+                />
+              </div>
             </div>
-            <div>
-              <label class="hw-modal-label" for="preview_timezone">Preview Timezone</label>
-              <select id="preview_timezone" name="preview_timezone" class="hw-select">
-                <%= for timezone <- @preview_timezones do %>
-                  <option value={timezone} selected={timezone == @preview_timezone}><%= timezone %></option>
-                <% end %>
-              </select>
-            </div>
-            <div>
-              <label class="hw-modal-label" for="preview_latitude">Preview Latitude</label>
-              <input
-                id="preview_latitude"
-                type="text"
-                class="hw-modal-input"
-                name="preview_latitude"
-                value={@preview_latitude}
-              />
-            </div>
-            <div>
-              <label class="hw-modal-label" for="preview_longitude">Preview Longitude</label>
-              <input
-                id="preview_longitude"
-                type="text"
-                class="hw-modal-input"
-                name="preview_longitude"
-                value={@preview_longitude}
-              />
-            </div>
-          </div>
 
-          <div class="hw-preview-actions">
-            <button
-              id="circadian-preview-geolocate"
-              type="button"
-              class="hw-button hw-button-off"
-              phx-hook="GeoLocate"
-            >
-              Use Browser Location
-            </button>
+            <div class="hw-preview-actions">
+              <button
+                id="circadian-preview-geolocate"
+                type="button"
+                class="hw-button hw-button-off"
+                phx-hook="GeoLocate"
+              >
+                Use Browser Location
+              </button>
+            </div>
           </div>
 
           <%= if @circadian_preview_error do %>
             <p class="hw-error"><%= @circadian_preview_error %></p>
-          <% else %>
-            <div class="hw-preview-stats">
-              <div class="hw-preview-stat">
-                <span class="hw-preview-stat-label">Sunrise</span>
-                <span class="hw-preview-stat-value"><%= marker_summary(@circadian_preview, :sunrise) %></span>
-              </div>
-              <div class="hw-preview-stat">
-                <span class="hw-preview-stat-label">Noon</span>
-                <span class="hw-preview-stat-value"><%= marker_summary(@circadian_preview, :noon) %></span>
-              </div>
-              <div class="hw-preview-stat">
-                <span class="hw-preview-stat-label">Sunset</span>
-                <span class="hw-preview-stat-value"><%= marker_summary(@circadian_preview, :sunset) %></span>
-              </div>
-              <div class="hw-preview-stat">
-                <span class="hw-preview-stat-label">Brightness</span>
-                <span class="hw-preview-stat-value">
-                  <%= @circadian_preview.min_brightness %>% - <%= @circadian_preview.max_brightness %>%
-                </span>
-              </div>
-              <div class="hw-preview-stat">
-                <span class="hw-preview-stat-label">Temperature</span>
-                <span class="hw-preview-stat-value">
-                  <%= @circadian_preview.min_kelvin %>K - <%= @circadian_preview.max_kelvin %>K
-                </span>
-              </div>
-            </div>
+          <% end %>
 
-            <div class="hw-preview-charts">
-              <div
-                id="circadian-brightness-chart"
-                class="hw-chart-card hw-chart-card-interactive"
+          <div class="hw-preview-divider" aria-hidden="true"></div>
+
+          <% brightness_mode = Map.get(@light_state_config, "brightness_mode") %>
+          <div class="hw-preview-stats">
+            <div class="hw-preview-stat">
+              <span class="hw-preview-stat-label">Sunrise</span>
+              <span class="hw-preview-stat-value"><%= marker_summary(@circadian_preview, :sunrise) %></span>
+            </div>
+            <div class="hw-preview-stat">
+              <span class="hw-preview-stat-label">Noon</span>
+              <span class="hw-preview-stat-value"><%= marker_summary(@circadian_preview, :noon) %></span>
+            </div>
+            <div class="hw-preview-stat">
+              <span class="hw-preview-stat-label">Sunset</span>
+              <span class="hw-preview-stat-value"><%= marker_summary(@circadian_preview, :sunset) %></span>
+            </div>
+            <div class="hw-preview-stat">
+              <span class="hw-preview-stat-label">Brightness</span>
+              <span class="hw-preview-stat-value"><%= preview_range_label(@circadian_preview, :brightness) %></span>
+            </div>
+            <div class="hw-preview-stat">
+              <span class="hw-preview-stat-label">Temperature</span>
+              <span class="hw-preview-stat-value"><%= preview_range_label(@circadian_preview, :kelvin) %></span>
+            </div>
+          </div>
+
+          <div class="hw-circadian-sections">
+            <section class="hw-config-section">
+                <div class="hw-panel-header hw-panel-header-compact">
+                  <div>
+                    <h3>Solar Timing</h3>
+                    <p class="hw-muted">Shared sunrise and sunset inputs used by both curves.</p>
+                  </div>
+                </div>
+
+                <div class="hw-field-flow hw-field-flow-section">
+                  <div class="hw-field-group hw-field-single">
+                    <.label_with_help
+                      class="hw-field-group-label"
+                      for="light-state-sunrise_time"
+                      label="Sunrise Time"
+                      help={help_text(:sunrise_time)}
+                    />
+                    <input
+                      id="light-state-sunrise_time"
+                      type="time"
+                      class="hw-modal-input hw-compact-input"
+                      name="sunrise_time"
+                      step="1"
+                      value={time_input_value(Map.get(@light_state_config, "sunrise_time", ""))}
+                    />
+                  </div>
+
+                  <div class="hw-field-group">
+                    <.label_with_help
+                      class="hw-field-group-label"
+                      label="Sunrise Window"
+                      help={help_text(:sunrise_window)}
+                    />
+                    <div class="hw-field-pair">
+                      <div class="hw-field-compact">
+                        <label class="hw-mini-label" for="light-state-min_sunrise_time">Min</label>
+                        <input
+                          id="light-state-min_sunrise_time"
+                          type="time"
+                          class="hw-modal-input hw-compact-input"
+                          name="min_sunrise_time"
+                          step="1"
+                          value={time_input_value(Map.get(@light_state_config, "min_sunrise_time", ""))}
+                        />
+                      </div>
+                      <div class="hw-field-compact">
+                        <label class="hw-mini-label" for="light-state-max_sunrise_time">Max</label>
+                        <input
+                          id="light-state-max_sunrise_time"
+                          type="time"
+                          class="hw-modal-input hw-compact-input"
+                          name="max_sunrise_time"
+                          step="1"
+                          value={time_input_value(Map.get(@light_state_config, "max_sunrise_time", ""))}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="hw-field-group hw-field-single">
+                    <.label_with_help
+                      class="hw-field-group-label"
+                      for="light-state-sunrise_offset"
+                      label="Sunrise Offset (s)"
+                      help={help_text(:sunrise_offset)}
+                    />
+                    <input
+                      id="light-state-sunrise_offset"
+                      type="number"
+                      class="hw-modal-input hw-compact-input"
+                      name="sunrise_offset"
+                      min="-86400"
+                      max="86400"
+                      step="60"
+                      value={Map.get(@light_state_config, "sunrise_offset", "")}
+                    />
+                  </div>
+
+                  <div class="hw-field-group hw-field-single">
+                    <.label_with_help
+                      class="hw-field-group-label"
+                      for="light-state-sunset_time"
+                      label="Sunset Time"
+                      help={help_text(:sunset_time)}
+                    />
+                    <input
+                      id="light-state-sunset_time"
+                      type="time"
+                      class="hw-modal-input hw-compact-input"
+                      name="sunset_time"
+                      step="1"
+                      value={time_input_value(Map.get(@light_state_config, "sunset_time", ""))}
+                    />
+                  </div>
+
+                  <div class="hw-field-group">
+                    <.label_with_help
+                      class="hw-field-group-label"
+                      label="Sunset Window"
+                      help={help_text(:sunset_window)}
+                    />
+                    <div class="hw-field-pair">
+                      <div class="hw-field-compact">
+                        <label class="hw-mini-label" for="light-state-min_sunset_time">Min</label>
+                        <input
+                          id="light-state-min_sunset_time"
+                          type="time"
+                          class="hw-modal-input hw-compact-input"
+                          name="min_sunset_time"
+                          step="1"
+                          value={time_input_value(Map.get(@light_state_config, "min_sunset_time", ""))}
+                        />
+                      </div>
+                      <div class="hw-field-compact">
+                        <label class="hw-mini-label" for="light-state-max_sunset_time">Max</label>
+                        <input
+                          id="light-state-max_sunset_time"
+                          type="time"
+                          class="hw-modal-input hw-compact-input"
+                          name="max_sunset_time"
+                          step="1"
+                          value={time_input_value(Map.get(@light_state_config, "max_sunset_time", ""))}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="hw-field-group hw-field-single">
+                    <.label_with_help
+                      class="hw-field-group-label"
+                      for="light-state-sunset_offset"
+                      label="Sunset Offset (s)"
+                      help={help_text(:sunset_offset)}
+                    />
+                    <input
+                      id="light-state-sunset_offset"
+                      type="number"
+                      class="hw-modal-input hw-compact-input"
+                      name="sunset_offset"
+                      min="-86400"
+                      max="86400"
+                      step="60"
+                      value={Map.get(@light_state_config, "sunset_offset", "")}
+                    />
+                  </div>
+                </div>
+            </section>
+
+            <div class="hw-circadian-card-grid">
+              <section
+                id="circadian-brightness-card"
+                class="hw-chart-card hw-chart-card-interactive hw-config-card"
                 phx-hook="CircadianChart"
                 data-points={chart_points_json(@circadian_preview, :brightness)}
               >
@@ -207,198 +374,375 @@
                   <div class="hw-muted">0% - 100%</div>
                 </div>
                 <div class="hw-chart-frame">
-                  <svg class="hw-chart" viewBox={chart_view_box()} role="img" aria-label="Brightness curve preview">
-                    <%= for tick <- y_ticks(@circadian_preview, :brightness) do %>
-                      <line
-                        x1={x_position(0)}
-                        y1={y_position(tick.value, chart_domain(@circadian_preview, :brightness))}
-                        x2={x_position(1440)}
-                        y2={y_position(tick.value, chart_domain(@circadian_preview, :brightness))}
-                        class="hw-chart-grid"
-                      />
-                      <text
-                        x={chart_left_padding() - 10}
-                        y={y_position(tick.value, chart_domain(@circadian_preview, :brightness)) + 4}
-                        class="hw-chart-y-label"
-                      ><%= tick.label %></text>
-                    <% end %>
+                  <%= if @circadian_preview do %>
+                    <svg class="hw-chart" viewBox={chart_view_box()} role="img" aria-label="Brightness curve preview">
+                      <%= for tick <- y_ticks(@circadian_preview, :brightness) do %>
+                        <line
+                          x1={x_position(0)}
+                          y1={y_position(tick.value, chart_domain(@circadian_preview, :brightness))}
+                          x2={x_position(1440)}
+                          y2={y_position(tick.value, chart_domain(@circadian_preview, :brightness))}
+                          class="hw-chart-grid"
+                        />
+                        <text
+                          x={chart_left_padding() - 10}
+                          y={y_position(tick.value, chart_domain(@circadian_preview, :brightness)) + 4}
+                          class="hw-chart-y-label"
+                        ><%= tick.label %></text>
+                      <% end %>
 
-                    <%= for tick <- x_ticks() do %>
+                      <%= for tick <- x_ticks() do %>
+                        <text
+                          x={x_position(tick.minute)}
+                          y={chart_x_label_y()}
+                          text-anchor="middle"
+                          class="hw-chart-x-label"
+                        ><%= tick.label %></text>
+                      <% end %>
+
+                      <%= for marker <- @circadian_preview.brightness_markers do %>
+                        <line
+                          x1={marker_x_position(marker.minute)}
+                          y1={chart_top_padding()}
+                          x2={marker_x_position(marker.minute)}
+                          y2={chart_bottom_y()}
+                          class="hw-chart-marker"
+                        />
+                        <text
+                          x={marker_x_position(marker.minute)}
+                          y={13}
+                          text-anchor="middle"
+                          class="hw-chart-marker-label"
+                        ><%= marker.label %></text>
+                      <% end %>
+
                       <line
-                        x1={x_position(tick.minute)}
+                        x1={chart_left_padding()}
                         y1={chart_top_padding()}
-                        x2={x_position(tick.minute)}
+                        x2={chart_left_padding()}
                         y2={chart_bottom_y()}
-                        class="hw-chart-grid hw-chart-grid-vertical"
+                        class="hw-chart-hover-line"
+                        data-role="crosshair"
                       />
-                      <text
-                        x={x_position(tick.minute)}
-                        y={chart_x_label_y()}
-                        text-anchor="middle"
-                        class="hw-chart-x-label"
-                      ><%= tick.label %></text>
-                    <% end %>
-
-                    <%= for marker <- @circadian_preview.markers do %>
-                      <line
-                        x1={marker_x_position(marker.minute)}
-                        y1={chart_top_padding()}
-                        x2={marker_x_position(marker.minute)}
-                        y2={chart_bottom_y()}
-                        class="hw-chart-marker"
+                      <circle
+                        cx={chart_left_padding()}
+                        cy={chart_bottom_y()}
+                        r="5"
+                        class="hw-chart-focus-dot"
+                        data-role="focus-dot"
                       />
-                      <text
-                        x={marker_x_position(marker.minute)}
-                        y={13}
-                        text-anchor="middle"
-                        class="hw-chart-marker-label"
-                      ><%= marker.label %></text>
-                    <% end %>
 
-                    <line
-                      x1={chart_left_padding()}
-                      y1={chart_top_padding()}
-                      x2={chart_left_padding()}
-                      y2={chart_bottom_y()}
-                      class="hw-chart-hover-line"
-                      data-role="crosshair"
-                    />
-                    <circle
-                      cx={chart_left_padding()}
-                      cy={chart_bottom_y()}
-                      r="5"
-                      class="hw-chart-focus-dot"
-                      data-role="focus-dot"
-                    />
-
-                    <path d={chart_path(@circadian_preview, :brightness)} class="hw-chart-line hw-chart-line-brightness" />
-                  </svg>
-                  <div class="hw-chart-tooltip" data-role="tooltip"></div>
+                      <path d={chart_path(@circadian_preview, :brightness)} class="hw-chart-line hw-chart-line-brightness" />
+                    </svg>
+                    <div class="hw-chart-tooltip" data-role="tooltip"></div>
+                  <% else %>
+                    <div class="hw-chart-placeholder" aria-hidden="true"></div>
+                  <% end %>
                 </div>
-              </div>
 
-              <div
-                id="circadian-kelvin-chart"
-                class="hw-chart-card hw-chart-card-interactive"
+                <div class="hw-field-flow hw-field-flow-card">
+                  <div class="hw-field-group hw-field-single">
+                    <.label_with_help
+                      class="hw-field-group-label"
+                      for="light-state-brightness-mode"
+                      label="Brightness Mode"
+                      help={help_text(:brightness_mode)}
+                    />
+                    <select
+                      id="light-state-brightness-mode"
+                      class="hw-select hw-compact-select"
+                      name="brightness_mode"
+                    >
+                      <option value="tanh" selected={brightness_mode == "tanh"}>tanh</option>
+                      <option value="linear" selected={brightness_mode == "linear"}>linear</option>
+                      <option value="quadratic" selected={brightness_mode == "quadratic"}>quadratic</option>
+                    </select>
+                  </div>
+
+                  <div class="hw-field-group">
+                    <.label_with_help
+                      class="hw-field-group-label"
+                      label="Brightness Range"
+                      help={help_text(:brightness_range)}
+                    />
+                    <div class="hw-field-pair">
+                      <div class="hw-field-compact">
+                        <label class="hw-mini-label" for="light-state-min_brightness">Min</label>
+                        <input
+                          id="light-state-min_brightness"
+                          type="number"
+                          class="hw-modal-input hw-compact-input"
+                          name="min_brightness"
+                          min="1"
+                          max="100"
+                          step="1"
+                          value={Map.get(@light_state_config, "min_brightness", "")}
+                        />
+                      </div>
+                      <div class="hw-field-compact">
+                        <label class="hw-mini-label" for="light-state-max_brightness">Max</label>
+                        <input
+                          id="light-state-max_brightness"
+                          type="number"
+                          class="hw-modal-input hw-compact-input"
+                          name="max_brightness"
+                          min="1"
+                          max="100"
+                          step="1"
+                          value={Map.get(@light_state_config, "max_brightness", "")}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="hw-field-group">
+                    <.label_with_help
+                      class="hw-field-group-label"
+                      label="Curve Offsets (s)"
+                      help={help_text(:brightness_curve_offsets)}
+                    />
+                    <div class="hw-field-pair">
+                      <div class="hw-field-compact">
+                        <label class="hw-mini-label" for="light-state-brightness_sunrise_offset">Sunrise</label>
+                        <input
+                          id="light-state-brightness_sunrise_offset"
+                          type="number"
+                          class="hw-modal-input hw-compact-input"
+                          name="brightness_sunrise_offset"
+                          min="-86400"
+                          max="86400"
+                          step="60"
+                          value={Map.get(@light_state_config, "brightness_sunrise_offset", "")}
+                        />
+                      </div>
+                      <div class="hw-field-compact">
+                        <label class="hw-mini-label" for="light-state-brightness_sunset_offset">Sunset</label>
+                        <input
+                          id="light-state-brightness_sunset_offset"
+                          type="number"
+                          class="hw-modal-input hw-compact-input"
+                          name="brightness_sunset_offset"
+                          min="-86400"
+                          max="86400"
+                          step="60"
+                          value={Map.get(@light_state_config, "brightness_sunset_offset", "")}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="hw-field-group">
+                    <.label_with_help
+                      class="hw-field-group-label"
+                      label="Brightness Ramp (s)"
+                      help={help_text(:brightness_ramp)}
+                    />
+                    <div class="hw-field-pair">
+                      <div class="hw-field-compact">
+                        <label class="hw-mini-label" for="light-state-brightness_mode_time_dark">Dark</label>
+                        <input
+                          id="light-state-brightness_mode_time_dark"
+                          type="number"
+                          class="hw-modal-input hw-compact-input"
+                          name="brightness_mode_time_dark"
+                          min="0"
+                          max="86400"
+                          step="60"
+                          value={Map.get(@light_state_config, "brightness_mode_time_dark", "")}
+                        />
+                      </div>
+                      <div class="hw-field-compact">
+                        <label class="hw-mini-label" for="light-state-brightness_mode_time_light">Light</label>
+                        <input
+                          id="light-state-brightness_mode_time_light"
+                          type="number"
+                          class="hw-modal-input hw-compact-input"
+                          name="brightness_mode_time_light"
+                          min="0"
+                          max="86400"
+                          step="60"
+                          value={Map.get(@light_state_config, "brightness_mode_time_light", "")}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <section
+                id="circadian-kelvin-card"
+                class="hw-chart-card hw-chart-card-interactive hw-config-card"
                 phx-hook="CircadianChart"
                 data-points={chart_points_json(@circadian_preview, :kelvin)}
               >
                 <div class="hw-row">
                   <div class="hw-row-title">Temperature Curve</div>
-                  <div class="hw-muted"><%= @circadian_preview.min_kelvin %>K - <%= @circadian_preview.max_kelvin %>K</div>
+                  <div class="hw-muted"><%= preview_range_label(@circadian_preview, :kelvin) %></div>
                 </div>
                 <div class="hw-chart-frame">
-                  <svg class="hw-chart" viewBox={chart_view_box()} role="img" aria-label="Temperature curve preview">
-                    <%= for tick <- y_ticks(@circadian_preview, :kelvin) do %>
-                      <line
-                        x1={x_position(0)}
-                        y1={y_position(tick.value, chart_domain(@circadian_preview, :kelvin))}
-                        x2={x_position(1440)}
-                        y2={y_position(tick.value, chart_domain(@circadian_preview, :kelvin))}
-                        class="hw-chart-grid"
-                      />
-                      <text
-                        x={chart_left_padding() - 10}
-                        y={y_position(tick.value, chart_domain(@circadian_preview, :kelvin)) + 4}
-                        class="hw-chart-y-label"
-                      ><%= tick.label %></text>
-                    <% end %>
+                  <%= if @circadian_preview do %>
+                    <svg class="hw-chart" viewBox={chart_view_box()} role="img" aria-label="Temperature curve preview">
+                      <%= for tick <- y_ticks(@circadian_preview, :kelvin) do %>
+                        <line
+                          x1={x_position(0)}
+                          y1={y_position(tick.value, chart_domain(@circadian_preview, :kelvin))}
+                          x2={x_position(1440)}
+                          y2={y_position(tick.value, chart_domain(@circadian_preview, :kelvin))}
+                          class="hw-chart-grid"
+                        />
+                        <text
+                          x={chart_left_padding() - 10}
+                          y={y_position(tick.value, chart_domain(@circadian_preview, :kelvin)) + 4}
+                          class="hw-chart-y-label"
+                        ><%= tick.label %></text>
+                      <% end %>
 
-                    <%= for tick <- x_ticks() do %>
+                      <%= for tick <- x_ticks() do %>
+                        <text
+                          x={x_position(tick.minute)}
+                          y={chart_x_label_y()}
+                          text-anchor="middle"
+                          class="hw-chart-x-label"
+                        ><%= tick.label %></text>
+                      <% end %>
+
+                      <%= for marker <- @circadian_preview.temperature_markers do %>
+                        <line
+                          x1={marker_x_position(marker.minute)}
+                          y1={chart_top_padding()}
+                          x2={marker_x_position(marker.minute)}
+                          y2={chart_bottom_y()}
+                          class="hw-chart-marker"
+                        />
+                        <text
+                          x={marker_x_position(marker.minute)}
+                          y={13}
+                          text-anchor="middle"
+                          class="hw-chart-marker-label"
+                        ><%= marker.time_label %></text>
+                      <% end %>
+
                       <line
-                        x1={x_position(tick.minute)}
+                        x1={chart_left_padding()}
                         y1={chart_top_padding()}
-                        x2={x_position(tick.minute)}
+                        x2={chart_left_padding()}
                         y2={chart_bottom_y()}
-                        class="hw-chart-grid hw-chart-grid-vertical"
+                        class="hw-chart-hover-line"
+                        data-role="crosshair"
                       />
-                      <text
-                        x={x_position(tick.minute)}
-                        y={chart_x_label_y()}
-                        text-anchor="middle"
-                        class="hw-chart-x-label"
-                      ><%= tick.label %></text>
-                    <% end %>
-
-                    <%= for marker <- @circadian_preview.markers do %>
-                      <line
-                        x1={marker_x_position(marker.minute)}
-                        y1={chart_top_padding()}
-                        x2={marker_x_position(marker.minute)}
-                        y2={chart_bottom_y()}
-                        class="hw-chart-marker"
+                      <circle
+                        cx={chart_left_padding()}
+                        cy={chart_bottom_y()}
+                        r="5"
+                        class="hw-chart-focus-dot"
+                        data-role="focus-dot"
                       />
-                      <text
-                        x={marker_x_position(marker.minute)}
-                        y={13}
-                        text-anchor="middle"
-                        class="hw-chart-marker-label"
-                      ><%= marker.time_label %></text>
-                    <% end %>
 
-                    <line
-                      x1={chart_left_padding()}
-                      y1={chart_top_padding()}
-                      x2={chart_left_padding()}
-                      y2={chart_bottom_y()}
-                      class="hw-chart-hover-line"
-                      data-role="crosshair"
-                    />
-                    <circle
-                      cx={chart_left_padding()}
-                      cy={chart_bottom_y()}
-                      r="5"
-                      class="hw-chart-focus-dot"
-                      data-role="focus-dot"
-                    />
-
-                    <path d={chart_path(@circadian_preview, :kelvin)} class="hw-chart-line hw-chart-line-kelvin" />
-                  </svg>
-                  <div class="hw-chart-tooltip" data-role="tooltip"></div>
+                      <path d={chart_path(@circadian_preview, :kelvin)} class="hw-chart-line hw-chart-line-kelvin" />
+                    </svg>
+                    <div class="hw-chart-tooltip" data-role="tooltip"></div>
+                  <% else %>
+                    <div class="hw-chart-placeholder" aria-hidden="true"></div>
+                  <% end %>
                 </div>
-              </div>
+
+                <div class="hw-field-flow hw-field-flow-card">
+                  <div class="hw-field-group">
+                    <.label_with_help
+                      class="hw-field-group-label"
+                      label="Temperature Range"
+                      help={help_text(:temperature_range)}
+                    />
+                    <div class="hw-field-triplet">
+                      <div class="hw-field-compact">
+                        <label class="hw-mini-label" for="light-state-min_color_temp">Min</label>
+                        <input
+                          id="light-state-min_color_temp"
+                          type="number"
+                          class="hw-modal-input hw-compact-input"
+                          name="min_color_temp"
+                          min="1000"
+                          max="10000"
+                          step="50"
+                          value={Map.get(@light_state_config, "min_color_temp", "")}
+                        />
+                      </div>
+                      <div class="hw-field-compact">
+                        <label class="hw-mini-label" for="light-state-max_color_temp">Max</label>
+                        <input
+                          id="light-state-max_color_temp"
+                          type="number"
+                          class="hw-modal-input hw-compact-input"
+                          name="max_color_temp"
+                          min="1000"
+                          max="10000"
+                          step="50"
+                          value={Map.get(@light_state_config, "max_color_temp", "")}
+                        />
+                      </div>
+                      <div class="hw-field-compact">
+                        <label class="hw-mini-label" for="light-state-temperature_ceiling_kelvin">Ceiling</label>
+                        <input
+                          id="light-state-temperature_ceiling_kelvin"
+                          type="number"
+                          class="hw-modal-input hw-compact-input"
+                          name="temperature_ceiling_kelvin"
+                          min="1000"
+                          max="10000"
+                          step="50"
+                          placeholder="Disabled"
+                          value={Map.get(@light_state_config, "temperature_ceiling_kelvin", "")}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="hw-field-group">
+                    <.label_with_help
+                      class="hw-field-group-label"
+                      label="Curve Offsets (s)"
+                      help={help_text(:temperature_curve_offsets)}
+                    />
+                    <div class="hw-field-pair">
+                      <div class="hw-field-compact">
+                        <label class="hw-mini-label" for="light-state-temperature_sunrise_offset">Sunrise</label>
+                        <input
+                          id="light-state-temperature_sunrise_offset"
+                          type="number"
+                          class="hw-modal-input hw-compact-input"
+                          name="temperature_sunrise_offset"
+                          min="-86400"
+                          max="86400"
+                          step="60"
+                          value={Map.get(@light_state_config, "temperature_sunrise_offset", "")}
+                        />
+                      </div>
+                      <div class="hw-field-compact">
+                        <label class="hw-mini-label" for="light-state-temperature_sunset_offset">Sunset</label>
+                        <input
+                          id="light-state-temperature_sunset_offset"
+                          type="number"
+                          class="hw-modal-input hw-compact-input"
+                          name="temperature_sunset_offset"
+                          min="-86400"
+                          max="86400"
+                          step="60"
+                          value={Map.get(@light_state_config, "temperature_sunset_offset", "")}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </section>
             </div>
-          <% end %>
+          </div>
         </div>
-
-        <label class="hw-modal-label">Brightness Mode</label>
-        <% brightness_mode = Map.get(@light_state_config, "brightness_mode") %>
-        <select class="hw-select" name="brightness_mode">
-          <option value="default" selected={brightness_mode == "default"}>default</option>
-          <option value="linear" selected={brightness_mode == "linear"}>linear</option>
-          <option value="tanh" selected={brightness_mode == "tanh"}>tanh</option>
-        </select>
-
-        <%= for {key, label, min, max, step} <- circadian_numeric_fields() do %>
-          <label class="hw-modal-label" for={"light-state-#{key}"}><%= label %></label>
-          <input
-            id={"light-state-#{key}"}
-            type="number"
-            class="hw-modal-input"
-            name={key}
-            min={min}
-            max={max}
-            step={step}
-            value={Map.get(@light_state_config, key, "")}
-          />
-        <% end %>
-
-        <%= for {key, label} <- circadian_time_fields() do %>
-          <label class="hw-modal-label" for={"light-state-#{key}"}><%= label %></label>
-          <input
-            id={"light-state-#{key}"}
-            type="time"
-            class="hw-modal-input"
-            name={key}
-            step="1"
-            value={time_input_value(Map.get(@light_state_config, key, ""))}
-          />
-        <% end %>
       <% end %>
 
       <div class="hw-modal-actions">
-        <a class="hw-button hw-button-off" href="/config">Cancel</a>
-        <button type="submit" class="hw-button hw-button-on">Save</button>
+        <button type="button" class="hw-button hw-button-off" phx-click="revert">Revert</button>
+        <button type="submit" class="hw-button hw-button-off" name="save_action" value="save">Save</button>
+        <button type="submit" class="hw-button hw-button-on" name="save_action" value="save_and_return">Save and Return</button>
       </div>
     </form>
   </section>

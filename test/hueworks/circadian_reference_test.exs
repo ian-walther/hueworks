@@ -7,15 +7,17 @@ defmodule Hueworks.CircadianReferenceTest do
   @solar_ny %{latitude: 40.7128, longitude: -74.0060, timezone: "America/New_York"}
   @solar_la %{latitude: 34.0522, longitude: -118.2437, timezone: "America/Los_Angeles"}
 
-  test "default mode keeps the current reference outputs across the full daily curve" do
-    config = %{
-      "sunrise_time" => "06:00:00",
-      "sunset_time" => "18:00:00",
-      "min_brightness" => 1,
-      "max_brightness" => 100,
-      "min_color_temp" => 2000,
-      "max_color_temp" => 5500
-    }
+  test "quadratic mode keeps the current reference outputs across the full daily curve" do
+    config =
+      with_zero_curve_offsets(%{
+        "brightness_mode" => "quadratic",
+        "sunrise_time" => "06:00:00",
+        "sunset_time" => "18:00:00",
+        "min_brightness" => 1,
+        "max_brightness" => 100,
+        "min_color_temp" => 2000,
+        "max_color_temp" => 5500
+      })
 
     assert_reference_outputs(config, @solar_utc, [
       {"2026-03-08T00:00:00Z", 1, 2000, -1.0},
@@ -39,17 +41,18 @@ defmodule Hueworks.CircadianReferenceTest do
   end
 
   test "linear mode keeps the current sunrise and sunset ramp shape" do
-    config = %{
-      "sunrise_time" => "06:00:00",
-      "sunset_time" => "18:00:00",
-      "min_brightness" => 10,
-      "max_brightness" => 90,
-      "min_color_temp" => 2000,
-      "max_color_temp" => 5000,
-      "brightness_mode" => "linear",
-      "brightness_mode_time_dark" => 900,
-      "brightness_mode_time_light" => 3600
-    }
+    config =
+      with_zero_curve_offsets(%{
+        "sunrise_time" => "06:00:00",
+        "sunset_time" => "18:00:00",
+        "min_brightness" => 10,
+        "max_brightness" => 90,
+        "min_color_temp" => 2000,
+        "max_color_temp" => 5000,
+        "brightness_mode" => "linear",
+        "brightness_mode_time_dark" => 900,
+        "brightness_mode_time_light" => 3600
+      })
 
     assert_reference_outputs(config, @solar_utc, [
       {"2026-03-08T05:45:00Z", 10, 2000, -0.081597},
@@ -78,17 +81,18 @@ defmodule Hueworks.CircadianReferenceTest do
   end
 
   test "linear mode keeps the current minute-level sunrise edge shape" do
-    config = %{
-      "sunrise_time" => "06:00:00",
-      "sunset_time" => "18:00:00",
-      "min_brightness" => 10,
-      "max_brightness" => 90,
-      "min_color_temp" => 2000,
-      "max_color_temp" => 5000,
-      "brightness_mode" => "linear",
-      "brightness_mode_time_dark" => 900,
-      "brightness_mode_time_light" => 3600
-    }
+    config =
+      with_zero_curve_offsets(%{
+        "sunrise_time" => "06:00:00",
+        "sunset_time" => "18:00:00",
+        "min_brightness" => 10,
+        "max_brightness" => 90,
+        "min_color_temp" => 2000,
+        "max_color_temp" => 5000,
+        "brightness_mode" => "linear",
+        "brightness_mode_time_dark" => 900,
+        "brightness_mode_time_light" => 3600
+      })
 
     assert_reference_outputs(config, @solar_utc, [
       {"2026-03-08T05:55:00Z", 21, 2000, -0.027585},
@@ -106,17 +110,18 @@ defmodule Hueworks.CircadianReferenceTest do
   end
 
   test "linear mode keeps the current minute-level sunset edge shape" do
-    config = %{
-      "sunrise_time" => "06:00:00",
-      "sunset_time" => "18:00:00",
-      "min_brightness" => 10,
-      "max_brightness" => 90,
-      "min_color_temp" => 2000,
-      "max_color_temp" => 5000,
-      "brightness_mode" => "linear",
-      "brightness_mode_time_dark" => 900,
-      "brightness_mode_time_light" => 3600
-    }
+    config =
+      with_zero_curve_offsets(%{
+        "sunrise_time" => "06:00:00",
+        "sunset_time" => "18:00:00",
+        "min_brightness" => 10,
+        "max_brightness" => 90,
+        "min_color_temp" => 2000,
+        "max_color_temp" => 5000,
+        "brightness_mode" => "linear",
+        "brightness_mode_time_dark" => 900,
+        "brightness_mode_time_light" => 3600
+      })
 
     assert_reference_outputs(config, @solar_utc, [
       {"2026-03-08T17:55:00Z", 31, 2085, 0.027585},
@@ -134,17 +139,18 @@ defmodule Hueworks.CircadianReferenceTest do
   end
 
   test "tanh mode keeps the current sunrise and sunset curve shape" do
-    config = %{
-      "sunrise_time" => "06:00:00",
-      "sunset_time" => "18:00:00",
-      "min_brightness" => 10,
-      "max_brightness" => 90,
-      "min_color_temp" => 2000,
-      "max_color_temp" => 5000,
-      "brightness_mode" => "tanh",
-      "brightness_mode_time_dark" => 900,
-      "brightness_mode_time_light" => 3600
-    }
+    config =
+      with_zero_curve_offsets(%{
+        "sunrise_time" => "06:00:00",
+        "sunset_time" => "18:00:00",
+        "min_brightness" => 10,
+        "max_brightness" => 90,
+        "min_color_temp" => 2000,
+        "max_color_temp" => 5000,
+        "brightness_mode" => "tanh",
+        "brightness_mode_time_dark" => 900,
+        "brightness_mode_time_light" => 3600
+      })
 
     assert_reference_outputs(config, @solar_utc, [
       {"2026-03-08T05:45:00Z", 14, 2000, -0.081597},
@@ -173,17 +179,18 @@ defmodule Hueworks.CircadianReferenceTest do
   end
 
   test "tanh mode keeps the current minute-level sunrise edge shape" do
-    config = %{
-      "sunrise_time" => "06:00:00",
-      "sunset_time" => "18:00:00",
-      "min_brightness" => 10,
-      "max_brightness" => 90,
-      "min_color_temp" => 2000,
-      "max_color_temp" => 5000,
-      "brightness_mode" => "tanh",
-      "brightness_mode_time_dark" => 900,
-      "brightness_mode_time_light" => 3600
-    }
+    config =
+      with_zero_curve_offsets(%{
+        "sunrise_time" => "06:00:00",
+        "sunset_time" => "18:00:00",
+        "min_brightness" => 10,
+        "max_brightness" => 90,
+        "min_color_temp" => 2000,
+        "max_color_temp" => 5000,
+        "brightness_mode" => "tanh",
+        "brightness_mode_time_dark" => 900,
+        "brightness_mode_time_light" => 3600
+      })
 
     assert_reference_outputs(config, @solar_utc, [
       {"2026-03-08T05:55:00Z", 18, 2000, -0.027585},
@@ -201,17 +208,18 @@ defmodule Hueworks.CircadianReferenceTest do
   end
 
   test "tanh mode keeps the current minute-level sunset edge shape" do
-    config = %{
-      "sunrise_time" => "06:00:00",
-      "sunset_time" => "18:00:00",
-      "min_brightness" => 10,
-      "max_brightness" => 90,
-      "min_color_temp" => 2000,
-      "max_color_temp" => 5000,
-      "brightness_mode" => "tanh",
-      "brightness_mode_time_dark" => 900,
-      "brightness_mode_time_light" => 3600
-    }
+    config =
+      with_zero_curve_offsets(%{
+        "sunrise_time" => "06:00:00",
+        "sunset_time" => "18:00:00",
+        "min_brightness" => 10,
+        "max_brightness" => 90,
+        "min_color_temp" => 2000,
+        "max_color_temp" => 5000,
+        "brightness_mode" => "tanh",
+        "brightness_mode_time_dark" => 900,
+        "brightness_mode_time_light" => 3600
+      })
 
     assert_reference_outputs(config, @solar_utc, [
       {"2026-03-08T17:55:00Z", 26, 2085, 0.027585},
@@ -229,12 +237,14 @@ defmodule Hueworks.CircadianReferenceTest do
   end
 
   test "astronomical mode keeps the current New York spring reference outputs" do
-    config = %{
-      "min_brightness" => 5,
-      "max_brightness" => 85,
-      "min_color_temp" => 2200,
-      "max_color_temp" => 5000
-    }
+    config =
+      with_zero_curve_offsets(%{
+        "brightness_mode" => "quadratic",
+        "min_brightness" => 5,
+        "max_brightness" => 85,
+        "min_color_temp" => 2200,
+        "max_color_temp" => 5000
+      })
 
     assert_reference_outputs(config, @solar_ny, [
       {"2026-03-31T08:00:00Z", 27, 2200, -0.720293},
@@ -251,12 +261,14 @@ defmodule Hueworks.CircadianReferenceTest do
   end
 
   test "astronomical mode keeps the current Los Angeles winter reference outputs" do
-    config = %{
-      "min_brightness" => 5,
-      "max_brightness" => 85,
-      "min_color_temp" => 2200,
-      "max_color_temp" => 5000
-    }
+    config =
+      with_zero_curve_offsets(%{
+        "brightness_mode" => "quadratic",
+        "min_brightness" => 5,
+        "max_brightness" => 85,
+        "min_color_temp" => 2200,
+        "max_color_temp" => 5000
+      })
 
     assert_reference_outputs(config, @solar_la, [
       {"2026-12-21T12:00:00Z", 33, 2200, -0.656165},
@@ -270,18 +282,20 @@ defmodule Hueworks.CircadianReferenceTest do
   end
 
   test "offset and clamp settings keep the current derived-solar outputs across the constrained curve" do
-    config = %{
-      "min_brightness" => 5,
-      "max_brightness" => 85,
-      "min_color_temp" => 2200,
-      "max_color_temp" => 5000,
-      "sunrise_offset" => -1800,
-      "min_sunrise_time" => "06:30:00",
-      "max_sunrise_time" => "07:00:00",
-      "sunset_offset" => 1800,
-      "min_sunset_time" => "18:30:00",
-      "max_sunset_time" => "19:00:00"
-    }
+    config =
+      with_zero_curve_offsets(%{
+        "brightness_mode" => "quadratic",
+        "min_brightness" => 5,
+        "max_brightness" => 85,
+        "min_color_temp" => 2200,
+        "max_color_temp" => 5000,
+        "sunrise_offset" => -1800,
+        "min_sunrise_time" => "06:30:00",
+        "max_sunrise_time" => "07:00:00",
+        "sunset_offset" => 1800,
+        "min_sunset_time" => "18:30:00",
+        "max_sunset_time" => "19:00:00"
+      })
 
     assert_reference_outputs(config, @solar_ny, [
       {"2026-03-31T10:00:00Z", 72, 2200, -0.166352},
@@ -298,17 +312,18 @@ defmodule Hueworks.CircadianReferenceTest do
   end
 
   test "linear mode keeps the current asymmetric dark/light window behavior" do
-    config = %{
-      "sunrise_time" => "06:00:00",
-      "sunset_time" => "18:00:00",
-      "min_brightness" => 10,
-      "max_brightness" => 90,
-      "min_color_temp" => 2000,
-      "max_color_temp" => 5000,
-      "brightness_mode" => "linear",
-      "brightness_mode_time_dark" => 1800,
-      "brightness_mode_time_light" => 5400
-    }
+    config =
+      with_zero_curve_offsets(%{
+        "sunrise_time" => "06:00:00",
+        "sunset_time" => "18:00:00",
+        "min_brightness" => 10,
+        "max_brightness" => 90,
+        "min_color_temp" => 2000,
+        "max_color_temp" => 5000,
+        "brightness_mode" => "linear",
+        "brightness_mode_time_dark" => 1800,
+        "brightness_mode_time_light" => 5400
+      })
 
     assert_reference_outputs(config, @solar_utc, [
       {"2026-03-08T05:30:00Z", 10, 2000, -0.159722},
@@ -327,17 +342,18 @@ defmodule Hueworks.CircadianReferenceTest do
   end
 
   test "tanh mode keeps the current asymmetric dark/light window behavior" do
-    config = %{
-      "sunrise_time" => "06:00:00",
-      "sunset_time" => "18:00:00",
-      "min_brightness" => 10,
-      "max_brightness" => 90,
-      "min_color_temp" => 2000,
-      "max_color_temp" => 5000,
-      "brightness_mode" => "tanh",
-      "brightness_mode_time_dark" => 1800,
-      "brightness_mode_time_light" => 5400
-    }
+    config =
+      with_zero_curve_offsets(%{
+        "sunrise_time" => "06:00:00",
+        "sunset_time" => "18:00:00",
+        "min_brightness" => 10,
+        "max_brightness" => 90,
+        "min_color_temp" => 2000,
+        "max_color_temp" => 5000,
+        "brightness_mode" => "tanh",
+        "brightness_mode_time_dark" => 1800,
+        "brightness_mode_time_light" => 5400
+      })
 
     assert_reference_outputs(config, @solar_utc, [
       {"2026-03-08T05:30:00Z", 14, 2000, -0.159722},
@@ -355,6 +371,55 @@ defmodule Hueworks.CircadianReferenceTest do
     ])
   end
 
+  test "brightness curve offsets shift only brightness reference outputs" do
+    config = %{
+      "sunrise_time" => "06:00:00",
+      "sunset_time" => "18:00:00",
+      "min_brightness" => 10,
+      "max_brightness" => 90,
+      "min_color_temp" => 2000,
+      "max_color_temp" => 5000,
+      "brightness_mode" => "linear",
+      "brightness_mode_time_dark" => 900,
+      "brightness_mode_time_light" => 3600,
+      "brightness_sunrise_offset" => 900,
+      "brightness_sunset_offset" => -900,
+      "temperature_sunrise_offset" => 0,
+      "temperature_sunset_offset" => 0
+    }
+
+    assert_reference_outputs(config, @solar_utc, [
+      {"2026-03-08T06:00:00Z", 10, 2000, 0.0},
+      {"2026-03-08T06:15:00Z", 26, 2245, 0.081597},
+      {"2026-03-08T17:45:00Z", 26, 2245, 0.081597},
+      {"2026-03-08T18:00:00Z", 10, 2000, 0.0}
+    ])
+  end
+
+  test "temperature curve offsets shift only kelvin reference outputs" do
+    config = %{
+      "sunrise_time" => "06:00:00",
+      "sunset_time" => "18:00:00",
+      "min_brightness" => 10,
+      "max_brightness" => 90,
+      "min_color_temp" => 2000,
+      "max_color_temp" => 5000,
+      "brightness_mode" => "linear",
+      "brightness_mode_time_dark" => 900,
+      "brightness_mode_time_light" => 3600,
+      "brightness_sunrise_offset" => 0,
+      "brightness_sunset_offset" => 0,
+      "temperature_sunrise_offset" => 1800,
+      "temperature_sunset_offset" => -1800
+    }
+
+    assert_reference_outputs(config, @solar_utc, [
+      {"2026-03-08T06:30:00Z", 58, 2000, 0.159722},
+      {"2026-03-08T07:00:00Z", 90, 2520, 0.305556},
+      {"2026-03-08T17:30:00Z", 58, 2000, 0.159722}
+    ])
+  end
+
   defp assert_reference_outputs(config, solar_config, cases) do
     Enum.each(cases, fn {iso8601, expected_brightness, expected_kelvin, expected_sun_position} ->
       assert {:ok, result} = Circadian.calculate(config, solar_config, utc_dt(iso8601))
@@ -367,5 +432,18 @@ defmodule Hueworks.CircadianReferenceTest do
   defp utc_dt(iso8601) do
     {:ok, datetime, 0} = DateTime.from_iso8601(iso8601)
     datetime
+  end
+
+  defp with_zero_curve_offsets(config) do
+    Map.merge(
+      %{
+        "brightness_sunrise_offset" => 0,
+        "brightness_sunset_offset" => 0,
+        "temperature_sunrise_offset" => 0,
+        "temperature_sunset_offset" => 0,
+        "temperature_ceiling_kelvin" => nil
+      },
+      config
+    )
   end
 end

@@ -135,12 +135,57 @@ Hooks.GeoLocate = {
 
 Hooks.CircadianChart = {
   mounted() {
-    this.svg = this.el.querySelector("svg")
-    this.crosshair = this.el.querySelector("[data-role='crosshair']")
-    this.focusDot = this.el.querySelector("[data-role='focus-dot']")
-    this.tooltip = this.el.querySelector("[data-role='tooltip']")
+    this.svg = null
+    this.crosshair = null
+    this.focusDot = null
+    this.tooltip = null
+
+    this.hide = () => {
+      if (this.crosshair) this.crosshair.style.opacity = "0"
+      if (this.focusDot) this.focusDot.style.opacity = "0"
+      if (this.tooltip) this.tooltip.style.opacity = "0"
+    }
+
+    this.handleMouseMove = (event) => this.updateFromClientX(event.clientX)
+    this.handleTouchMove = (event) => {
+      if (event.touches && event.touches[0]) {
+        this.updateFromClientX(event.touches[0].clientX)
+      }
+    }
+
+    this.bindSvg = (svg) => {
+      if (!svg) return
+      svg.addEventListener("mousemove", this.handleMouseMove)
+      svg.addEventListener("mouseleave", this.hide)
+      svg.addEventListener("touchmove", this.handleTouchMove, { passive: true })
+      svg.addEventListener("touchend", this.hide, { passive: true })
+    }
+
+    this.unbindSvg = (svg) => {
+      if (!svg) return
+      svg.removeEventListener("mousemove", this.handleMouseMove)
+      svg.removeEventListener("mouseleave", this.hide)
+      svg.removeEventListener("touchmove", this.handleTouchMove)
+      svg.removeEventListener("touchend", this.hide)
+    }
+
+    this.refreshElements = () => {
+      let nextSvg = this.el.querySelector("svg")
+
+      if (this.svg !== nextSvg) {
+        this.unbindSvg(this.svg)
+        this.svg = nextSvg
+        this.bindSvg(this.svg)
+      }
+
+      this.crosshair = this.el.querySelector("[data-role='crosshair']")
+      this.focusDot = this.el.querySelector("[data-role='focus-dot']")
+      this.tooltip = this.el.querySelector("[data-role='tooltip']")
+    }
 
     this.syncData = () => {
+      this.refreshElements()
+
       try {
         this.points = JSON.parse(this.el.dataset.points || "[]")
       } catch (_error) {
@@ -149,12 +194,6 @@ Hooks.CircadianChart = {
 
       this.viewBox = this.svg?.viewBox?.baseVal || { width: 760, height: 240 }
       this.hide()
-    }
-
-    this.hide = () => {
-      if (this.crosshair) this.crosshair.style.opacity = "0"
-      if (this.focusDot) this.focusDot.style.opacity = "0"
-      if (this.tooltip) this.tooltip.style.opacity = "0"
     }
 
     this.updateFromClientX = (clientX) => {
@@ -199,19 +238,7 @@ Hooks.CircadianChart = {
       }
     }
 
-    this.handleMouseMove = (event) => this.updateFromClientX(event.clientX)
-    this.handleTouchMove = (event) => {
-      if (event.touches && event.touches[0]) {
-        this.updateFromClientX(event.touches[0].clientX)
-      }
-    }
-
     this.syncData()
-
-    this.svg?.addEventListener("mousemove", this.handleMouseMove)
-    this.svg?.addEventListener("mouseleave", this.hide)
-    this.svg?.addEventListener("touchmove", this.handleTouchMove, { passive: true })
-    this.svg?.addEventListener("touchend", this.hide, { passive: true })
   },
 
   updated() {
@@ -219,10 +246,7 @@ Hooks.CircadianChart = {
   },
 
   destroyed() {
-    this.svg?.removeEventListener("mousemove", this.handleMouseMove)
-    this.svg?.removeEventListener("mouseleave", this.hide)
-    this.svg?.removeEventListener("touchmove", this.handleTouchMove)
-    this.svg?.removeEventListener("touchend", this.hide)
+    this.unbindSvg(this.svg)
   }
 }
 

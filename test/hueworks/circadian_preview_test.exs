@@ -36,9 +36,53 @@ defmodule Hueworks.CircadianPreviewTest do
     assert List.last(preview.points).minute == 1439
 
     assert Enum.map(preview.markers, & &1.key) == [:sunrise, :noon, :sunset]
+    assert Enum.map(preview.brightness_markers, & &1.key) == [:sunrise, :noon, :sunset]
+    assert Enum.map(preview.temperature_markers, & &1.key) == [:sunrise, :noon, :sunset]
     assert Enum.find(preview.markers, &(&1.key == :sunrise)).time_label == "06:00"
     assert Enum.find(preview.markers, &(&1.key == :sunset)).time_label == "18:00"
     assert Enum.find(preview.markers, &(&1.key == :noon)).time_label == "12:00"
+  end
+
+  test "builds separate markers for brightness and temperature offsets" do
+    config = %{
+      "sunrise_time" => "06:00:00",
+      "sunset_time" => "18:00:00",
+      "brightness_sunrise_offset" => 900,
+      "brightness_sunset_offset" => -900,
+      "temperature_sunrise_offset" => 1800,
+      "temperature_sunset_offset" => -1800
+    }
+
+    assert {:ok, preview} =
+             CircadianPreview.sample_day(config, @solar_config, ~D[2026-03-08],
+               interval_minutes: 60
+             )
+
+    assert Enum.find(preview.markers, &(&1.key == :sunrise)).time_label == "06:00"
+    assert Enum.find(preview.brightness_markers, &(&1.key == :sunrise)).time_label == "06:15"
+    assert Enum.find(preview.brightness_markers, &(&1.key == :sunset)).time_label == "17:45"
+    assert Enum.find(preview.temperature_markers, &(&1.key == :sunrise)).time_label == "06:30"
+    assert Enum.find(preview.temperature_markers, &(&1.key == :sunset)).time_label == "17:30"
+  end
+
+  test "uses the temperature ceiling as the effective preview maximum and flattens midday points" do
+    config = %{
+      "sunrise_time" => "06:00:00",
+      "sunset_time" => "18:00:00",
+      "min_color_temp" => 2000,
+      "max_color_temp" => 5500,
+      "temperature_ceiling_kelvin" => 4500
+    }
+
+    assert {:ok, preview} =
+             CircadianPreview.sample_day(config, @solar_config, ~D[2026-03-08],
+               interval_minutes: 120
+             )
+
+    assert preview.min_kelvin == 2000
+    assert preview.max_kelvin == 4500
+    assert Enum.find(preview.points, &(&1.minute == 600)).kelvin == 4500
+    assert Enum.find(preview.points, &(&1.minute == 720)).kelvin == 4500
   end
 
   test "returns a useful error when solar inputs are incomplete" do

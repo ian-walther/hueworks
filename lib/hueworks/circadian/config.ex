@@ -6,13 +6,14 @@ defmodule Hueworks.Circadian.Config do
   options, excluding sleep-mode and RGB-related settings.
   """
 
-  @brightness_modes ~w(default linear tanh)
+  @brightness_modes ~w(quadratic linear tanh)
 
   @supported_keys [
     "min_brightness",
     "max_brightness",
     "min_color_temp",
     "max_color_temp",
+    "temperature_ceiling_kelvin",
     "sunrise_time",
     "min_sunrise_time",
     "max_sunrise_time",
@@ -23,7 +24,11 @@ defmodule Hueworks.Circadian.Config do
     "sunset_offset",
     "brightness_mode",
     "brightness_mode_time_dark",
-    "brightness_mode_time_light"
+    "brightness_mode_time_light",
+    "brightness_sunrise_offset",
+    "brightness_sunset_offset",
+    "temperature_sunrise_offset",
+    "temperature_sunset_offset"
   ]
 
   @defaults %{
@@ -31,6 +36,7 @@ defmodule Hueworks.Circadian.Config do
     "max_brightness" => 100,
     "min_color_temp" => 2000,
     "max_color_temp" => 5500,
+    "temperature_ceiling_kelvin" => nil,
     "sunrise_time" => nil,
     "min_sunrise_time" => nil,
     "max_sunrise_time" => nil,
@@ -39,9 +45,13 @@ defmodule Hueworks.Circadian.Config do
     "min_sunset_time" => nil,
     "max_sunset_time" => nil,
     "sunset_offset" => 0,
-    "brightness_mode" => "default",
+    "brightness_mode" => "tanh",
     "brightness_mode_time_dark" => 900,
-    "brightness_mode_time_light" => 3600
+    "brightness_mode_time_light" => 3600,
+    "brightness_sunrise_offset" => 0,
+    "brightness_sunset_offset" => 0,
+    "temperature_sunrise_offset" => 0,
+    "temperature_sunset_offset" => 0
   }
 
   def supported_keys, do: @supported_keys
@@ -71,6 +81,7 @@ defmodule Hueworks.Circadian.Config do
       errors
       |> validate_min_max_order(normalized, "min_brightness", "max_brightness")
       |> validate_min_max_order(normalized, "min_color_temp", "max_color_temp")
+      |> validate_ceiling_order(normalized, "temperature_ceiling_kelvin", "min_color_temp", "max_color_temp")
       |> validate_time_order(normalized, "min_sunrise_time", "max_sunrise_time")
       |> validate_time_order(normalized, "min_sunset_time", "max_sunset_time")
 
@@ -86,10 +97,15 @@ defmodule Hueworks.Circadian.Config do
   defp normalize_value("max_brightness", value), do: parse_int_in_range(value, 1, 100)
   defp normalize_value("min_color_temp", value), do: parse_int_in_range(value, 1000, 10_000)
   defp normalize_value("max_color_temp", value), do: parse_int_in_range(value, 1000, 10_000)
+  defp normalize_value("temperature_ceiling_kelvin", value), do: parse_int_in_range_or_none(value, 1000, 10_000)
   defp normalize_value("sunrise_offset", value), do: parse_offset_seconds(value)
   defp normalize_value("sunset_offset", value), do: parse_offset_seconds(value)
   defp normalize_value("brightness_mode_time_dark", value), do: parse_non_negative_seconds(value)
   defp normalize_value("brightness_mode_time_light", value), do: parse_non_negative_seconds(value)
+  defp normalize_value("brightness_sunrise_offset", value), do: parse_offset_seconds(value)
+  defp normalize_value("brightness_sunset_offset", value), do: parse_offset_seconds(value)
+  defp normalize_value("temperature_sunrise_offset", value), do: parse_offset_seconds(value)
+  defp normalize_value("temperature_sunset_offset", value), do: parse_offset_seconds(value)
 
   defp normalize_value("brightness_mode", value) do
     mode =
@@ -137,6 +153,13 @@ defmodule Hueworks.Circadian.Config do
       {:ok, _parsed} -> {:error, "must be between #{min} and #{max}"}
       {:error, _reason} -> {:error, "must be an integer between #{min} and #{max}"}
     end
+  end
+
+  defp parse_int_in_range_or_none(nil, _min, _max), do: {:ok, nil}
+  defp parse_int_in_range_or_none("", _min, _max), do: {:ok, nil}
+
+  defp parse_int_in_range_or_none(value, min, max) do
+    parse_int_in_range(value, min, max)
   end
 
   defp parse_non_negative_seconds(value) do
@@ -274,6 +297,26 @@ defmodule Hueworks.Circadian.Config do
       ]
     else
       _ -> errors
+    end
+  end
+
+  defp validate_ceiling_order(errors, config, ceiling_key, min_key, max_key) do
+    ceiling = Map.get(config, ceiling_key)
+    min_value = Map.get(config, min_key)
+    max_value = Map.get(config, max_key)
+
+    cond do
+      is_nil(ceiling) ->
+        errors
+
+      is_integer(min_value) and ceiling < min_value ->
+        [{ceiling_key, "must be greater than or equal to #{min_key}"} | errors]
+
+      is_integer(max_value) and ceiling > max_value ->
+        [{ceiling_key, "must be less than or equal to #{max_key}"} | errors]
+
+      true ->
+        errors
     end
   end
 end
