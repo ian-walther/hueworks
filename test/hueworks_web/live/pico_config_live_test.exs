@@ -5,6 +5,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
 
   alias Hueworks.Picos
   alias Hueworks.Repo
+  alias Hueworks.Scenes
   alias Hueworks.Schemas.{Bridge, Group, GroupLight, Light, PicoButton, PicoDevice, Room}
 
   defmodule CasetaPicoFetcherStub do
@@ -508,5 +509,76 @@ defmodule HueworksWeb.PicoConfigLiveTest do
     refute html =~ "Disabled Lamp"
     refute html =~ "Linked Lamp"
     refute html =~ "Disabled Group"
+  end
+
+  test "pico config can bind a button press to a room scene", %{conn: conn} do
+    room = Repo.insert!(%Room{name: "Movie Room"})
+
+    bridge =
+      Repo.insert!(%Bridge{
+        type: :caseta,
+        name: "Caseta",
+        host: "10.0.0.66",
+        credentials: %{"cert_path" => "a", "key_path" => "b", "cacert_path" => "c"},
+        enabled: true,
+        import_complete: true
+      })
+
+    device =
+      Repo.insert!(%PicoDevice{
+        bridge_id: bridge.id,
+        room_id: room.id,
+        source_id: "movie-pico",
+        name: "Movie Pico",
+        hardware_profile: "5_button",
+        metadata: %{"room_override" => true}
+      })
+
+    Repo.insert!(%PicoButton{
+      pico_device_id: device.id,
+      source_id: "b1",
+      button_number: 2,
+      slot_index: 0,
+      enabled: true
+    })
+
+    {:ok, state} =
+      Scenes.create_manual_light_state("Movie", %{"brightness" => "25", "temperature" => "2600"})
+
+    {:ok, scene} = Scenes.create_scene(%{name: "Movie Night", room_id: room.id})
+    {:ok, _} = Scenes.replace_scene_components(scene, [%{light_state_id: to_string(state.id), light_ids: []}])
+
+    {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/picos/#{device.id}")
+
+    view
+    |> form("#pico-binding-editor-form", %{"target_kind" => "scene"})
+    |> render_change()
+
+    html =
+      view
+      |> form("#pico-binding-editor-form", %{
+        "target_kind" => "scene",
+        "target_id" => Integer.to_string(scene.id)
+      })
+      |> render_change()
+
+    assert html =~ "Movie Night"
+    assert html =~ "Activate Scene"
+
+    render_click(element(view, "#pico-start-button-learning"))
+
+    Phoenix.PubSub.broadcast(
+      Hueworks.PubSub,
+      Picos.topic(),
+      {:pico_button_press, device.id, "b1"}
+    )
+
+    assert render(view) =~ "Assigned action to the pressed Pico button."
+    assert render(view) =~ "Activate Scene Movie Night"
+
+    button = Repo.one!(PicoButton)
+    assert button.action_type == "activate_scene"
+    assert button.action_config["target_kind"] == "scene"
+    assert button.action_config["target_id"] == scene.id
   end
 end

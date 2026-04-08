@@ -303,6 +303,9 @@
               <option value="control_group" selected={@binding_target_kind == "control_group"}>
                 One Control Group
               </option>
+              <option value="scene" selected={@binding_target_kind == "scene"}>
+                Scene
+              </option>
             </select>
 
             <div id="pico-binding-target-id-container">
@@ -310,25 +313,39 @@
                 id="pico-binding-target-id"
                 class="hw-select"
                 name="target_id"
-                disabled={@binding_target_kind != "control_group"}
+                disabled={@binding_target_kind not in ["control_group", "scene"]}
               >
-                <%= if @binding_target_kind == "control_group" do %>
-                  <option value="">Select control group</option>
-                  <%= for group <- @control_groups do %>
-                    <option value={group["id"]} selected={@binding_target_id == group["id"]}>
-                      <%= group["name"] %>
-                    </option>
-                  <% end %>
-                <% else %>
+                <%= cond do %>
+                  <% @binding_target_kind == "control_group" -> %>
+                    <option value="">Select control group</option>
+                    <%= for group <- @control_groups do %>
+                      <option value={group["id"]} selected={@binding_target_id == group["id"]}>
+                        <%= group["name"] %>
+                      </option>
+                    <% end %>
+                  <% @binding_target_kind == "scene" -> %>
+                    <option value="">Select scene</option>
+                    <%= for scene <- @room_scenes do %>
+                      <option value={scene.id} selected={@binding_target_id == scene.id}>
+                        <%= scene.name %>
+                      </option>
+                    <% end %>
+                  <% true -> %>
                   <option value="">All Control Groups</option>
                 <% end %>
               </select>
             </div>
 
             <select id="pico-binding-action" class="hw-select" name="action">
-              <option value="on" selected={@binding_action == "on"}>Turn On</option>
-              <option value="off" selected={@binding_action == "off"}>Turn Off</option>
-              <option value="toggle" selected={@binding_action == "toggle"}>Toggle</option>
+              <%= if @binding_target_kind == "scene" do %>
+                <option value="activate_scene" selected={@binding_action == "activate_scene"}>
+                  Activate Scene
+                </option>
+              <% else %>
+                <option value="on" selected={@binding_action == "on"}>Turn On</option>
+                <option value="off" selected={@binding_action == "off"}>Turn Off</option>
+                <option value="toggle" selected={@binding_action == "toggle"}>Toggle</option>
+              <% end %>
             </select>
           </form>
 

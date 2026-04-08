@@ -4,6 +4,7 @@ defmodule HueworksWeb.PicoConfigLive do
   alias Hueworks.Picos
   alias Hueworks.Repo
   alias Hueworks.Rooms
+  alias Hueworks.Scenes
   alias Hueworks.Schemas.Bridge
   alias Hueworks.Util
 
@@ -21,6 +22,7 @@ defmodule HueworksWeb.PicoConfigLive do
        all_rooms: [],
        room_groups: [],
        room_lights: [],
+       room_scenes: [],
        selectable_room_groups: [],
        selectable_room_lights: [],
        control_groups: [],
@@ -322,7 +324,7 @@ defmodule HueworksWeb.PicoConfigLive do
      assign(socket,
        binding_target_kind: target_kind,
        binding_target_id: normalize_binding_target_id(target_kind, target_id),
-       binding_action: action
+       binding_action: normalize_binding_action(target_kind, action)
      )}
   end
 
@@ -334,7 +336,12 @@ defmodule HueworksWeb.PicoConfigLive do
     }
 
     with %{} <- socket.assigns.selected_pico,
-         true <- valid_learning_binding?(learning_binding, socket.assigns.control_groups) do
+         true <-
+           valid_learning_binding?(
+             learning_binding,
+             socket.assigns.control_groups,
+             socket.assigns.room_scenes
+           ) do
       {:noreply,
        assign(socket,
          learning_binding: learning_binding,
@@ -468,7 +475,20 @@ defmodule HueworksWeb.PicoConfigLive do
         _ -> {[], []}
       end
 
+    room_scenes =
+      case selected && selected.room_id do
+        room_id when is_integer(room_id) -> Scenes.list_scenes_for_room(room_id)
+        _ -> []
+      end
+
     control_groups = if selected, do: Picos.control_groups(selected), else: []
+
+    binding_target_kind =
+      normalize_binding_target_kind(
+        socket.assigns[:binding_target_kind],
+        control_groups,
+        room_scenes
+      )
 
     selected_control_group_id =
       normalize_selected_control_group_id(
@@ -484,19 +504,20 @@ defmodule HueworksWeb.PicoConfigLive do
         selected_pico: selected,
         room_groups: groups,
         room_lights: lights,
+        room_scenes: room_scenes,
         selectable_room_groups: selectable_groups(groups),
         selectable_room_lights: selectable_lights(lights),
         control_groups: control_groups,
         clone_source_pico_id:
           normalize_clone_source_id(devices, selected, socket.assigns[:clone_source_pico_id]),
         selected_control_group_id: selected_control_group_id,
-        binding_target_kind:
-          normalize_binding_target_kind(socket.assigns[:binding_target_kind], control_groups),
+        binding_target_kind: binding_target_kind,
         binding_target_id:
           normalize_binding_target_id(
-            normalize_binding_target_kind(socket.assigns[:binding_target_kind], control_groups),
+            binding_target_kind,
             socket.assigns[:binding_target_id]
-          )
+          ),
+        binding_action: normalize_binding_action(binding_target_kind, socket.assigns[:binding_action])
       )
 
     load_selected_control_group(socket)
@@ -560,16 +581,33 @@ defmodule HueworksWeb.PicoConfigLive do
 
   defp normalize_clone_source_id(_devices, _selected, _source_id), do: nil
 
-  defp normalize_binding_target_kind("control_group", control_groups) when control_groups != [],
-    do: "control_group"
+  defp normalize_binding_target_kind("scene", _control_groups, room_scenes) when room_scenes != [],
+    do: "scene"
 
-  defp normalize_binding_target_kind(_kind, _control_groups), do: "all_groups"
+  defp normalize_binding_target_kind("control_group", control_groups, _room_scenes)
+       when control_groups != [],
+       do: "control_group"
+
+  defp normalize_binding_target_kind(_kind, _control_groups, _room_scenes), do: "all_groups"
 
   defp normalize_binding_target_id("control_group", target_id) when is_binary(target_id),
     do: target_id
 
+  defp normalize_binding_target_id("scene", target_id) do
+    Util.parse_optional_integer(target_id)
+  end
+
   defp normalize_binding_target_id("control_group", _target_id), do: nil
   defp normalize_binding_target_id(_kind, _target_id), do: nil
+
+  defp normalize_binding_action("scene", "activate_scene"), do: "activate_scene"
+  defp normalize_binding_action("scene", _action), do: "activate_scene"
+
+  defp normalize_binding_action(_target_kind, action)
+       when action in ["on", "off", "toggle"],
+       do: action
+
+  defp normalize_binding_action(_target_kind, _action), do: "toggle"
 
   defp selectable_groups(groups) do
     Enum.reject(groups, fn group ->
@@ -585,20 +623,31 @@ defmodule HueworksWeb.PicoConfigLive do
 
   defp valid_learning_binding?(
          %{"action" => action, "target_kind" => "all_groups"},
-         control_groups
+         control_groups,
+         _room_scenes
        )
        when action in ["on", "off", "toggle"],
        do: control_groups != []
 
   defp valid_learning_binding?(
          %{"action" => action, "target_kind" => "control_group", "target_id" => target_id},
-         control_groups
+         control_groups,
+         _room_scenes
        )
        when action in ["on", "off", "toggle"] and is_binary(target_id) do
     Enum.any?(control_groups, &(&1["id"] == target_id))
   end
 
-  defp valid_learning_binding?(_binding, _control_groups), do: false
+  defp valid_learning_binding?(
+         %{"action" => "activate_scene", "target_kind" => "scene", "target_id" => target_id},
+         _control_groups,
+         room_scenes
+       )
+       when is_integer(target_id) do
+    Enum.any?(room_scenes, &(&1.id == target_id))
+  end
+
+  defp valid_learning_binding?(_binding, _control_groups, _room_scenes), do: false
 
   defp select_control_group(socket, id) do
     socket

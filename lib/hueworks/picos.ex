@@ -12,7 +12,8 @@ defmodule Hueworks.Picos do
   alias Hueworks.Import.Fetch.Caseta
   alias Hueworks.Lights.ManualControl
   alias Hueworks.Repo
-  alias Hueworks.Schemas.{Bridge, Group, Light, PicoButton, PicoDevice}
+  alias Hueworks.Scenes
+  alias Hueworks.Schemas.{Bridge, Group, Light, PicoButton, PicoDevice, Scene}
   alias Hueworks.Util
   alias Phoenix.PubSub
 
@@ -475,6 +476,9 @@ defmodule Hueworks.Picos do
 
         "#{binding_action_label(action_type)} #{target_name}"
 
+      {action_type, %{"target_kind" => "scene", "target_id" => target_id}} ->
+        "#{binding_action_label(action_type)} #{scene_name_for_target(Util.parse_optional_integer(target_id), device.room_id)}"
+
       {action_type, config} when is_map_key(config, "light_ids") ->
         "#{binding_action_label(action_type)} Custom Lights"
 
@@ -738,6 +742,22 @@ defmodule Hueworks.Picos do
     :handled
   end
 
+  defp execute_button_action(%PicoButton{
+         action_type: "activate_scene",
+         pico_device: device,
+         action_config: %{"target_kind" => "scene", "target_id" => scene_id}
+       })
+       when is_integer(scene_id) do
+    Logger.info(
+      "[pico-trace] execute_button_action room_id=#{device.room_id} action=:activate_scene scene_id=#{scene_id}"
+    )
+
+    case Scenes.activate_scene(scene_id) do
+      {:ok, _diff, _updated} -> :handled
+      _ -> :ignored
+    end
+  end
+
   defp execute_button_action(button) do
     Logger.info(
       "[pico-trace] execute_button_action_ignored action_type=#{inspect(button.action_type)}"
@@ -804,11 +824,13 @@ defmodule Hueworks.Picos do
   defp binding_action_type("on"), do: {:ok, "turn_on"}
   defp binding_action_type("off"), do: {:ok, "turn_off"}
   defp binding_action_type("toggle"), do: {:ok, "toggle_any_on"}
+  defp binding_action_type("activate_scene"), do: {:ok, "activate_scene"}
   defp binding_action_type(_), do: {:error, :invalid_action}
 
   defp binding_action_label("turn_on"), do: "Turn On"
   defp binding_action_label("turn_off"), do: "Turn Off"
   defp binding_action_label("toggle_any_on"), do: "Toggle"
+  defp binding_action_label("activate_scene"), do: "Activate Scene"
   defp binding_action_label(action), do: to_string(action)
 
   defp binding_action_config(device, %{"target_kind" => "all_groups"}) do
@@ -822,6 +844,16 @@ defmodule Hueworks.Picos do
   defp binding_action_config(device, %{"target_kind" => "control_group", "target_id" => target_id}) do
     if Enum.any?(control_groups(device), &(&1["id"] == target_id)) do
       {:ok, %{"target_kind" => "control_group", "target_id" => target_id}}
+    else
+      {:error, :missing_target}
+    end
+  end
+
+  defp binding_action_config(device, %{"target_kind" => "scene", "target_id" => target_id}) do
+    scene_id = Util.parse_optional_integer(target_id)
+
+    if is_integer(device.room_id) and scene_exists_in_room?(device.room_id, scene_id) do
+      {:ok, %{"target_kind" => "scene", "target_id" => scene_id}}
     else
       {:error, :missing_target}
     end
@@ -916,6 +948,14 @@ defmodule Hueworks.Picos do
     }
   end
 
+  defp clone_action_config(%{"target_kind" => "scene", "target_id" => target_id}, _group_id_map, room_id) do
+    %{
+      "target_kind" => "scene",
+      "target_id" => Util.parse_optional_integer(target_id),
+      "room_id" => room_id
+    }
+  end
+
   defp clone_action_config(%{"light_ids" => light_ids}, _group_id_map, room_id) do
     %{
       "light_ids" => normalize_integer_ids(light_ids),
@@ -952,6 +992,24 @@ defmodule Hueworks.Picos do
   end
 
   defp normalize_integer(_value), do: nil
+
+  defp scene_exists_in_room?(room_id, scene_id)
+       when is_integer(room_id) and is_integer(scene_id) do
+    Repo.exists?(from(s in Scene, where: s.room_id == ^room_id and s.id == ^scene_id))
+  end
+
+  defp scene_exists_in_room?(_room_id, _scene_id), do: false
+
+  defp scene_name_for_target(scene_id, room_id)
+       when is_integer(scene_id) and is_integer(room_id) do
+    room_id
+    |> Scenes.list_scenes_for_room()
+    |> Enum.find_value("Unknown Scene", fn scene ->
+      if scene.id == scene_id, do: scene.name, else: nil
+    end)
+  end
+
+  defp scene_name_for_target(_scene_id, _room_id), do: "Unknown Scene"
 
   defp normalize_source_id(value) when is_binary(value), do: value
   defp normalize_source_id(value) when is_integer(value), do: Integer.to_string(value)

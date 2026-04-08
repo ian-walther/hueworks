@@ -1,8 +1,10 @@
 defmodule Hueworks.PicosTest do
   use Hueworks.DataCase, async: false
 
+  alias Hueworks.ActiveScenes
   alias Hueworks.Picos
   alias Phoenix.PubSub
+  alias Hueworks.Scenes
   alias Hueworks.Control.{DesiredState, State}
   alias Hueworks.Repo
   alias Hueworks.Schemas.{Bridge, Group, GroupLight, Light, PicoButton, PicoDevice, Room}
@@ -234,6 +236,70 @@ defmodule Hueworks.PicosTest do
     refute Enum.member?(control_group["group_ids"], other_group.id)
   end
 
+  test "scene bindings can be saved and button presses activate the selected scene" do
+    bridge = insert_bridge(%{host: "10.0.0.515"})
+    room = Repo.insert!(%Room{name: "Living Room"})
+
+    light =
+      Repo.insert!(%Light{
+        name: "Lamp",
+        source: :caseta,
+        source_id: "61",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        enabled: true
+      })
+
+    device =
+      Repo.insert!(%PicoDevice{
+        bridge_id: bridge.id,
+        room_id: room.id,
+        source_id: "scene-device",
+        name: "Scene Pico",
+        hardware_profile: "5_button",
+        metadata: %{"room_override" => true}
+      })
+
+    Repo.insert!(%PicoButton{
+      pico_device_id: device.id,
+      source_id: "1",
+      button_number: 2,
+      slot_index: 0,
+      enabled: true
+    })
+
+    {:ok, state} =
+      Scenes.create_manual_light_state("Warm", %{"brightness" => "55", "temperature" => "3200"})
+
+    {:ok, scene} = Scenes.create_scene(%{name: "Evening", room_id: room.id})
+
+    {:ok, _} =
+      Scenes.replace_scene_components(scene, [
+        %{name: "Lamps", light_ids: [light.id], light_state_id: to_string(state.id)}
+      ])
+
+    assert {:ok, _button} =
+             Picos.assign_button_binding(device, "1", %{
+               "action" => "activate_scene",
+               "target_kind" => "scene",
+               "target_id" => Integer.to_string(scene.id)
+             })
+
+    button =
+      Repo.one!(
+        from(pb in PicoButton, where: pb.pico_device_id == ^device.id and pb.source_id == "1")
+      )
+
+    assert button.action_type == "activate_scene"
+    assert button.action_config["target_kind"] == "scene"
+    assert button.action_config["target_id"] == scene.id
+    assert Picos.button_binding_summary(button, Picos.get_device(device.id)) == "Activate Scene Evening"
+
+    assert :handled = Picos.handle_button_press(bridge.id, "1")
+    assert ActiveScenes.get_for_room(room.id).scene_id == scene.id
+    assert DesiredState.get(:light, light.id) == %{power: :on, brightness: 55, kelvin: 3200}
+  end
+
   test "clone_device_config copies room scope, control groups, and bindings onto another pico" do
     bridge = insert_bridge(%{host: "10.0.0.511"})
     room = Repo.insert!(%Room{name: "Kitchen"})
@@ -269,6 +335,16 @@ defmodule Hueworks.PicosTest do
       })
 
     Repo.insert!(%GroupLight{group_id: group.id, light_id: overhead.id})
+
+    {:ok, state} =
+      Scenes.create_manual_light_state("Movie", %{"brightness" => "20", "temperature" => "2600"})
+
+    {:ok, scene} = Scenes.create_scene(%{name: "Movie Time", room_id: room.id})
+
+    {:ok, _} =
+      Scenes.replace_scene_components(scene, [
+        %{name: "Room", light_ids: [overhead.id, lamp.id], light_state_id: to_string(state.id)}
+      ])
 
     source =
       Repo.insert!(%PicoDevice{
@@ -324,9 +400,16 @@ defmodule Hueworks.PicosTest do
              })
 
     assert {:ok, _button} =
-             Picos.assign_button_binding(source, "s2", %{
-               "action" => "off",
-               "target_kind" => "all_groups"
+      Picos.assign_button_binding(source, "s2", %{
+        "action" => "off",
+        "target_kind" => "all_groups"
+      })
+
+    assert {:ok, _button} =
+             Picos.assign_button_binding(source, "s3", %{
+               "action" => "activate_scene",
+               "target_kind" => "scene",
+               "target_id" => Integer.to_string(scene.id)
              })
 
     assert {:ok, cloned} = Picos.clone_device_config(destination, source)
@@ -346,7 +429,7 @@ defmodule Hueworks.PicosTest do
 
     toggle_button = Enum.find(cloned_buttons, &(&1.button_number == 2))
     all_groups_button = Enum.find(cloned_buttons, &(&1.button_number == 3))
-    untouched_button = Enum.find(cloned_buttons, &(&1.button_number == 4))
+    scene_button = Enum.find(cloned_buttons, &(&1.button_number == 4))
 
     assert toggle_button.action_type == "toggle_any_on"
     assert toggle_button.action_config["target_kind"] == "control_group"
@@ -357,8 +440,10 @@ defmodule Hueworks.PicosTest do
     assert all_groups_button.action_config["target_kind"] == "all_groups"
     assert all_groups_button.action_config["room_id"] == room.id
 
-    assert is_nil(untouched_button.action_type)
-    assert untouched_button.action_config == %{}
+    assert scene_button.action_type == "activate_scene"
+    assert scene_button.action_config["target_kind"] == "scene"
+    assert scene_button.action_config["target_id"] == scene.id
+    assert scene_button.action_config["room_id"] == room.id
   end
 
   test "manual room override survives sync and can be cleared back to auto-detected room" do
