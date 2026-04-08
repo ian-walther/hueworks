@@ -8,9 +8,14 @@ defmodule Hueworks.Control.PlannerTest do
 
   setup do
     Repo.delete_all(AppSetting)
+    HueworksApp.Cache.flush_namespace(:app_settings)
 
     if :ets.whereis(:hueworks_desired_state) != :undefined do
       :ets.delete_all_objects(:hueworks_desired_state)
+    end
+
+    if :ets.whereis(:hueworks_control_state) != :undefined do
+      :ets.delete_all_objects(:hueworks_control_state)
     end
 
     :ok
@@ -137,7 +142,8 @@ defmodule Hueworks.Control.PlannerTest do
       latitude: 40.7128,
       longitude: -74.0060,
       timezone: "America/New_York",
-      default_transition_ms: 800
+      default_transition_ms: 800,
+      scale_transition_by_brightness: false
     })
 
     room = Repo.insert!(%Room{name: "Transition Room"})
@@ -161,6 +167,213 @@ defmodule Hueworks.Control.PlannerTest do
     assert action.type == :light
     assert action.id == light.id
     assert action.apply_opts == %{transition_ms: 800}
+  end
+
+  test "plan_room scales transition for brightness-to-off using current brightness delta" do
+    Repo.insert!(%AppSetting{
+      scope: "global",
+      latitude: 40.7128,
+      longitude: -74.0060,
+      timezone: "America/New_York",
+      default_transition_ms: 1000,
+      scale_transition_by_brightness: true
+    })
+
+    room = Repo.insert!(%Room{name: "Scaled Transition Room"})
+
+    bridge =
+      Repo.insert!(%Bridge{
+        name: "Hue",
+        type: :hue,
+        host: "bridge-scaled-transition",
+        credentials: %{}
+      })
+
+    light = insert_light(room, bridge, "Lamp")
+
+    DesiredState.put(:light, light.id, %{power: :off})
+    State.put(:light, light.id, %{power: :on, brightness: 35})
+
+    [action] = Planner.plan_room(room.id, %{{:light, light.id} => %{power: :off}})
+
+    assert action.apply_opts == %{transition_ms: 350}
+  end
+
+  test "plan_room keeps full transition for non-brightness changes when scaling is enabled" do
+    Repo.insert!(%AppSetting{
+      scope: "global",
+      latitude: 40.7128,
+      longitude: -74.0060,
+      timezone: "America/New_York",
+      default_transition_ms: 1000,
+      scale_transition_by_brightness: true
+    })
+
+    room = Repo.insert!(%Room{name: "Kelvin Transition Room"})
+
+    bridge =
+      Repo.insert!(%Bridge{
+        name: "Hue",
+        type: :hue,
+        host: "bridge-kelvin-transition",
+        credentials: %{}
+      })
+
+    light = insert_light(room, bridge, "Lamp")
+
+    DesiredState.put(:light, light.id, %{power: :on, kelvin: 3200})
+    State.put(:light, light.id, %{power: :on, brightness: 40, kelvin: 2700})
+
+    [action] = Planner.plan_room(room.id, %{{:light, light.id} => %{power: :on, kelvin: 3200}})
+
+    assert action.apply_opts == %{transition_ms: 1000}
+  end
+
+  test "plan_room keeps full transition for power-on when target brightness is unknown" do
+    Repo.insert!(%AppSetting{
+      scope: "global",
+      latitude: 40.7128,
+      longitude: -74.0060,
+      timezone: "America/New_York",
+      default_transition_ms: 1000,
+      scale_transition_by_brightness: true
+    })
+
+    room = Repo.insert!(%Room{name: "Unknown Brightness Transition Room"})
+
+    bridge =
+      Repo.insert!(%Bridge{
+        name: "Hue",
+        type: :hue,
+        host: "bridge-unknown-brightness-transition",
+        credentials: %{}
+      })
+
+    light = insert_light(room, bridge, "Lamp")
+
+    DesiredState.put(:light, light.id, %{power: :on})
+    State.put(:light, light.id, %{power: :off})
+
+    [action] = Planner.plan_room(room.id, %{{:light, light.id} => %{power: :on}})
+
+    assert action.apply_opts == %{transition_ms: 1000}
+  end
+
+  test "plan_room scales brightness-to-brightness changes by the brightness delta" do
+    Repo.insert!(%AppSetting{
+      scope: "global",
+      latitude: 40.7128,
+      longitude: -74.0060,
+      timezone: "America/New_York",
+      default_transition_ms: 1000,
+      scale_transition_by_brightness: true
+    })
+
+    room = Repo.insert!(%Room{name: "Brightness Delta Transition Room"})
+
+    bridge =
+      Repo.insert!(%Bridge{
+        name: "Hue",
+        type: :hue,
+        host: "bridge-brightness-delta-transition",
+        credentials: %{}
+      })
+
+    light = insert_light(room, bridge, "Lamp")
+
+    DesiredState.put(:light, light.id, %{power: :on, brightness: 80})
+    State.put(:light, light.id, %{power: :on, brightness: 20})
+
+    [action] =
+      Planner.plan_room(room.id, %{{:light, light.id} => %{power: :on, brightness: 80}})
+
+    assert action.apply_opts == %{transition_ms: 600}
+  end
+
+  test "plan_room uses the max brightness delta for grouped actions when scaling is enabled" do
+    Repo.insert!(%AppSetting{
+      scope: "global",
+      latitude: 40.7128,
+      longitude: -74.0060,
+      timezone: "America/New_York",
+      default_transition_ms: 1000,
+      scale_transition_by_brightness: true
+    })
+
+    room = Repo.insert!(%Room{name: "Grouped Transition Room"})
+
+    bridge =
+      Repo.insert!(%Bridge{
+        name: "Hue",
+        type: :hue,
+        host: "bridge-grouped-transition",
+        credentials: %{}
+      })
+
+    light_a = insert_light(room, bridge, "A")
+    light_b = insert_light(room, bridge, "B")
+
+    group = insert_group(room, bridge, "All")
+    insert_group_light(group, light_a)
+    insert_group_light(group, light_b)
+
+    DesiredState.put(:light, light_a.id, %{power: :off})
+    DesiredState.put(:light, light_b.id, %{power: :off})
+    State.put(:light, light_a.id, %{power: :on, brightness: 20})
+    State.put(:light, light_b.id, %{power: :on, brightness: 80})
+
+    [action] =
+      Planner.plan_room(room.id, %{
+        {:light, light_a.id} => %{power: :off},
+        {:light, light_b.id} => %{power: :off}
+      })
+
+    assert action.type == :group
+    assert action.id == group.id
+    assert action.apply_opts == %{transition_ms: 800}
+  end
+
+  test "plan_room group scaling uses the max known brightness delta when one light is unknown" do
+    Repo.insert!(%AppSetting{
+      scope: "global",
+      latitude: 40.7128,
+      longitude: -74.0060,
+      timezone: "America/New_York",
+      default_transition_ms: 1000,
+      scale_transition_by_brightness: true
+    })
+
+    room = Repo.insert!(%Room{name: "Grouped Mixed Knowledge Transition Room"})
+
+    bridge =
+      Repo.insert!(%Bridge{
+        name: "Hue",
+        type: :hue,
+        host: "bridge-grouped-mixed-transition",
+        credentials: %{}
+      })
+
+    light_a = insert_light(room, bridge, "A")
+    light_b = insert_light(room, bridge, "B")
+
+    group = insert_group(room, bridge, "All")
+    insert_group_light(group, light_a)
+    insert_group_light(group, light_b)
+
+    DesiredState.put(:light, light_a.id, %{power: :off})
+    DesiredState.put(:light, light_b.id, %{power: :off})
+    State.put(:light, light_a.id, %{power: :on, brightness: 35})
+    State.put(:light, light_b.id, %{power: :on})
+
+    [action] =
+      Planner.plan_room(room.id, %{
+        {:light, light_a.id} => %{power: :off},
+        {:light, light_b.id} => %{power: :off}
+      })
+
+    assert action.type == :group
+    assert action.id == group.id
+    assert action.apply_opts == %{transition_ms: 350}
   end
 
   test "plan_room falls back to individual lights when no exact-match group exists" do

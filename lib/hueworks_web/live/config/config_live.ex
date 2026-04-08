@@ -20,6 +20,7 @@ defmodule HueworksWeb.ConfigLive do
        longitude: format_coord(app_setting.longitude),
        timezone: timezone,
        default_transition_ms: format_integer(app_setting.default_transition_ms || 0),
+       scale_transition_by_brightness: app_setting.scale_transition_by_brightness == true,
        settings_status: nil,
        settings_error: nil,
        light_state_status: nil,
@@ -41,6 +42,14 @@ defmodule HueworksWeb.ConfigLive do
        timezone: timezone,
        default_transition_ms:
          Map.get(params, "default_transition_ms", socket.assigns.default_transition_ms),
+       scale_transition_by_brightness:
+         parse_boolean_param(
+           Map.get(
+             params,
+             "scale_transition_by_brightness",
+             socket.assigns.scale_transition_by_brightness
+           )
+         ),
        timezones: timezone_options(timezone),
        settings_status: nil,
        settings_error: nil
@@ -53,7 +62,15 @@ defmodule HueworksWeb.ConfigLive do
       longitude: Map.get(params, "longitude", socket.assigns.longitude),
       timezone: Map.get(params, "timezone", socket.assigns.timezone),
       default_transition_ms:
-        Map.get(params, "default_transition_ms", socket.assigns.default_transition_ms)
+        Map.get(params, "default_transition_ms", socket.assigns.default_transition_ms),
+      scale_transition_by_brightness:
+        parse_boolean_param(
+          Map.get(
+            params,
+            "scale_transition_by_brightness",
+            socket.assigns.scale_transition_by_brightness
+          )
+        )
     }
 
     case AppSettings.upsert_global(attrs) do
@@ -65,6 +82,7 @@ defmodule HueworksWeb.ConfigLive do
            longitude: format_coord(app_setting.longitude),
            timezone: app_setting.timezone,
            default_transition_ms: format_integer(app_setting.default_transition_ms || 0),
+           scale_transition_by_brightness: app_setting.scale_transition_by_brightness == true,
            timezones: timezone_options(app_setting.timezone),
            settings_status: "Global solar settings saved.",
            settings_error: nil
@@ -101,6 +119,7 @@ defmodule HueworksWeb.ConfigLive do
        longitude: format_coord(longitude),
        timezone: timezone,
        default_transition_ms: socket.assigns.default_transition_ms,
+       scale_transition_by_brightness: socket.assigns.scale_transition_by_brightness,
        timezones: timezone_options(timezone),
        settings_status: "Location and timezone received from browser.",
        settings_error: nil
@@ -201,6 +220,11 @@ defmodule HueworksWeb.ConfigLive do
 
   defp format_integer(value) when is_integer(value), do: Integer.to_string(value)
   defp format_integer(_value), do: "0"
+
+  defp parse_boolean_param(value) when value in [true, false], do: value
+  defp parse_boolean_param("true"), do: true
+  defp parse_boolean_param("false"), do: false
+  defp parse_boolean_param(_value), do: false
 
   defp timezone_options(current_timezone) do
     base_timezones = [

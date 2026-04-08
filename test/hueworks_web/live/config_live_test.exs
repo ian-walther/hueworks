@@ -21,13 +21,15 @@ defmodule HueworksWeb.ConfigLiveTest do
     assert html =~ "Light State Configs"
     assert html =~ "Save Global Settings"
     assert html =~ "Default Transition (ms)"
+    assert html =~ "Scale Transition By Brightness Delta"
 
     view
     |> form("form[phx-submit='save_global_solar']", %{
       "timezone" => "America/Chicago",
       "latitude" => "41.8781",
       "longitude" => "-87.6298",
-      "default_transition_ms" => "900"
+      "default_transition_ms" => "900",
+      "scale_transition_by_brightness" => "true"
     })
     |> render_submit()
 
@@ -38,6 +40,7 @@ defmodule HueworksWeb.ConfigLiveTest do
     assert settings.longitude == -87.6298
     assert settings.timezone == "America/Chicago"
     assert settings.default_transition_ms == 900
+    assert settings.scale_transition_by_brightness == true
   end
 
   test "shows light state actions and list entries", %{conn: conn} do
@@ -124,13 +127,16 @@ defmodule HueworksWeb.ConfigLiveTest do
       latitude: 40.7128,
       longitude: -74.0060,
       timezone: "America/Indiana/Indianapolis",
-      default_transition_ms: 750
+      default_transition_ms: 750,
+      scale_transition_by_brightness: true
     })
 
     {:ok, _view, html} = live(conn, "/config")
 
     assert html =~ ~s(value="America/Indiana/Indianapolis")
     assert html =~ ~s(value="750")
+    assert html =~ ~s(id="global_scale_transition_by_brightness")
+    assert html =~ ~s(checked)
 
     assert html =~
              ~r/<option[^>]*value="America\/Indiana\/Indianapolis"[^>]*selected/

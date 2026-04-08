@@ -72,6 +72,21 @@
         autocomplete="off"
       />
 
+      <label class="hw-modal-label" for="global_scale_transition_by_brightness">
+        Scale Transition By Brightness Delta
+      </label>
+      <input type="hidden" name="scale_transition_by_brightness" value="false" />
+      <label class="hw-toggle">
+        <input
+          id="global_scale_transition_by_brightness"
+          name="scale_transition_by_brightness"
+          type="checkbox"
+          value="true"
+          checked={@scale_transition_by_brightness}
+        />
+        <span>Shorten transitions for smaller brightness changes.</span>
+      </label>
+
       <div class="hw-modal-actions">
         <button type="submit" class="hw-button hw-button-on">Save Global Settings</button>
       </div>

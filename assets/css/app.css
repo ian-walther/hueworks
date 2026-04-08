@@ -428,6 +428,18 @@ body {
   accent-color: var(--accent);
 }
 
+.hw-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin: 0 0 1.25rem;
+  color: rgba(27, 27, 23, 0.8);
+}
+
+.hw-toggle input {
+  accent-color: var(--accent);
+}
+
 .hw-modal-input {
   width: 100%;
   border-radius: 12px;
