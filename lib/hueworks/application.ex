@@ -20,7 +20,7 @@ defmodule Hueworks.Application do
         Hueworks.Subscription.HomeAssistantEventStream,
         Hueworks.Subscription.CasetaEventStream,
         Hueworks.Subscription.Z2MEventStream,
-        Hueworks.HomeAssistant.Export,
+        maybe_home_assistant_export(),
         HueworksWeb.Endpoint
         # Exploration modules will be started manually in iex for now
         # {Hueworks.Exploration.PicoHueSlice, []},
@@ -40,6 +40,14 @@ defmodule Hueworks.Application do
   defp maybe_circadian_poller do
     if Application.get_env(:hueworks, :circadian_poll_enabled, true) do
       Hueworks.Control.CircadianPoller
+    else
+      nil
+    end
+  end
+
+  defp maybe_home_assistant_export do
+    if Application.get_env(:hueworks, :ha_export_runtime_enabled, true) do
+      Hueworks.HomeAssistant.Export
     else
       nil
     end

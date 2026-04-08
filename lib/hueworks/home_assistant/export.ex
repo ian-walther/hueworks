@@ -22,27 +22,27 @@ defmodule Hueworks.HomeAssistant.Export do
   end
 
   def reload do
-    GenServer.cast(__MODULE__, :reload)
+    maybe_cast(:reload)
   end
 
   def refresh_all_scenes do
-    GenServer.cast(__MODULE__, :refresh_all_scenes)
+    maybe_cast(:refresh_all_scenes)
   end
 
   def refresh_room(room_id) when is_integer(room_id) do
-    GenServer.cast(__MODULE__, {:refresh_room, room_id})
+    maybe_cast({:refresh_room, room_id})
   end
 
   def refresh_scene(%Scene{id: scene_id}), do: refresh_scene(scene_id)
 
   def refresh_scene(scene_id) when is_integer(scene_id) do
-    GenServer.cast(__MODULE__, {:refresh_scene, scene_id})
+    maybe_cast({:refresh_scene, scene_id})
   end
 
   def remove_scene(%Scene{id: scene_id}), do: remove_scene(scene_id)
 
   def remove_scene(scene_id) when is_integer(scene_id) do
-    GenServer.cast(__MODULE__, {:remove_scene, scene_id})
+    maybe_cast({:remove_scene, scene_id})
   end
 
   def client_id do
@@ -97,7 +97,7 @@ defmodule Hueworks.HomeAssistant.Export do
 
     %{
       "platform" => "scene",
-      "name" => "#{room_name} #{scene_name(scene)}",
+      "name" => scene_name(scene),
       "unique_id" => "hueworks_scene_#{scene.id}",
       "command_topic" => command_topic(scene.id),
       "payload_on" => "ON",
@@ -470,4 +470,14 @@ defmodule Hueworks.HomeAssistant.Export do
 
   defp maybe_put(payload, _key, nil), do: payload
   defp maybe_put(payload, key, value), do: Map.put(payload, key, value)
+
+  defp maybe_cast(message) do
+    case Process.whereis(__MODULE__) do
+      pid when is_pid(pid) ->
+        GenServer.cast(pid, message)
+
+      _ ->
+        :ok
+    end
+  end
 end

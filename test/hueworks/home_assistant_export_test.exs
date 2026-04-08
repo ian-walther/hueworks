@@ -36,6 +36,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
 
     Repo.delete_all(AppSetting)
     HueworksApp.Cache.flush_namespace(:app_settings)
+    start_supervised!({Export, []})
     Export.reload()
     _ = :sys.get_state(Export)
 
@@ -56,22 +57,18 @@ defmodule Hueworks.HomeAssistant.ExportTest do
       )
 
       Application.put_env(:hueworks, :ha_export_publish_sink, original_sink)
-      Repo.delete_all(AppSetting)
-      HueworksApp.Cache.flush_namespace(:app_settings)
-      Export.reload()
-      _ = :sys.get_state(Export)
     end)
 
     :ok
   end
 
-  test "discovery payload uses stable IDs and room-prefixed names" do
+  test "discovery payload uses stable IDs and scene-only entity names" do
     room = Repo.insert!(%Room{name: "Main Floor"})
     scene = Repo.insert!(%Scene{name: "All Auto", room_id: room.id}) |> Repo.preload(:room)
 
     payload = Export.discovery_payload(scene)
 
-    assert payload["name"] == "Main Floor All Auto"
+    assert payload["name"] == "All Auto"
     assert payload["unique_id"] == "hueworks_scene_#{scene.id}"
     assert payload["command_topic"] == "hueworks/ha_export/scenes/#{scene.id}/set"
     assert payload["json_attributes_topic"] == "hueworks/ha_export/scenes/#{scene.id}/attributes"
@@ -104,7 +101,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
     assert topic == "homeassistant/scene/hueworks_scene_#{scene.id}/config"
 
     decoded = Jason.decode!(payload)
-    assert decoded["name"] == "Main Floor All Auto"
+    assert decoded["name"] == "All Auto"
     assert decoded["command_topic"] == "hueworks/ha_export/scenes/#{scene.id}/set"
 
     assert_receive {:published, ^client_id, attrs_topic, attrs_payload, [qos: 0, retain: true]}

@@ -36,8 +36,8 @@ defmodule HueworksWeb.ConfigLiveTest do
 
     Repo.delete_all(AppSetting)
     HueworksApp.Cache.flush_namespace(:app_settings)
+    start_supervised!({Export, []})
     Export.reload()
-    _ = :sys.get_state(Export)
 
     on_exit(fn ->
       Application.put_env(:hueworks, :ha_export_tortoise_module, original_tortoise)
@@ -54,11 +54,6 @@ defmodule HueworksWeb.ConfigLiveTest do
         :ha_export_tortoise_supervisor_name,
         original_supervisor_name
       )
-
-      Repo.delete_all(AppSetting)
-      HueworksApp.Cache.flush_namespace(:app_settings)
-      Export.reload()
-      _ = :sys.get_state(Export)
     end)
 
     :ok
@@ -130,6 +125,31 @@ defmodule HueworksWeb.ConfigLiveTest do
     assert settings.ha_export_mqtt_username == "ha_user"
     assert settings.ha_export_mqtt_password == "secret"
     assert settings.ha_export_discovery_prefix == "homeassistant"
+  end
+
+  test "republish button is available for enabled HA export and shows status", %{conn: conn} do
+    Repo.insert!(%AppSetting{
+      scope: "global",
+      latitude: 40.7128,
+      longitude: -74.0060,
+      timezone: "America/New_York",
+      ha_export_enabled: true,
+      ha_export_mqtt_host: "mqtt.local",
+      ha_export_mqtt_port: 1883,
+      ha_export_discovery_prefix: "homeassistant"
+    })
+
+    HueworksApp.Cache.flush_namespace(:app_settings)
+
+    {:ok, view, html} = live(conn, "/config")
+
+    assert html =~ "Republish Exported Scenes"
+
+    view
+    |> element("button[phx-click='republish_ha_export_scenes']")
+    |> render_click()
+
+    assert render(view) =~ "Republished exported Home Assistant scenes."
   end
 
   test "shows light state actions and list entries", %{conn: conn} do

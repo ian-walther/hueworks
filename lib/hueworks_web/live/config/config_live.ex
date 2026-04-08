@@ -182,6 +182,16 @@ defmodule HueworksWeb.ConfigLive do
     end
   end
 
+  def handle_event("republish_ha_export_scenes", _params, socket) do
+    HomeAssistantExport.refresh_all_scenes()
+
+    {:noreply,
+     assign(socket,
+       ha_export_status: "Republished exported Home Assistant scenes.",
+       ha_export_error: nil
+     )}
+  end
+
   def handle_event(
         "geolocation_success",
         %{"latitude" => latitude, "longitude" => longitude} = params,
