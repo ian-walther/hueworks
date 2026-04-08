@@ -20,6 +20,7 @@ defmodule Hueworks.Application do
         Hueworks.Subscription.HomeAssistantEventStream,
         Hueworks.Subscription.CasetaEventStream,
         Hueworks.Subscription.Z2MEventStream,
+        Hueworks.HomeAssistant.Export,
         HueworksWeb.Endpoint
         # Exploration modules will be started manually in iex for now
         # {Hueworks.Exploration.PicoHueSlice, []},

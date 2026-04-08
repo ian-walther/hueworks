@@ -5,8 +5,9 @@ defmodule Hueworks.Rooms do
 
   import Ecto.Query, only: [from: 2]
 
+  alias Hueworks.HomeAssistant.Export, as: HomeAssistantExport
   alias Hueworks.Repo
-  alias Hueworks.Schemas.Room
+  alias Hueworks.Schemas.{Room, Scene}
 
   def list_rooms do
     Repo.all(from(r in Room, order_by: [asc: r.name]))
@@ -26,9 +27,16 @@ defmodule Hueworks.Rooms do
   end
 
   def update_room(room, attrs) do
-    room
-    |> Room.changeset(attrs)
-    |> Repo.update()
+    case room
+         |> Room.changeset(attrs)
+         |> Repo.update() do
+      {:ok, updated} ->
+        HomeAssistantExport.refresh_room(updated.id)
+        {:ok, updated}
+
+      other ->
+        other
+    end
   end
 
   def set_occupied(room_id, value) when is_integer(room_id) and is_boolean(value) do
@@ -48,6 +56,16 @@ defmodule Hueworks.Rooms do
   end
 
   def delete_room(room) do
-    Repo.delete(room)
+    scene_ids =
+      Repo.all(from(s in Scene, where: s.room_id == ^room.id, select: s.id))
+
+    case Repo.delete(room) do
+      {:ok, deleted} ->
+        Enum.each(scene_ids, &HomeAssistantExport.remove_scene/1)
+        {:ok, deleted}
+
+      other ->
+        other
+    end
   end
 end

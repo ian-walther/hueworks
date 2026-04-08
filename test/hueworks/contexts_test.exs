@@ -9,6 +9,7 @@ defmodule Hueworks.ContextsTest do
   alias Hueworks.Groups
   alias Hueworks.Rooms
   alias Hueworks.Scenes
+
   alias Hueworks.Schemas.{
     AppSetting,
     Bridge,
@@ -237,18 +238,29 @@ defmodule Hueworks.ContextsTest do
 
     assert {:ok, [external_scene]} =
              ExternalScenes.sync_home_assistant_scenes(bridge, [
-               %{source_id: "scene.movie_time", name: "Movie Time", metadata: %{"state" => "scening"}}
+               %{
+                 source_id: "scene.movie_time",
+                 name: "Movie Time",
+                 metadata: %{"state" => "scening"}
+               }
              ])
 
     assert external_scene.source == :ha
     assert external_scene.source_id == "scene.movie_time"
 
     assert {:ok, _mapping} =
-             ExternalScenes.update_mapping(external_scene, %{"scene_id" => scene.id, "enabled" => "true"})
+             ExternalScenes.update_mapping(external_scene, %{
+               "scene_id" => scene.id,
+               "enabled" => "true"
+             })
 
     assert {:ok, [resynced]} =
              ExternalScenes.sync_home_assistant_scenes(bridge, [
-               %{source_id: "scene.movie_time", name: "Movie Time Updated", metadata: %{"state" => "scening"}}
+               %{
+                 source_id: "scene.movie_time",
+                 name: "Movie Time Updated",
+                 metadata: %{"state" => "scening"}
+               }
              ])
 
     assert resynced.name == "Movie Time Updated"
@@ -267,6 +279,23 @@ defmodule Hueworks.ContextsTest do
     assert disabled.id == external_scene.id
     assert disabled.enabled == false
     assert %ExternalScene{enabled: false} = ExternalScenes.get_external_scene(external_scene.id)
+  end
+
+  test "ExternalScenes sync skips HueWorks-managed Home Assistant scenes" do
+    bridge = insert_bridge(%{type: :ha, host: "10.0.0.154", credentials: %{"token" => "token"}})
+
+    assert {:ok, []} =
+             ExternalScenes.sync_home_assistant_scenes(bridge, [
+               %{
+                 source_id: "scene.hueworks_main_floor_all_auto",
+                 name: "Main Floor All Auto",
+                 metadata: %{
+                   "attributes" => %{
+                     "hueworks_managed" => true
+                   }
+                 }
+               }
+             ])
   end
 
   test "Rooms context supports CRUD and list ordering" do

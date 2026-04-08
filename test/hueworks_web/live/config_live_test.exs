@@ -4,13 +4,63 @@ defmodule HueworksWeb.ConfigLiveTest do
   import Phoenix.LiveViewTest
 
   alias Hueworks.AppSettings
+  alias Hueworks.HomeAssistant.Export
   alias Hueworks.Repo
   alias Hueworks.Scenes
   alias Hueworks.Schemas.{AppSetting, Bridge, LightState, Room, SceneComponent}
 
   setup do
+    original_tortoise = Application.get_env(:hueworks, :ha_export_tortoise_module)
+    original_supervisor = Application.get_env(:hueworks, :ha_export_tortoise_supervisor_module)
+
+    original_dynamic_supervisor =
+      Application.get_env(:hueworks, :ha_export_dynamic_supervisor_module)
+
+    original_supervisor_name = Application.get_env(:hueworks, :ha_export_tortoise_supervisor_name)
+
+    Application.put_env(:hueworks, :ha_export_tortoise_module, __MODULE__.TortoiseStub)
+
+    Application.put_env(
+      :hueworks,
+      :ha_export_tortoise_supervisor_module,
+      __MODULE__.SupervisorStub
+    )
+
+    Application.put_env(
+      :hueworks,
+      :ha_export_dynamic_supervisor_module,
+      __MODULE__.DynamicSupervisorStub
+    )
+
+    Application.put_env(:hueworks, :ha_export_tortoise_supervisor_name, __MODULE__.SupervisorStub)
+
     Repo.delete_all(AppSetting)
     HueworksApp.Cache.flush_namespace(:app_settings)
+    Export.reload()
+    _ = :sys.get_state(Export)
+
+    on_exit(fn ->
+      Application.put_env(:hueworks, :ha_export_tortoise_module, original_tortoise)
+      Application.put_env(:hueworks, :ha_export_tortoise_supervisor_module, original_supervisor)
+
+      Application.put_env(
+        :hueworks,
+        :ha_export_dynamic_supervisor_module,
+        original_dynamic_supervisor
+      )
+
+      Application.put_env(
+        :hueworks,
+        :ha_export_tortoise_supervisor_name,
+        original_supervisor_name
+      )
+
+      Repo.delete_all(AppSetting)
+      HueworksApp.Cache.flush_namespace(:app_settings)
+      Export.reload()
+      _ = :sys.get_state(Export)
+    end)
+
     :ok
   end
 
@@ -41,6 +91,45 @@ defmodule HueworksWeb.ConfigLiveTest do
     assert settings.timezone == "America/Chicago"
     assert settings.default_transition_ms == 900
     assert settings.scale_transition_by_brightness == true
+  end
+
+  test "shows home assistant export settings form and saves values", %{conn: conn} do
+    Repo.insert!(%AppSetting{
+      scope: "global",
+      latitude: 40.7128,
+      longitude: -74.0060,
+      timezone: "America/New_York",
+      default_transition_ms: 0,
+      scale_transition_by_brightness: false
+    })
+
+    HueworksApp.Cache.flush_namespace(:app_settings)
+
+    {:ok, view, html} = live(conn, "/config")
+
+    assert html =~ "Home Assistant MQTT Export"
+    assert html =~ "Save Home Assistant Export"
+
+    view
+    |> form("form[phx-submit='save_ha_export']", %{
+      "ha_export_enabled" => "true",
+      "ha_export_mqtt_host" => "mqtt.local",
+      "ha_export_mqtt_port" => "1883",
+      "ha_export_mqtt_username" => "ha_user",
+      "ha_export_mqtt_password" => "secret",
+      "ha_export_discovery_prefix" => "homeassistant"
+    })
+    |> render_submit()
+
+    assert render(view) =~ "Home Assistant MQTT export settings saved."
+
+    settings = AppSettings.get_global()
+    assert settings.ha_export_enabled == true
+    assert settings.ha_export_mqtt_host == "mqtt.local"
+    assert settings.ha_export_mqtt_port == 1883
+    assert settings.ha_export_mqtt_username == "ha_user"
+    assert settings.ha_export_mqtt_password == "secret"
+    assert settings.ha_export_discovery_prefix == "homeassistant"
   end
 
   test "shows light state actions and list entries", %{conn: conn} do
@@ -128,8 +217,16 @@ defmodule HueworksWeb.ConfigLiveTest do
       longitude: -74.0060,
       timezone: "America/Indiana/Indianapolis",
       default_transition_ms: 750,
-      scale_transition_by_brightness: true
+      scale_transition_by_brightness: true,
+      ha_export_enabled: true,
+      ha_export_mqtt_host: "mqtt.local",
+      ha_export_mqtt_port: 1884,
+      ha_export_mqtt_username: "ha_user",
+      ha_export_mqtt_password: "secret",
+      ha_export_discovery_prefix: "custom_ha"
     })
+
+    HueworksApp.Cache.flush_namespace(:app_settings)
 
     {:ok, _view, html} = live(conn, "/config")
 
@@ -137,6 +234,11 @@ defmodule HueworksWeb.ConfigLiveTest do
     assert html =~ ~s(value="750")
     assert html =~ ~s(id="global_scale_transition_by_brightness")
     assert html =~ ~s(checked)
+    assert html =~ ~s(id="ha_export_enabled")
+    assert html =~ ~s(value="mqtt.local")
+    assert html =~ ~s(value="1884")
+    assert html =~ ~s(value="ha_user")
+    assert html =~ ~s(value="custom_ha")
 
     assert html =~
              ~r/<option[^>]*value="America\/Indiana\/Indianapolis"[^>]*selected/
@@ -157,5 +259,28 @@ defmodule HueworksWeb.ConfigLiveTest do
     assert html =~ "Scene Import"
     assert html =~ "/config/bridge/"
     assert html =~ "/external-scenes"
+  end
+
+  defmodule TortoiseStub do
+    def publish(_client_id, _topic, _payload, _opts), do: :ok
+  end
+
+  defmodule SupervisorStub do
+    def start_child(_opts) do
+      {:ok,
+       spawn(fn ->
+         receive do
+         after
+           :infinity -> :ok
+         end
+       end)}
+    end
+  end
+
+  defmodule DynamicSupervisorStub do
+    def terminate_child(_name, pid) when is_pid(pid) do
+      Process.exit(pid, :kill)
+      :ok
+    end
   end
 end

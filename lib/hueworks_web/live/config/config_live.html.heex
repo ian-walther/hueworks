@@ -95,6 +95,102 @@
 
   <section class="hw-panel">
     <div class="hw-panel-header">
+      <h2>Home Assistant MQTT Export</h2>
+    </div>
+
+    <p class="hw-muted">Publish HueWorks scenes into Home Assistant via MQTT discovery.</p>
+
+    <%= if @ha_export_status do %>
+      <p class="hw-muted"><%= @ha_export_status %></p>
+    <% end %>
+
+    <%= if @ha_export_error do %>
+      <p class="hw-error"><%= @ha_export_error %></p>
+    <% end %>
+
+    <form class="hw-form" phx-change="update_ha_export" phx-submit="save_ha_export">
+      <label class="hw-modal-label" for="ha_export_enabled">
+        Enable Home Assistant Scene Export
+      </label>
+      <input type="hidden" name="ha_export_enabled" value="false" />
+      <label class="hw-toggle">
+        <input
+          id="ha_export_enabled"
+          name="ha_export_enabled"
+          type="checkbox"
+          value="true"
+          checked={@ha_export_enabled}
+        />
+        <span>Publish HueWorks scenes as Home Assistant MQTT scenes.</span>
+      </label>
+
+      <label class="hw-modal-label" for="ha_export_mqtt_host">MQTT Host</label>
+      <input
+        id="ha_export_mqtt_host"
+        name="ha_export_mqtt_host"
+        type="text"
+        value={@ha_export_mqtt_host}
+        class="hw-modal-input"
+        placeholder="mqtt.local"
+        autocomplete="off"
+      />
+
+      <label class="hw-modal-label" for="ha_export_mqtt_port">MQTT Port</label>
+      <input
+        id="ha_export_mqtt_port"
+        name="ha_export_mqtt_port"
+        type="number"
+        min="1"
+        max="65535"
+        step="1"
+        value={@ha_export_mqtt_port}
+        class="hw-modal-input"
+        placeholder="1883"
+        autocomplete="off"
+      />
+
+      <label class="hw-modal-label" for="ha_export_mqtt_username">MQTT Username (optional)</label>
+      <input
+        id="ha_export_mqtt_username"
+        name="ha_export_mqtt_username"
+        type="text"
+        value={@ha_export_mqtt_username}
+        class="hw-modal-input"
+        autocomplete="off"
+      />
+
+      <label class="hw-modal-label" for="ha_export_mqtt_password">
+        MQTT Password (optional)
+      </label>
+      <input
+        id="ha_export_mqtt_password"
+        name="ha_export_mqtt_password"
+        type="password"
+        value={@ha_export_mqtt_password}
+        class="hw-modal-input"
+        placeholder="Leave blank to keep current password"
+        autocomplete="new-password"
+      />
+
+      <label class="hw-modal-label" for="ha_export_discovery_prefix">Discovery Prefix</label>
+      <input
+        id="ha_export_discovery_prefix"
+        name="ha_export_discovery_prefix"
+        type="text"
+        value={@ha_export_discovery_prefix}
+        class="hw-modal-input"
+        placeholder="homeassistant"
+        autocomplete="off"
+      />
+
+      <div class="hw-modal-actions">
+        <button type="submit" class="hw-button hw-button-on">Save Home Assistant Export</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="hw-panel">
+    <div class="hw-panel-header">
       <h2>Light State Configs</h2>
       <span class="hw-count"><%= length(@light_states) %></span>
     </div>

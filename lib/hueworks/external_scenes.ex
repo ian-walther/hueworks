@@ -45,22 +45,29 @@ defmodule Hueworks.ExternalScenes do
     error -> {:error, Exception.message(error)}
   end
 
-  def sync_home_assistant_scenes(%Bridge{id: bridge_id}, scene_entities) when is_list(scene_entities) do
+  def sync_home_assistant_scenes(%Bridge{id: bridge_id}, scene_entities)
+      when is_list(scene_entities) do
     Repo.transaction(fn ->
       existing =
-        Repo.all(from(es in ExternalScene, where: es.bridge_id == ^bridge_id and es.source == :ha))
+        Repo.all(
+          from(es in ExternalScene, where: es.bridge_id == ^bridge_id and es.source == :ha)
+        )
         |> Map.new(&{&1.source_id, &1})
 
       seen_ids =
         Enum.reduce(scene_entities, MapSet.new(), fn entity, seen ->
-          source_id = entity["source_id"] || entity[:source_id]
-
-          if is_binary(source_id) and source_id != "" do
-            attrs = normalize_scene_entity_attrs(bridge_id, entity)
-            upsert_external_scene(existing[source_id], attrs)
-            MapSet.put(seen, source_id)
-          else
+          if hueworks_managed_scene_entity?(entity) do
             seen
+          else
+            source_id = entity["source_id"] || entity[:source_id]
+
+            if is_binary(source_id) and source_id != "" do
+              attrs = normalize_scene_entity_attrs(bridge_id, entity)
+              upsert_external_scene(existing[source_id], attrs)
+              MapSet.put(seen, source_id)
+            else
+              seen
+            end
           end
         end)
 
@@ -79,7 +86,9 @@ defmodule Hueworks.ExternalScenes do
   end
 
   def update_mapping(%ExternalScene{} = external_scene, attrs) when is_map(attrs) do
-    mapping = Repo.get_by(ExternalSceneMapping, external_scene_id: external_scene.id) || %ExternalSceneMapping{}
+    mapping =
+      Repo.get_by(ExternalSceneMapping, external_scene_id: external_scene.id) ||
+        %ExternalSceneMapping{}
 
     attrs =
       attrs
@@ -157,15 +166,20 @@ defmodule Hueworks.ExternalScenes do
   defp normalize_mapping_attrs(attrs) do
     scene_id =
       case Map.get(attrs, "scene_id") || Map.get(attrs, :scene_id) do
-        "" -> nil
-        value when is_integer(value) -> value
+        "" ->
+          nil
+
+        value when is_integer(value) ->
+          value
+
         value when is_binary(value) ->
           case Integer.parse(value) do
             {parsed, ""} -> parsed
             _ -> nil
           end
 
-        _ -> nil
+        _ ->
+          nil
       end
 
     enabled =
@@ -178,10 +192,24 @@ defmodule Hueworks.ExternalScenes do
       end
 
     %{
-      external_scene_id: Map.get(attrs, "external_scene_id") || Map.get(attrs, :external_scene_id),
+      external_scene_id:
+        Map.get(attrs, "external_scene_id") || Map.get(attrs, :external_scene_id),
       scene_id: scene_id,
       enabled: enabled,
       metadata: Map.get(attrs, "metadata") || Map.get(attrs, :metadata) || %{}
     }
   end
+
+  defp hueworks_managed_scene_entity?(entity) when is_map(entity) do
+    metadata = entity["metadata"] || entity[:metadata] || %{}
+    attributes = metadata["attributes"] || metadata[:attributes] || %{}
+
+    direct_value = entity["hueworks_managed"] || entity[:hueworks_managed]
+    metadata_value = metadata["hueworks_managed"] || metadata[:hueworks_managed]
+    attributes_value = attributes["hueworks_managed"] || attributes[:hueworks_managed]
+
+    direct_value == true or metadata_value == true or attributes_value == true
+  end
+
+  defp hueworks_managed_scene_entity?(_entity), do: false
 end

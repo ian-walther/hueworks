@@ -3,6 +3,7 @@ defmodule HueworksWeb.ConfigLive do
 
   alias Hueworks.AppSettings
   alias Hueworks.Bridges
+  alias Hueworks.HomeAssistant.Export, as: HomeAssistantExport
   alias Hueworks.Repo
   alias Hueworks.Scenes
   alias Hueworks.Schemas.Bridge
@@ -21,8 +22,16 @@ defmodule HueworksWeb.ConfigLive do
        timezone: timezone,
        default_transition_ms: format_integer(app_setting.default_transition_ms || 0),
        scale_transition_by_brightness: app_setting.scale_transition_by_brightness == true,
+       ha_export_enabled: app_setting.ha_export_enabled == true,
+       ha_export_mqtt_host: app_setting.ha_export_mqtt_host || "",
+       ha_export_mqtt_port: format_integer(app_setting.ha_export_mqtt_port || 1883),
+       ha_export_mqtt_username: app_setting.ha_export_mqtt_username || "",
+       ha_export_mqtt_password: "",
+       ha_export_discovery_prefix: app_setting.ha_export_discovery_prefix || "homeassistant",
        settings_status: nil,
        settings_error: nil,
+       ha_export_status: nil,
+       ha_export_error: nil,
        light_state_status: nil,
        light_state_error: nil
      )}
@@ -98,6 +107,81 @@ defmodule HueworksWeb.ConfigLive do
     end
   end
 
+  def handle_event("update_ha_export", params, socket) do
+    {:noreply,
+     assign(socket,
+       ha_export_enabled:
+         parse_boolean_param(
+           Map.get(params, "ha_export_enabled", socket.assigns.ha_export_enabled)
+         ),
+       ha_export_mqtt_host:
+         Map.get(params, "ha_export_mqtt_host", socket.assigns.ha_export_mqtt_host),
+       ha_export_mqtt_port:
+         Map.get(params, "ha_export_mqtt_port", socket.assigns.ha_export_mqtt_port),
+       ha_export_mqtt_username:
+         Map.get(params, "ha_export_mqtt_username", socket.assigns.ha_export_mqtt_username),
+       ha_export_mqtt_password:
+         Map.get(params, "ha_export_mqtt_password", socket.assigns.ha_export_mqtt_password),
+       ha_export_discovery_prefix:
+         Map.get(
+           params,
+           "ha_export_discovery_prefix",
+           socket.assigns.ha_export_discovery_prefix
+         ),
+       ha_export_status: nil,
+       ha_export_error: nil
+     )}
+  end
+
+  def handle_event("save_ha_export", params, socket) do
+    attrs = %{
+      ha_export_enabled:
+        parse_boolean_param(
+          Map.get(params, "ha_export_enabled", socket.assigns.ha_export_enabled)
+        ),
+      ha_export_mqtt_host:
+        Map.get(params, "ha_export_mqtt_host", socket.assigns.ha_export_mqtt_host),
+      ha_export_mqtt_port:
+        Map.get(params, "ha_export_mqtt_port", socket.assigns.ha_export_mqtt_port),
+      ha_export_mqtt_username:
+        Map.get(params, "ha_export_mqtt_username", socket.assigns.ha_export_mqtt_username),
+      ha_export_mqtt_password:
+        Map.get(params, "ha_export_mqtt_password", socket.assigns.ha_export_mqtt_password),
+      ha_export_discovery_prefix:
+        Map.get(
+          params,
+          "ha_export_discovery_prefix",
+          socket.assigns.ha_export_discovery_prefix
+        )
+    }
+
+    case AppSettings.upsert_global(attrs) do
+      {:ok, app_setting} ->
+        HomeAssistantExport.reload()
+
+        {:noreply,
+         socket
+         |> assign(
+           ha_export_enabled: app_setting.ha_export_enabled == true,
+           ha_export_mqtt_host: app_setting.ha_export_mqtt_host || "",
+           ha_export_mqtt_port: format_integer(app_setting.ha_export_mqtt_port || 1883),
+           ha_export_mqtt_username: app_setting.ha_export_mqtt_username || "",
+           ha_export_mqtt_password: "",
+           ha_export_discovery_prefix: app_setting.ha_export_discovery_prefix || "homeassistant",
+           ha_export_status: "Home Assistant MQTT export settings saved.",
+           ha_export_error: nil
+         )}
+
+      {:error, changeset} ->
+        message =
+          changeset.errors
+          |> Enum.map(fn {field, {text, _opts}} -> "#{field} #{text}" end)
+          |> Enum.join(", ")
+
+        {:noreply, assign(socket, ha_export_status: nil, ha_export_error: message)}
+    end
+  end
+
   def handle_event(
         "geolocation_success",
         %{"latitude" => latitude, "longitude" => longitude} = params,
@@ -165,7 +249,11 @@ defmodule HueworksWeb.ConfigLive do
          |> push_navigate(to: "/config/light-states/#{state.id}/edit")}
 
       {:error, _reason} ->
-        {:noreply, assign(socket, light_state_status: nil, light_state_error: "Unable to duplicate light state.")}
+        {:noreply,
+         assign(socket,
+           light_state_status: nil,
+           light_state_error: "Unable to duplicate light state."
+         )}
     end
   end
 
@@ -193,7 +281,11 @@ defmodule HueworksWeb.ConfigLive do
          )}
 
       {:error, _reason} ->
-        {:noreply, assign(socket, light_state_status: nil, light_state_error: "Unable to delete light state.")}
+        {:noreply,
+         assign(socket,
+           light_state_status: nil,
+           light_state_error: "Unable to delete light state."
+         )}
     end
   end
 

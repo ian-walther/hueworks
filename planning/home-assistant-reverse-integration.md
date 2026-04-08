@@ -1,68 +1,243 @@
-# Home Assistant Reverse Integration (HueWorks -> HA) (Planned)
+# Home Assistant Reverse Integration
 
 ## Goal
-Expose HueWorks-controlled lights into Home Assistant so HA can control HueWorks entities directly, mirroring the current one-way Home Assistant support in the opposite direction with a seamless, parity-or-better user experience.
+Expose HueWorks entities outward to Home Assistant in a way that feels native in Home Assistant while still preserving HueWorks as the control and state authority.
+
+The first migration step is publishing HueWorks scenes into Home Assistant.
 
 ## Priority
-Low priority. This is a later-phase integration track.
+Low priority overall, but scenes are the cleanest first slice when this work resumes.
 
 ## Locked Decisions
-- Home Assistant support remains optional for HueWorks core value.
-- When enabled, HA integration should feel first-class for HA-centric households.
-- HA-originated control must use HueWorks desired-state -> planner -> executor (no bypass path).
-- State coherence between HA and HueWorks is a hard requirement (no prolonged drift as normal behavior).
+- Use Home Assistant MQTT discovery first.
+- Do not start with a custom Home Assistant integration.
+- Keep Home Assistant-originated control flowing through HueWorks' normal public control paths.
+- Start with scenes before lights.
+- Keep the current inbound Home Assistant scene trigger path alive in parallel during migration.
+- Use stable ID-based identities for Home Assistant entities.
+- Use human-readable display names for Home Assistant entities.
+- Do not dynamically change exposed light capabilities based on whether a scene is active.
 
-## Scope
-- Add a Home Assistant-facing integration surface for HueWorks light entities.
-- Expose HueWorks lights with stable IDs and metadata that HA can consume.
-- Route HA control requests through the existing HueWorks control pipeline:
-  - desired state update
-  - planner
-  - executor
-- Publish HueWorks physical-state updates back to HA entity state.
-- Support synchronization lifecycle for add/remove/rename/availability changes.
+## Why MQTT Discovery First
+- HueWorks already has MQTT plumbing through Zigbee2MQTT support.
+- Home Assistant MQTT discovery is sufficient for scenes and lights.
+- This avoids the complexity of maintaining a parallel Home Assistant custom integration.
+- MQTT is a better fit for incremental rollout:
+  - publish scenes first
+  - then add state/context entities
+  - then add lights
 
-## Out of Scope (V1)
-- Full parity for all accessory classes beyond lights.
-- Complex automation authoring UX inside HueWorks.
-- Bidirectional scene synchronization semantics beyond basic control.
-- Multi-instance federation across multiple HueWorks deployments.
+## V1 Scope
+- Publish HueWorks scenes to Home Assistant as MQTT scene entities.
+- Subscribe to scene command topics from Home Assistant.
+- Activate the corresponding HueWorks scene through the normal scene activation path.
+- Keep the current Home Assistant -> HueWorks external-scene mapping flow working in parallel.
+- Prevent HueWorks from re-importing the scenes that HueWorks itself published into Home Assistant.
 
-## Design Notes
-- Do not bypass HueWorks planner/executor; HA-originated writes should use the same path as UI/manual actions.
-- Preserve HueWorks as the control source of truth for desired/physical state.
-- Start with light power/brightness/temperature controls first; advanced features can follow.
-- Use source-scoped identity mapping to avoid collisions and preserve stable entity IDs.
-- Optimize for "feels native in HA" outcomes: reliable state reflection, predictable timing, and low-surprise behavior.
+## V1 Out of Scope
+- Exposing HueWorks lights.
+- Dynamic capability switching for lights based on active-scene state.
+- A Home Assistant custom integration.
+- Bidirectional scene synchronization beyond "Home Assistant can trigger HueWorks scenes".
+- Full metadata parity or polished Home Assistant device taxonomy.
 
-## Likely Implementation Areas
-- New HA integration runtime surface (API/websocket/discovery path as selected).
-- Entity mapping/context layer (HueWorks light IDs <-> HA entity IDs).
-- Control entrypoint wiring into:
-  - `Hueworks.Control.DesiredState`
-  - `Hueworks.Control.Planner`
-  - `Hueworks.Control.Executor`
-- State publication hooks from subscription/control-state fan-out to HA.
-- Config/runtime settings for HA integration endpoint/auth/namespace.
+## Scene Entity Model
+Each HueWorks scene should be published as a Home Assistant MQTT scene entity.
+
+Recommended naming:
+- display name: `<Room Name> <Scene Name>`
+- unique id: `hueworks_scene_<scene.id>`
+
+Recommended Home Assistant device grouping:
+- one Home Assistant device per HueWorks room
+- device identifier: `hueworks_room_<room.id>`
+- device name: `HueWorks <Room Name>`
+
+This keeps:
+- entity names easy to understand in dashboards and automations
+- identifiers stable even if a room or scene gets renamed
+
+## Scene MQTT Topics
+Recommended topic shape:
+- discovery topic:
+  - `homeassistant/scene/hueworks_scene_<scene.id>/config`
+- command topic:
+  - `hueworks/ha_export/scenes/<scene.id>/set`
+- attributes topic:
+  - `hueworks/ha_export/scenes/<scene.id>/attributes`
+- availability topic:
+  - `hueworks/ha_export/status`
+
+Retain should be enabled for:
+- discovery payloads
+- availability payloads
+- attributes payloads if they are used as metadata snapshots
+
+## Scene Discovery Payload
+Recommended payload shape:
+
+```json
+{
+  "platform": "scene",
+  "name": "Main Floor All Auto",
+  "unique_id": "hueworks_scene_123",
+  "command_topic": "hueworks/ha_export/scenes/123/set",
+  "payload_on": "ON",
+  "availability_topic": "hueworks/ha_export/status",
+  "payload_available": "online",
+  "payload_not_available": "offline",
+  "json_attributes_topic": "hueworks/ha_export/scenes/123/attributes",
+  "device": {
+    "identifiers": ["hueworks_room_1"],
+    "name": "HueWorks Main Floor",
+    "manufacturer": "HueWorks",
+    "model": "Room Scenes"
+  }
+}
+```
+
+Recommended attributes payload:
+
+```json
+{
+  "hueworks_managed": true,
+  "hueworks_scene_id": 123,
+  "hueworks_room_id": 1,
+  "room_name": "Main Floor",
+  "scene_name": "All Auto"
+}
+```
+
+## Scene Command Handling
+Subscribe to:
+- `hueworks/ha_export/scenes/+/set`
+
+Behavior:
+- payload `ON` activates the matching HueWorks scene
+- other payloads are ignored
+
+Activation path:
+- resolve the scene id from the topic
+- call `Hueworks.Scenes.activate_scene(scene.id, ...)`
+- do not add a Home Assistant-specific bypass path
+
+This keeps Home Assistant scene activation semantically equivalent to activating the scene from the HueWorks UI.
+
+## Migration Safety
+The current inbound Home Assistant scene sync currently imports every `scene.*` entity from Home Assistant.
+
+That means HueWorks-published MQTT scenes would otherwise be visible to the current inbound sync and could be re-imported into HueWorks.
+
+The reverse-integration rollout should include a filter so inbound Home Assistant scene sync skips HueWorks-published scenes.
+
+Recommended filter:
+- mark reverse-published scenes with `hueworks_managed: true`
+- exclude those during Home Assistant scene fetch/import
+
+Fallback filter if needed:
+- skip entities with a HueWorks-owned entity-id naming convention
+
+The attribute-based marker is preferred.
+
+## Availability
+Publish a retained global availability topic:
+- `hueworks/ha_export/status = online`
+
+If clean shutdown support is added later, publish:
+- `offline`
+
+This is enough for the first scene slice.
+
+## Light Exposure Plan
+After scenes are working, lights can be exposed as Home Assistant MQTT lights.
+
+That work should:
+- use stable unique IDs based on HueWorks light IDs
+- publish state from HueWorks physical state
+- route commands through HueWorks manual-control entrypoints
+- expose real light capabilities consistently
+
+## Light Capability Policy
+Do not dynamically change Home Assistant light capabilities based on whether a scene is active.
+
+Specifically:
+- do not switch a light back and forth between:
+  - on/off only
+  - brightness/color-temperature/color capable
+
+Why:
+- those capabilities describe the light itself, not the current scene policy
+- a light entity whose controls change based on scene activity will be harder to reason about in Home Assistant dashboards and automations
+- it blurs the architectural boundary between:
+  - device capability
+  - current HueWorks scene policy
+
+Instead:
+- expose the light's actual capabilities all the time
+- publish separate context entities later if Home Assistant needs to know:
+  - whether a scene is currently active
+  - whether manual brightness or temperature changes are currently allowed
+
+## Light V2 Ideas
+Once scenes are published and stable, likely next additions are:
+- MQTT lights for HueWorks-controlled lights
+- room-level active-scene sensor
+- room-level scene-active binary sensor
+- optional policy/context sensors for manual-adjustment eligibility
+
+That gives Home Assistant enough information to build policy-aware dashboards without mutating the light entity model itself.
+
+## Likely HueWorks Implementation Areas
+- a new Home Assistant export runtime that publishes MQTT discovery/state payloads
+- scene discovery payload generation
+- scene command subscription and dispatch
+- Home Assistant reverse-export identity conventions
+- filtering in the current inbound Home Assistant scene import path so HueWorks-managed scenes are skipped
+
+Likely code areas:
+- `/Users/ianwalther/code/hueworks/lib/hueworks/external_scenes.ex`
+- `/Users/ianwalther/code/hueworks/lib/hueworks/import/fetch/home_assistant.ex`
+- `/Users/ianwalther/code/hueworks/lib/hueworks_app/subscription/home_assistant_event_stream/connection.ex`
+- MQTT runtime additions beside the existing Zigbee2MQTT MQTT plumbing
 
 ## Testing Plan
-- Unit:
-  - HA command payload -> HueWorks desired-state mapping.
-  - entity metadata/identity mapping and lifecycle behavior.
-- Integration:
-  - HA control request -> desired state -> planned actions.
-  - physical-state change in HueWorks -> reflected HA state.
-  - entity lifecycle changes (rename/disable/remove) reflected to HA.
-- Regression:
-  - mixed bridge/device rooms maintain planner grouping and kelvin clamping behavior.
+### Scenes
+- unit:
+  - scene discovery payload generation
+  - scene topic parsing
+  - scene command payload handling
+  - HueWorks-managed scene import filtering
+- integration:
+  - publish scene discovery payloads
+  - receive scene command topic
+  - activate HueWorks scene through normal scene path
+  - verify current inbound external-scene flow still works in parallel
+
+### Lights
+When lights are added later:
+- unit:
+  - command payload -> HueWorks control intent mapping
+  - capability publication
+  - unique-id/device grouping behavior
+- integration:
+  - Home Assistant command -> HueWorks control path
+  - HueWorks physical-state change -> Home Assistant state publish
+  - context entities reflect active-scene state correctly
 
 ## Acceptance Criteria
-- Core HA control paths (on/off, brightness, temperature) are functionally reliable and predictable.
-- HA state reflects HueWorks physical state quickly enough for normal interactive use.
-- HA users can operate daily lighting workflows without understanding HueWorks internals.
-- Integration quality is at least parity with HA-native behavior for common day-to-day controls, while preserving HueWorks optimization benefits.
+### Scenes
+- HueWorks scenes appear in Home Assistant as stable MQTT scene entities.
+- Activating a published Home Assistant scene reliably activates the corresponding HueWorks scene.
+- Existing inbound Home Assistant scene mapping remains usable during migration.
+- HueWorks does not re-import its own published scenes.
+
+### Lights
+For the later light slice:
+- Home Assistant users can control HueWorks lights without bypassing HueWorks control semantics.
+- Light entities remain stable in Home Assistant regardless of active scene state.
+- Scene-policy context is exposed separately rather than encoded by mutating light capabilities.
 
 ## Open Questions
-- Should the integration be implemented as HA MQTT discovery/entities, HA websocket integration, or a custom HA integration component first?
-- How should authentication and trust boundaries be enforced between HA and HueWorks?
-- Should groups/scenes be exposed in V1, or lights-only first?
+- Should reverse-export use the same MQTT broker config as Zigbee2MQTT by default, or its own explicit Home Assistant MQTT broker config?
+- Should scene attributes include configuration URLs back into HueWorks once there is a stable route for that?
+- Should room-level active-scene and scene-active context entities ship in the same release as lights, or one step earlier?

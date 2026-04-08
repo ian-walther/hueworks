@@ -9,6 +9,7 @@ defmodule Hueworks.Scenes do
   alias Hueworks.Repo
   alias Hueworks.ActiveScenes
   alias Hueworks.DebugLogging
+  alias Hueworks.HomeAssistant.Export, as: HomeAssistantExport
   alias Hueworks.Rooms
   alias Hueworks.Control.Apply, as: ControlApply
   alias Hueworks.Scenes.Intent
@@ -180,25 +181,49 @@ defmodule Hueworks.Scenes do
       )
     )
     |> Enum.uniq_by(fn {light_state_id, usage} -> {light_state_id, usage.scene_id} end)
-    |> Enum.group_by(fn {light_state_id, _usage} -> light_state_id end, fn {_light_state_id, usage} -> usage end)
+    |> Enum.group_by(fn {light_state_id, _usage} -> light_state_id end, fn {_light_state_id,
+                                                                            usage} ->
+      usage
+    end)
   end
 
   def create_scene(attrs) do
-    %Scene{}
-    |> Scene.changeset(attrs)
-    |> Repo.insert()
+    case %Scene{}
+         |> Scene.changeset(attrs)
+         |> Repo.insert() do
+      {:ok, scene} ->
+        HomeAssistantExport.refresh_scene(scene)
+        {:ok, scene}
+
+      other ->
+        other
+    end
   end
 
   def get_scene(id), do: Repo.get(Scene, id)
 
   def update_scene(scene, attrs) do
-    scene
-    |> Scene.changeset(attrs)
-    |> Repo.update()
+    case scene
+         |> Scene.changeset(attrs)
+         |> Repo.update() do
+      {:ok, updated} ->
+        HomeAssistantExport.refresh_scene(updated)
+        {:ok, updated}
+
+      other ->
+        other
+    end
   end
 
   def delete_scene(scene) do
-    Repo.delete(scene)
+    case Repo.delete(scene) do
+      {:ok, deleted} ->
+        HomeAssistantExport.remove_scene(deleted)
+        {:ok, deleted}
+
+      other ->
+        other
+    end
   end
 
   def refresh_active_scene(scene_id) when is_integer(scene_id) do

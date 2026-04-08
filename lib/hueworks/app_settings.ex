@@ -54,7 +54,13 @@ defmodule Hueworks.AppSettings do
       longitude: app_setting.longitude,
       timezone: app_setting.timezone,
       default_transition_ms: app_setting.default_transition_ms || 0,
-      scale_transition_by_brightness: app_setting.scale_transition_by_brightness == true
+      scale_transition_by_brightness: app_setting.scale_transition_by_brightness == true,
+      ha_export_enabled: app_setting.ha_export_enabled == true,
+      ha_export_mqtt_host: app_setting.ha_export_mqtt_host,
+      ha_export_mqtt_port: app_setting.ha_export_mqtt_port || 1883,
+      ha_export_mqtt_username: app_setting.ha_export_mqtt_username,
+      ha_export_mqtt_password: app_setting.ha_export_mqtt_password,
+      ha_export_discovery_prefix: app_setting.ha_export_discovery_prefix || "homeassistant"
     }
   end
 
@@ -66,7 +72,13 @@ defmodule Hueworks.AppSettings do
       longitude: current.longitude,
       timezone: current.timezone,
       default_transition_ms: current.default_transition_ms || 0,
-      scale_transition_by_brightness: current.scale_transition_by_brightness == true
+      scale_transition_by_brightness: current.scale_transition_by_brightness == true,
+      ha_export_enabled: current.ha_export_enabled == true,
+      ha_export_mqtt_host: current.ha_export_mqtt_host,
+      ha_export_mqtt_port: current.ha_export_mqtt_port || 1883,
+      ha_export_mqtt_username: current.ha_export_mqtt_username,
+      ha_export_mqtt_password: current.ha_export_mqtt_password,
+      ha_export_discovery_prefix: current.ha_export_discovery_prefix || "homeassistant"
     }
 
     Map.merge(current_attrs, attrs)
@@ -74,6 +86,7 @@ defmodule Hueworks.AppSettings do
 
   defp fallback_setting do
     config = Application.get_env(:hueworks, @config_key, %{})
+    ha_export_config = Application.get_env(:hueworks, :ha_export_mqtt, %{})
 
     %AppSetting{
       scope: @global_scope,
@@ -82,7 +95,19 @@ defmodule Hueworks.AppSettings do
       timezone: parse_timezone(config[:timezone] || config["timezone"]),
       default_transition_ms: Application.get_env(:hueworks, :default_transition_ms, 0),
       scale_transition_by_brightness:
-        Application.get_env(:hueworks, :scale_transition_by_brightness, false) == true
+        Application.get_env(:hueworks, :scale_transition_by_brightness, false) == true,
+      ha_export_enabled:
+        parse_boolean(ha_export_config[:enabled] || ha_export_config["enabled"]) == true,
+      ha_export_mqtt_host: parse_string(ha_export_config[:host] || ha_export_config["host"]),
+      ha_export_mqtt_port:
+        parse_port(ha_export_config[:port] || ha_export_config["port"]) || 1883,
+      ha_export_mqtt_username:
+        parse_string(ha_export_config[:username] || ha_export_config["username"]),
+      ha_export_mqtt_password:
+        parse_string(ha_export_config[:password] || ha_export_config["password"]),
+      ha_export_discovery_prefix:
+        parse_string(ha_export_config[:discovery_prefix] || ha_export_config["discovery_prefix"]) ||
+          "homeassistant"
     }
   end
 
@@ -105,7 +130,19 @@ defmodule Hueworks.AppSettings do
       scale_transition_by_brightness:
         parse_boolean(
           attr_value(attrs, :scale_transition_by_brightness, "scale_transition_by_brightness")
-        )
+        ),
+      ha_export_enabled:
+        parse_boolean(attr_value(attrs, :ha_export_enabled, "ha_export_enabled")),
+      ha_export_mqtt_host:
+        parse_string(attr_value(attrs, :ha_export_mqtt_host, "ha_export_mqtt_host")),
+      ha_export_mqtt_port:
+        parse_port(attr_value(attrs, :ha_export_mqtt_port, "ha_export_mqtt_port")),
+      ha_export_mqtt_username:
+        parse_string(attr_value(attrs, :ha_export_mqtt_username, "ha_export_mqtt_username")),
+      ha_export_mqtt_password:
+        parse_string(attr_value(attrs, :ha_export_mqtt_password, "ha_export_mqtt_password")),
+      ha_export_discovery_prefix:
+        parse_string(attr_value(attrs, :ha_export_discovery_prefix, "ha_export_discovery_prefix"))
     }
     |> Enum.reject(fn {_key, value} -> is_nil(value) end)
     |> Map.new()
@@ -157,6 +194,25 @@ defmodule Hueworks.AppSettings do
 
   defp parse_transition_ms(_value), do: nil
 
+  defp parse_port(value) when is_integer(value) and value >= 1 and value <= 65_535, do: value
+
+  defp parse_port(value) when is_binary(value) do
+    trimmed = String.trim(value)
+
+    cond do
+      trimmed == "" ->
+        nil
+
+      true ->
+        case Integer.parse(trimmed) do
+          {number, ""} when number >= 1 and number <= 65_535 -> number
+          _ -> nil
+        end
+    end
+  end
+
+  defp parse_port(_value), do: nil
+
   defp parse_boolean(value) when value in [true, false], do: value
 
   defp parse_boolean(value) when is_binary(value) do
@@ -169,4 +225,11 @@ defmodule Hueworks.AppSettings do
   end
 
   defp parse_boolean(_value), do: nil
+
+  defp parse_string(value) when is_binary(value) do
+    trimmed = String.trim(value)
+    if trimmed == "", do: nil, else: trimmed
+  end
+
+  defp parse_string(_value), do: nil
 end

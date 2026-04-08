@@ -143,7 +143,7 @@ defmodule Hueworks.Import.Fetch.HomeAssistant do
     |> Enum.filter(&is_map/1)
     |> Enum.filter(fn state ->
       entity_id = state["entity_id"] || ""
-      String.starts_with?(entity_id, "scene.")
+      String.starts_with?(entity_id, "scene.") and not hueworks_managed_scene?(state)
     end)
     |> Enum.map(&simplify_scene/1)
     |> Enum.filter(&is_map/1)
@@ -433,6 +433,13 @@ defmodule Hueworks.Import.Fetch.HomeAssistant do
   end
 
   defp simplify_scene(_scene), do: nil
+
+  defp hueworks_managed_scene?(scene) when is_map(scene) do
+    attrs = scene["attributes"] || %{}
+    attrs["hueworks_managed"] == true
+  end
+
+  defp hueworks_managed_scene?(_scene), do: false
 
   defp request(pid, type, params) do
     ref = make_ref()
