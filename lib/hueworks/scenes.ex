@@ -193,6 +193,7 @@ defmodule Hueworks.Scenes do
          |> Repo.insert() do
       {:ok, scene} ->
         HomeAssistantExport.refresh_scene(scene)
+        HomeAssistantExport.refresh_room(scene.room_id)
         {:ok, scene}
 
       other ->
@@ -208,6 +209,7 @@ defmodule Hueworks.Scenes do
          |> Repo.update() do
       {:ok, updated} ->
         HomeAssistantExport.refresh_scene(updated)
+        HomeAssistantExport.refresh_room(updated.room_id)
         {:ok, updated}
 
       other ->
@@ -219,6 +221,7 @@ defmodule Hueworks.Scenes do
     case Repo.delete(scene) do
       {:ok, deleted} ->
         HomeAssistantExport.remove_scene(deleted)
+        HomeAssistantExport.refresh_room(deleted.room_id)
         {:ok, deleted}
 
       other ->

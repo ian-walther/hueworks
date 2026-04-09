@@ -187,7 +187,7 @@ defmodule HueworksWeb.ConfigLive do
 
     {:noreply,
      assign(socket,
-       ha_export_status: "Republished exported Home Assistant scenes.",
+       ha_export_status: "Republished exported Home Assistant entities.",
        ha_export_error: nil
      )}
   end

@@ -76,6 +76,22 @@ defmodule Hueworks.HomeAssistant.ExportTest do
     assert payload["device"]["name"] == "HueWorks Main Floor"
   end
 
+  test "room select discovery payload uses stable IDs and disambiguated options" do
+    room = Repo.insert!(%Room{name: "Main Floor"})
+
+    scene_a = Repo.insert!(%Scene{name: "All Auto", room_id: room.id}) |> Repo.preload(:room)
+    scene_b = Repo.insert!(%Scene{name: "All Auto", room_id: room.id}) |> Repo.preload(:room)
+
+    payload = Export.room_select_discovery_payload(room, [scene_a, scene_b])
+
+    assert payload["name"] == "Scene"
+    assert payload["unique_id"] == "hueworks_room_scene_select_#{room.id}"
+    assert payload["command_topic"] == "hueworks/ha_export/rooms/#{room.id}/scene/set"
+    assert payload["state_topic"] == "hueworks/ha_export/rooms/#{room.id}/scene/state"
+    assert payload["device"]["name"] == "HueWorks Main Floor"
+    assert payload["options"] == ["All Auto (##{scene_a.id})", "All Auto (##{scene_b.id})"]
+  end
+
   test "publishes retained discovery and attributes payloads when connected" do
     put_export_settings(%{
       ha_export_enabled: true,
@@ -92,24 +108,39 @@ defmodule Hueworks.HomeAssistant.ExportTest do
     send(Export, {:mqtt_connected, Export.client_id()})
     _ = :sys.get_state(Export)
 
-    assert_receive {:published, client_id, "hueworks/ha_export/status", "online",
-                    [qos: 0, retain: true]}
+    {client_id, _topic, _payload} =
+      assert_publish("hueworks/ha_export/status", fn payload -> payload == "online" end)
 
     assert client_id == Export.client_id()
 
-    assert_receive {:published, ^client_id, topic, payload, [qos: 0, retain: true]}
-    assert topic == "homeassistant/scene/hueworks_scene_#{scene.id}/config"
+    {_client_id, _topic, payload} =
+      assert_publish("homeassistant/scene/hueworks_scene_#{scene.id}/config")
 
     decoded = Jason.decode!(payload)
     assert decoded["name"] == "All Auto"
     assert decoded["command_topic"] == "hueworks/ha_export/scenes/#{scene.id}/set"
 
-    assert_receive {:published, ^client_id, attrs_topic, attrs_payload, [qos: 0, retain: true]}
-    assert attrs_topic == "hueworks/ha_export/scenes/#{scene.id}/attributes"
+    {_client_id, _attrs_topic, attrs_payload} =
+      assert_publish("hueworks/ha_export/scenes/#{scene.id}/attributes")
 
     attrs = Jason.decode!(attrs_payload)
     assert attrs["hueworks_managed"] == true
     assert attrs["hueworks_scene_id"] == scene.id
+
+    {_client_id, _topic, select_payload} =
+      assert_publish("homeassistant/select/hueworks_room_scene_select_#{room.id}/config")
+
+    select = Jason.decode!(select_payload)
+    assert select["name"] == "Scene"
+    assert select["options"] == ["All Auto"]
+
+    {_client_id, _topic, _attrs_payload} =
+      assert_publish("hueworks/ha_export/rooms/#{room.id}/scene/attributes")
+
+    {_client_id, _topic, select_state} =
+      assert_publish("hueworks/ha_export/rooms/#{room.id}/scene/state")
+
+    assert select_state == "None"
   end
 
   test "command topic ON activates the matching HueWorks scene" do
@@ -136,11 +167,70 @@ defmodule Hueworks.HomeAssistant.ExportTest do
     assert scene_id == scene.id
   end
 
+  test "room select command activates the matching HueWorks scene" do
+    put_export_settings(%{
+      ha_export_enabled: true,
+      ha_export_mqtt_host: "mqtt.local"
+    })
+
+    room = Repo.insert!(%Room{name: "Main Floor"})
+    morning = Repo.insert!(%Scene{name: "Morning", room_id: room.id})
+    evening = Repo.insert!(%Scene{name: "Evening", room_id: room.id})
+
+    Export.reload()
+    _ = :sys.get_state(Export)
+
+    send(
+      Export,
+      {:mqtt_message,
+       ["hueworks", "ha_export", "rooms", Integer.to_string(room.id), "scene", "set"], "Evening"}
+    )
+
+    _ = :sys.get_state(Export)
+
+    assert %Hueworks.Schemas.ActiveScene{scene_id: scene_id} = ActiveScenes.get_for_room(room.id)
+    assert scene_id == evening.id
+    refute scene_id == morning.id
+  end
+
+  test "active scene updates republish the room select state" do
+    put_export_settings(%{
+      ha_export_enabled: true,
+      ha_export_mqtt_host: "mqtt.local",
+      ha_export_mqtt_port: 1883,
+      ha_export_discovery_prefix: "homeassistant"
+    })
+
+    room = Repo.insert!(%Room{name: "Main Floor"})
+    scene = Repo.insert!(%Scene{name: "All Auto", room_id: room.id})
+
+    Export.reload()
+    _ = :sys.get_state(Export)
+    send(Export, {:mqtt_connected, Export.client_id()})
+    _ = :sys.get_state(Export)
+
+    drain_published_messages()
+
+    _ = ActiveScenes.set_active(scene)
+
+    {_client_id, _topic, state_payload} =
+      assert_publish("hueworks/ha_export/rooms/#{room.id}/scene/state")
+
+    assert state_payload == "All Auto"
+  end
+
   test "command_scene_id parses scene ids from export topics" do
     assert Export.command_scene_id("hueworks/ha_export/scenes/42/set") == 42
     assert Export.command_scene_id(["hueworks", "ha_export", "scenes", "42", "set"]) == 42
     assert Export.command_scene_id("hueworks/ha_export/scenes/not-a-number/set") == nil
     assert Export.command_scene_id("hueworks/ha_export/other/42/set") == nil
+  end
+
+  test "command_room_id parses room ids from room select topics" do
+    assert Export.command_room_id("hueworks/ha_export/rooms/42/scene/set") == 42
+    assert Export.command_room_id(["hueworks", "ha_export", "rooms", "42", "scene", "set"]) == 42
+    assert Export.command_room_id("hueworks/ha_export/rooms/not-a-number/scene/set") == nil
+    assert Export.command_room_id("hueworks/ha_export/scenes/42/set") == nil
   end
 
   defp put_export_settings(attrs) do
@@ -159,6 +249,34 @@ defmodule Hueworks.HomeAssistant.ExportTest do
       )
 
     HueworksApp.Cache.flush_namespace(:app_settings)
+  end
+
+  defp assert_publish(topic, payload_matcher \\ fn _payload -> true end) do
+    receive do
+      {:published, client_id, ^topic, payload, [qos: 0, retain: true]}
+      when is_function(payload_matcher, 1) ->
+        if payload_matcher.(payload) do
+          {client_id, topic, payload}
+        else
+          assert_publish(topic, payload_matcher)
+        end
+
+      {:published, _client_id, _other_topic, _payload, _opts} ->
+        assert_publish(topic, payload_matcher)
+    after
+      1_000 ->
+        flunk("expected retained publish for #{topic}")
+    end
+  end
+
+  defp drain_published_messages do
+    receive do
+      {:published, _client_id, _topic, _payload, _opts} ->
+        drain_published_messages()
+    after
+      0 ->
+        :ok
+    end
   end
 
   defmodule TortoiseStub do

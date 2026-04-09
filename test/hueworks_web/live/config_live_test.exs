@@ -143,13 +143,13 @@ defmodule HueworksWeb.ConfigLiveTest do
 
     {:ok, view, html} = live(conn, "/config")
 
-    assert html =~ "Republish Exported Scenes"
+    assert html =~ "Republish Exported Entities"
 
     view
     |> element("button[phx-click='republish_ha_export_scenes']")
     |> render_click()
 
-    assert render(view) =~ "Republished exported Home Assistant scenes."
+    assert render(view) =~ "Republished exported Home Assistant entities."
   end
 
   test "shows light state actions and list entries", %{conn: conn} do

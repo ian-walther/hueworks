@@ -7,6 +7,7 @@ defmodule Hueworks.HomeAssistant.Export do
 
   require Logger
 
+  alias Hueworks.ActiveScenes
   alias Hueworks.AppSettings
   alias Hueworks.Instance
   alias Hueworks.Repo
@@ -33,6 +34,10 @@ defmodule Hueworks.HomeAssistant.Export do
     maybe_cast({:refresh_room, room_id})
   end
 
+  def refresh_room_select(room_id) when is_integer(room_id) do
+    maybe_cast({:refresh_room_select, room_id})
+  end
+
   def refresh_scene(%Scene{id: scene_id}), do: refresh_scene(scene_id)
 
   def refresh_scene(scene_id) when is_integer(scene_id) do
@@ -43,6 +48,10 @@ defmodule Hueworks.HomeAssistant.Export do
 
   def remove_scene(scene_id) when is_integer(scene_id) do
     maybe_cast({:remove_scene, scene_id})
+  end
+
+  def remove_room(room_id) when is_integer(room_id) do
+    maybe_cast({:remove_room, room_id})
   end
 
   def client_id do
@@ -57,9 +66,23 @@ defmodule Hueworks.HomeAssistant.Export do
   def attributes_topic(scene_id) when is_integer(scene_id),
     do: "#{@default_topic_prefix}/scenes/#{scene_id}/attributes"
 
+  def room_select_command_topic(room_id) when is_integer(room_id),
+    do: "#{@default_topic_prefix}/rooms/#{room_id}/scene/set"
+
+  def room_select_state_topic(room_id) when is_integer(room_id),
+    do: "#{@default_topic_prefix}/rooms/#{room_id}/scene/state"
+
+  def room_select_attributes_topic(room_id) when is_integer(room_id),
+    do: "#{@default_topic_prefix}/rooms/#{room_id}/scene/attributes"
+
   def discovery_topic(scene_id, discovery_prefix \\ @default_discovery_prefix)
       when is_integer(scene_id) and is_binary(discovery_prefix) do
     "#{discovery_prefix}/scene/hueworks_scene_#{scene_id}/config"
+  end
+
+  def room_select_discovery_topic(room_id, discovery_prefix \\ @default_discovery_prefix)
+      when is_integer(room_id) and is_binary(discovery_prefix) do
+    "#{discovery_prefix}/select/hueworks_room_scene_select_#{room_id}/config"
   end
 
   def command_scene_id(topic_levels, topic_prefix \\ @default_topic_prefix)
@@ -91,6 +114,36 @@ defmodule Hueworks.HomeAssistant.Export do
   end
 
   def command_scene_id(_topic_levels, _topic_prefix), do: nil
+
+  def command_room_id(topic_levels, topic_prefix \\ @default_topic_prefix)
+
+  def command_room_id(topic, topic_prefix) when is_binary(topic) and is_binary(topic_prefix) do
+    topic
+    |> String.split("/", trim: true)
+    |> command_room_id(topic_prefix)
+  end
+
+  def command_room_id(topic_levels, topic_prefix)
+      when is_list(topic_levels) and is_binary(topic_prefix) do
+    prefix_levels = String.split("#{topic_prefix}/rooms", "/", trim: true)
+
+    if Enum.take(topic_levels, length(prefix_levels)) == prefix_levels do
+      case Enum.drop(topic_levels, length(prefix_levels)) do
+        [room_id, "scene", "set"] ->
+          case Integer.parse(room_id) do
+            {parsed, ""} -> parsed
+            _ -> nil
+          end
+
+        _ ->
+          nil
+      end
+    else
+      nil
+    end
+  end
+
+  def command_room_id(_topic_levels, _topic_prefix), do: nil
 
   def discovery_payload(%Scene{} = scene, config \\ export_config()) do
     room_name = room_name(scene.room)
@@ -125,6 +178,42 @@ defmodule Hueworks.HomeAssistant.Export do
     }
   end
 
+  def room_select_discovery_payload(%Room{} = room, scenes, config \\ export_config())
+      when is_list(scenes) do
+    %{
+      "platform" => "select",
+      "name" => "Scene",
+      "unique_id" => "hueworks_room_scene_select_#{room.id}",
+      "command_topic" => room_select_command_topic(room.id),
+      "state_topic" => room_select_state_topic(room.id),
+      "availability_topic" => availability_topic(),
+      "payload_available" => "online",
+      "payload_not_available" => "offline",
+      "json_attributes_topic" => room_select_attributes_topic(room.id),
+      "options" => Enum.map(room_scene_options(scenes), & &1.label),
+      "device" => %{
+        "identifiers" => ["hueworks_room_#{room.id}"],
+        "name" => "HueWorks #{room_name(room)}",
+        "manufacturer" => "HueWorks",
+        "model" => "Room Scenes"
+      }
+    }
+    |> maybe_put("configuration_url", config[:configuration_url])
+  end
+
+  def room_select_attributes_payload(%Room{} = room, scenes) when is_list(scenes) do
+    active_scene = ActiveScenes.get_for_room(room.id)
+
+    %{
+      "hueworks_managed" => true,
+      "hueworks_room_id" => room.id,
+      "room_name" => room_name(room),
+      "active_scene_id" => active_scene && active_scene.scene_id,
+      "active_scene_name" => active_scene_name(room.id, scenes),
+      "scene_options" => Enum.map(room_scene_options(scenes), & &1.label)
+    }
+  end
+
   def export_config do
     settings = AppSettings.get_global()
 
@@ -154,11 +243,15 @@ defmodule Hueworks.HomeAssistant.Export do
   end
 
   def handle_cast(:refresh_all_scenes, state) do
-    {:noreply, publish_all_scenes(state)}
+    {:noreply, publish_all_entities(state)}
   end
 
   def handle_cast({:refresh_room, room_id}, state) do
-    {:noreply, publish_room_scenes(room_id, state)}
+    {:noreply, publish_room_entities(room_id, state)}
+  end
+
+  def handle_cast({:refresh_room_select, room_id}, state) do
+    {:noreply, publish_room_select(room_id, state)}
   end
 
   def handle_cast({:refresh_scene, scene_id}, state) do
@@ -169,11 +262,15 @@ defmodule Hueworks.HomeAssistant.Export do
     {:noreply, unpublish_scene(scene_id, state)}
   end
 
+  def handle_cast({:remove_room, room_id}, state) do
+    {:noreply, unpublish_room_select(room_id, state)}
+  end
+
   @impl true
   def handle_info({:mqtt_connected, connection_client_id}, %{config: config} = state) do
     if connection_client_id == client_id() and export_enabled?(config) do
       :ok = publish_availability("online")
-      {:noreply, publish_all_scenes(state)}
+      {:noreply, publish_all_entities(state)}
     else
       {:noreply, state}
     end
@@ -181,14 +278,33 @@ defmodule Hueworks.HomeAssistant.Export do
 
   def handle_info({:mqtt_message, topic_levels, payload}, %{config: config} = state) do
     if export_enabled?(config) do
-      case {command_scene_id(topic_levels), normalize_payload(payload)} do
-        {scene_id, "ON"} when is_integer(scene_id) ->
+      normalized_payload = normalize_payload(payload)
+
+      case {command_scene_id(topic_levels), command_room_id(topic_levels), normalized_payload} do
+        {scene_id, _room_id, "ON"} when is_integer(scene_id) ->
           case Scenes.activate_scene(scene_id, trace: %{source: :home_assistant_mqtt_export}) do
             {:ok, _diff, _updated} ->
               :ok
 
             {:error, reason} ->
               Logger.warning("HA export scene activation failed: #{inspect(reason)}")
+          end
+
+        {_scene_id, room_id, option_label} when is_integer(room_id) ->
+          case scene_for_room_option(room_id, option_label) do
+            %Scene{} = scene ->
+              case Scenes.activate_scene(scene.id,
+                     trace: %{source: :home_assistant_mqtt_export_select}
+                   ) do
+                {:ok, _diff, _updated} ->
+                  :ok
+
+                {:error, reason} ->
+                  Logger.warning("HA export room select activation failed: #{inspect(reason)}")
+              end
+
+            nil ->
+              :ok
           end
 
         _ ->
@@ -226,7 +342,7 @@ defmodule Hueworks.HomeAssistant.Export do
     start_opts =
       [
         client_id: client_id(),
-        handler: {__MODULE__.Handler, [self(), client_id(), command_topic_filter()]},
+        handler: {__MODULE__.Handler, [self(), client_id(), command_topic_filters()]},
         server: {Tortoise.Transport.Tcp, host: String.to_charlist(config.host), port: config.port}
       ]
       |> maybe_put_auth(config)
@@ -254,23 +370,30 @@ defmodule Hueworks.HomeAssistant.Export do
     %{state | connection_pid: nil}
   end
 
-  defp publish_all_scenes(state) do
+  defp publish_all_entities(state) do
     if export_enabled?(state.config) do
       list_exportable_scenes()
       |> Enum.each(fn scene ->
         :ok = publish_scene_payloads(scene, state.config)
+      end)
+
+      list_rooms()
+      |> Enum.each(fn room ->
+        :ok = publish_room_select_payloads(room, state.config)
       end)
     end
 
     state
   end
 
-  defp publish_room_scenes(room_id, state) do
+  defp publish_room_entities(room_id, state) do
     if export_enabled?(state.config) do
       list_exportable_scenes_for_room(room_id)
       |> Enum.each(fn scene ->
         :ok = publish_scene_payloads(scene, state.config)
       end)
+
+      :ok = publish_room_select_payloads(room_id, state.config)
     end
 
     state
@@ -279,8 +402,12 @@ defmodule Hueworks.HomeAssistant.Export do
   defp publish_scene(scene_id, state) do
     if export_enabled?(state.config) do
       case exportable_scene(scene_id) do
-        %Scene{} = scene -> :ok = publish_scene_payloads(scene, state.config)
-        nil -> :ok
+        %Scene{} = scene ->
+          :ok = publish_scene_payloads(scene, state.config)
+          :ok = publish_room_select_payloads(scene.room_id, state.config)
+
+        nil ->
+          :ok
       end
     end
 
@@ -289,11 +416,33 @@ defmodule Hueworks.HomeAssistant.Export do
 
   defp unpublish_scene(scene_id, state) do
     if export_enabled?(state.config) do
-      discovery = discovery_topic(scene_id, state.config.discovery_prefix)
-      attributes = attributes_topic(scene_id)
+      room_id =
+        case exportable_scene(scene_id) do
+          %Scene{} = scene -> scene.room_id
+          nil -> nil
+        end
 
-      :ok = publish(discovery, "", retain: true)
-      :ok = publish(attributes, "", retain: true)
+      :ok = unpublish_scene_payloads(scene_id, state.config)
+
+      if is_integer(room_id) do
+        :ok = publish_room_select_payloads(room_id, state.config)
+      end
+    end
+
+    state
+  end
+
+  defp publish_room_select(room_id, state) do
+    if export_enabled?(state.config) do
+      :ok = publish_room_select_payloads(room_id, state.config)
+    end
+
+    state
+  end
+
+  defp unpublish_room_select(room_id, state) do
+    if export_enabled?(state.config) do
+      :ok = unpublish_room_select_payloads(room_id, state.config)
     end
 
     state
@@ -305,6 +454,55 @@ defmodule Hueworks.HomeAssistant.Export do
 
     :ok = publish(discovery, Jason.encode!(discovery_payload(scene, config)), retain: true)
     :ok = publish(attributes, Jason.encode!(scene_attributes_payload(scene)), retain: true)
+  end
+
+  defp unpublish_scene_payloads(scene_id, config) do
+    discovery = discovery_topic(scene_id, config.discovery_prefix)
+    attributes = attributes_topic(scene_id)
+
+    :ok = publish(discovery, "", retain: true)
+    :ok = publish(attributes, "", retain: true)
+  end
+
+  defp publish_room_select_payloads(%Room{} = room, config) do
+    scenes = list_exportable_scenes_for_room(room.id)
+
+    if scenes == [] do
+      unpublish_room_select_payloads(room.id, config)
+    else
+      discovery = room_select_discovery_topic(room.id, config.discovery_prefix)
+      state_topic = room_select_state_topic(room.id)
+      attributes_topic = room_select_attributes_topic(room.id)
+
+      :ok =
+        publish(discovery, Jason.encode!(room_select_discovery_payload(room, scenes, config)),
+          retain: true
+        )
+
+      :ok =
+        publish(attributes_topic, Jason.encode!(room_select_attributes_payload(room, scenes)),
+          retain: true
+        )
+
+      :ok = publish(state_topic, room_select_state_payload(room.id, scenes), retain: true)
+    end
+  end
+
+  defp publish_room_select_payloads(room_id, config) when is_integer(room_id) do
+    case Repo.get(Room, room_id) do
+      %Room{} = room -> publish_room_select_payloads(room, config)
+      nil -> unpublish_room_select_payloads(room_id, config)
+    end
+  end
+
+  defp unpublish_room_select_payloads(room_id, config) do
+    discovery = room_select_discovery_topic(room_id, config.discovery_prefix)
+    attributes = room_select_attributes_topic(room_id)
+    state = room_select_state_topic(room_id)
+
+    :ok = publish(discovery, "", retain: true)
+    :ok = publish(attributes, "", retain: true)
+    :ok = publish(state, "None", retain: true)
   end
 
   defp publish_availability_if_connected(state, value) do
@@ -343,6 +541,10 @@ defmodule Hueworks.HomeAssistant.Export do
     )
   end
 
+  defp list_rooms do
+    Repo.all(from(r in Room, order_by: [asc: r.name]))
+  end
+
   defp list_exportable_scenes_for_room(room_id) when is_integer(room_id) do
     Repo.all(
       from(s in Scene,
@@ -366,6 +568,18 @@ defmodule Hueworks.HomeAssistant.Export do
     )
   end
 
+  defp scene_for_room_option(room_id, option_label)
+       when is_integer(room_id) and is_binary(option_label) do
+    room_id
+    |> list_exportable_scenes_for_room()
+    |> room_scene_options()
+    |> Enum.find_value(fn %{label: label, scene: scene} ->
+      if label == option_label, do: scene, else: nil
+    end)
+  end
+
+  defp scene_for_room_option(_room_id, _option_label), do: nil
+
   defp maybe_put_auth(opts, %{username: username, password: password}) when is_binary(username) do
     opts
     |> Keyword.put(:user_name, username)
@@ -384,6 +598,43 @@ defmodule Hueworks.HomeAssistant.Export do
 
   defp scene_name(%Scene{} = scene), do: scene.display_name || scene.name
 
+  defp room_scene_options(scenes) when is_list(scenes) do
+    duplicate_counts = Enum.frequencies_by(scenes, &scene_name/1)
+
+    Enum.map(scenes, fn scene ->
+      base_name = scene_name(scene)
+
+      label =
+        if duplicate_counts[base_name] > 1 do
+          "#{base_name} (##{scene.id})"
+        else
+          base_name
+        end
+
+      %{label: label, scene: scene}
+    end)
+  end
+
+  defp room_select_state_payload(room_id, scenes) when is_integer(room_id) and is_list(scenes) do
+    active_scene_id =
+      case ActiveScenes.get_for_room(room_id) do
+        %{scene_id: scene_id} -> scene_id
+        _ -> nil
+      end
+
+    room_scene_options(scenes)
+    |> Enum.find_value("None", fn %{label: label, scene: scene} ->
+      if scene.id == active_scene_id, do: label, else: nil
+    end)
+  end
+
+  defp active_scene_name(room_id, scenes) when is_integer(room_id) and is_list(scenes) do
+    case room_select_state_payload(room_id, scenes) do
+      "None" -> nil
+      value -> value
+    end
+  end
+
   defp export_enabled?(%{enabled: true, host: host}) when is_binary(host),
     do: String.trim(host) != ""
 
@@ -398,8 +649,11 @@ defmodule Hueworks.HomeAssistant.Export do
   defp normalize_payload(payload) when is_binary(payload), do: String.trim(payload)
   defp normalize_payload(payload), do: IO.iodata_to_binary(payload) |> String.trim()
 
-  defp command_topic_filter do
-    "#{@default_topic_prefix}/scenes/+/set"
+  defp command_topic_filters do
+    [
+      "#{@default_topic_prefix}/scenes/+/set",
+      "#{@default_topic_prefix}/rooms/+/scene/set"
+    ]
   end
 
   defp tortoise_module do
@@ -435,12 +689,17 @@ defmodule Hueworks.HomeAssistant.Export do
 
     use Tortoise.Handler
 
-    def init([server, client_id, topic_filter]) do
+    def init([server, client_id, topic_filters]) do
+      subscriptions =
+        topic_filters
+        |> List.wrap()
+        |> Enum.map(&{&1, 0})
+
       {:ok,
        %{
          server: server,
          client_id: client_id,
-         subscriptions: [{topic_filter, 0}],
+         subscriptions: subscriptions,
          subscribed?: false
        }}
     end

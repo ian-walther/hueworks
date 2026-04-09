@@ -5,6 +5,7 @@ defmodule Hueworks.ActiveScenes do
 
   import Ecto.Query, only: [from: 2]
 
+  alias Hueworks.HomeAssistant.Export, as: HomeAssistantExport
   alias Hueworks.Repo
   alias Hueworks.Schemas.{ActiveScene, Scene}
 
@@ -25,27 +26,36 @@ defmodule Hueworks.ActiveScenes do
       last_applied_at: now
     }
 
-    %ActiveScene{}
-    |> ActiveScene.changeset(attrs)
-    |> Repo.insert(
-      on_conflict: [
-        set: [
-          scene_id: scene.id,
-          last_applied_at: now,
-          updated_at: now
-        ]
-      ],
-      conflict_target: :room_id
-    )
+    result =
+      %ActiveScene{}
+      |> ActiveScene.changeset(attrs)
+      |> Repo.insert(
+        on_conflict: [
+          set: [
+            scene_id: scene.id,
+            last_applied_at: now,
+            updated_at: now
+          ]
+        ],
+        conflict_target: :room_id
+      )
+
+    HomeAssistantExport.refresh_room_select(scene.room_id)
+    result
   end
 
   def clear_for_room(room_id) do
     Repo.delete_all(from(a in ActiveScene, where: a.room_id == ^room_id))
+    HomeAssistantExport.refresh_room_select(room_id)
     :ok
   end
 
   def deactivate_scene(scene_id) when is_integer(scene_id) do
+    room_ids =
+      Repo.all(from(a in ActiveScene, where: a.scene_id == ^scene_id, select: a.room_id))
+
     Repo.delete_all(from(a in ActiveScene, where: a.scene_id == ^scene_id))
+    Enum.each(room_ids, &HomeAssistantExport.refresh_room_select/1)
     :ok
   end
 

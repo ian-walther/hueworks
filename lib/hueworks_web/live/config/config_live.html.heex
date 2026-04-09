@@ -98,7 +98,9 @@
       <h2>Home Assistant MQTT Export</h2>
     </div>
 
-    <p class="hw-muted">Publish HueWorks scenes into Home Assistant via MQTT discovery.</p>
+    <p class="hw-muted">
+      Publish HueWorks scenes and room scene selectors into Home Assistant via MQTT discovery.
+    </p>
 
     <%= if @ha_export_status do %>
       <p class="hw-muted"><%= @ha_export_status %></p>
@@ -109,9 +111,7 @@
     <% end %>
 
     <form class="hw-form" phx-change="update_ha_export" phx-submit="save_ha_export">
-      <label class="hw-modal-label" for="ha_export_enabled">
-        Enable Home Assistant Scene Export
-      </label>
+      <label class="hw-modal-label" for="ha_export_enabled">Enable Home Assistant Export</label>
       <input type="hidden" name="ha_export_enabled" value="false" />
       <label class="hw-toggle">
         <input
@@ -121,7 +121,7 @@
           value="true"
           checked={@ha_export_enabled}
         />
-        <span>Publish HueWorks scenes as Home Assistant MQTT scenes.</span>
+        <span>Publish HueWorks scenes and room scene selectors into Home Assistant.</span>
       </label>
 
       <label class="hw-modal-label" for="ha_export_mqtt_host">MQTT Host</label>
@@ -191,7 +191,7 @@
           phx-click="republish_ha_export_scenes"
           disabled={!@ha_export_enabled}
         >
-          Republish Exported Scenes
+          Republish Exported Entities
         </button>
       </div>
     </form>

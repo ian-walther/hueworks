@@ -62,6 +62,7 @@ defmodule Hueworks.Rooms do
     case Repo.delete(room) do
       {:ok, deleted} ->
         Enum.each(scene_ids, &HomeAssistantExport.remove_scene/1)
+        HomeAssistantExport.remove_room(deleted.id)
         {:ok, deleted}
 
       other ->
