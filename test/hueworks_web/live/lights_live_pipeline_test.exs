@@ -761,6 +761,41 @@ defmodule Hueworks.LightsLivePipelineTest do
     assert Repo.get!(Light, light.id).canonical_light_id == target.id
   end
 
+  test "light edit modal saves HA export mode", %{conn: conn} do
+    room = Repo.insert!(%Room{name: "Kitchen"})
+
+    bridge =
+      Repo.insert!(%Bridge{
+        name: "HA Bridge",
+        type: :ha,
+        host: "192.168.1.90",
+        credentials: %{"token" => "test"}
+      })
+
+    light =
+      Repo.insert!(%Light{
+        name: "kitchen.task",
+        display_name: "Kitchen Task",
+        source: :ha,
+        source_id: "light.kitchen_task",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        ha_export_mode: :none
+      })
+
+    {:ok, view, _html} = live(conn, "/lights")
+
+    view
+    |> element("#light-#{light.id} button[aria-label='Edit light name']")
+    |> render_click()
+
+    view
+    |> element("form[phx-submit='save_edit_fields']")
+    |> render_submit(%{"ha_export_mode" => "light"})
+
+    assert Repo.get!(Light, light.id).ha_export_mode == :light
+  end
+
   test "show linked toggle reveals linked lights", %{conn: conn} do
     room = Repo.insert!(%Room{name: "Office"})
 

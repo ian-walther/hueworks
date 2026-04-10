@@ -21,6 +21,7 @@ defmodule Hueworks.Schemas.Light do
     field(:supports_color, :boolean, default: false)
     field(:supports_temp, :boolean, default: false)
     field(:enabled, :boolean, default: true)
+    field(:ha_export_mode, Ecto.Enum, values: [:none, :switch, :light], default: :none)
     field(:metadata, :map, default: %{})
     field(:external_id, :string)
     field(:normalized_json, :map, default: %{})
@@ -47,6 +48,7 @@ defmodule Hueworks.Schemas.Light do
       :supports_color,
       :supports_temp,
       :enabled,
+      :ha_export_mode,
       :metadata,
       :external_id,
       :normalized_json

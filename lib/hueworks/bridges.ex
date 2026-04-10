@@ -5,6 +5,7 @@ defmodule Hueworks.Bridges do
 
   import Ecto.Query, only: [from: 2, limit: 2]
 
+  alias Hueworks.HomeAssistant.Export, as: HomeAssistantExport
   alias Hueworks.Repo
 
   alias Hueworks.Schemas.{
@@ -39,70 +40,92 @@ defmodule Hueworks.Bridges do
   end
 
   def delete_entities(%Bridge{} = bridge) do
-    Repo.transaction(fn ->
-      light_ids =
-        Repo.all(from(l in Light, where: l.bridge_id == ^bridge.id, select: l.id))
+    light_ids =
+      Repo.all(from(l in Light, where: l.bridge_id == ^bridge.id, select: l.id))
 
-      group_ids =
-        Repo.all(from(g in Group, where: g.bridge_id == ^bridge.id, select: g.id))
+    group_ids =
+      Repo.all(from(g in Group, where: g.bridge_id == ^bridge.id, select: g.id))
 
-      if light_ids != [] do
-        Repo.delete_all(from(scl in SceneComponentLight, where: scl.light_id in ^light_ids))
-        Repo.delete_all(from(gl in GroupLight, where: gl.light_id in ^light_ids))
-      end
+    result =
+      Repo.transaction(fn ->
+        if light_ids != [] do
+          Repo.delete_all(from(scl in SceneComponentLight, where: scl.light_id in ^light_ids))
+          Repo.delete_all(from(gl in GroupLight, where: gl.light_id in ^light_ids))
+        end
 
-      if group_ids != [] do
-        Repo.delete_all(from(gl in GroupLight, where: gl.group_id in ^group_ids))
-      end
+        if group_ids != [] do
+          Repo.delete_all(from(gl in GroupLight, where: gl.group_id in ^group_ids))
+        end
 
-      Repo.delete_all(from(g in Group, where: g.bridge_id == ^bridge.id))
-      Repo.delete_all(from(l in Light, where: l.bridge_id == ^bridge.id))
-      Repo.delete_all(from(pd in PicoDevice, where: pd.bridge_id == ^bridge.id))
+        Repo.delete_all(from(g in Group, where: g.bridge_id == ^bridge.id))
+        Repo.delete_all(from(l in Light, where: l.bridge_id == ^bridge.id))
+        Repo.delete_all(from(pd in PicoDevice, where: pd.bridge_id == ^bridge.id))
 
-      Repo.update_all(
-        from(b in Bridge, where: b.id == ^bridge.id),
-        set: [import_complete: false]
-      )
+        Repo.update_all(
+          from(b in Bridge, where: b.id == ^bridge.id),
+          set: [import_complete: false]
+        )
 
-      :ok
-    end)
+        :ok
+      end)
+
+    case result do
+      {:ok, :ok} ->
+        Enum.each(light_ids, &HomeAssistantExport.remove_light/1)
+        Enum.each(group_ids, &HomeAssistantExport.remove_group/1)
+        result
+
+      _ ->
+        result
+    end
   end
 
   def delete_unchecked_entities(%Bridge{} = bridge, light_external_ids, group_external_ids) do
-    Repo.transaction(fn ->
-      light_ids =
-        light_external_ids
-        |> normalize_ids()
-        |> fetch_light_ids(bridge.id)
+    light_ids =
+      light_external_ids
+      |> normalize_ids()
+      |> fetch_light_ids(bridge.id)
 
-      group_ids =
-        group_external_ids
-        |> normalize_ids()
-        |> fetch_group_ids(bridge.id)
+    group_ids =
+      group_external_ids
+      |> normalize_ids()
+      |> fetch_group_ids(bridge.id)
 
-      if light_ids != [] do
-        Repo.delete_all(from(scl in SceneComponentLight, where: scl.light_id in ^light_ids))
-        Repo.delete_all(from(gl in GroupLight, where: gl.light_id in ^light_ids))
-      end
+    result =
+      Repo.transaction(fn ->
+        if light_ids != [] do
+          Repo.delete_all(from(scl in SceneComponentLight, where: scl.light_id in ^light_ids))
+          Repo.delete_all(from(gl in GroupLight, where: gl.light_id in ^light_ids))
+        end
 
-      if group_ids != [] do
-        Repo.delete_all(from(gl in GroupLight, where: gl.group_id in ^group_ids))
-      end
+        if group_ids != [] do
+          Repo.delete_all(from(gl in GroupLight, where: gl.group_id in ^group_ids))
+        end
 
-      if group_ids != [] do
-        Repo.delete_all(from(g in Group, where: g.id in ^group_ids))
-      end
+        if group_ids != [] do
+          Repo.delete_all(from(g in Group, where: g.id in ^group_ids))
+        end
 
-      if light_ids != [] do
-        Repo.delete_all(from(l in Light, where: l.id in ^light_ids))
-      end
+        if light_ids != [] do
+          Repo.delete_all(from(l in Light, where: l.id in ^light_ids))
+        end
 
-      if bridge.type == :caseta do
-        Repo.delete_all(from(pd in PicoDevice, where: pd.bridge_id == ^bridge.id))
-      end
+        if bridge.type == :caseta do
+          Repo.delete_all(from(pd in PicoDevice, where: pd.bridge_id == ^bridge.id))
+        end
 
-      :ok
-    end)
+        :ok
+      end)
+
+    case result do
+      {:ok, :ok} ->
+        Enum.each(light_ids, &HomeAssistantExport.remove_light/1)
+        Enum.each(group_ids, &HomeAssistantExport.remove_group/1)
+        result
+
+      _ ->
+        result
+    end
   end
 
   def delete_bridge(%Bridge{} = bridge) do

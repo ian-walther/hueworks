@@ -12,6 +12,7 @@ defmodule Hueworks.Schemas.AppSetting do
     field(:ha_export_enabled, :boolean, default: false)
     field(:ha_export_scenes_enabled, :boolean, default: false)
     field(:ha_export_room_selects_enabled, :boolean, default: false)
+    field(:ha_export_lights_enabled, :boolean, default: false)
     field(:ha_export_mqtt_host, :string)
     field(:ha_export_mqtt_port, :integer, default: 1883)
     field(:ha_export_mqtt_username, :string)
@@ -33,6 +34,7 @@ defmodule Hueworks.Schemas.AppSetting do
       :ha_export_enabled,
       :ha_export_scenes_enabled,
       :ha_export_room_selects_enabled,
+      :ha_export_lights_enabled,
       :ha_export_mqtt_host,
       :ha_export_mqtt_port,
       :ha_export_mqtt_username,
@@ -76,6 +78,7 @@ defmodule Hueworks.Schemas.AppSetting do
   defp ha_export_enabled?(changeset) do
     get_field(changeset, :ha_export_scenes_enabled) == true or
       get_field(changeset, :ha_export_room_selects_enabled) == true or
+      get_field(changeset, :ha_export_lights_enabled) == true or
       get_field(changeset, :ha_export_enabled) == true
   end
 end

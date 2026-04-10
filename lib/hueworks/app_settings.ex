@@ -59,6 +59,7 @@ defmodule Hueworks.AppSettings do
       ha_export_enabled: app_setting.ha_export_enabled == true,
       ha_export_scenes_enabled: app_setting.ha_export_scenes_enabled == true,
       ha_export_room_selects_enabled: app_setting.ha_export_room_selects_enabled == true,
+      ha_export_lights_enabled: app_setting.ha_export_lights_enabled == true,
       ha_export_mqtt_host: app_setting.ha_export_mqtt_host,
       ha_export_mqtt_port: app_setting.ha_export_mqtt_port || 1883,
       ha_export_mqtt_username: app_setting.ha_export_mqtt_username,
@@ -79,6 +80,7 @@ defmodule Hueworks.AppSettings do
       ha_export_enabled: current.ha_export_enabled == true,
       ha_export_scenes_enabled: current.ha_export_scenes_enabled == true,
       ha_export_room_selects_enabled: current.ha_export_room_selects_enabled == true,
+      ha_export_lights_enabled: current.ha_export_lights_enabled == true,
       ha_export_mqtt_host: current.ha_export_mqtt_host,
       ha_export_mqtt_port: current.ha_export_mqtt_port || 1883,
       ha_export_mqtt_username: current.ha_export_mqtt_username,
@@ -107,6 +109,7 @@ defmodule Hueworks.AppSettings do
         parse_boolean(ha_export_config[:enabled] || ha_export_config["enabled"]) == true,
       ha_export_room_selects_enabled:
         parse_boolean(ha_export_config[:enabled] || ha_export_config["enabled"]) == true,
+      ha_export_lights_enabled: false,
       ha_export_mqtt_host: parse_string(ha_export_config[:host] || ha_export_config["host"]),
       ha_export_mqtt_port:
         parse_port(ha_export_config[:port] || ha_export_config["port"]) || 1883,
@@ -152,6 +155,8 @@ defmodule Hueworks.AppSettings do
             "ha_export_room_selects_enabled"
           )
         ),
+      ha_export_lights_enabled:
+        parse_boolean(attr_value(attrs, :ha_export_lights_enabled, "ha_export_lights_enabled")),
       ha_export_mqtt_host:
         parse_string(attr_value(attrs, :ha_export_mqtt_host, "ha_export_mqtt_host")),
       ha_export_mqtt_port:
@@ -171,12 +176,14 @@ defmodule Hueworks.AppSettings do
   defp with_derived_ha_export_enabled(attrs) when is_map(attrs) do
     has_new_toggles =
       Map.has_key?(attrs, :ha_export_scenes_enabled) or
-        Map.has_key?(attrs, :ha_export_room_selects_enabled)
+        Map.has_key?(attrs, :ha_export_room_selects_enabled) or
+        Map.has_key?(attrs, :ha_export_lights_enabled)
 
     if has_new_toggles do
       combined =
         Map.get(attrs, :ha_export_scenes_enabled) == true or
-          Map.get(attrs, :ha_export_room_selects_enabled) == true
+          Map.get(attrs, :ha_export_room_selects_enabled) == true or
+          Map.get(attrs, :ha_export_lights_enabled) == true
 
       Map.put(attrs, :ha_export_enabled, combined)
     else

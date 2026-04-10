@@ -24,6 +24,7 @@ defmodule HueworksWeb.ConfigLive do
        scale_transition_by_brightness: app_setting.scale_transition_by_brightness == true,
        ha_export_scenes_enabled: app_setting.ha_export_scenes_enabled == true,
        ha_export_room_selects_enabled: app_setting.ha_export_room_selects_enabled == true,
+       ha_export_lights_enabled: app_setting.ha_export_lights_enabled == true,
        ha_export_mqtt_host: app_setting.ha_export_mqtt_host || "",
        ha_export_mqtt_port: format_integer(app_setting.ha_export_mqtt_port || 1883),
        ha_export_mqtt_username: app_setting.ha_export_mqtt_username || "",
@@ -127,6 +128,10 @@ defmodule HueworksWeb.ConfigLive do
              socket.assigns.ha_export_room_selects_enabled
            )
          ),
+       ha_export_lights_enabled:
+         parse_boolean_param(
+           Map.get(params, "ha_export_lights_enabled", socket.assigns.ha_export_lights_enabled)
+         ),
        ha_export_mqtt_host:
          Map.get(params, "ha_export_mqtt_host", socket.assigns.ha_export_mqtt_host),
        ha_export_mqtt_port:
@@ -164,6 +169,10 @@ defmodule HueworksWeb.ConfigLive do
             socket.assigns.ha_export_room_selects_enabled
           )
         ),
+      ha_export_lights_enabled:
+        parse_boolean_param(
+          Map.get(params, "ha_export_lights_enabled", socket.assigns.ha_export_lights_enabled)
+        ),
       ha_export_mqtt_host:
         Map.get(params, "ha_export_mqtt_host", socket.assigns.ha_export_mqtt_host),
       ha_export_mqtt_port:
@@ -189,6 +198,7 @@ defmodule HueworksWeb.ConfigLive do
          |> assign(
            ha_export_scenes_enabled: app_setting.ha_export_scenes_enabled == true,
            ha_export_room_selects_enabled: app_setting.ha_export_room_selects_enabled == true,
+           ha_export_lights_enabled: app_setting.ha_export_lights_enabled == true,
            ha_export_mqtt_host: app_setting.ha_export_mqtt_host || "",
            ha_export_mqtt_port: format_integer(app_setting.ha_export_mqtt_port || 1883),
            ha_export_mqtt_username: app_setting.ha_export_mqtt_username || "",
@@ -208,7 +218,7 @@ defmodule HueworksWeb.ConfigLive do
     end
   end
 
-  def handle_event("republish_ha_export_scenes", _params, socket) do
+  def handle_event("republish_ha_export_entities", _params, socket) do
     HomeAssistantExport.refresh_all_scenes()
 
     {:noreply,

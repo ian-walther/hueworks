@@ -109,6 +109,7 @@ defmodule HueworksWeb.ConfigLiveTest do
     |> form("form[phx-submit='save_ha_export']", %{
       "ha_export_scenes_enabled" => "true",
       "ha_export_room_selects_enabled" => "true",
+      "ha_export_lights_enabled" => "true",
       "ha_export_mqtt_host" => "mqtt.local",
       "ha_export_mqtt_port" => "1883",
       "ha_export_mqtt_username" => "ha_user",
@@ -123,6 +124,7 @@ defmodule HueworksWeb.ConfigLiveTest do
     assert settings.ha_export_enabled == true
     assert settings.ha_export_scenes_enabled == true
     assert settings.ha_export_room_selects_enabled == true
+    assert settings.ha_export_lights_enabled == true
     assert settings.ha_export_mqtt_host == "mqtt.local"
     assert settings.ha_export_mqtt_port == 1883
     assert settings.ha_export_mqtt_username == "ha_user"
@@ -139,6 +141,7 @@ defmodule HueworksWeb.ConfigLiveTest do
       ha_export_enabled: true,
       ha_export_scenes_enabled: true,
       ha_export_room_selects_enabled: false,
+      ha_export_lights_enabled: false,
       ha_export_mqtt_host: "mqtt.local",
       ha_export_mqtt_port: 1883,
       ha_export_discovery_prefix: "homeassistant"
@@ -151,7 +154,7 @@ defmodule HueworksWeb.ConfigLiveTest do
     assert html =~ "Republish Exported Entities"
 
     view
-    |> element("button[phx-click='republish_ha_export_scenes']")
+    |> element("button[phx-click='republish_ha_export_entities']")
     |> render_click()
 
     assert render(view) =~ "Republished exported Home Assistant entities."
@@ -246,6 +249,7 @@ defmodule HueworksWeb.ConfigLiveTest do
       ha_export_enabled: true,
       ha_export_scenes_enabled: true,
       ha_export_room_selects_enabled: true,
+      ha_export_lights_enabled: false,
       ha_export_mqtt_host: "mqtt.local",
       ha_export_mqtt_port: 1884,
       ha_export_mqtt_username: "ha_user",

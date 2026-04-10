@@ -5,6 +5,7 @@ defmodule Hueworks.Lights do
 
   import Ecto.Query, only: [from: 2]
 
+  alias Hueworks.HomeAssistant.Export, as: HomeAssistantExport
   alias Hueworks.Kelvin
   alias Hueworks.Util
   alias Hueworks.Schemas.Group
@@ -49,9 +50,16 @@ defmodule Hueworks.Lights do
       |> Map.update(:display_name, nil, &Util.normalize_display_name/1)
       |> normalize_kelvin_attrs()
 
-    light
-    |> Light.changeset(attrs)
-    |> Repo.update()
+    case light
+         |> Light.changeset(attrs)
+         |> Repo.update() do
+      {:ok, updated} ->
+        HomeAssistantExport.refresh_light(updated.id)
+        {:ok, updated}
+
+      other ->
+        other
+    end
   end
 
   def update_display_name(light, display_name) do

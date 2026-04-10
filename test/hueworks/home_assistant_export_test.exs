@@ -3,9 +3,11 @@ defmodule Hueworks.HomeAssistant.ExportTest do
 
   alias Hueworks.ActiveScenes
   alias Hueworks.AppSettings
+  alias Hueworks.Control.DesiredState
+  alias Hueworks.Control.State
   alias Hueworks.HomeAssistant.Export
   alias Hueworks.Repo
-  alias Hueworks.Schemas.{AppSetting, Room, Scene}
+  alias Hueworks.Schemas.{AppSetting, Bridge, Group, GroupLight, Light, Room, Scene}
 
   setup do
     original_tortoise = Application.get_env(:hueworks, :ha_export_tortoise_module)
@@ -90,6 +92,61 @@ defmodule Hueworks.HomeAssistant.ExportTest do
     assert payload["state_topic"] == "hueworks/ha_export/rooms/#{room.id}/scene/state"
     assert payload["device"]["name"] == "HueWorks Main Floor"
     assert payload["options"] == ["All Auto (##{scene_a.id})", "All Auto (##{scene_b.id})"]
+  end
+
+  test "switch discovery payload uses stable IDs and switch topics" do
+    room = Repo.insert!(%Room{name: "Kitchen"})
+
+    light =
+      Repo.insert!(%Light{
+        name: "Kitchen Task",
+        source: :hue,
+        source_id: "17",
+        bridge_id:
+          Repo.insert!(%Bridge{name: "Hue", type: :hue, host: "hue.local", credentials: %{}}).id,
+        room_id: room.id,
+        ha_export_mode: :switch
+      })
+      |> Repo.preload(:room)
+
+    payload = Export.switch_discovery_payload(:light, light)
+
+    assert payload["name"] == "Kitchen Task"
+    assert payload["unique_id"] == "hueworks_light_#{light.id}_switch"
+    assert payload["command_topic"] == "hueworks/ha_export/lights/#{light.id}/switch/set"
+    assert payload["state_topic"] == "hueworks/ha_export/lights/#{light.id}/switch/state"
+    assert payload["device"]["name"] == "HueWorks Kitchen"
+  end
+
+  test "json light discovery payload includes brightness and temp/color capabilities" do
+    room = Repo.insert!(%Room{name: "Kitchen"})
+
+    group =
+      Repo.insert!(%Group{
+        name: "Kitchen Pendants",
+        source: :ha,
+        source_id: "light.kitchen_pendants",
+        bridge_id:
+          Repo.insert!(%Bridge{name: "HA", type: :ha, host: "ha.local", credentials: %{}}).id,
+        room_id: room.id,
+        ha_export_mode: :light,
+        supports_temp: true,
+        supports_color: true,
+        actual_min_kelvin: 2000,
+        actual_max_kelvin: 6500
+      })
+      |> Repo.preload(:room)
+
+    payload = Export.light_discovery_payload(:group, group)
+
+    assert payload["schema"] == "json"
+    assert payload["unique_id"] == "hueworks_group_#{group.id}_light"
+    assert payload["supported_color_modes"] == ["xy", "color_temp"]
+    assert payload["brightness_scale"] == 100
+    assert payload["color_temp_kelvin"] == true
+    assert payload["min_kelvin"] == 2000
+    assert payload["max_kelvin"] == 6500
+    assert payload["transition"] == false
   end
 
   test "publishes retained discovery and attributes payloads when connected" do
@@ -220,6 +277,180 @@ defmodule Hueworks.HomeAssistant.ExportTest do
     assert state_payload == "All Auto"
   end
 
+  test "publishes exported lights and groups when connected" do
+    put_export_settings(%{
+      ha_export_lights_enabled: true,
+      ha_export_mqtt_host: "mqtt.local",
+      ha_export_discovery_prefix: "homeassistant"
+    })
+
+    room = Repo.insert!(%Room{name: "Kitchen"})
+    bridge = Repo.insert!(%Bridge{name: "Hue", type: :hue, host: "hue.local", credentials: %{}})
+
+    light =
+      Repo.insert!(%Light{
+        name: "Task",
+        source: :hue,
+        source_id: "1",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        ha_export_mode: :switch
+      })
+
+    group =
+      Repo.insert!(%Group{
+        name: "Pendants",
+        source: :hue,
+        source_id: "2",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        ha_export_mode: :light,
+        supports_temp: true,
+        actual_min_kelvin: 2200,
+        actual_max_kelvin: 4500
+      })
+
+    Export.reload()
+    _ = :sys.get_state(Export)
+    send(Export, {:mqtt_connected, Export.client_id()})
+    _ = :sys.get_state(Export)
+
+    {_client_id, _topic, _payload} =
+      assert_publish("homeassistant/switch/hueworks_light_#{light.id}/config")
+
+    {_client_id, _topic, _payload} =
+      assert_publish("homeassistant/light/hueworks_group_#{group.id}/config")
+  end
+
+  test "switch command turns an exported light off through manual control" do
+    put_export_settings(%{
+      ha_export_lights_enabled: true,
+      ha_export_mqtt_host: "mqtt.local"
+    })
+
+    room = Repo.insert!(%Room{name: "Kitchen"})
+    bridge = Repo.insert!(%Bridge{name: "Hue", type: :hue, host: "hue.local", credentials: %{}})
+
+    light =
+      Repo.insert!(%Light{
+        name: "Task",
+        source: :hue,
+        source_id: "1",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        ha_export_mode: :switch
+      })
+
+    Export.reload()
+    _ = :sys.get_state(Export)
+
+    send(
+      Export,
+      {:mqtt_message,
+       ["hueworks", "ha_export", "lights", Integer.to_string(light.id), "switch", "set"], "OFF"}
+    )
+
+    _ = :sys.get_state(Export)
+
+    assert DesiredState.get(:light, light.id) == %{power: :off}
+  end
+
+  test "json light command applies brightness and kelvin updates to an exported group" do
+    put_export_settings(%{
+      ha_export_lights_enabled: true,
+      ha_export_mqtt_host: "mqtt.local"
+    })
+
+    room = Repo.insert!(%Room{name: "Kitchen"})
+    bridge = Repo.insert!(%Bridge{name: "HA", type: :ha, host: "ha.local", credentials: %{}})
+
+    light_a =
+      Repo.insert!(%Light{
+        name: "Pendant A",
+        source: :ha,
+        source_id: "light.pendant_a",
+        bridge_id: bridge.id,
+        room_id: room.id
+      })
+
+    light_b =
+      Repo.insert!(%Light{
+        name: "Pendant B",
+        source: :ha,
+        source_id: "light.pendant_b",
+        bridge_id: bridge.id,
+        room_id: room.id
+      })
+
+    group =
+      Repo.insert!(%Group{
+        name: "Pendants",
+        source: :ha,
+        source_id: "light.pendants",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        ha_export_mode: :light,
+        supports_temp: true
+      })
+
+    Repo.insert!(%GroupLight{group_id: group.id, light_id: light_a.id})
+    Repo.insert!(%GroupLight{group_id: group.id, light_id: light_b.id})
+
+    Export.reload()
+    _ = :sys.get_state(Export)
+
+    send(
+      Export,
+      {:mqtt_message,
+       ["hueworks", "ha_export", "groups", Integer.to_string(group.id), "light", "set"],
+       ~s({"state":"ON","brightness":42,"color_temp":3100})}
+    )
+
+    _ = :sys.get_state(Export)
+
+    assert DesiredState.get(:light, light_a.id) == %{power: :on, brightness: 42, kelvin: 3100}
+    assert DesiredState.get(:light, light_b.id) == %{power: :on, brightness: 42, kelvin: 3100}
+  end
+
+  test "control state updates republish exported light state" do
+    put_export_settings(%{
+      ha_export_lights_enabled: true,
+      ha_export_mqtt_host: "mqtt.local",
+      ha_export_discovery_prefix: "homeassistant"
+    })
+
+    room = Repo.insert!(%Room{name: "Kitchen"})
+    bridge = Repo.insert!(%Bridge{name: "Hue", type: :hue, host: "hue.local", credentials: %{}})
+
+    light =
+      Repo.insert!(%Light{
+        name: "Task",
+        source: :hue,
+        source_id: "1",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        ha_export_mode: :light,
+        supports_temp: true
+      })
+
+    Export.reload()
+    _ = :sys.get_state(Export)
+    send(Export, {:mqtt_connected, Export.client_id()})
+    _ = :sys.get_state(Export)
+    drain_published_messages()
+
+    State.put(:light, light.id, %{power: :on, brightness: 55, kelvin: 3200})
+
+    {_client_id, _topic, payload} =
+      assert_publish("hueworks/ha_export/lights/#{light.id}/light/state")
+
+    decoded = Jason.decode!(payload)
+    assert decoded["state"] == "ON"
+    assert decoded["brightness"] == 55
+    assert decoded["color_mode"] == "color_temp"
+    assert decoded["color_temp"] == 3200
+  end
+
   test "disabling scene export unpublishes only scene entities" do
     put_export_settings(%{
       ha_export_scenes_enabled: true,
@@ -307,6 +538,62 @@ defmodule Hueworks.HomeAssistant.ExportTest do
     assert state_payload == "None"
   end
 
+  test "disabling light export unpublishes light and group entities" do
+    put_export_settings(%{
+      ha_export_lights_enabled: true,
+      ha_export_mqtt_host: "mqtt.local",
+      ha_export_discovery_prefix: "homeassistant"
+    })
+
+    room = Repo.insert!(%Room{name: "Kitchen"})
+    bridge = Repo.insert!(%Bridge{name: "Hue", type: :hue, host: "hue.local", credentials: %{}})
+
+    light =
+      Repo.insert!(%Light{
+        name: "Task",
+        source: :hue,
+        source_id: "1",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        ha_export_mode: :switch
+      })
+
+    group =
+      Repo.insert!(%Group{
+        name: "Pendants",
+        source: :hue,
+        source_id: "2",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        ha_export_mode: :light
+      })
+
+    Export.reload()
+    _ = :sys.get_state(Export)
+    send(Export, {:mqtt_connected, Export.client_id()})
+    _ = :sys.get_state(Export)
+    drain_published_messages()
+
+    put_export_settings(%{
+      ha_export_lights_enabled: false,
+      ha_export_mqtt_host: "mqtt.local",
+      ha_export_discovery_prefix: "homeassistant"
+    })
+
+    Export.reload()
+    _ = :sys.get_state(Export)
+
+    {_client_id, _topic, switch_discovery_payload} =
+      assert_publish("homeassistant/switch/hueworks_light_#{light.id}/config")
+
+    assert switch_discovery_payload == ""
+
+    {_client_id, _topic, light_discovery_payload} =
+      assert_publish("homeassistant/light/hueworks_group_#{group.id}/config")
+
+    assert light_discovery_payload == ""
+  end
+
   test "command_scene_id parses scene ids from export topics" do
     assert Export.command_scene_id("hueworks/ha_export/scenes/42/set") == 42
     assert Export.command_scene_id(["hueworks", "ha_export", "scenes", "42", "set"]) == 42
@@ -331,6 +618,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
             timezone: "America/New_York",
             ha_export_scenes_enabled: false,
             ha_export_room_selects_enabled: false,
+            ha_export_lights_enabled: false,
             ha_export_discovery_prefix: "homeassistant"
           },
           attrs

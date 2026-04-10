@@ -354,6 +354,12 @@
           />
           Enabled
         </label>
+        <label class="hw-modal-label" for="ha_export_mode">HA Export Mode</label>
+        <select id="ha_export_mode" name="ha_export_mode" class="hw-select">
+          <option value="none" selected={@edit_ha_export_mode == "none"}>None</option>
+          <option value="switch" selected={@edit_ha_export_mode == "switch"}>Switch</option>
+          <option value="light" selected={@edit_ha_export_mode == "light"}>Light</option>
+        </select>
         <%= if @edit_mapping_supported do %>
           <label class="hw-checkbox hw-modal-checkbox">
             <input

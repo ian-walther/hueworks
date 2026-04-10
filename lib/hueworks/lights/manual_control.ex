@@ -92,6 +92,10 @@ defmodule Hueworks.Lights.ManualControl do
       "kelvin" -> true
       :temperature -> true
       "temperature" -> true
+      :x -> true
+      "x" -> true
+      :y -> true
+      "y" -> true
       _ -> false
     end)
   end
