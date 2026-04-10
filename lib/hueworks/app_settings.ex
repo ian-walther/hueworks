@@ -21,6 +21,7 @@ defmodule Hueworks.AppSettings do
       attrs
       |> normalize_attrs()
       |> with_defaults_from_current()
+      |> with_derived_ha_export_enabled()
       |> Map.put(:scope, @global_scope)
 
     result =
@@ -56,6 +57,8 @@ defmodule Hueworks.AppSettings do
       default_transition_ms: app_setting.default_transition_ms || 0,
       scale_transition_by_brightness: app_setting.scale_transition_by_brightness == true,
       ha_export_enabled: app_setting.ha_export_enabled == true,
+      ha_export_scenes_enabled: app_setting.ha_export_scenes_enabled == true,
+      ha_export_room_selects_enabled: app_setting.ha_export_room_selects_enabled == true,
       ha_export_mqtt_host: app_setting.ha_export_mqtt_host,
       ha_export_mqtt_port: app_setting.ha_export_mqtt_port || 1883,
       ha_export_mqtt_username: app_setting.ha_export_mqtt_username,
@@ -74,6 +77,8 @@ defmodule Hueworks.AppSettings do
       default_transition_ms: current.default_transition_ms || 0,
       scale_transition_by_brightness: current.scale_transition_by_brightness == true,
       ha_export_enabled: current.ha_export_enabled == true,
+      ha_export_scenes_enabled: current.ha_export_scenes_enabled == true,
+      ha_export_room_selects_enabled: current.ha_export_room_selects_enabled == true,
       ha_export_mqtt_host: current.ha_export_mqtt_host,
       ha_export_mqtt_port: current.ha_export_mqtt_port || 1883,
       ha_export_mqtt_username: current.ha_export_mqtt_username,
@@ -97,6 +102,10 @@ defmodule Hueworks.AppSettings do
       scale_transition_by_brightness:
         Application.get_env(:hueworks, :scale_transition_by_brightness, false) == true,
       ha_export_enabled:
+        parse_boolean(ha_export_config[:enabled] || ha_export_config["enabled"]) == true,
+      ha_export_scenes_enabled:
+        parse_boolean(ha_export_config[:enabled] || ha_export_config["enabled"]) == true,
+      ha_export_room_selects_enabled:
         parse_boolean(ha_export_config[:enabled] || ha_export_config["enabled"]) == true,
       ha_export_mqtt_host: parse_string(ha_export_config[:host] || ha_export_config["host"]),
       ha_export_mqtt_port:
@@ -133,6 +142,16 @@ defmodule Hueworks.AppSettings do
         ),
       ha_export_enabled:
         parse_boolean(attr_value(attrs, :ha_export_enabled, "ha_export_enabled")),
+      ha_export_scenes_enabled:
+        parse_boolean(attr_value(attrs, :ha_export_scenes_enabled, "ha_export_scenes_enabled")),
+      ha_export_room_selects_enabled:
+        parse_boolean(
+          attr_value(
+            attrs,
+            :ha_export_room_selects_enabled,
+            "ha_export_room_selects_enabled"
+          )
+        ),
       ha_export_mqtt_host:
         parse_string(attr_value(attrs, :ha_export_mqtt_host, "ha_export_mqtt_host")),
       ha_export_mqtt_port:
@@ -146,6 +165,23 @@ defmodule Hueworks.AppSettings do
     }
     |> Enum.reject(fn {_key, value} -> is_nil(value) end)
     |> Map.new()
+    |> with_derived_ha_export_enabled()
+  end
+
+  defp with_derived_ha_export_enabled(attrs) when is_map(attrs) do
+    has_new_toggles =
+      Map.has_key?(attrs, :ha_export_scenes_enabled) or
+        Map.has_key?(attrs, :ha_export_room_selects_enabled)
+
+    if has_new_toggles do
+      combined =
+        Map.get(attrs, :ha_export_scenes_enabled) == true or
+          Map.get(attrs, :ha_export_room_selects_enabled) == true
+
+      Map.put(attrs, :ha_export_enabled, combined)
+    else
+      attrs
+    end
   end
 
   defp attr_value(attrs, atom_key, string_key) do

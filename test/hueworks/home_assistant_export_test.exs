@@ -94,7 +94,8 @@ defmodule Hueworks.HomeAssistant.ExportTest do
 
   test "publishes retained discovery and attributes payloads when connected" do
     put_export_settings(%{
-      ha_export_enabled: true,
+      ha_export_scenes_enabled: true,
+      ha_export_room_selects_enabled: true,
       ha_export_mqtt_host: "mqtt.local",
       ha_export_mqtt_port: 1883,
       ha_export_discovery_prefix: "homeassistant"
@@ -145,7 +146,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
 
   test "command topic ON activates the matching HueWorks scene" do
     put_export_settings(%{
-      ha_export_enabled: true,
+      ha_export_scenes_enabled: true,
       ha_export_mqtt_host: "mqtt.local"
     })
 
@@ -169,7 +170,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
 
   test "room select command activates the matching HueWorks scene" do
     put_export_settings(%{
-      ha_export_enabled: true,
+      ha_export_room_selects_enabled: true,
       ha_export_mqtt_host: "mqtt.local"
     })
 
@@ -195,7 +196,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
 
   test "active scene updates republish the room select state" do
     put_export_settings(%{
-      ha_export_enabled: true,
+      ha_export_room_selects_enabled: true,
       ha_export_mqtt_host: "mqtt.local",
       ha_export_mqtt_port: 1883,
       ha_export_discovery_prefix: "homeassistant"
@@ -217,6 +218,93 @@ defmodule Hueworks.HomeAssistant.ExportTest do
       assert_publish("hueworks/ha_export/rooms/#{room.id}/scene/state")
 
     assert state_payload == "All Auto"
+  end
+
+  test "disabling scene export unpublishes only scene entities" do
+    put_export_settings(%{
+      ha_export_scenes_enabled: true,
+      ha_export_room_selects_enabled: true,
+      ha_export_mqtt_host: "mqtt.local",
+      ha_export_discovery_prefix: "homeassistant"
+    })
+
+    room = Repo.insert!(%Room{name: "Main Floor"})
+    scene = Repo.insert!(%Scene{name: "All Auto", room_id: room.id})
+
+    Export.reload()
+    _ = :sys.get_state(Export)
+    send(Export, {:mqtt_connected, Export.client_id()})
+    _ = :sys.get_state(Export)
+
+    drain_published_messages()
+
+    put_export_settings(%{
+      ha_export_scenes_enabled: false,
+      ha_export_room_selects_enabled: true,
+      ha_export_mqtt_host: "mqtt.local",
+      ha_export_discovery_prefix: "homeassistant"
+    })
+
+    Export.reload()
+    _ = :sys.get_state(Export)
+
+    {_client_id, _topic, discovery_payload} =
+      assert_publish("homeassistant/scene/hueworks_scene_#{scene.id}/config")
+
+    assert discovery_payload == ""
+
+    {_client_id, _topic, attributes_payload} =
+      assert_publish("hueworks/ha_export/scenes/#{scene.id}/attributes")
+
+    assert attributes_payload == ""
+
+    room_select_topic = "homeassistant/select/hueworks_room_scene_select_#{room.id}/config"
+
+    refute_received {:published, _, ^room_select_topic, "", _}
+  end
+
+  test "disabling room select export unpublishes only room select entities" do
+    put_export_settings(%{
+      ha_export_scenes_enabled: true,
+      ha_export_room_selects_enabled: true,
+      ha_export_mqtt_host: "mqtt.local",
+      ha_export_discovery_prefix: "homeassistant"
+    })
+
+    room = Repo.insert!(%Room{name: "Main Floor"})
+    _scene = Repo.insert!(%Scene{name: "All Auto", room_id: room.id})
+
+    Export.reload()
+    _ = :sys.get_state(Export)
+    send(Export, {:mqtt_connected, Export.client_id()})
+    _ = :sys.get_state(Export)
+
+    drain_published_messages()
+
+    put_export_settings(%{
+      ha_export_scenes_enabled: true,
+      ha_export_room_selects_enabled: false,
+      ha_export_mqtt_host: "mqtt.local",
+      ha_export_discovery_prefix: "homeassistant"
+    })
+
+    Export.reload()
+    _ = :sys.get_state(Export)
+
+    {_client_id, _topic, discovery_payload} =
+      assert_publish("homeassistant/select/hueworks_room_scene_select_#{room.id}/config")
+
+    assert discovery_payload == ""
+
+    {_client_id, _topic, attributes_payload} =
+      assert_publish("hueworks/ha_export/rooms/#{room.id}/scene/attributes")
+
+    assert attributes_payload == ""
+
+    {_client_id, _topic, state_payload} =
+      assert_publish("hueworks/ha_export/rooms/#{room.id}/scene/state")
+
+    assert state_payload == "None"
   end
 
   test "command_scene_id parses scene ids from export topics" do
@@ -241,7 +329,8 @@ defmodule Hueworks.HomeAssistant.ExportTest do
             latitude: 40.7128,
             longitude: -74.006,
             timezone: "America/New_York",
-            ha_export_enabled: false,
+            ha_export_scenes_enabled: false,
+            ha_export_room_selects_enabled: false,
             ha_export_discovery_prefix: "homeassistant"
           },
           attrs

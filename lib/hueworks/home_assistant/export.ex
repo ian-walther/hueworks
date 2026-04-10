@@ -218,7 +218,11 @@ defmodule Hueworks.HomeAssistant.Export do
     settings = AppSettings.get_global()
 
     %{
-      enabled: settings.ha_export_enabled == true,
+      enabled:
+        settings.ha_export_scenes_enabled == true or
+          settings.ha_export_room_selects_enabled == true,
+      scenes_enabled: settings.ha_export_scenes_enabled == true,
+      room_selects_enabled: settings.ha_export_room_selects_enabled == true,
       host: settings.ha_export_mqtt_host,
       port: settings.ha_export_mqtt_port || @default_port,
       username: settings.ha_export_mqtt_username,
@@ -319,6 +323,7 @@ defmodule Hueworks.HomeAssistant.Export do
 
   defp configure(state) do
     config = export_config()
+    state = maybe_unpublish_removed_entities(state, config)
 
     cond do
       not export_enabled?(config) ->
@@ -335,6 +340,27 @@ defmodule Hueworks.HomeAssistant.Export do
         |> publish_availability_if_connected("offline")
         |> stop_connection()
         |> start_connection(config)
+    end
+  end
+
+  defp maybe_unpublish_removed_entities(%{config: previous} = state, config) do
+    cond do
+      not connection_alive?(state.connection_pid) ->
+        state
+
+      not is_map(previous) ->
+        state
+
+      true ->
+        if scenes_enabled?(previous) and not scenes_enabled?(config) do
+          unpublish_all_scenes(previous)
+        end
+
+        if room_selects_enabled?(previous) and not room_selects_enabled?(config) do
+          unpublish_all_room_selects(previous)
+        end
+
+        state
     end
   end
 
@@ -372,15 +398,19 @@ defmodule Hueworks.HomeAssistant.Export do
 
   defp publish_all_entities(state) do
     if export_enabled?(state.config) do
-      list_exportable_scenes()
-      |> Enum.each(fn scene ->
-        :ok = publish_scene_payloads(scene, state.config)
-      end)
+      if scenes_enabled?(state.config) do
+        list_exportable_scenes()
+        |> Enum.each(fn scene ->
+          :ok = publish_scene_payloads(scene, state.config)
+        end)
+      end
 
-      list_rooms()
-      |> Enum.each(fn room ->
-        :ok = publish_room_select_payloads(room, state.config)
-      end)
+      if room_selects_enabled?(state.config) do
+        list_rooms()
+        |> Enum.each(fn room ->
+          :ok = publish_room_select_payloads(room, state.config)
+        end)
+      end
     end
 
     state
@@ -388,12 +418,16 @@ defmodule Hueworks.HomeAssistant.Export do
 
   defp publish_room_entities(room_id, state) do
     if export_enabled?(state.config) do
-      list_exportable_scenes_for_room(room_id)
-      |> Enum.each(fn scene ->
-        :ok = publish_scene_payloads(scene, state.config)
-      end)
+      if scenes_enabled?(state.config) do
+        list_exportable_scenes_for_room(room_id)
+        |> Enum.each(fn scene ->
+          :ok = publish_scene_payloads(scene, state.config)
+        end)
+      end
 
-      :ok = publish_room_select_payloads(room_id, state.config)
+      if room_selects_enabled?(state.config) do
+        :ok = publish_room_select_payloads(room_id, state.config)
+      end
     end
 
     state
@@ -403,8 +437,13 @@ defmodule Hueworks.HomeAssistant.Export do
     if export_enabled?(state.config) do
       case exportable_scene(scene_id) do
         %Scene{} = scene ->
-          :ok = publish_scene_payloads(scene, state.config)
-          :ok = publish_room_select_payloads(scene.room_id, state.config)
+          if scenes_enabled?(state.config) do
+            :ok = publish_scene_payloads(scene, state.config)
+          end
+
+          if room_selects_enabled?(state.config) do
+            :ok = publish_room_select_payloads(scene.room_id, state.config)
+          end
 
         nil ->
           :ok
@@ -422,9 +461,11 @@ defmodule Hueworks.HomeAssistant.Export do
           nil -> nil
         end
 
-      :ok = unpublish_scene_payloads(scene_id, state.config)
+      if scenes_enabled?(state.config) do
+        :ok = unpublish_scene_payloads(scene_id, state.config)
+      end
 
-      if is_integer(room_id) do
+      if is_integer(room_id) and room_selects_enabled?(state.config) do
         :ok = publish_room_select_payloads(room_id, state.config)
       end
     end
@@ -433,7 +474,7 @@ defmodule Hueworks.HomeAssistant.Export do
   end
 
   defp publish_room_select(room_id, state) do
-    if export_enabled?(state.config) do
+    if export_enabled?(state.config) and room_selects_enabled?(state.config) do
       :ok = publish_room_select_payloads(room_id, state.config)
     end
 
@@ -441,7 +482,7 @@ defmodule Hueworks.HomeAssistant.Export do
   end
 
   defp unpublish_room_select(room_id, state) do
-    if export_enabled?(state.config) do
+    if export_enabled?(state.config) and room_selects_enabled?(state.config) do
       :ok = unpublish_room_select_payloads(room_id, state.config)
     end
 
@@ -503,6 +544,20 @@ defmodule Hueworks.HomeAssistant.Export do
     :ok = publish(discovery, "", retain: true)
     :ok = publish(attributes, "", retain: true)
     :ok = publish(state, "None", retain: true)
+  end
+
+  defp unpublish_all_scenes(config) do
+    list_exportable_scenes()
+    |> Enum.each(fn scene ->
+      :ok = unpublish_scene_payloads(scene.id, config)
+    end)
+  end
+
+  defp unpublish_all_room_selects(config) do
+    list_rooms()
+    |> Enum.each(fn room ->
+      :ok = unpublish_room_select_payloads(room.id, config)
+    end)
   end
 
   defp publish_availability_if_connected(state, value) do
@@ -639,6 +694,12 @@ defmodule Hueworks.HomeAssistant.Export do
     do: String.trim(host) != ""
 
   defp export_enabled?(_config), do: false
+
+  defp scenes_enabled?(%{scenes_enabled: true}), do: true
+  defp scenes_enabled?(_config), do: false
+
+  defp room_selects_enabled?(%{room_selects_enabled: true}), do: true
+  defp room_selects_enabled?(_config), do: false
 
   defp same_config?(nil, _config), do: false
   defp same_config?(left, right), do: left == right

@@ -107,7 +107,8 @@ defmodule HueworksWeb.ConfigLiveTest do
 
     view
     |> form("form[phx-submit='save_ha_export']", %{
-      "ha_export_enabled" => "true",
+      "ha_export_scenes_enabled" => "true",
+      "ha_export_room_selects_enabled" => "true",
       "ha_export_mqtt_host" => "mqtt.local",
       "ha_export_mqtt_port" => "1883",
       "ha_export_mqtt_username" => "ha_user",
@@ -120,6 +121,8 @@ defmodule HueworksWeb.ConfigLiveTest do
 
     settings = AppSettings.get_global()
     assert settings.ha_export_enabled == true
+    assert settings.ha_export_scenes_enabled == true
+    assert settings.ha_export_room_selects_enabled == true
     assert settings.ha_export_mqtt_host == "mqtt.local"
     assert settings.ha_export_mqtt_port == 1883
     assert settings.ha_export_mqtt_username == "ha_user"
@@ -134,6 +137,8 @@ defmodule HueworksWeb.ConfigLiveTest do
       longitude: -74.0060,
       timezone: "America/New_York",
       ha_export_enabled: true,
+      ha_export_scenes_enabled: true,
+      ha_export_room_selects_enabled: false,
       ha_export_mqtt_host: "mqtt.local",
       ha_export_mqtt_port: 1883,
       ha_export_discovery_prefix: "homeassistant"
@@ -239,6 +244,8 @@ defmodule HueworksWeb.ConfigLiveTest do
       default_transition_ms: 750,
       scale_transition_by_brightness: true,
       ha_export_enabled: true,
+      ha_export_scenes_enabled: true,
+      ha_export_room_selects_enabled: true,
       ha_export_mqtt_host: "mqtt.local",
       ha_export_mqtt_port: 1884,
       ha_export_mqtt_username: "ha_user",
@@ -254,7 +261,8 @@ defmodule HueworksWeb.ConfigLiveTest do
     assert html =~ ~s(value="750")
     assert html =~ ~s(id="global_scale_transition_by_brightness")
     assert html =~ ~s(checked)
-    assert html =~ ~s(id="ha_export_enabled")
+    assert html =~ ~s(id="ha_export_scenes_enabled")
+    assert html =~ ~s(id="ha_export_room_selects_enabled")
     assert html =~ ~s(value="mqtt.local")
     assert html =~ ~s(value="1884")
     assert html =~ ~s(value="ha_user")

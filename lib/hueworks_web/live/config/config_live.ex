@@ -22,7 +22,8 @@ defmodule HueworksWeb.ConfigLive do
        timezone: timezone,
        default_transition_ms: format_integer(app_setting.default_transition_ms || 0),
        scale_transition_by_brightness: app_setting.scale_transition_by_brightness == true,
-       ha_export_enabled: app_setting.ha_export_enabled == true,
+       ha_export_scenes_enabled: app_setting.ha_export_scenes_enabled == true,
+       ha_export_room_selects_enabled: app_setting.ha_export_room_selects_enabled == true,
        ha_export_mqtt_host: app_setting.ha_export_mqtt_host || "",
        ha_export_mqtt_port: format_integer(app_setting.ha_export_mqtt_port || 1883),
        ha_export_mqtt_username: app_setting.ha_export_mqtt_username || "",
@@ -110,9 +111,21 @@ defmodule HueworksWeb.ConfigLive do
   def handle_event("update_ha_export", params, socket) do
     {:noreply,
      assign(socket,
-       ha_export_enabled:
+       ha_export_scenes_enabled:
          parse_boolean_param(
-           Map.get(params, "ha_export_enabled", socket.assigns.ha_export_enabled)
+           Map.get(
+             params,
+             "ha_export_scenes_enabled",
+             socket.assigns.ha_export_scenes_enabled
+           )
+         ),
+       ha_export_room_selects_enabled:
+         parse_boolean_param(
+           Map.get(
+             params,
+             "ha_export_room_selects_enabled",
+             socket.assigns.ha_export_room_selects_enabled
+           )
          ),
        ha_export_mqtt_host:
          Map.get(params, "ha_export_mqtt_host", socket.assigns.ha_export_mqtt_host),
@@ -135,9 +148,21 @@ defmodule HueworksWeb.ConfigLive do
 
   def handle_event("save_ha_export", params, socket) do
     attrs = %{
-      ha_export_enabled:
+      ha_export_scenes_enabled:
         parse_boolean_param(
-          Map.get(params, "ha_export_enabled", socket.assigns.ha_export_enabled)
+          Map.get(
+            params,
+            "ha_export_scenes_enabled",
+            socket.assigns.ha_export_scenes_enabled
+          )
+        ),
+      ha_export_room_selects_enabled:
+        parse_boolean_param(
+          Map.get(
+            params,
+            "ha_export_room_selects_enabled",
+            socket.assigns.ha_export_room_selects_enabled
+          )
         ),
       ha_export_mqtt_host:
         Map.get(params, "ha_export_mqtt_host", socket.assigns.ha_export_mqtt_host),
@@ -162,7 +187,8 @@ defmodule HueworksWeb.ConfigLive do
         {:noreply,
          socket
          |> assign(
-           ha_export_enabled: app_setting.ha_export_enabled == true,
+           ha_export_scenes_enabled: app_setting.ha_export_scenes_enabled == true,
+           ha_export_room_selects_enabled: app_setting.ha_export_room_selects_enabled == true,
            ha_export_mqtt_host: app_setting.ha_export_mqtt_host || "",
            ha_export_mqtt_port: format_integer(app_setting.ha_export_mqtt_port || 1883),
            ha_export_mqtt_username: app_setting.ha_export_mqtt_username || "",
