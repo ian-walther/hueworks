@@ -5,6 +5,8 @@ Expose HueWorks entities outward to Home Assistant in a way that feels native in
 
 The first migration step is publishing HueWorks scenes into Home Assistant.
 
+This document also tracks a second outward-integration path for HomeKit through MQTT, intended for beta testers who do not use Home Assistant.
+
 ## Priority
 Low priority overall, but scenes are the cleanest first slice when this work resumes.
 
@@ -17,6 +19,8 @@ Low priority overall, but scenes are the cleanest first slice when this work res
 - Use stable ID-based identities for Home Assistant entities.
 - Use human-readable display names for Home Assistant entities.
 - Do not dynamically change exposed light capabilities based on whether a scene is active.
+- Keep in mind a second MQTT-based path for HomeKit using Homebridge and `homebridge-mqttthing`.
+- For HomeKit, prefer a small packaged stack over a custom HAP implementation as a first step.
 
 ## Why MQTT Discovery First
 - HueWorks already has MQTT plumbing through Zigbee2MQTT support.
@@ -26,6 +30,44 @@ Low priority overall, but scenes are the cleanest first slice when this work res
   - publish scenes first
   - then add state/context entities
   - then add lights
+
+## Parallel Option: HomeKit via MQTT
+For users who do not run Home Assistant, the most practical HomeKit path is not a custom Elixir HAP stack.
+
+Instead, the likely first implementation path is:
+- HueWorks
+- MQTT broker
+- Homebridge
+- `homebridge-mqttthing`
+
+Why this is attractive:
+- it keeps HueWorks in MQTT land
+- it avoids building or maintaining a custom HomeKit bridge in HueWorks
+- it is much lighter than asking a beta tester to run Home Assistant just for HomeKit exposure
+- it can be packaged as a small, mostly self-contained deployment
+
+Recommended first HomeKit slice:
+- scenes first
+- then lights
+
+Recommended HomeKit accessory mapping:
+- HueWorks scenes -> HomeKit `Switch` accessories
+- HueWorks lights -> HomeKit `Lightbulb` accessories
+
+Recommended scene behavior:
+- turning a scene switch `on` activates the corresponding HueWorks scene
+- HueWorks can then publish the switch back to `off` so it behaves like a momentary trigger
+
+Recommended packaging:
+- provide a single Docker Compose bundle for:
+  - MQTT broker
+  - Homebridge
+  - `homebridge-mqttthing`
+
+This is a reasonable future path for a friend or beta tester who:
+- wants HomeKit support
+- does not use Home Assistant
+- should not have to manage many moving parts manually
 
 ## V1 Scope
 - Publish HueWorks scenes to Home Assistant as MQTT scene entities.
@@ -187,6 +229,32 @@ Once scenes are published and stable, likely next additions are:
 
 That gives Home Assistant enough information to build policy-aware dashboards without mutating the light entity model itself.
 
+## HomeKit MQTT Path
+This is not the first implementation target, but it is a reasonable second path if HomeKit support is needed without Home Assistant.
+
+Recommended bridge:
+- Homebridge with `homebridge-mqttthing`
+
+Recommended rollout:
+1. MQTT scene export shaped for Homebridge scene switches
+2. scene activation via MQTT command topics
+3. light export for:
+   - on/off
+   - brightness
+   - color temperature
+4. optional color support later
+
+Design guidance:
+- keep HueWorks as the state and control authority
+- keep MQTT topics stable and explicit
+- prefer one Homebridge accessory per HueWorks scene or light
+- do not make the HomeKit path depend on Home Assistant being present
+
+Operational guidance:
+- assume an MQTT broker is part of the deployment
+- prefer a prepackaged Docker Compose setup over handwritten installation steps
+- keep the Compose stack small enough for a beta tester to run comfortably
+
 ## Likely HueWorks Implementation Areas
 - a new Home Assistant export runtime that publishes MQTT discovery/state payloads
 - scene discovery payload generation
@@ -241,3 +309,5 @@ For the later light slice:
 - Should reverse-export use the same MQTT broker config as Zigbee2MQTT by default, or its own explicit Home Assistant MQTT broker config?
 - Should scene attributes include configuration URLs back into HueWorks once there is a stable route for that?
 - Should room-level active-scene and scene-active context entities ship in the same release as lights, or one step earlier?
+- If the HomeKit MQTT path is built later, should it share the same MQTT export broker config as Home Assistant reverse-export, or have its own explicit broker configuration?
+- If the HomeKit MQTT path is built later, should HueWorks generate Homebridge-ready config fragments, or should the Docker bundle own that mapping entirely?
