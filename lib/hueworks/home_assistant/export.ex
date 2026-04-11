@@ -432,10 +432,10 @@ defmodule Hueworks.HomeAssistant.Export do
           handle_room_select_command(room_id, option_label)
 
         {_scene_id, _room_id, %{kind: kind, id: id, mode: :switch}, command_payload} ->
-          handle_switch_command(kind, id, command_payload)
+          handle_switch_command(kind, id, command_payload, config)
 
         {_scene_id, _room_id, %{kind: kind, id: id, mode: :light}, command_payload} ->
-          handle_light_command(kind, id, command_payload)
+          handle_light_command(kind, id, command_payload, config)
 
         _ ->
           :ok
@@ -797,7 +797,7 @@ defmodule Hueworks.HomeAssistant.Export do
 
     :ok = publish(discovery, "", retain: true)
     :ok = publish(attributes, "", retain: true)
-    :ok = publish(state, "None", retain: true)
+    :ok = publish(state, "Manual", retain: true)
   end
 
   defp unpublish_all_scenes(config) do
@@ -902,7 +902,7 @@ defmodule Hueworks.HomeAssistant.Export do
   defp scene_for_room_option(_room_id, _option_label), do: nil
 
   defp handle_room_select_command(room_id, option_label)
-       when is_integer(room_id) and option_label in ["None", ""] do
+       when is_integer(room_id) and option_label in ["Manual", "None", ""] do
     ActiveScenes.clear_for_room(room_id)
   end
 
@@ -927,23 +927,24 @@ defmodule Hueworks.HomeAssistant.Export do
 
   defp handle_room_select_command(_room_id, _option_label), do: :ok
 
-  defp handle_switch_command(kind, id, payload)
+  defp handle_switch_command(kind, id, payload, config)
        when kind in [:light, :group] and is_integer(id) and is_binary(payload) do
     case normalize_power_payload(payload) do
       :on ->
-        apply_power_command(kind, id, :on)
+        apply_power_command(kind, id, :on, config)
 
       :off ->
-        apply_power_command(kind, id, :off)
+        apply_power_command(kind, id, :off, config)
 
       _ ->
         :ok
     end
   end
 
-  defp handle_switch_command(_kind, _id, _payload), do: :ok
+  defp handle_switch_command(_kind, _id, _payload, _config), do: :ok
 
-  defp handle_light_command(kind, id, payload) when kind in [:light, :group] and is_integer(id) do
+  defp handle_light_command(kind, id, payload, config)
+       when kind in [:light, :group] and is_integer(id) do
     with entity when not is_nil(entity) <- fetch_entity(kind, id),
          {:ok, decoded} <- decode_json_payload(payload),
          {room_id, light_ids} when is_integer(room_id) and light_ids != [] <-
@@ -953,6 +954,7 @@ defmodule Hueworks.HomeAssistant.Export do
         {:power, power} ->
           case ManualControl.apply_power_action(room_id, light_ids, power) do
             {:ok, _diff} ->
+              publish_optimistic_power_state(kind, entity, power, config)
               :ok
 
             {:error, reason} ->
@@ -962,6 +964,7 @@ defmodule Hueworks.HomeAssistant.Export do
         {:set_state, attrs} ->
           case ManualControl.apply_updates(room_id, light_ids, attrs) do
             {:ok, _diff} ->
+              publish_optimistic_light_state(kind, entity, attrs, config)
               :ok
 
             {:error, reason} ->
@@ -1039,12 +1042,16 @@ defmodule Hueworks.HomeAssistant.Export do
     |> decode_json_payload()
   end
 
-  defp apply_power_command(kind, id, power)
+  defp apply_power_command(kind, id, power, config)
        when kind in [:light, :group] and power in [:on, :off] do
     case control_target(kind, id) do
       {room_id, light_ids} when is_integer(room_id) and light_ids != [] ->
         case ManualControl.apply_power_action(room_id, light_ids, power) do
           {:ok, _diff} ->
+            if entity = fetch_entity(kind, id) do
+              publish_optimistic_power_state(kind, entity, power, config)
+            end
+
             :ok
 
           {:error, reason} ->
@@ -1155,7 +1162,10 @@ defmodule Hueworks.HomeAssistant.Export do
   end
 
   defp light_state_payload(kind, entity) when kind in [:light, :group] and is_map(entity) do
-    state = State.get(kind, entity.id) || %{}
+    light_state_payload(entity, State.get(kind, entity.id) || %{})
+  end
+
+  defp light_state_payload(entity, state) when is_map(entity) and is_map(state) do
     power = state_power_value(state)
 
     brightness =
@@ -1176,7 +1186,11 @@ defmodule Hueworks.HomeAssistant.Export do
   end
 
   defp switch_state_payload(kind, id) when kind in [:light, :group] and is_integer(id) do
-    case State.get(kind, id) |> state_power_value() do
+    switch_state_payload(State.get(kind, id) || %{})
+  end
+
+  defp switch_state_payload(state) when is_map(state) do
+    case state_power_value(state) do
       :on -> "ON"
       :off -> "OFF"
       _ -> "None"
@@ -1375,7 +1389,7 @@ defmodule Hueworks.HomeAssistant.Export do
   end
 
   defp room_select_option_labels(scenes) when is_list(scenes) do
-    ["None" | Enum.map(room_scene_options(scenes), & &1.label)]
+    ["Manual" | Enum.map(room_scene_options(scenes), & &1.label)]
   end
 
   defp room_select_state_payload(room_id, scenes) when is_integer(room_id) and is_list(scenes) do
@@ -1386,17 +1400,106 @@ defmodule Hueworks.HomeAssistant.Export do
       end
 
     room_scene_options(scenes)
-    |> Enum.find_value("None", fn %{label: label, scene: scene} ->
+    |> Enum.find_value("Manual", fn %{label: label, scene: scene} ->
       if scene.id == active_scene_id, do: label, else: nil
     end)
   end
 
   defp active_scene_name(room_id, scenes) when is_integer(room_id) and is_list(scenes) do
     case room_select_state_payload(room_id, scenes) do
-      "None" -> nil
+      "Manual" -> nil
       value -> value
     end
   end
+
+  defp publish_optimistic_power_state(kind, entity, power, config)
+       when kind in [:light, :group] and is_map(entity) do
+    optimistic_state =
+      case power do
+        :off -> %{power: :off}
+        :on -> merge_export_state(State.get(kind, entity.id) || %{}, %{power: :on})
+      end
+
+    publish_optimistic_entity_state(kind, entity, optimistic_state, config)
+  end
+
+  defp publish_optimistic_light_state(kind, entity, attrs, config)
+       when kind in [:light, :group] and is_map(entity) and is_map(attrs) do
+    optimistic_state = merge_export_state(State.get(kind, entity.id) || %{}, attrs)
+    publish_optimistic_entity_state(kind, entity, optimistic_state, config)
+  end
+
+  defp publish_optimistic_entity_state(kind, entity, state, _config)
+       when kind in [:light, :group] and is_map(entity) and is_map(state) do
+    case entity_export_mode(entity) do
+      :switch ->
+        :ok =
+          publish(switch_state_topic(kind, entity.id), switch_state_payload(state), retain: true)
+
+      :light ->
+        :ok =
+          publish(
+            light_state_topic(kind, entity.id),
+            Jason.encode!(light_state_payload(entity, state)),
+            retain: true
+          )
+
+      _ ->
+        :ok
+    end
+  end
+
+  defp merge_export_state(current, incoming) when is_map(current) and is_map(incoming) do
+    current
+    |> harmonize_color_and_temperature(incoming)
+    |> Map.merge(incoming)
+  end
+
+  defp harmonize_color_and_temperature(attrs, incoming_attrs)
+       when is_map(attrs) and is_map(incoming_attrs) do
+    cond do
+      incoming_has_xy?(incoming_attrs) ->
+        drop_kelvin(attrs)
+
+      incoming_has_kelvin?(incoming_attrs) ->
+        drop_xy(attrs)
+
+      true ->
+        attrs
+    end
+  end
+
+  defp harmonize_color_and_temperature(attrs, _incoming_attrs), do: attrs
+
+  defp drop_kelvin(attrs) do
+    attrs
+    |> Map.delete(:kelvin)
+    |> Map.delete("kelvin")
+    |> Map.delete(:temperature)
+    |> Map.delete("temperature")
+  end
+
+  defp drop_xy(attrs) do
+    attrs
+    |> Map.delete(:x)
+    |> Map.delete("x")
+    |> Map.delete(:y)
+    |> Map.delete("y")
+  end
+
+  defp incoming_has_xy?(attrs) when is_map(attrs) do
+    Map.has_key?(attrs, :x) or Map.has_key?(attrs, "x") or Map.has_key?(attrs, :y) or
+      Map.has_key?(attrs, "y")
+  end
+
+  defp incoming_has_xy?(_attrs), do: false
+
+  defp incoming_has_kelvin?(attrs) when is_map(attrs) do
+    Map.has_key?(attrs, :kelvin) or Map.has_key?(attrs, "kelvin") or
+      Map.has_key?(attrs, :temperature) or Map.has_key?(attrs, "temperature")
+  end
+
+  defp incoming_has_kelvin?(_attrs), do: false
 
   defp export_enabled?(%{enabled: true, host: host}) when is_binary(host),
     do: String.trim(host) != ""
