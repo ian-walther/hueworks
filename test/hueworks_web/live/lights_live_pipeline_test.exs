@@ -5,6 +5,7 @@ defmodule Hueworks.LightsLivePipelineTest do
 
   alias Hueworks.AppSettings
   alias Hueworks.ActiveScenes
+  alias Hueworks.Color
   alias Hueworks.Control.{DesiredState, Executor, State}
   alias Hueworks.Scenes
   alias Hueworks.Repo
@@ -364,6 +365,7 @@ defmodule Hueworks.LightsLivePipelineTest do
         source_id: "scene-lamp",
         bridge_id: bridge.id,
         room_id: room.id,
+        supports_color: true,
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6500
@@ -377,6 +379,8 @@ defmodule Hueworks.LightsLivePipelineTest do
 
     assert Floki.find(document, "#light-level-#{light.id}[disabled]") != []
     assert Floki.find(document, "#light-temp-#{light.id}[disabled]") != []
+    assert Floki.find(document, "#light-hue-#{light.id}[disabled]") != []
+    assert Floki.find(document, "#light-saturation-#{light.id}[disabled]") != []
 
     _ =
       render_hook(view, "set_color_temp", %{
@@ -388,10 +392,70 @@ defmodule Hueworks.LightsLivePipelineTest do
     drain_executor(executor_server)
 
     assert render(view) =~
-             "Brightness and temperature are read-only while a scene is active. Deactivate the scene to adjust them manually."
+             "Brightness, temperature, and color are read-only while a scene is active. Deactivate the scene to adjust them manually."
 
     assert Agent.get(actions_agent, & &1) == []
     assert DesiredState.get(:light, light.id) == nil
+  end
+
+  test "manual light color change enqueues xy desired state and powers the light on",
+       %{
+         conn: conn,
+         actions_agent: actions_agent,
+         executor_server: executor_server
+       } do
+    room = Repo.insert!(%Room{name: "Color Room"})
+
+    bridge =
+      Repo.insert!(%Bridge{
+        name: "Hue Bridge",
+        type: :hue,
+        host: "192.168.1.91",
+        credentials: %{"api_key" => "test"}
+      })
+
+    light =
+      Repo.insert!(%Light{
+        name: "Color Lamp",
+        display_name: "Color Lamp",
+        source: :hue,
+        source_id: "color-lamp",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        supports_color: true
+      })
+
+    clear_light_states(light.id)
+
+    {:ok, view, _html} = live(conn, "/lights")
+
+    _ =
+      render_hook(view, "set_color", %{
+        "type" => "light",
+        "id" => Integer.to_string(light.id),
+        "hue" => "210",
+        "saturation" => "60"
+      })
+
+    drain_executor(executor_server)
+
+    {expected_x, expected_y} = Color.hs_to_xy(210, 60)
+
+    actions = Agent.get(actions_agent, & &1)
+
+    assert [
+             %{
+               type: :light,
+               id: light_id,
+               desired: %{power: :on, x: actual_x, y: actual_y}
+             }
+           ] = actions
+
+    assert light_id == light.id
+    assert_in_delta actual_x, expected_x, 0.0001
+    assert_in_delta actual_y, expected_y, 0.0001
+
+    assert DesiredState.get(:light, light.id) == %{power: :on, x: expected_x, y: expected_y}
   end
 
   test "manual power-on while a circadian scene is active immediately reapplies circadian values for only that light",

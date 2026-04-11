@@ -8,7 +8,6 @@ defmodule HueworksWeb.LightsLive.DisplayState do
   def build_light_state(lights), do: build_entity_state(lights, :light)
 
   def merge(existing, updates), do: Map.merge(existing, updates)
-
   def merge_light(existing, nil, updates), do: merge(existing, updates)
 
   def merge_light(existing, light, updates) do
@@ -18,6 +17,17 @@ defmodule HueworksWeb.LightsLive.DisplayState do
       Map.put(merged, :kelvin, existing[:kelvin])
     else
       merged
+    end
+  end
+
+  def replace(_existing, updates), do: updates
+  def replace_light(_existing, nil, updates), do: updates
+
+  def replace_light(existing, light, updates) do
+    if preserve_extended_display_kelvin?(light, existing, updates) do
+      Map.put(updates, :kelvin, existing[:kelvin])
+    else
+      updates
     end
   end
 

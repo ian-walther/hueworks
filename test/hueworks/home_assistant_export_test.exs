@@ -91,7 +91,12 @@ defmodule Hueworks.HomeAssistant.ExportTest do
     assert payload["command_topic"] == "hueworks/ha_export/rooms/#{room.id}/scene/set"
     assert payload["state_topic"] == "hueworks/ha_export/rooms/#{room.id}/scene/state"
     assert payload["device"]["name"] == "HueWorks Main Floor"
-    assert payload["options"] == ["All Auto (##{scene_a.id})", "All Auto (##{scene_b.id})"]
+
+    assert payload["options"] == [
+             "None",
+             "All Auto (##{scene_a.id})",
+             "All Auto (##{scene_b.id})"
+           ]
   end
 
   test "switch discovery payload uses stable IDs and switch topics" do
@@ -190,7 +195,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
 
     select = Jason.decode!(select_payload)
     assert select["name"] == "Scene"
-    assert select["options"] == ["All Auto"]
+    assert select["options"] == ["None", "All Auto"]
 
     {_client_id, _topic, _attrs_payload} =
       assert_publish("hueworks/ha_export/rooms/#{room.id}/scene/attributes")
@@ -249,6 +254,30 @@ defmodule Hueworks.HomeAssistant.ExportTest do
     assert %Hueworks.Schemas.ActiveScene{scene_id: scene_id} = ActiveScenes.get_for_room(room.id)
     assert scene_id == evening.id
     refute scene_id == morning.id
+  end
+
+  test "room select command can clear the active scene with None" do
+    put_export_settings(%{
+      ha_export_room_selects_enabled: true,
+      ha_export_mqtt_host: "mqtt.local"
+    })
+
+    room = Repo.insert!(%Room{name: "Main Floor"})
+    scene = Repo.insert!(%Scene{name: "Evening", room_id: room.id})
+    {:ok, _} = ActiveScenes.set_active(scene)
+
+    Export.reload()
+    _ = :sys.get_state(Export)
+
+    send(
+      Export,
+      {:mqtt_message,
+       ["hueworks", "ha_export", "rooms", Integer.to_string(room.id), "scene", "set"], "None"}
+    )
+
+    _ = :sys.get_state(Export)
+
+    assert ActiveScenes.get_for_room(room.id) == nil
   end
 
   test "active scene updates republish the room select state" do
@@ -449,6 +478,47 @@ defmodule Hueworks.HomeAssistant.ExportTest do
     assert decoded["brightness"] == 55
     assert decoded["color_mode"] == "color_temp"
     assert decoded["color_temp"] == 3200
+  end
+
+  test "control state updates publish xy color state for exported color lights" do
+    put_export_settings(%{
+      ha_export_lights_enabled: true,
+      ha_export_mqtt_host: "mqtt.local",
+      ha_export_discovery_prefix: "homeassistant"
+    })
+
+    room = Repo.insert!(%Room{name: "Kitchen"})
+    bridge = Repo.insert!(%Bridge{name: "Hue", type: :hue, host: "hue.local", credentials: %{}})
+
+    light =
+      Repo.insert!(%Light{
+        name: "Color Task",
+        source: :hue,
+        source_id: "2",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        ha_export_mode: :light,
+        supports_color: true,
+        supports_temp: true
+      })
+
+    Export.reload()
+    _ = :sys.get_state(Export)
+    send(Export, {:mqtt_connected, Export.client_id()})
+    _ = :sys.get_state(Export)
+    drain_published_messages()
+
+    State.put(:light, light.id, %{power: :on, brightness: 55, x: 0.2211, y: 0.3322})
+
+    {_client_id, _topic, payload} =
+      assert_publish("hueworks/ha_export/lights/#{light.id}/light/state")
+
+    decoded = Jason.decode!(payload)
+    assert decoded["state"] == "ON"
+    assert decoded["brightness"] == 55
+    assert decoded["color_mode"] == "xy"
+    assert decoded["color"] == %{"x" => 0.2211, "y" => 0.3322}
+    refute Map.has_key?(decoded, "color_temp")
   end
 
   test "disabling scene export unpublishes only scene entities" do

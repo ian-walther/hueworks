@@ -101,11 +101,61 @@ defmodule Hueworks.Control.State do
         [] -> %{}
       end
 
-    updated = Map.merge(current, attrs)
+    updated =
+      current
+      |> harmonize_color_and_temperature(attrs)
+      |> Map.merge(attrs)
+
     :ets.insert(@table, {key, updated})
     broadcast_update(key, updated)
     updated
   end
+
+  defp harmonize_color_and_temperature(attrs, incoming_attrs)
+       when is_map(attrs) and is_map(incoming_attrs) do
+    cond do
+      incoming_has_xy?(incoming_attrs) ->
+        drop_kelvin(attrs)
+
+      incoming_has_kelvin?(incoming_attrs) ->
+        drop_xy(attrs)
+
+      true ->
+        attrs
+    end
+  end
+
+  defp harmonize_color_and_temperature(attrs, _incoming_attrs), do: attrs
+
+  defp drop_kelvin(attrs) do
+    attrs
+    |> Map.delete(:kelvin)
+    |> Map.delete("kelvin")
+    |> Map.delete(:temperature)
+    |> Map.delete("temperature")
+  end
+
+  defp drop_xy(attrs) do
+    attrs
+    |> Map.delete(:x)
+    |> Map.delete("x")
+    |> Map.delete(:y)
+    |> Map.delete("y")
+  end
+
+  defp incoming_has_xy?(attrs) when is_map(attrs) do
+    Map.has_key?(attrs, :x) or Map.has_key?(attrs, "x") or Map.has_key?(attrs, :y) or
+      Map.has_key?(attrs, "y")
+  end
+
+  defp incoming_has_xy?(_attrs), do: false
+
+  defp incoming_has_kelvin?(attrs) when is_map(attrs) do
+    Map.has_key?(attrs, :kelvin) or Map.has_key?(attrs, "kelvin") or
+      Map.has_key?(attrs, :temperature) or Map.has_key?(attrs, "temperature")
+  end
+
+  defp incoming_has_kelvin?(_attrs), do: false
 
   defp broadcast_update({type, id}, state) do
     PubSub.broadcast(Hueworks.PubSub, @topic, {:control_state, type, id, state})

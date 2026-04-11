@@ -95,6 +95,95 @@ Hooks.TempSlider = {
   }
 }
 
+function bindBufferedColorSlider(hook, formatter) {
+  hook.dragging = false
+  hook.localValue = hook.el.value
+
+  let timeout = null
+
+  let syncOutput = (value) => {
+    let outputId = hook.el.dataset.outputId
+    if (!outputId) return
+
+    let output = document.getElementById(outputId)
+    if (output) output.textContent = formatter(value)
+  }
+
+  let beginDrag = () => {
+    hook.dragging = true
+    hook.localValue = hook.el.value
+  }
+
+  let endDrag = () => {
+    hook.dragging = false
+    hook.localValue = hook.el.value
+    syncOutput(hook.el.value)
+  }
+
+  let currentColorValues = () => {
+    let hueInput = document.getElementById(hook.el.dataset.hueInputId)
+    let saturationInput = document.getElementById(hook.el.dataset.saturationInputId)
+
+    return {
+      hue: hueInput ? hueInput.value : null,
+      saturation: saturationInput ? saturationInput.value : null
+    }
+  }
+
+  hook._bufferedColorSliderCleanup = () => {
+    clearTimeout(timeout)
+    document.removeEventListener("mouseup", endDrag)
+    document.removeEventListener("touchend", endDrag)
+  }
+
+  hook.el.addEventListener("mousedown", beginDrag)
+  hook.el.addEventListener("touchstart", beginDrag, { passive: true })
+  hook.el.addEventListener("change", endDrag)
+  hook.el.addEventListener("blur", endDrag)
+  document.addEventListener("mouseup", endDrag)
+  document.addEventListener("touchend", endDrag, { passive: true })
+
+  hook.el.addEventListener("input", (event) => {
+    let { type, id } = hook.el.dataset
+    let value = event.target.value
+
+    hook.localValue = value
+    syncOutput(value)
+
+    clearTimeout(timeout)
+    timeout = setTimeout(() => {
+      let { hue, saturation } = currentColorValues()
+      hook.pushEvent("set_color", { type, id, hue, saturation })
+    }, 200)
+  })
+
+  hook.updated = () => {
+    if (hook.dragging) {
+      hook.el.value = hook.localValue
+      syncOutput(hook.localValue)
+    } else {
+      hook.localValue = hook.el.value
+      syncOutput(hook.el.value)
+    }
+  }
+
+  hook.destroyed = () => {
+    if (hook._bufferedColorSliderCleanup) hook._bufferedColorSliderCleanup()
+  }
+}
+
+Hooks.ColorHueSlider = {
+  mounted() {
+    bindBufferedColorSlider(this, (value) => `${value}°`)
+  }
+}
+
+Hooks.ColorSaturationSlider = {
+  mounted() {
+    bindBufferedColorSlider(this, (value) => `${value}%`)
+  }
+}
+
 Hooks.GeoLocate = {
   mounted() {
     this.el.addEventListener("click", () => {

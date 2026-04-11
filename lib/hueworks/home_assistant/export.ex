@@ -249,7 +249,7 @@ defmodule Hueworks.HomeAssistant.Export do
       "payload_available" => "online",
       "payload_not_available" => "offline",
       "json_attributes_topic" => room_select_attributes_topic(room.id),
-      "options" => Enum.map(room_scene_options(scenes), & &1.label),
+      "options" => room_select_option_labels(scenes),
       "device" => %{
         "identifiers" => ["hueworks_room_#{room.id}"],
         "name" => "HueWorks #{room_name(room)}",
@@ -269,7 +269,7 @@ defmodule Hueworks.HomeAssistant.Export do
       "room_name" => room_name(room),
       "active_scene_id" => active_scene && active_scene.scene_id,
       "active_scene_name" => active_scene_name(room.id, scenes),
-      "scene_options" => Enum.map(room_scene_options(scenes), & &1.label)
+      "scene_options" => room_select_option_labels(scenes)
     }
   end
 
@@ -429,21 +429,7 @@ defmodule Hueworks.HomeAssistant.Export do
           end
 
         {_scene_id, room_id, _entity_command, option_label} when is_integer(room_id) ->
-          case scene_for_room_option(room_id, option_label) do
-            %Scene{} = scene ->
-              case Scenes.activate_scene(scene.id,
-                     trace: %{source: :home_assistant_mqtt_export_select}
-                   ) do
-                {:ok, _diff, _updated} ->
-                  :ok
-
-                {:error, reason} ->
-                  Logger.warning("HA export room select activation failed: #{inspect(reason)}")
-              end
-
-            nil ->
-              :ok
-          end
+          handle_room_select_command(room_id, option_label)
 
         {_scene_id, _room_id, %{kind: kind, id: id, mode: :switch}, command_payload} ->
           handle_switch_command(kind, id, command_payload)
@@ -915,6 +901,32 @@ defmodule Hueworks.HomeAssistant.Export do
 
   defp scene_for_room_option(_room_id, _option_label), do: nil
 
+  defp handle_room_select_command(room_id, option_label)
+       when is_integer(room_id) and option_label in ["None", ""] do
+    ActiveScenes.clear_for_room(room_id)
+  end
+
+  defp handle_room_select_command(room_id, option_label)
+       when is_integer(room_id) and is_binary(option_label) do
+    case scene_for_room_option(room_id, option_label) do
+      %Scene{} = scene ->
+        case Scenes.activate_scene(scene.id,
+               trace: %{source: :home_assistant_mqtt_export_select}
+             ) do
+          {:ok, _diff, _updated} ->
+            :ok
+
+          {:error, reason} ->
+            Logger.warning("HA export room select activation failed: #{inspect(reason)}")
+        end
+
+      nil ->
+        :ok
+    end
+  end
+
+  defp handle_room_select_command(_room_id, _option_label), do: :ok
+
   defp handle_switch_command(kind, id, payload)
        when kind in [:light, :group] and is_integer(id) and is_binary(payload) do
     case normalize_power_payload(payload) do
@@ -992,7 +1004,9 @@ defmodule Hueworks.HomeAssistant.Export do
             |> maybe_put(:kelvin, kelvin)
             |> maybe_put(:x, x)
             |> maybe_put(:y, y)
-          ) > 0, do: :on)
+          ) > 0,
+          do: :on
+        )
       )
 
     cond do
@@ -1358,6 +1372,10 @@ defmodule Hueworks.HomeAssistant.Export do
 
       %{label: label, scene: scene}
     end)
+  end
+
+  defp room_select_option_labels(scenes) when is_list(scenes) do
+    ["None" | Enum.map(room_scene_options(scenes), & &1.label)]
   end
 
   defp room_select_state_payload(room_id, scenes) when is_integer(room_id) and is_list(scenes) do

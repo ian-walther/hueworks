@@ -2,6 +2,7 @@ defmodule HueworksWeb.LightsLive do
   use Phoenix.LiveView
 
   alias Hueworks.Control.State
+  alias Hueworks.Color
   alias Hueworks.Groups
   alias Hueworks.Lights.ManualControl
   alias HueworksWeb.FilterPrefs
@@ -166,16 +167,24 @@ defmodule HueworksWeb.LightsLive do
     {:noreply, dispatch_action(socket, type, id, {:color_temp, kelvin})}
   end
 
+  def handle_event(
+        "set_color",
+        %{"type" => type, "id" => id, "hue" => hue, "saturation" => saturation},
+        socket
+      ) do
+    {:noreply, dispatch_action(socket, type, id, {:color, hue, saturation})}
+  end
+
   @impl true
   def handle_info({:control_state, :light, id, state}, socket) do
-    merged_state =
+    replaced_state =
       socket.assigns.light_state
       |> Map.get(id, %{})
-      |> DisplayState.merge_light(light_for_id(socket.assigns.lights, id), state)
+      |> DisplayState.replace_light(light_for_id(socket.assigns.lights, id), state)
 
     {:noreply,
      socket
-     |> assign(:light_state, Map.put(socket.assigns.light_state, id, merged_state))}
+     |> assign(:light_state, Map.put(socket.assigns.light_state, id, replaced_state))}
   end
 
   @impl true
@@ -184,7 +193,7 @@ defmodule HueworksWeb.LightsLive do
      socket
      |> assign(
        :group_state,
-       Map.update(socket.assigns.group_state, id, state, &DisplayState.merge(&1, state))
+       Map.update(socket.assigns.group_state, id, state, &DisplayState.replace(&1, state))
      )}
   end
 
@@ -255,6 +264,62 @@ defmodule HueworksWeb.LightsLive do
       socket
       |> update_group_state_assign(group.id, %{kelvin: parsed})
       |> assign(status: "TEMP group #{Util.display_name(group)} -> #{parsed}K")
+    else
+      [] ->
+        assign(socket, status: "ERROR group #{id}: no_members")
+
+      {:error, :scene_active_manual_adjustment_not_allowed} ->
+        assign(socket, status: scene_active_manual_adjustment_message())
+
+      {:error, reason} ->
+        assign(socket, status: "ERROR group #{id}: #{Util.format_reason(reason)}")
+    end
+  end
+
+  defp dispatch_action(socket, "light", id, {:color, hue, saturation}) do
+    with {:ok, light} <- Entities.fetch_light(id),
+         {:ok, parsed_hue, parsed_saturation, x, y} <- parse_color(hue, saturation),
+         {:ok, _diff} <-
+           ManualControl.apply_updates(light.room_id, [light.id], %{power: :on, x: x, y: y}) do
+      socket
+      |> update_light_state_assign(light.id, %{
+        power: :on,
+        x: x,
+        y: y,
+        kelvin: nil,
+        temperature: nil
+      })
+      |> assign(
+        status:
+          "COLOR light #{Util.display_name(light)} -> #{parsed_hue}° / #{parsed_saturation}%"
+      )
+    else
+      {:error, :scene_active_manual_adjustment_not_allowed} ->
+        assign(socket, status: scene_active_manual_adjustment_message())
+
+      {:error, reason} ->
+        assign(socket, status: "ERROR light #{id}: #{Util.format_reason(reason)}")
+    end
+  end
+
+  defp dispatch_action(socket, "group", id, {:color, hue, saturation}) do
+    with {:ok, group} <- Entities.fetch_group(id),
+         {:ok, parsed_hue, parsed_saturation, x, y} <- parse_color(hue, saturation),
+         light_ids when light_ids != [] <- group_light_ids(group.id),
+         {:ok, _diff} <-
+           ManualControl.apply_updates(group.room_id, light_ids, %{power: :on, x: x, y: y}) do
+      socket
+      |> update_group_state_assign(group.id, %{
+        power: :on,
+        x: x,
+        y: y,
+        kelvin: nil,
+        temperature: nil
+      })
+      |> assign(
+        status:
+          "COLOR group #{Util.display_name(group)} -> #{parsed_hue}° / #{parsed_saturation}%"
+      )
     else
       [] ->
         assign(socket, status: "ERROR group #{id}: no_members")
@@ -402,7 +467,63 @@ defmodule HueworksWeb.LightsLive do
   defp manual_adjustment_locked?(_active_scene_by_room, _room_id), do: false
 
   defp scene_active_manual_adjustment_message do
-    "Brightness and temperature are read-only while a scene is active. Deactivate the scene to adjust them manually."
+    "Brightness, temperature, and color are read-only while a scene is active. Deactivate the scene to adjust them manually."
+  end
+
+  defp color_preview_values(state_map, id) do
+    state = Map.get(state_map, id, %{})
+
+    {hue, saturation} =
+      case Color.xy_to_hs(
+             Map.get(state, :x) || Map.get(state, "x"),
+             Map.get(state, :y) || Map.get(state, "y")
+           ) do
+        {hue, saturation} -> {hue, saturation}
+        nil -> {0, 100}
+      end
+
+    brightness =
+      case get_state_value(state_map, id, :brightness, 100) do
+        value when is_integer(value) -> value
+        value when is_float(value) -> round(value)
+        _ -> 100
+      end
+
+    %{hue: hue, saturation: saturation, brightness: brightness}
+  end
+
+  defp color_preview_style(state_map, id) do
+    %{hue: hue, saturation: saturation, brightness: brightness} =
+      color_preview_values(state_map, id)
+
+    {r, g, b} = Color.hsb_to_rgb(hue, saturation, brightness) || {143, 177, 255}
+    "background-color: rgb(#{r} #{g} #{b});"
+  end
+
+  defp color_preview_label(state_map, id) do
+    %{hue: hue, saturation: saturation, brightness: brightness} =
+      color_preview_values(state_map, id)
+
+    "Color: #{hue}°, #{saturation}% saturation, #{brightness}% brightness"
+  end
+
+  defp color_saturation_scale_style(state_map, id) do
+    %{hue: hue, brightness: brightness} = color_preview_values(state_map, id)
+    {r1, g1, b1} = Color.hsb_to_rgb(hue, 0, brightness) || {255, 255, 255}
+    {r2, g2, b2} = Color.hsb_to_rgb(hue, 100, brightness) || {255, 255, 255}
+    "background: linear-gradient(90deg, rgb(#{r1} #{g1} #{b1}), rgb(#{r2} #{g2} #{b2}));"
+  end
+
+  defp parse_color(hue, saturation) do
+    with parsed_hue when is_integer(parsed_hue) <- Util.normalize_hue_degrees(hue),
+         parsed_saturation when is_integer(parsed_saturation) <-
+           Util.normalize_saturation(saturation),
+         {x, y} when is_number(x) and is_number(y) <-
+           Color.hs_to_xy(parsed_hue, parsed_saturation) do
+      {:ok, parsed_hue, parsed_saturation, x, y}
+    else
+      _ -> {:error, :invalid_color}
+    end
   end
 
   defp filter_entities(entities, filter, room_filter, show_disabled) do

@@ -31,6 +31,22 @@ defmodule Hueworks.Color do
     end
   end
 
+  def xy_to_hs(x, y) do
+    with x when is_number(x) <- Util.to_number(x),
+         y when is_number(y) <- Util.to_number(y),
+         true <- x > 0 and y > 0 and x < 1 and y < 1 do
+      {r, g, b} =
+        x
+        |> xy_to_rgb(y)
+        |> normalize_rgb_tuple()
+
+      {hue, saturation, _brightness} = rgb_to_hsv(r, g, b)
+      {round(hue), round(saturation * 100)}
+    else
+      _ -> nil
+    end
+  end
+
   def kelvin_to_xy(kelvin) do
     with kelvin when is_number(kelvin) <- Util.to_number(kelvin) do
       {r, g, b} =
@@ -68,6 +84,54 @@ defmodule Hueworks.Color do
     {r1 + m, g1 + m, b1 + m}
   end
 
+  defp rgb_to_hsv(r, g, b) do
+    max_value = Enum.max([r, g, b])
+    min_value = Enum.min([r, g, b])
+    delta = max_value - min_value
+
+    hue =
+      cond do
+        delta == 0 ->
+          0.0
+
+        max_value == r ->
+          60 * rem2((g - b) / delta, 6)
+
+        max_value == g ->
+          60 * ((b - r) / delta + 2)
+
+        true ->
+          60 * ((r - g) / delta + 4)
+      end
+
+    saturation =
+      if max_value == 0 do
+        0.0
+      else
+        delta / max_value
+      end
+
+    {normalize_hue(hue), saturation, max_value}
+  end
+
+  defp xy_to_rgb(x, y) do
+    z = 1.0 - x - y
+    luminance = 1.0
+    x_luminance = luminance / y * x
+    z_luminance = luminance / y * z
+
+    r_linear = x_luminance * 1.656_492 - luminance * 0.354_851 - z_luminance * 0.255_038
+    g_linear = -x_luminance * 0.707_196 + luminance * 1.655_397 + z_luminance * 0.036_152
+    b_linear = x_luminance * 0.051_713 - luminance * 0.121_364 + z_luminance * 1.011_53
+
+    {gamma_compress(r_linear), gamma_compress(g_linear), gamma_compress(b_linear)}
+  end
+
+  defp normalize_rgb_tuple({r, g, b}) do
+    max_value = Enum.max([r, g, b, 1.0])
+    {r / max_value, g / max_value, b / max_value}
+  end
+
   defp rgb_to_xy(r, g, b) do
     r = gamma_expand(r)
     g = gamma_expand(g)
@@ -91,7 +155,20 @@ defmodule Hueworks.Color do
 
   defp gamma_expand(value), do: value / 12.92
 
+  defp gamma_compress(value) when value <= 0, do: 0.0
+
+  defp gamma_compress(value) when value <= 0.0031308,
+    do: 12.92 * value
+
+  defp gamma_compress(value) do
+    1.055 * :math.pow(value, 1 / 2.4) - 0.055
+  end
+
   defp rem2(value, divisor), do: value - divisor * :math.floor(value / divisor)
+
+  defp normalize_hue(hue) when hue < 0, do: hue + 360
+  defp normalize_hue(hue) when hue >= 360, do: hue - 360
+  defp normalize_hue(hue), do: hue
 
   defp round_float(value) when is_float(value), do: Float.round(value, 4)
   defp round_float(value), do: value

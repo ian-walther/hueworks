@@ -142,6 +142,59 @@
                   </span>
                 </div>
               <% end %>
+              <%= if group.supports_color do %>
+                <% color_preview = color_preview_values(@group_state, group.id) %>
+                <div class="hw-color-preview">
+                  <span class="hw-color-swatch" style={color_preview_style(@group_state, group.id)}></span>
+                  <span class="hw-muted"><%= color_preview_label(@group_state, group.id) %></span>
+                </div>
+                <div class="hw-slider">
+                  <input
+                    id={"group-hue-#{group.id}"}
+                    type="range"
+                    min="0"
+                    max="360"
+                    value={color_preview.hue}
+                    phx-hook="ColorHueSlider"
+                    data-type="group"
+                    data-id={group.id}
+                    data-output-id={"group-hue-value-#{group.id}"}
+                    data-hue-input-id={"group-hue-#{group.id}"}
+                    data-saturation-input-id={"group-saturation-#{group.id}"}
+                    disabled={manual_adjustment_locked}
+                  />
+                  <span id={"group-hue-label-#{group.id}"}>Hue</span>
+                  <span id={"group-hue-value-#{group.id}"} class="hw-slider-value">
+                    <%= color_preview.hue %>°
+                  </span>
+                </div>
+                <div class="hw-color-scale hw-hue-scale" aria-hidden="true"></div>
+                <div class="hw-slider">
+                  <input
+                    id={"group-saturation-#{group.id}"}
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={color_preview.saturation}
+                    phx-hook="ColorSaturationSlider"
+                    data-type="group"
+                    data-id={group.id}
+                    data-output-id={"group-saturation-value-#{group.id}"}
+                    data-hue-input-id={"group-hue-#{group.id}"}
+                    data-saturation-input-id={"group-saturation-#{group.id}"}
+                    disabled={manual_adjustment_locked}
+                  />
+                  <span id={"group-saturation-label-#{group.id}"}>Saturation</span>
+                  <span id={"group-saturation-value-#{group.id}"} class="hw-slider-value">
+                    <%= color_preview.saturation %>%
+                  </span>
+                </div>
+                <div
+                  class="hw-color-scale"
+                  style={color_saturation_scale_style(@group_state, group.id)}
+                  aria-hidden="true"
+                ></div>
+              <% end %>
             </div>
           </div>
         <% end %>
@@ -286,6 +339,59 @@
                     <%= kelvin %>K
                   </span>
                 </div>
+              <% end %>
+              <%= if light.supports_color do %>
+                <% color_preview = color_preview_values(@light_state, light.id) %>
+                <div class="hw-color-preview">
+                  <span class="hw-color-swatch" style={color_preview_style(@light_state, light.id)}></span>
+                  <span class="hw-muted"><%= color_preview_label(@light_state, light.id) %></span>
+                </div>
+                <div class="hw-slider">
+                  <input
+                    id={"light-hue-#{light.id}"}
+                    type="range"
+                    min="0"
+                    max="360"
+                    value={color_preview.hue}
+                    phx-hook="ColorHueSlider"
+                    data-type="light"
+                    data-id={light.id}
+                    data-output-id={"light-hue-value-#{light.id}"}
+                    data-hue-input-id={"light-hue-#{light.id}"}
+                    data-saturation-input-id={"light-saturation-#{light.id}"}
+                    disabled={manual_adjustment_locked}
+                  />
+                  <span id={"light-hue-label-#{light.id}"}>Hue</span>
+                  <span id={"light-hue-value-#{light.id}"} class="hw-slider-value">
+                    <%= color_preview.hue %>°
+                  </span>
+                </div>
+                <div class="hw-color-scale hw-hue-scale" aria-hidden="true"></div>
+                <div class="hw-slider">
+                  <input
+                    id={"light-saturation-#{light.id}"}
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={color_preview.saturation}
+                    phx-hook="ColorSaturationSlider"
+                    data-type="light"
+                    data-id={light.id}
+                    data-output-id={"light-saturation-value-#{light.id}"}
+                    data-hue-input-id={"light-hue-#{light.id}"}
+                    data-saturation-input-id={"light-saturation-#{light.id}"}
+                    disabled={manual_adjustment_locked}
+                  />
+                  <span id={"light-saturation-label-#{light.id}"}>Saturation</span>
+                  <span id={"light-saturation-value-#{light.id}"} class="hw-slider-value">
+                    <%= color_preview.saturation %>%
+                  </span>
+                </div>
+                <div
+                  class="hw-color-scale"
+                  style={color_saturation_scale_style(@light_state, light.id)}
+                  aria-hidden="true"
+                ></div>
               <% end %>
             </div>
           </div>
