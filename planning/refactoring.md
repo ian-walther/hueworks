@@ -1,7 +1,13 @@
 # Refactoring Targets
 
 ## Goal
-Reduce complexity in the circadian, scene, planner, and `/lights` paths without accidentally changing product behavior.
+Improve maintainability and reliability without giving back the product stability we have now.
+
+The app has reached the point where real-world usage matters more than feature velocity alone, so the best refactors are the ones that:
+
+- reduce the chance of subtle state drift
+- shrink the biggest conceptual hotspots
+- preserve behavior under the existing test suite
 
 ## Architectural Constraint
 When this document and `/Users/ianwalther/code/hueworks/planning/architecture-reset.md` pull in different directions, the architecture-reset doc wins.
@@ -12,14 +18,167 @@ In particular:
 - planner/executor should own downstream operational behavior
 - refactors should simplify toward that boundary, not away from it
 
-## Churn Hotspots
-- `lib/hueworks/scenes.ex`
-- `lib/hueworks/active_scenes.ex`
-- `lib/hueworks_app/control/state.ex`
-- `lib/hueworks_app/control/desired_state.ex`
-- `lib/hueworks/control/planner.ex`
-- `lib/hueworks/kelvin.ex`
-- `lib/hueworks_web/live/lights_live.ex`
+## Current High-Value Hotspots
+- `/Users/ianwalther/code/hueworks/lib/hueworks/control/bootstrap/hue.ex`
+- `/Users/ianwalther/code/hueworks/lib/hueworks/control/bootstrap/home_assistant.ex`
+- `/Users/ianwalther/code/hueworks/lib/hueworks/subscription/hue_event_stream/mapper.ex`
+- `/Users/ianwalther/code/hueworks/lib/hueworks_app/subscription/home_assistant_event_stream/connection.ex`
+- `/Users/ianwalther/code/hueworks/lib/hueworks/home_assistant/export.ex`
+- `/Users/ianwalther/code/hueworks/lib/hueworks/picos.ex`
+- `/Users/ianwalther/code/hueworks/lib/hueworks/scenes.ex`
+- `/Users/ianwalther/code/hueworks/lib/hueworks/control/planner.ex`
+- `/Users/ianwalther/code/hueworks/lib/hueworks_app/control/executor.ex`
+- `/Users/ianwalther/code/hueworks/lib/hueworks_web/live/lights_live.ex`
+
+## Priority Order
+
+### 1) Unify bootstrap and live state mapping per source
+This is the highest-value refactor target right now.
+
+Problem:
+- initial state and steady-state updates are not consistently built by the same canonical mapping path
+- that creates room for "wrong at first, then correct later" behavior
+
+Examples:
+- Hue bootstrap and Hue live events do not currently share the same full state-building path
+- Home Assistant bootstrap and Home Assistant live events have the same drift risk
+
+Files:
+- `/Users/ianwalther/code/hueworks/lib/hueworks/control/bootstrap/hue.ex`
+- `/Users/ianwalther/code/hueworks/lib/hueworks/control/bootstrap/home_assistant.ex`
+- `/Users/ianwalther/code/hueworks/lib/hueworks/subscription/hue_event_stream/mapper.ex`
+- `/Users/ianwalther/code/hueworks/lib/hueworks_app/subscription/home_assistant_event_stream/connection.ex`
+- `/Users/ianwalther/code/hueworks/lib/hueworks/control/state_parser.ex`
+
+Preferred direction:
+- extract source-specific canonical state builders
+- make bootstrap and live event ingestion call the same lower-level builders
+- keep source quirks localized, but keep final control-state shape generation shared
+
+Expected payoff:
+- fewer bootstrap vs live inconsistencies
+- cleaner mental model for control-state ownership
+- lower risk when adding new attributes like color, temp, or future capabilities
+
+### 2) Split `Hueworks.HomeAssistant.Export` into a real subsystem
+`/Users/ianwalther/code/hueworks/lib/hueworks/home_assistant/export.ex` is now big enough that it is no longer one coherent module.
+
+Current responsibilities include:
+- MQTT connection lifecycle
+- discovery payload generation
+- scene/select/light/switch export modeling
+- command parsing and routing
+- optimistic state publishing
+- cleanup and unpublish behavior
+
+Preferred direction:
+- keep a small runtime / GenServer entrypoint
+- extract helpers or modules for:
+  - discovery payload generation
+  - state payload serialization
+  - command decoding and routing
+  - entity selection/query helpers
+  - cleanup/unpublish logic
+
+Expected payoff:
+- easier to reason about MQTT behavior without paging through every export mode at once
+- safer iteration on HA export features
+- easier testing of serializer behavior independent of process lifecycle
+
+### 3) Split `Hueworks.Picos` by responsibility
+`/Users/ianwalther/code/hueworks/lib/hueworks/picos.ex` is carrying too much at once.
+
+Current responsibilities include:
+- bridge sync/import
+- device materialization
+- room assignment
+- binding persistence
+- config cloning
+- presets
+- runtime button handling
+
+Preferred direction:
+- split into modules roughly along:
+  - sync/materialization
+  - binding/config helpers
+  - runtime press handling
+
+Expected payoff:
+- easier changes to button behavior without risking sync code
+- cleaner mental boundaries for future Pico features
+- smaller, more testable units
+
+### 4) Tighten the `Scenes` and editor boundary
+This area is better than it used to be, but there is still too much editor-specific translation pressure around scene persistence and orchestration.
+
+Files:
+- `/Users/ianwalther/code/hueworks/lib/hueworks/scenes.ex`
+- `/Users/ianwalther/code/hueworks/lib/hueworks_web/live/scene_builder_component.ex`
+- `/Users/ianwalther/code/hueworks/lib/hueworks_web/live/light_state_editor_live.ex`
+
+Preferred direction:
+- keep `Scenes` focused on orchestration and persistence
+- keep editor token translation and UI-only concerns at the LiveView boundary
+- continue moving toward cleaner already-resolved inputs before persistence
+
+Expected payoff:
+- scene editing becomes easier to evolve without making the core scene context more magical
+- fewer editor-shaped conditionals in persistence code
+
+### 5) Delay planner/executor extraction until after upstream cleanup
+These are still some of the riskiest modules in the app, but they should not be the first refactor target while the system is still being observed in real-world usage.
+
+Files:
+- `/Users/ianwalther/code/hueworks/lib/hueworks/control/planner.ex`
+- `/Users/ianwalther/code/hueworks/lib/hueworks_app/control/executor.ex`
+
+Preferred direction:
+- defer major structural work here until after state-ingestion and export cleanup
+- when we do touch them, prefer behavior-preserving extraction first
+- preserve public entrypoints while moving logic lower into purer helpers over time
+
+Why this is lower than it sounds:
+- the planner/executor path is reliability-critical
+- several currently observed oddities may still be upstream state issues rather than planner issues
+- upstream cleanup will make later planner work safer and clearer
+
+### 6) Keep LiveViews thin and move UI-specific logic outward
+This is still important, just no longer the very first thing to do.
+
+Files:
+- `/Users/ianwalther/code/hueworks/lib/hueworks_web/live/lights_live.ex`
+- `/Users/ianwalther/code/hueworks/lib/hueworks_web/live/scene_builder_component.ex`
+- `/Users/ianwalther/code/hueworks/lib/hueworks_web/live/light_state_editor_live.ex`
+
+Preferred direction:
+- keep LiveViews focused on:
+  - event wiring
+  - assign updates
+  - composition of helpers/components
+- keep domain orchestration and persistence translation out of the LiveView layer
+
+### 7) Extract shared UI components only after the boundaries are cleaner
+Shared UI extraction is still desirable, but it will go better after the surrounding responsibilities are less tangled.
+
+Preferred direction:
+- extract reusable light-state editing UI only after the editor/domain boundary is clearer
+- avoid baking current page-specific assumptions into a shared component API
+
+### 8) Clean up broad `rescue` usage in import/fetch paths
+This is still worthwhile, but it is not where the best stability payoff is right now.
+
+Preferred direction:
+- expected failures should be returned explicitly as `{:error, reason}`
+- true bugs should remain visible rather than being flattened into generic error strings
+
+### 9) Revisit high-complexity product behaviors only after the code is easier to observe
+There are a few features whose complexity cost may eventually outweigh their value, but they should be revisited deliberately, not mixed into structural cleanup.
+
+Candidate areas:
+- extended low-end kelvin support
+- manual-on/default-off semantics inside active scenes
+- timing-based scene-clear protection
+- manual power-latch survival across scene reapply
 
 ## Enduring Simplification Targets
 
@@ -42,20 +201,7 @@ Guidance:
 - keep desired-state construction and scene-policy logic out of the outer orchestration path
 - if `Scenes.apply_scene/2` starts growing again, prefer another layer split instead of adding conditionals back in
 
-### 3) Keep LiveViews thin
-`/lights` should keep moving toward:
-
-- event wiring
-- assign updates
-- composition of helpers/components
-
-not toward:
-
-- domain orchestration
-- convergence logic
-- persistence translation logic
-
-### 4) Keep manual power-latch semantics explicit
+### 3) Keep manual power-latch semantics explicit
 The old `brightness_override` flag is gone, which is good. The remaining goal is to keep manual power-latch behavior from becoming another fuzzy ownership layer.
 
 Guidance:
@@ -63,57 +209,15 @@ Guidance:
 - keep latch semantics narrow and traceable
 - do not let new hidden ownership rules accumulate in scene lifecycle code
 
-### 5) Keep planner loading/orchestration separate from a pure planning core
-The planner remains one of the highest-value places to simplify.
-
-Preferred direction:
-- keep `plan_room/3` as a thin wrapper if needed
-- keep growing a pure planning core underneath it
-- make planner logic easier to test without DB setup
-
-Important nuance:
-- preserve the public entrypoint first
-- move tests lower over time where that helps clarity
-
-### 6) Move scene-editor-specific translation closer to the editor boundary
-Scene-component persistence should not keep owning editor-specific token translation such as:
-
-- `"new"`
-- `"new_manual"`
-- `"new_circadian"`
-
-Preferred direction:
-- keep persistence working with cleaner, already-resolved input where possible
-- keep editor-only translation near the LiveView/component boundary
-
-### 7) Extract light-state editing into a shared LiveComponent
-This is partly refactoring and partly product improvement.
-
-Goal:
-- move light-state edit UI and form behavior into a reusable LiveComponent
-- allow it to be mounted:
-  - inside scene editing flows
-  - on its own from other locations in the app
+### 4) Keep source-specific parsing and payload quirks behind shared lower-level helpers
+The app will always have Hue, Z2M, HA, and bridge-specific quirks.
 
 Guidance:
-- avoid baking scene-editor assumptions too deeply into the component API
-- keep shared validation and normalization rules in one place
+- let source-specific modules own wire-format quirks
+- let shared lower-level helpers own the final normalized app-state shape
+- avoid re-encoding the same rules separately in bootstrap, event stream, export, and display layers
 
-### 8) Clean up broad rescue usage in the import pipeline
-Broad `rescue` blocks in the import pipeline still flatten expected failures and true bugs into the same shape.
-
-Preferred direction:
-- let fetchers return `{:ok, value}` / `{:error, reason}` for expected failures
-- keep true bugs visible as crashes instead of swallowing them into generic strings
-
-### 9) Treat bridge-dispatch abstraction as low priority
-Repeated source dispatch logic is real, but not one of the highest-value simplification targets.
-
-Guidance:
-- use a simple module-map style if this area grows
-- avoid building abstraction here unless bridge count or bridge-specific branching materially expands
-
-### 10) Use logger metadata only as a supplement
+### 5) Use logger metadata only as a supplement
 `Logger.metadata/1` may reduce some same-process boilerplate, but it is not a replacement for explicit traces that cross queue and executor boundaries.
 
 ## UI Pitfalls
@@ -134,54 +238,52 @@ Guidance:
 - avoid nested forms
 - keep copied LiveView form patterns simple rather than clever
 
-## Features With Outsized Complexity Cost
-These are not necessarily bad features. They are just where a small-looking requirement tends to spread complexity across many layers.
+## Lower-Value Cleanup To Defer
+These are fine later, but they should not displace the higher-value structural work above.
 
-### 1) Extended low-end kelvin support
-Question:
-- is the exact current UX around sub-`2700K` preservation worth the ongoing implementation complexity?
-
-### 2) Default-off lights that can be manually turned on without deactivating the scene
-Question:
-- does the current behavior deliver enough user value to justify the amount of branching it introduces?
-
-### 3) Reload should never clear scenes
-Question:
-- should this remain timing-based protection, or should lower-level apply/reconciliation causality become more explicit?
-
-### 4) Manual power latches surviving circadian reapply
-Question:
-- should this remain expressed in scene-intent construction, or eventually move lower into planner/executor reconciliation?
+- alias ordering cleanup
+- missing moduledocs on straightforward schema modules
+- small `Enum.map |> Enum.join` cleanup
+- minor `with` versus `case` rewrites
+- similar Credo-only style churn that does not materially improve the app's reliability or boundaries
 
 ## Recommended Sequence
 
 ### Phase 1
-- keep collapsing remaining LiveView-specific load/save wiring
-- keep moving editor/loading/persistence translation out of `LightsLive`
+- unify bootstrap and live state mapping per source
+- add focused regression coverage where current behavior was previously only implicit
 
 ### Phase 2
-- strengthen planner purity and planner/executor observability
-- move more reliability reasoning downward rather than upward
+- split `Hueworks.HomeAssistant.Export`
+- keep export behavior identical while carving out discovery, serialization, and command helpers
 
 ### Phase 3
-- extract the shared light-state editing LiveComponent
-- move scene-editor-specific token translation to a cleaner boundary
+- split `Hueworks.Picos`
+- keep sync, config, and runtime button handling easier to reason about independently
 
 ### Phase 4
-- clean up broad `rescue` usage in the import pipeline
+- keep tightening the `Scenes` and editor boundary
+- move more editor-only translation to the LiveView layer
 
 ### Phase 5
-- revisit refresh causality and active-scene power-latch ownership only in ways that stay aligned with `architecture-reset.md`
+- revisit planner/executor extraction only after the upstream layers are cleaner
+- focus on behavior-preserving extraction and observability, not semantics changes
 
 ### Phase 6
-- evaluate whether the highest-cost features should be simplified or re-scoped
+- continue thinning LiveViews and extracting shared UI only where the boundaries are already stable
+
+### Phase 7
+- clean up broad `rescue` usage in fetch/import paths
+
+### Phase 8
+- re-evaluate whether the highest-complexity product behaviors still justify their implementation cost
 
 ## Refactor Guardrails
-- use the existing integration suite as the primary behavior safety net
+- use the existing test suite as the primary behavior safety net
 - prefer behavior-preserving extraction first, behavior changes second
 - do not mix semantic product changes with structural refactors unless the coupling is unavoidable
-- keep source-specific parsing and payload quirks behind shared lower-level helpers where possible
 - add focused regression tests when a refactor clarifies previously implicit behavior
+- when in doubt, move logic toward clearer ownership boundaries instead of introducing more coordination layers
 
 ## Open Questions
 - Should manual power-latch semantics remain in scene-intent construction, or move lower over time?
