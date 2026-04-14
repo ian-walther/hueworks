@@ -165,10 +165,7 @@ defmodule Hueworks.Control.Bootstrap.Z2M do
   end
 
   defp build_state(payload, entity) do
-    %{}
-    |> Map.merge(StateParser.power_map(payload["state"] || payload["power"]))
-    |> Map.merge(StateParser.brightness_from_z2m_attrs(payload))
-    |> Map.merge(StateParser.kelvin_from_z2m_attrs(payload, entity))
+    StateParser.z2m_state(payload, entity)
   end
 
   defp entity_from_topic(topic_levels, base_levels) do
@@ -290,7 +287,11 @@ defmodule Hueworks.Control.Bootstrap.Z2M do
       |> Enum.reject(&is_nil/1)
 
     if brightness_values != [] and length(brightness_values) == length(on_states) do
-      Map.put(group_state, :brightness, round(Enum.sum(brightness_values) / length(brightness_values)))
+      Map.put(
+        group_state,
+        :brightness,
+        round(Enum.sum(brightness_values) / length(brightness_values))
+      )
     else
       group_state
     end

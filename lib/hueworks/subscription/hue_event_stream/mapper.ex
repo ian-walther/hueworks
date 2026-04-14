@@ -5,7 +5,6 @@ defmodule Hueworks.Subscription.HueEventStream.Mapper do
 
   alias Hueworks.Control.State
   alias Hueworks.Control.StateParser
-  alias Hueworks.Util
   alias Hueworks.Schemas.Group
   alias Hueworks.Schemas.GroupLight
   alias Hueworks.Repo
@@ -86,37 +85,10 @@ defmodule Hueworks.Subscription.HueEventStream.Mapper do
   end
 
   defp event_state_from_light(event) do
-    %{}
-    |> Map.merge(extract_power(event))
-    |> Map.merge(extract_brightness(event))
-    |> Map.merge(extract_kelvin(event))
-    |> Map.merge(extract_color(event))
+    StateParser.hue_event_state(event)
   end
 
   defp event_state_from_group(event), do: event_state_from_light(event)
-
-  defp extract_power(event) do
-    StateParser.power_map(get_in(event, ["on", "on"]))
-  end
-
-  defp extract_brightness(event) do
-    StateParser.brightness_from_0_100(get_in(event, ["dimming", "brightness"]))
-  end
-
-  defp extract_kelvin(event) do
-    mired =
-      case event["color_temperature"] do
-        %{"mirek" => value} -> Util.to_number(value)
-        %{:mirek => value} -> Util.to_number(value)
-        value -> Util.to_number(value)
-      end
-
-    StateParser.kelvin_from_mired(mired)
-  end
-
-  defp extract_color(event) do
-    StateParser.color_from_hue_event(event)
-  end
 
   defp load_group_lights(bridge_id) do
     Repo.all(

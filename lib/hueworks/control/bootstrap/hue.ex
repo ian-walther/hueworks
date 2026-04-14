@@ -62,23 +62,13 @@ defmodule Hueworks.Control.Bootstrap.Hue do
   end
 
   defp build_hue_light_state(light) when is_map(light) do
-    state = light["state"] || %{}
-
-    %{}
-    |> Map.merge(StateParser.power_map(state["on"]))
-    |> Map.merge(StateParser.brightness_from_0_255(state["bri"]))
-    |> Map.merge(StateParser.kelvin_from_mired(state["ct"]))
+    StateParser.hue_v1_state(light, "state")
   end
 
   defp build_hue_light_state(_light), do: %{}
 
   defp build_hue_group_state(group) when is_map(group) do
-    action = group["action"] || %{}
-
-    %{}
-    |> Map.merge(StateParser.power_map(action["on"]))
-    |> Map.merge(StateParser.brightness_from_0_255(action["bri"]))
-    |> Map.merge(StateParser.kelvin_from_mired(action["ct"]))
+    StateParser.hue_v1_state(group, "action")
   end
 
   defp build_hue_group_state(_group), do: %{}

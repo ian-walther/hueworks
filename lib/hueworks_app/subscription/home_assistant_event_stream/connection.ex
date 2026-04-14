@@ -151,13 +151,7 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.Connection do
   defp normalize_entity_ids(_value), do: []
 
   defp build_ha_state(state, entity) do
-    attrs = state["attributes"] || %{}
-
-    %{}
-    |> Map.merge(StateParser.power_map(state["state"]))
-    |> Map.merge(StateParser.brightness_from_0_255(attrs["brightness"]))
-    |> Map.merge(StateParser.kelvin_from_ha_attrs(attrs, entity))
-    |> Map.merge(StateParser.color_from_ha_attrs(attrs))
+    StateParser.home_assistant_state(state, entity)
   end
 
   defp load_lights(bridge_id) do

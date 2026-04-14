@@ -5,6 +5,53 @@ defmodule Hueworks.Control.StateParser do
   alias Hueworks.Kelvin
   alias Hueworks.Util
 
+  def home_assistant_state(state, entity) when is_map(state) do
+    attrs = state["attributes"] || state[:attributes] || %{}
+    raw_state = state["state"] || state[:state]
+
+    %{}
+    |> Map.merge(power_map(raw_state))
+    |> Map.merge(brightness_from_0_255(attrs["brightness"] || attrs[:brightness]))
+    |> Map.merge(kelvin_from_ha_attrs(attrs, entity))
+    |> Map.merge(color_from_ha_attrs(attrs))
+  end
+
+  def home_assistant_state(_state, _entity), do: %{}
+
+  def hue_event_state(event) when is_map(event) do
+    %{}
+    |> Map.merge(power_map(get_in(event, ["on", "on"])))
+    |> Map.merge(brightness_from_0_100(get_in(event, ["dimming", "brightness"])))
+    |> Map.merge(kelvin_from_hue_event(event))
+    |> Map.merge(color_from_hue_event(event))
+  end
+
+  def hue_event_state(_event), do: %{}
+
+  def hue_v1_state(resource, state_key) when is_map(resource) do
+    attrs = resource[state_key] || resource[to_string(state_key)] || %{}
+
+    %{}
+    |> Map.merge(power_map(attrs["on"] || attrs[:on]))
+    |> Map.merge(brightness_from_0_255(attrs["bri"] || attrs[:bri]))
+    |> Map.merge(kelvin_from_mired(attrs["ct"] || attrs[:ct]))
+    |> Map.merge(color_from_hue_v1_attrs(attrs))
+  end
+
+  def hue_v1_state(_resource, _state_key), do: %{}
+
+  def z2m_state(payload, entity) when is_map(payload) do
+    %{}
+    |> Map.merge(
+      power_map(payload["state"] || payload[:state] || payload["power"] || payload[:power])
+    )
+    |> Map.merge(brightness_from_z2m_attrs(payload))
+    |> Map.merge(kelvin_from_z2m_attrs(payload, entity))
+    |> Map.merge(color_from_z2m_attrs(payload))
+  end
+
+  def z2m_state(_payload, _entity), do: %{}
+
   def power_map(true), do: %{power: :on}
   def power_map(false), do: %{power: :off}
   def power_map("on"), do: %{power: :on}
@@ -112,11 +159,42 @@ defmodule Hueworks.Control.StateParser do
 
   def color_from_hue_event(_event), do: %{}
 
+  def color_from_hue_v1_attrs(attrs) when is_map(attrs) do
+    xy = hue_xy_from_v1_attrs(attrs)
+    color_mode = attrs["colormode"] || attrs[:colormode]
+
+    cond do
+      not is_tuple(xy) ->
+        %{}
+
+      color_mode in ["ct", :ct] ->
+        %{}
+
+      true ->
+        xy_map(xy)
+    end
+  end
+
+  def color_from_hue_v1_attrs(_attrs), do: %{}
+
   def kelvin_from_mired(mired) when is_number(mired) and mired > 0 do
     %{kelvin: round(1_000_000 / mired)}
   end
 
   def kelvin_from_mired(_mired), do: %{}
+
+  def kelvin_from_hue_event(event) when is_map(event) do
+    mired =
+      case event["color_temperature"] do
+        %{"mirek" => value} -> Util.to_number(value)
+        %{:mirek => value} -> Util.to_number(value)
+        value -> Util.to_number(value)
+      end
+
+    kelvin_from_mired(mired)
+  end
+
+  def kelvin_from_hue_event(_event), do: %{}
 
   def kelvin_from_ha_attrs(attrs, entity) when is_map(attrs) do
     extended_xy_kelvin = extended_xy_kelvin(attrs, entity)
@@ -298,6 +376,15 @@ defmodule Hueworks.Control.StateParser do
   end
 
   defp hue_xy_from_event(_event), do: nil
+
+  defp hue_xy_from_v1_attrs(attrs) when is_map(attrs) do
+    case attrs["xy"] || attrs[:xy] do
+      [x, y] when is_number(x) and is_number(y) -> {x, y}
+      _ -> nil
+    end
+  end
+
+  defp hue_xy_from_v1_attrs(_attrs), do: nil
 
   # Some integrations include xy color coordinates alongside ordinary
   # white-temperature reports. Only treat xy as the source of truth when the

@@ -53,6 +53,70 @@ defmodule Hueworks.Control.StateParserTest do
            }) == %{x: 0.4112, y: 0.321}
   end
 
+  test "home_assistant_state includes color when attributes report color mode" do
+    state = %{
+      "state" => "on",
+      "attributes" => %{
+        "brightness" => 128,
+        "color_mode" => "xy",
+        "xy_color" => [0.1234, 0.5678]
+      }
+    }
+
+    assert StateParser.home_assistant_state(state, nil) == %{
+             power: :on,
+             brightness: 50,
+             x: 0.1234,
+             y: 0.5678
+           }
+  end
+
+  test "hue_v1_state includes color when colormode is xy" do
+    light = %{
+      "state" => %{
+        "on" => true,
+        "bri" => 127,
+        "xy" => [0.4112, 0.321],
+        "colormode" => "xy"
+      }
+    }
+
+    assert StateParser.hue_v1_state(light, "state") == %{
+             power: :on,
+             brightness: 50,
+             x: 0.4112,
+             y: 0.321
+           }
+  end
+
+  test "hue_v1_state ignores xy when colormode is ct" do
+    light = %{
+      "state" => %{
+        "on" => true,
+        "ct" => 400,
+        "xy" => [0.4112, 0.321],
+        "colormode" => "ct"
+      }
+    }
+
+    assert StateParser.hue_v1_state(light, "state") == %{
+             power: :on,
+             kelvin: 2500
+           }
+  end
+
+  test "z2m_state includes color from payload" do
+    assert StateParser.z2m_state(
+             %{
+               "state" => "ON",
+               "brightness_percent" => 31,
+               "color_mode" => "xy",
+               "color" => %{"x" => 0.2222, "y" => 0.3333}
+             },
+             nil
+           ) == %{power: :on, brightness: 31, x: 0.2222, y: 0.3333}
+  end
+
   test "kelvin_from_z2m_attrs handles mired and kelvin payloads" do
     assert StateParser.kelvin_from_z2m_attrs(%{"color_temp" => 250}, nil) == %{kelvin: 4000}
 
