@@ -16,6 +16,7 @@ defmodule HueworksWeb.LightsLive do
   def mount(params, session, socket) do
     if connected?(socket) do
       Phoenix.PubSub.subscribe(Hueworks.PubSub, "control_state")
+      Phoenix.PubSub.subscribe(Hueworks.PubSub, Hueworks.ActiveScenes.topic())
     end
 
     filter_session_id = session["filter_session_id"]
@@ -173,6 +174,16 @@ defmodule HueworksWeb.LightsLive do
         socket
       ) do
     {:noreply, dispatch_action(socket, type, id, {:color, hue, saturation})}
+  end
+
+  @impl true
+  def handle_info({:active_scene_updated, room_id, scene_id}, socket) do
+    {:noreply,
+     assign(
+       socket,
+       :active_scene_by_room,
+       put_active_scene(socket.assigns.active_scene_by_room, room_id, scene_id)
+     )}
   end
 
   @impl true
@@ -590,4 +601,13 @@ defmodule HueworksWeb.LightsLive do
   defp maybe_put_param(acc, _key, nil), do: acc
   defp maybe_put_param(acc, _key, ""), do: acc
   defp maybe_put_param(acc, key, value), do: Map.put(acc, key, value)
+
+  defp put_active_scene(active_scene_by_room, room_id, scene_id) do
+    active_scene_by_room = active_scene_by_room || %{}
+
+    case scene_id do
+      scene_id when is_integer(scene_id) -> Map.put(active_scene_by_room, room_id, scene_id)
+      _ -> Map.delete(active_scene_by_room, room_id)
+    end
+  end
 end

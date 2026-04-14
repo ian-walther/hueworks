@@ -65,6 +65,19 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
     Repo.insert!(%GroupLight{group_id: group.id, light_id: light.id})
   end
 
+  defp eventually(fun, attempts \\ 20)
+
+  defp eventually(fun, attempts) when attempts > 0 do
+    if fun.() do
+      true
+    else
+      Process.sleep(25)
+      eventually(fun, attempts - 1)
+    end
+  end
+
+  defp eventually(_fun, 0), do: false
+
   test "rooms page add-scene action navigates to scene editor", %{conn: conn} do
     room = insert_room()
 
@@ -156,6 +169,39 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
            )
 
     refute Repo.get_by(ActiveScene, room_id: room.id)
+  end
+
+  test "rooms page updates active scene status when scene changes live", %{conn: conn} do
+    room = insert_room()
+    {:ok, scene} = Hueworks.Scenes.create_scene(%{name: "Chill", room_id: room.id})
+
+    {:ok, view, _html} = live(conn, "/rooms")
+
+    assert has_element?(
+             view,
+             "#room-#{room.id} button[phx-click='activate_scene'][phx-value-id='#{scene.id}']",
+             "Activate"
+           )
+
+    {:ok, _} = Hueworks.ActiveScenes.set_active(scene)
+
+    assert eventually(fn ->
+             has_element?(
+               view,
+               "#room-#{room.id} button[phx-click='activate_scene'][phx-value-id='#{scene.id}']",
+               "Deactivate"
+             ) and has_element?(view, "#room-#{room.id} .hw-muted", "Active")
+           end)
+
+    :ok = Hueworks.ActiveScenes.clear_for_room(room.id)
+
+    assert eventually(fn ->
+             has_element?(
+               view,
+               "#room-#{room.id} button[phx-click='activate_scene'][phx-value-id='#{scene.id}']",
+               "Activate"
+             ) and not has_element?(view, "#room-#{room.id} .hw-muted", "Active")
+           end)
   end
 
   test "active scene occupancy toggle flips room occupancy state for testing", %{conn: conn} do
@@ -251,7 +297,12 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
     group = insert_group(room, bridge, %{name: "All"})
     insert_group_light(group, light1)
     insert_group_light(group, light2)
-    {:ok, state} = Hueworks.Scenes.create_manual_light_state("Warm", %{"brightness" => "55", "temperature" => "3000"})
+
+    {:ok, state} =
+      Hueworks.Scenes.create_manual_light_state("Warm", %{
+        "brightness" => "55",
+        "temperature" => "3000"
+      })
 
     {:ok, view, _html} = live(conn, "/rooms/#{room.id}/scenes/new")
 
@@ -343,8 +394,18 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
     insert_group_light(group, light2)
 
     {:ok, scene} = Hueworks.Scenes.create_scene(%{name: "Chill", room_id: room.id})
-    {:ok, state} = Hueworks.Scenes.create_manual_light_state("Warm", %{"brightness" => "55", "temperature" => "3000"})
-    {:ok, bright} = Hueworks.Scenes.create_manual_light_state("Bright", %{"brightness" => "70", "temperature" => "3600"})
+
+    {:ok, state} =
+      Hueworks.Scenes.create_manual_light_state("Warm", %{
+        "brightness" => "55",
+        "temperature" => "3000"
+      })
+
+    {:ok, bright} =
+      Hueworks.Scenes.create_manual_light_state("Bright", %{
+        "brightness" => "70",
+        "temperature" => "3600"
+      })
 
     {:ok, _} =
       Hueworks.Scenes.replace_scene_components(scene, [
@@ -586,6 +647,7 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
     group = insert_group(room, bridge, %{name: "All"})
     insert_group_light(group, light1)
     insert_group_light(group, light2)
+
     {:ok, state} =
       Hueworks.Scenes.create_light_state("Circadian Day", :circadian, %{
         "min_brightness" => 5,

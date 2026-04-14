@@ -9,6 +9,8 @@ defmodule Hueworks.ActiveScenes do
   alias Hueworks.Repo
   alias Hueworks.Schemas.{ActiveScene, Scene}
 
+  def topic, do: "active_scenes"
+
   def list_active_scenes do
     Repo.all(from(a in ActiveScene, select: a))
   end
@@ -40,13 +42,21 @@ defmodule Hueworks.ActiveScenes do
         conflict_target: :room_id
       )
 
-    HomeAssistantExport.refresh_room_select(scene.room_id)
-    result
+    case result do
+      {:ok, active_scene} ->
+        HomeAssistantExport.refresh_room_select(scene.room_id)
+        broadcast(scene.room_id, scene.id)
+        {:ok, active_scene}
+
+      {:error, _reason} = error ->
+        error
+    end
   end
 
   def clear_for_room(room_id) do
     Repo.delete_all(from(a in ActiveScene, where: a.room_id == ^room_id))
     HomeAssistantExport.refresh_room_select(room_id)
+    broadcast(room_id, nil)
     :ok
   end
 
@@ -55,7 +65,12 @@ defmodule Hueworks.ActiveScenes do
       Repo.all(from(a in ActiveScene, where: a.scene_id == ^scene_id, select: a.room_id))
 
     Repo.delete_all(from(a in ActiveScene, where: a.scene_id == ^scene_id))
-    Enum.each(room_ids, &HomeAssistantExport.refresh_room_select/1)
+
+    Enum.each(room_ids, fn room_id ->
+      HomeAssistantExport.refresh_room_select(room_id)
+      broadcast(room_id, nil)
+    end)
+
     :ok
   end
 
@@ -68,5 +83,13 @@ defmodule Hueworks.ActiveScenes do
     )
 
     :ok
+  end
+
+  defp broadcast(room_id, scene_id) when is_integer(room_id) do
+    Phoenix.PubSub.broadcast(
+      Hueworks.PubSub,
+      topic(),
+      {:active_scene_updated, room_id, scene_id}
+    )
   end
 end

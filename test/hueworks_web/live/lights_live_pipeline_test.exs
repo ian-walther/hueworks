@@ -398,6 +398,61 @@ defmodule Hueworks.LightsLivePipelineTest do
     assert DesiredState.get(:light, light.id) == nil
   end
 
+  test "lights page updates manual control disabled state when active scene changes live", %{
+    conn: conn
+  } do
+    room = Repo.insert!(%Room{name: "Live Scene Room"})
+
+    bridge =
+      Repo.insert!(%Bridge{
+        name: "Hue Bridge",
+        type: :hue,
+        host: "192.168.1.98",
+        credentials: %{"api_key" => "test"}
+      })
+
+    light =
+      Repo.insert!(%Light{
+        name: "Live Scene Lamp",
+        display_name: "Live Scene Lamp",
+        source: :hue,
+        source_id: "live-scene-lamp",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        supports_color: true,
+        supports_temp: true,
+        reported_min_kelvin: 2000,
+        reported_max_kelvin: 6500
+      })
+
+    {:ok, scene} = Scenes.create_scene(%{name: "Evening", room_id: room.id})
+
+    {:ok, view, _html} = live(conn, "/lights")
+
+    refute has_element?(view, "#light-level-#{light.id}[disabled]")
+    refute has_element?(view, "#light-temp-#{light.id}[disabled]")
+    refute has_element?(view, "#light-hue-#{light.id}[disabled]")
+    refute has_element?(view, "#light-saturation-#{light.id}[disabled]")
+
+    {:ok, _} = ActiveScenes.set_active(scene)
+
+    assert eventually(fn ->
+             has_element?(view, "#light-level-#{light.id}[disabled]") and
+               has_element?(view, "#light-temp-#{light.id}[disabled]") and
+               has_element?(view, "#light-hue-#{light.id}[disabled]") and
+               has_element?(view, "#light-saturation-#{light.id}[disabled]")
+           end)
+
+    :ok = ActiveScenes.clear_for_room(room.id)
+
+    assert eventually(fn ->
+             not has_element?(view, "#light-level-#{light.id}[disabled]") and
+               not has_element?(view, "#light-temp-#{light.id}[disabled]") and
+               not has_element?(view, "#light-hue-#{light.id}[disabled]") and
+               not has_element?(view, "#light-saturation-#{light.id}[disabled]")
+           end)
+  end
+
   test "manual light color change enqueues xy desired state and powers the light on",
        %{
          conn: conn,
@@ -928,4 +983,17 @@ defmodule Hueworks.LightsLivePipelineTest do
       :ets.delete(:hueworks_desired_state, {:light, light_id})
     end
   end
+
+  defp eventually(fun, attempts \\ 20)
+
+  defp eventually(fun, attempts) when attempts > 0 do
+    if fun.() do
+      true
+    else
+      Process.sleep(25)
+      eventually(fun, attempts - 1)
+    end
+  end
+
+  defp eventually(_fun, 0), do: false
 end

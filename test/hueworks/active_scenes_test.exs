@@ -2,6 +2,7 @@ defmodule Hueworks.ActiveScenesTest do
   use Hueworks.DataCase, async: false
 
   alias Hueworks.ActiveScenes
+  alias Phoenix.PubSub
   alias Hueworks.Repo
   alias Hueworks.Rooms
   alias Hueworks.Schemas.{ActiveScene, Room, Scene}
@@ -54,6 +55,20 @@ defmodule Hueworks.ActiveScenesTest do
     :ok = ActiveScenes.deactivate_scene(scene.id)
 
     refute Repo.get_by(ActiveScene, room_id: room.id)
+  end
+
+  test "active scene changes are broadcast" do
+    room = insert_room()
+    scene = insert_scene(room, "Chill")
+    room_id = room.id
+    scene_id = scene.id
+    PubSub.subscribe(Hueworks.PubSub, ActiveScenes.topic())
+
+    {:ok, _} = ActiveScenes.set_active(scene)
+    assert_receive {:active_scene_updated, ^room_id, ^scene_id}
+
+    :ok = ActiveScenes.clear_for_room(room.id)
+    assert_receive {:active_scene_updated, ^room_id, nil}
   end
 
   test "room occupancy is stored on rooms, not active scenes" do

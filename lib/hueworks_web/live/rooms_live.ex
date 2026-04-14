@@ -6,6 +6,10 @@ defmodule HueworksWeb.RoomsLive do
   alias Hueworks.Scenes
 
   def mount(_params, _session, socket) do
+    if connected?(socket) do
+      Phoenix.PubSub.subscribe(Hueworks.PubSub, ActiveScenes.topic())
+    end
+
     rooms = Rooms.list_rooms_with_children()
     scene_assigns = active_scene_assigns(rooms)
 
@@ -18,6 +22,14 @@ defmodule HueworksWeb.RoomsLive do
        edit_mode: :new,
        edit_room_id: nil,
        edit_name: ""
+     )}
+  end
+
+  def handle_info({:active_scene_updated, room_id, scene_id}, socket) do
+    {:noreply,
+     assign(socket,
+       active_scene_by_room:
+         put_active_scene(socket.assigns.active_scene_by_room, room_id, scene_id)
      )}
   end
 
@@ -269,5 +281,14 @@ defmodule HueworksWeb.RoomsLive do
       to_scene_id: to_scene_id,
       started_at_ms: System.monotonic_time(:millisecond)
     }
+  end
+
+  defp put_active_scene(active_scene_by_room, room_id, scene_id) do
+    active_scene_by_room = active_scene_by_room || %{}
+
+    case scene_id do
+      scene_id when is_integer(scene_id) -> Map.put(active_scene_by_room, room_id, scene_id)
+      _ -> Map.delete(active_scene_by_room, room_id)
+    end
   end
 end
