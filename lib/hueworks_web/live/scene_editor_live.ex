@@ -300,7 +300,6 @@ defmodule HueworksWeb.SceneEditorLive do
           light_ids: Enum.map(component.lights, & &1.id),
           group_ids: [],
           light_state_id: to_string(component.light_state_id),
-          light_state_config: component.light_state && component.light_state.config,
           light_defaults: light_defaults
         }
       end)

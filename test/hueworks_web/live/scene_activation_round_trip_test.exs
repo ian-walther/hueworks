@@ -106,7 +106,7 @@ defmodule Hueworks.SceneActivationRoundTripTest do
     Repo.insert!(%GroupLight{group_id: group.id, light_id: light_2.id})
 
     light_state =
-      Repo.insert!(%LightState{
+      insert_light_state!(%{
         name: "Bright",
         type: :manual,
         config: %{"brightness" => "50", "temperature" => "3000"}
@@ -245,14 +245,14 @@ defmodule Hueworks.SceneActivationRoundTripTest do
     Repo.insert!(%GroupLight{group_id: group_cd.id, light_id: light_d.id})
 
     warm_state =
-      Repo.insert!(%LightState{
+      insert_light_state!(%{
         name: "Warm",
         type: :manual,
         config: %{"brightness" => "40", "temperature" => "2400"}
       })
 
     cool_state =
-      Repo.insert!(%LightState{
+      insert_light_state!(%{
         name: "Cool",
         type: :manual,
         config: %{"brightness" => "80", "temperature" => "5000"}
@@ -382,7 +382,7 @@ defmodule Hueworks.SceneActivationRoundTripTest do
     Repo.insert!(%GroupLight{group_id: group.id, light_id: light_off.id})
 
     light_state =
-      Repo.insert!(%LightState{
+      insert_light_state!(%{
         name: "Warm",
         type: :manual,
         config: %{"brightness" => "45", "temperature" => "2800"}
@@ -481,7 +481,7 @@ defmodule Hueworks.SceneActivationRoundTripTest do
       })
 
     light_state =
-      Repo.insert!(%LightState{
+      insert_light_state!(%{
         name: "Warm",
         type: :manual,
         config: %{"brightness" => "45", "temperature" => "2800"}
@@ -574,7 +574,7 @@ defmodule Hueworks.SceneActivationRoundTripTest do
       })
 
     light_state =
-      Repo.insert!(%LightState{
+      insert_light_state!(%{
         name: "Warm",
         type: :manual,
         config: %{"brightness" => "45", "temperature" => "2800"}
@@ -669,5 +669,11 @@ defmodule Hueworks.SceneActivationRoundTripTest do
         :ets.delete(:hueworks_desired_state, {:light, id})
       end)
     end
+  end
+
+  defp insert_light_state!(attrs) do
+    %LightState{}
+    |> LightState.changeset(attrs)
+    |> Repo.insert!()
   end
 end

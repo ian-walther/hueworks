@@ -192,7 +192,7 @@ defmodule HueworksWeb.LightStateEditorLive do
           socket
           |> assign_saved_snapshot(
             state.name,
-            FormState.default_edits(state.type, state.config || %{})
+            FormState.from_light_state(state)
           )
           |> assign(
             light_state_usages: Scenes.light_state_usages(state.id),
@@ -238,7 +238,7 @@ defmodule HueworksWeb.LightStateEditorLive do
         push_navigate(socket, to: "/config")
 
       state ->
-        config = FormState.default_edits(state.type, state.config || %{})
+        config = FormState.from_light_state(state)
 
         socket
         |> assign(
@@ -293,6 +293,18 @@ defmodule HueworksWeb.LightStateEditorLive do
 
   defp manual_field_value(assigns, key) do
     FormState.manual_field_value(assigns.light_state_config, key)
+  end
+
+  defp circadian_field_value(assigns, key) do
+    FormState.circadian_field_value(assigns.light_state_config, key)
+  end
+
+  defp circadian_time_field_value(assigns, key) do
+    FormState.circadian_time_value(assigns.light_state_config, key)
+  end
+
+  defp circadian_brightness_mode(assigns) do
+    FormState.circadian_brightness_mode(assigns.light_state_config)
   end
 
   defp manual_color_preview_style(assigns) do

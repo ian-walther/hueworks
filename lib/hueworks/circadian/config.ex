@@ -84,6 +84,7 @@ defmodule Hueworks.Circadian.Config do
     "temperature_sunset_offset" => 0
   }
 
+  @primary_key false
   embedded_schema do
     field(:min_brightness, :integer)
     field(:max_brightness, :integer)
@@ -110,6 +111,8 @@ defmodule Hueworks.Circadian.Config do
   def supported_keys, do: @supported_keys
   def defaults, do: @defaults
 
+  def load(%__MODULE__{} = config), do: {:ok, config}
+
   def load(config) when is_map(config) do
     case load_internal(config) do
       {:ok, config_struct, _present_fields} -> {:ok, config_struct}
@@ -118,6 +121,18 @@ defmodule Hueworks.Circadian.Config do
   end
 
   def load(_config), do: {:error, [{"config", "must be a map"}]}
+
+  def runtime(%__MODULE__{} = config) do
+    config
+    |> runtime_map()
+    |> then(
+      &Map.merge(
+        default_runtime_map(),
+        Enum.reject(&1, fn {_key, value} -> is_nil(value) end) |> Map.new()
+      )
+    )
+    |> then(&{:ok, &1})
+  end
 
   def runtime(config) when is_map(config) do
     config
@@ -132,6 +147,10 @@ defmodule Hueworks.Circadian.Config do
 
   def runtime(_config), do: {:error, [{"config", "must be a map"}]}
 
+  def normalize(%__MODULE__{} = config) do
+    {:ok, dump(config)}
+  end
+
   def normalize(config) when is_map(config) do
     case load_internal(config) do
       {:ok, config_struct, present_fields} -> {:ok, dump_map(config_struct, present_fields)}
@@ -140,6 +159,14 @@ defmodule Hueworks.Circadian.Config do
   end
 
   def normalize(_config), do: {:error, [{"config", "must be a map"}]}
+
+  def dump(%__MODULE__{} = config) do
+    config
+    |> runtime_map()
+    |> Enum.reject(fn {_key, value} -> is_nil(value) end)
+    |> Enum.map(fn {key, value} -> {Atom.to_string(key), dump_value(key, value)} end)
+    |> Map.new()
+  end
 
   defp load_internal(config) do
     config
@@ -159,7 +186,7 @@ defmodule Hueworks.Circadian.Config do
     end
   end
 
-  defp changeset(config, attrs) do
+  def changeset(config, attrs) do
     config
     |> cast(attrs, @supported_key_atoms)
     |> validate_number(:min_brightness, greater_than_or_equal_to: 1, less_than_or_equal_to: 100)
@@ -261,6 +288,11 @@ defmodule Hueworks.Circadian.Config do
     Enum.reduce(@supported_key_atoms, %{}, fn field, acc ->
       Map.put(acc, field, Map.get(config, field))
     end)
+  end
+
+  defp default_runtime_map do
+    {:ok, config} = load(@defaults)
+    runtime_map(config)
   end
 
   defp dump_value(:brightness_mode, value) when is_atom(value), do: Atom.to_string(value)

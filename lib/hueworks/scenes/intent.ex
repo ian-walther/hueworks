@@ -134,10 +134,11 @@ defmodule Hueworks.Scenes.Intent do
   end
 
   defp desired_from_light_state(%LightState{type: :circadian, config: config}, now) do
+    config = LightState.circadian_config(config)
     solar_config = AppSettings.global_map()
     base = DesiredAttrs.on()
 
-    case Circadian.calculate(config || %{}, solar_config, now) do
+    case Circadian.calculate(config, solar_config, now) do
       {:ok, circadian} ->
         base
         |> put_attr(:brightness, circadian.brightness)

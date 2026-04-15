@@ -73,13 +73,16 @@ Expected payoff:
 - cleaner domain code with clearer expectations about input shape
 
 ### Near-Term Embedded Schema Direction
-If the current deploy soaks cleanly in prod, the next likely step is to move from compatibility-first typed boundaries toward more native embedded-schema usage for `LightState.config`.
+`LightState.config` now uses a parent-level embed on the existing `light_states.config` column. The next phase is to shrink the remaining compatibility glue without giving back rollback safety.
 
 Preferred direction:
-- keep the existing `light_states.config` column during the first native-embed pass
-- make manual and circadian config increasingly struct-first in parent-schema usage
-- let Ecto own more of the cast and validation flow directly
-- keep compatibility aliases and dump-shape glue only at the boundary while old persisted records still exist
+- keep the existing `light_states.config` column while the new parent-level embed soaks
+- keep manual and circadian config struct-first in parent-schema usage
+- let Ecto own as much of the cast and validation flow as is practical
+- keep sparse persisted-shape dumping and alias compatibility only at the boundary while old records and rollback compatibility still matter
+- reduce downstream uses of `LightState.persisted_config/1` over time in favor of struct-first consumers
+- prefer dedicated form/view helpers over feeding dumped persisted maps back into editor state
+- decide later whether the helper boundary modules should remain thin dump/load adapters or be folded further into the parent embed
 - avoid introducing a DB migration unless there is a concrete payoff beyond code clarity
 
 Guardrails:

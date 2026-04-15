@@ -185,10 +185,20 @@ defmodule Hueworks.Util do
   end
 
   defp duplicate_bridge_error?(errors) do
-    Enum.any?(errors, fn {_field, messages} ->
-      Enum.any?(List.wrap(messages), &String.contains?(&1, "has already been taken"))
-    end)
+    errors
+    |> error_messages()
+    |> Enum.any?(&String.contains?(&1, "has already been taken"))
   end
+
+  defp error_messages(messages) when is_binary(messages), do: [messages]
+
+  defp error_messages(messages) when is_list(messages),
+    do: Enum.flat_map(messages, &error_messages/1)
+
+  defp error_messages(messages) when is_map(messages),
+    do: messages |> Map.values() |> Enum.flat_map(&error_messages/1)
+
+  defp error_messages(_messages), do: []
 
   def parse_level(level) when is_binary(level) do
     case Integer.parse(level) do

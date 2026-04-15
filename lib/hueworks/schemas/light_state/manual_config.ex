@@ -35,6 +35,9 @@ defmodule Hueworks.Schemas.LightState.ManualConfig do
     |> Map.get(:mode, :temperature)
   end
 
+  def dump(%__MODULE__{} = config), do: dump_map(config)
+  def dump(config), do: config |> load() |> dump_map()
+
   def canonical_map(config) do
     config = load(config)
 
@@ -79,7 +82,7 @@ defmodule Hueworks.Schemas.LightState.ManualConfig do
 
   def changeset(config, _attrs), do: changeset(config, %{})
 
-  defp dump(%__MODULE__{} = config) do
+  defp dump_map(%__MODULE__{} = config) do
     %{}
     |> Map.put("mode", Atom.to_string(config.mode || :temperature))
     |> maybe_put_dump("brightness", config.brightness)

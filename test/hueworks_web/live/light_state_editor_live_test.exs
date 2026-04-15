@@ -47,8 +47,8 @@ defmodule HueworksWeb.LightStateEditorLiveTest do
 
     state = Repo.get_by!(LightState, name: "Warm")
     assert state.type == :manual
-    assert state.config["brightness"] == 55
-    assert state.config["temperature"] == 3000
+    assert LightState.persisted_config(state)["brightness"] == 55
+    assert LightState.persisted_config(state)["temperature"] == 3000
   end
 
   test "new manual editor creates a color state", %{conn: conn} do
@@ -72,10 +72,10 @@ defmodule HueworksWeb.LightStateEditorLiveTest do
 
     state = Repo.get_by!(LightState, name: "Blue")
     assert state.type == :manual
-    assert state.config["mode"] == "color"
-    assert state.config["brightness"] == 75
-    assert state.config["hue"] == 210
-    assert state.config["saturation"] == 60
+    assert LightState.persisted_config(state)["mode"] == "color"
+    assert LightState.persisted_config(state)["brightness"] == 75
+    assert LightState.persisted_config(state)["hue"] == 210
+    assert LightState.persisted_config(state)["saturation"] == 60
   end
 
   test "edit editor updates an existing manual state", %{conn: conn} do
@@ -98,8 +98,8 @@ defmodule HueworksWeb.LightStateEditorLiveTest do
 
     updated = Repo.get!(LightState, state.id)
     assert updated.name == "Soft Updated"
-    assert updated.config["brightness"] == 65
-    assert updated.config["temperature"] == 3200
+    assert LightState.persisted_config(updated)["brightness"] == 65
+    assert LightState.persisted_config(updated)["temperature"] == 3200
   end
 
   test "edit editor renders atom-keyed manual color config values", %{conn: conn} do
@@ -175,26 +175,26 @@ defmodule HueworksWeb.LightStateEditorLiveTest do
 
     state = Repo.get_by!(LightState, name: "Circadian A")
     assert state.type == :circadian
-    assert state.config["brightness_mode"] == "linear"
-    assert state.config["min_brightness"] == 5
-    assert state.config["max_brightness"] == 95
-    assert state.config["min_color_temp"] == 2100
-    assert state.config["max_color_temp"] == 5000
-    assert state.config["temperature_ceiling_kelvin"] == 4200
-    assert state.config["sunrise_time"] == "06:30:00"
-    assert state.config["min_sunrise_time"] == "05:45:00"
-    assert state.config["max_sunrise_time"] == "07:00:00"
-    assert state.config["sunrise_offset"] == -900
-    assert state.config["sunset_time"] == "19:30:00"
-    assert state.config["min_sunset_time"] == "18:45:00"
-    assert state.config["max_sunset_time"] == "20:15:00"
-    assert state.config["sunset_offset"] == 1200
-    assert state.config["brightness_sunrise_offset"] == -300
-    assert state.config["brightness_sunset_offset"] == 600
-    assert state.config["temperature_sunrise_offset"] == -600
-    assert state.config["temperature_sunset_offset"] == 900
-    assert state.config["brightness_mode_time_dark"] == 1200
-    assert state.config["brightness_mode_time_light"] == 5400
+    assert LightState.persisted_config(state)["brightness_mode"] == "linear"
+    assert LightState.persisted_config(state)["min_brightness"] == 5
+    assert LightState.persisted_config(state)["max_brightness"] == 95
+    assert LightState.persisted_config(state)["min_color_temp"] == 2100
+    assert LightState.persisted_config(state)["max_color_temp"] == 5000
+    assert LightState.persisted_config(state)["temperature_ceiling_kelvin"] == 4200
+    assert LightState.persisted_config(state)["sunrise_time"] == "06:30:00"
+    assert LightState.persisted_config(state)["min_sunrise_time"] == "05:45:00"
+    assert LightState.persisted_config(state)["max_sunrise_time"] == "07:00:00"
+    assert LightState.persisted_config(state)["sunrise_offset"] == -900
+    assert LightState.persisted_config(state)["sunset_time"] == "19:30:00"
+    assert LightState.persisted_config(state)["min_sunset_time"] == "18:45:00"
+    assert LightState.persisted_config(state)["max_sunset_time"] == "20:15:00"
+    assert LightState.persisted_config(state)["sunset_offset"] == 1200
+    assert LightState.persisted_config(state)["brightness_sunrise_offset"] == -300
+    assert LightState.persisted_config(state)["brightness_sunset_offset"] == 600
+    assert LightState.persisted_config(state)["temperature_sunrise_offset"] == -600
+    assert LightState.persisted_config(state)["temperature_sunset_offset"] == 900
+    assert LightState.persisted_config(state)["brightness_mode_time_dark"] == 1200
+    assert LightState.persisted_config(state)["brightness_mode_time_light"] == 5400
   end
 
   test "circadian preview responds to preview input changes", %{conn: conn} do

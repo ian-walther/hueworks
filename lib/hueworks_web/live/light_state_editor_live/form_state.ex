@@ -11,6 +11,8 @@ defmodule HueworksWeb.LightStateEditorLive.FormState do
   def manual_keys, do: @manual_keys
   def circadian_form_keys, do: CircadianConfig.supported_keys()
 
+  def from_light_state(%LightState{type: type} = state), do: default_edits(type, state.config)
+
   def default_edits(type, config \\ %{})
   def default_edits(:manual, config), do: manual_default_edits(config)
   def default_edits(:circadian, config), do: circadian_default_edits(config)
@@ -91,6 +93,27 @@ defmodule HueworksWeb.LightStateEditorLive.FormState do
     |> Map.get(key)
     |> case do
       nil -> ""
+      value -> value
+    end
+  end
+
+  def circadian_field_value(config, key) do
+    config
+    |> Map.get(normalize_config_key(key), "")
+  end
+
+  def circadian_time_value(config, key) do
+    config
+    |> circadian_field_value(key)
+    |> case do
+      nil -> ""
+      value -> value
+    end
+  end
+
+  def circadian_brightness_mode(config) do
+    case circadian_field_value(config, :brightness_mode) do
+      "" -> "tanh"
       value -> value
     end
   end

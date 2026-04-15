@@ -75,8 +75,8 @@ defmodule Hueworks.Scenes.LightStates do
 
       %LightState{type: type} = state when type in [:manual, :circadian] ->
         config =
-          state.config
-          |> Kernel.||(%{})
+          state
+          |> LightState.persisted_config()
           |> Map.merge(Map.get(attrs, :config) || Map.get(attrs, "config") || %{})
 
         merged_attrs = Map.merge(%{name: state.name, type: state.type, config: config}, attrs)
@@ -100,7 +100,7 @@ defmodule Hueworks.Scenes.LightStates do
         |> LightState.changeset(%{
           name: "#{state.name} Copy",
           type: state.type,
-          config: Map.new(state.config || %{})
+          config: LightState.persisted_config(state)
         })
         |> Repo.insert()
 

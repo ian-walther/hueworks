@@ -286,10 +286,16 @@ defmodule Hueworks.SchemasTest do
       })
 
     assert changeset.valid?
-    assert get_change(changeset, :config)["min_brightness"] == 15
-    assert get_change(changeset, :config)["max_brightness"] == 90
-    assert get_change(changeset, :config)["brightness_mode"] == "tanh"
-    assert get_change(changeset, :config)["sunrise_time"] == "06:45:00"
+    applied = Ecto.Changeset.apply_changes(changeset)
+
+    assert %Hueworks.Schemas.LightState.Config{} = applied.config
+
+    assert LightState.persisted_config(applied) == %{
+             "min_brightness" => 15,
+             "max_brightness" => 90,
+             "brightness_mode" => "tanh",
+             "sunrise_time" => "06:45:00"
+           }
   end
 
   test "light_state circadian rejects unsupported config keys" do
@@ -305,8 +311,8 @@ defmodule Hueworks.SchemasTest do
 
     refute changeset.valid?
     errors = errors_on(changeset)
-    assert "sleep_brightness is not supported" in errors[:config]
-    assert "prefer_rgb_color is not supported" in errors[:config]
+    assert "is not supported" in errors[:config][:sleep_brightness]
+    assert "is not supported" in errors[:config][:prefer_rgb_color]
   end
 
   test "light_state manual config is normalized with default mode" do
@@ -318,11 +324,13 @@ defmodule Hueworks.SchemasTest do
       })
 
     assert changeset.valid?
+    applied = Ecto.Changeset.apply_changes(changeset)
 
-    assert get_change(changeset, :config) == %{
+    assert %Hueworks.Schemas.LightState.Config{} = applied.config
+
+    assert LightState.persisted_config(applied) == %{
              "mode" => "temperature",
-             "temperature" => 3000,
-             "custom" => "ok"
+             "temperature" => 3000
            }
   end
 
@@ -335,8 +343,11 @@ defmodule Hueworks.SchemasTest do
       })
 
     assert changeset.valid?
+    applied = Ecto.Changeset.apply_changes(changeset)
 
-    assert get_change(changeset, :config) == %{
+    assert applied.config.mode == :color
+
+    assert LightState.persisted_config(applied) == %{
              "mode" => "color",
              "brightness" => 80,
              "hue" => 210,
@@ -353,8 +364,9 @@ defmodule Hueworks.SchemasTest do
       })
 
     assert changeset.valid?
+    applied = Ecto.Changeset.apply_changes(changeset)
 
-    assert get_change(changeset, :config) == %{
+    assert LightState.persisted_config(applied) == %{
              "mode" => "temperature",
              "temperature" => 3200
            }

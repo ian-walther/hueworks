@@ -190,7 +190,7 @@
 
           <div class="hw-preview-divider" aria-hidden="true"></div>
 
-          <% brightness_mode = Map.get(@light_state_config, "brightness_mode") %>
+          <% brightness_mode = circadian_brightness_mode(assigns) %>
           <div class="hw-preview-stats">
             <div class="hw-preview-stat">
               <span class="hw-preview-stat-label">Sunrise</span>
@@ -237,7 +237,7 @@
                       class="hw-modal-input hw-compact-input"
                       name="sunrise_time"
                       step="1"
-                      value={time_input_value(Map.get(@light_state_config, "sunrise_time", ""))}
+                      value={time_input_value(circadian_time_field_value(assigns, :sunrise_time))}
                     />
                   </div>
 
@@ -256,7 +256,7 @@
                           class="hw-modal-input hw-compact-input"
                           name="min_sunrise_time"
                           step="1"
-                          value={time_input_value(Map.get(@light_state_config, "min_sunrise_time", ""))}
+                          value={time_input_value(circadian_time_field_value(assigns, :min_sunrise_time))}
                         />
                       </div>
                       <div class="hw-field-compact">
@@ -267,7 +267,7 @@
                           class="hw-modal-input hw-compact-input"
                           name="max_sunrise_time"
                           step="1"
-                          value={time_input_value(Map.get(@light_state_config, "max_sunrise_time", ""))}
+                          value={time_input_value(circadian_time_field_value(assigns, :max_sunrise_time))}
                         />
                       </div>
                     </div>
@@ -288,7 +288,7 @@
                       min="-86400"
                       max="86400"
                       step="60"
-                      value={Map.get(@light_state_config, "sunrise_offset", "")}
+                      value={circadian_field_value(assigns, :sunrise_offset)}
                     />
                   </div>
 
@@ -305,7 +305,7 @@
                       class="hw-modal-input hw-compact-input"
                       name="sunset_time"
                       step="1"
-                      value={time_input_value(Map.get(@light_state_config, "sunset_time", ""))}
+                      value={time_input_value(circadian_time_field_value(assigns, :sunset_time))}
                     />
                   </div>
 
@@ -324,7 +324,7 @@
                           class="hw-modal-input hw-compact-input"
                           name="min_sunset_time"
                           step="1"
-                          value={time_input_value(Map.get(@light_state_config, "min_sunset_time", ""))}
+                          value={time_input_value(circadian_time_field_value(assigns, :min_sunset_time))}
                         />
                       </div>
                       <div class="hw-field-compact">
@@ -335,7 +335,7 @@
                           class="hw-modal-input hw-compact-input"
                           name="max_sunset_time"
                           step="1"
-                          value={time_input_value(Map.get(@light_state_config, "max_sunset_time", ""))}
+                          value={time_input_value(circadian_time_field_value(assigns, :max_sunset_time))}
                         />
                       </div>
                     </div>
@@ -356,7 +356,7 @@
                       min="-86400"
                       max="86400"
                       step="60"
-                      value={Map.get(@light_state_config, "sunset_offset", "")}
+                      value={circadian_field_value(assigns, :sunset_offset)}
                     />
                   </div>
                 </div>
@@ -476,7 +476,7 @@
                           min="1"
                           max="100"
                           step="1"
-                          value={Map.get(@light_state_config, "min_brightness", "")}
+                          value={circadian_field_value(assigns, :min_brightness)}
                         />
                       </div>
                       <div class="hw-field-compact">
@@ -489,7 +489,7 @@
                           min="1"
                           max="100"
                           step="1"
-                          value={Map.get(@light_state_config, "max_brightness", "")}
+                          value={circadian_field_value(assigns, :max_brightness)}
                         />
                       </div>
                     </div>
@@ -512,7 +512,7 @@
                           min="-86400"
                           max="86400"
                           step="60"
-                          value={Map.get(@light_state_config, "brightness_sunrise_offset", "")}
+                          value={circadian_field_value(assigns, :brightness_sunrise_offset)}
                         />
                       </div>
                       <div class="hw-field-compact">
@@ -525,7 +525,7 @@
                           min="-86400"
                           max="86400"
                           step="60"
-                          value={Map.get(@light_state_config, "brightness_sunset_offset", "")}
+                          value={circadian_field_value(assigns, :brightness_sunset_offset)}
                         />
                       </div>
                     </div>
@@ -548,7 +548,7 @@
                           min="0"
                           max="86400"
                           step="60"
-                          value={Map.get(@light_state_config, "brightness_mode_time_dark", "")}
+                          value={circadian_field_value(assigns, :brightness_mode_time_dark)}
                         />
                       </div>
                       <div class="hw-field-compact">
@@ -561,7 +561,7 @@
                           min="0"
                           max="86400"
                           step="60"
-                          value={Map.get(@light_state_config, "brightness_mode_time_light", "")}
+                          value={circadian_field_value(assigns, :brightness_mode_time_light)}
                         />
                       </div>
                     </div>
@@ -664,7 +664,7 @@
                           min="1000"
                           max="10000"
                           step="50"
-                          value={Map.get(@light_state_config, "min_color_temp", "")}
+                          value={circadian_field_value(assigns, :min_color_temp)}
                         />
                       </div>
                       <div class="hw-field-compact">
@@ -677,7 +677,7 @@
                           min="1000"
                           max="10000"
                           step="50"
-                          value={Map.get(@light_state_config, "max_color_temp", "")}
+                          value={circadian_field_value(assigns, :max_color_temp)}
                         />
                       </div>
                       <div class="hw-field-compact">
@@ -691,7 +691,7 @@
                           max="10000"
                           step="50"
                           placeholder="Disabled"
-                          value={Map.get(@light_state_config, "temperature_ceiling_kelvin", "")}
+                          value={circadian_field_value(assigns, :temperature_ceiling_kelvin)}
                         />
                       </div>
                     </div>
@@ -714,7 +714,7 @@
                           min="-86400"
                           max="86400"
                           step="60"
-                          value={Map.get(@light_state_config, "temperature_sunrise_offset", "")}
+                          value={circadian_field_value(assigns, :temperature_sunrise_offset)}
                         />
                       </div>
                       <div class="hw-field-compact">
@@ -727,7 +727,7 @@
                           min="-86400"
                           max="86400"
                           step="60"
-                          value={Map.get(@light_state_config, "temperature_sunset_offset", "")}
+                          value={circadian_field_value(assigns, :temperature_sunset_offset)}
                         />
                       </div>
                     </div>
