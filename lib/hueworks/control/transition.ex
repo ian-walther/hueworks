@@ -17,7 +17,7 @@ defmodule Hueworks.Control.Transition do
   end
 
   def transition_ms(opts) when is_map(opts) do
-    case Map.get(opts, :transition_ms) || Map.get(opts, "transition_ms") do
+    case Map.get(opts, :transition_ms) do
       value when is_integer(value) and value > 0 -> value
       _ -> nil
     end
@@ -90,18 +90,14 @@ defmodule Hueworks.Control.Transition do
   end
 
   defp brightness_value(state) do
-    Map.get(state, :brightness) || Map.get(state, "brightness")
+    Map.get(state, :brightness)
   end
 
   defp has_brightness_key?(state) do
-    Map.has_key?(state, :brightness) or Map.has_key?(state, "brightness")
+    Map.has_key?(state, :brightness)
   end
 
   defp off_target?(state) do
-    case Map.get(state, :power) || Map.get(state, "power") do
-      :off -> true
-      "off" -> true
-      _ -> false
-    end
+    Map.get(state, :power) == :off
   end
 end

@@ -62,11 +62,12 @@ defmodule Hueworks.Scenes.Intent do
   end
 
   defp desired_from_light_state(%LightState{type: :manual, config: config}, _now) do
+    config = LightState.manual_config(config)
     base = %{power: :on}
-    mode = manual_mode(config)
+    mode = Map.get(config, :mode, :temperature)
 
     base
-    |> maybe_put(:brightness, config, ["brightness"])
+    |> maybe_put(:brightness, config)
     |> maybe_put_manual_color(mode, config)
     |> maybe_put_manual_temperature(mode, config)
   end
@@ -89,15 +90,15 @@ defmodule Hueworks.Scenes.Intent do
 
   defp desired_from_light_state(_, _now), do: %{}
 
-  defp maybe_put_manual_temperature(attrs, "temperature", config) do
-    maybe_put(attrs, :kelvin, config, ["temperature", "kelvin"])
+  defp maybe_put_manual_temperature(attrs, :temperature, config) do
+    maybe_put(attrs, :kelvin, config)
   end
 
   defp maybe_put_manual_temperature(attrs, _mode, _config), do: attrs
 
-  defp maybe_put_manual_color(attrs, "color", config) do
-    hue = config_lookup(config, "hue")
-    saturation = config_lookup(config, "saturation")
+  defp maybe_put_manual_color(attrs, :color, config) do
+    hue = Map.get(config, :hue)
+    saturation = Map.get(config, :saturation)
 
     case Color.hs_to_xy(hue, saturation) do
       {x, y} ->
@@ -137,51 +138,13 @@ defmodule Hueworks.Scenes.Intent do
     end)
   end
 
-  defp maybe_put(attrs, key, config, keys) do
-    value = Enum.find_value(keys, &config_lookup(config, &1))
+  defp maybe_put(attrs, key, config) do
+    value = Map.get(config, key)
 
     if is_nil(value) do
       attrs
     else
       Map.put(attrs, key, value)
-    end
-  end
-
-  defp map_key_atom("brightness"), do: :brightness
-  defp map_key_atom("temperature"), do: :temperature
-  defp map_key_atom("kelvin"), do: :kelvin
-  defp map_key_atom("hue"), do: :hue
-  defp map_key_atom("saturation"), do: :saturation
-  defp map_key_atom("mode"), do: :mode
-  defp map_key_atom(_), do: nil
-
-  defp config_lookup(config, key) when is_map(config) do
-    cond do
-      Map.has_key?(config, key) ->
-        Map.get(config, key)
-
-      true ->
-        case map_key_atom(key) do
-          nil ->
-            nil
-
-          atom ->
-            if is_map(config) and Map.has_key?(config, atom) do
-              Map.get(config, atom)
-            else
-              nil
-            end
-        end
-    end
-  end
-
-  defp config_lookup(_config, _key), do: nil
-
-  defp manual_mode(config) do
-    case config_lookup(config, "mode") do
-      "color" -> "color"
-      :color -> "color"
-      _ -> "temperature"
     end
   end
 
@@ -255,21 +218,13 @@ defmodule Hueworks.Scenes.Intent do
   defp maybe_apply_power_override(desired, _power), do: desired
 
   defp explicit_off_intent?(state) when is_map(state) do
-    case Map.get(state, :power) || Map.get(state, "power") do
-      :off -> true
-      "off" -> true
-      _ -> false
-    end
+    Map.get(state, :power) == :off
   end
 
   defp explicit_off_intent?(_state), do: false
 
   defp explicit_on_intent?(state) when is_map(state) do
-    case Map.get(state, :power) || Map.get(state, "power") do
-      :on -> true
-      "on" -> true
-      _ -> false
-    end
+    Map.get(state, :power) == :on
   end
 
   defp explicit_on_intent?(_state), do: false

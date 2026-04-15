@@ -1,5 +1,5 @@
 defmodule Hueworks.Control.DesiredStateTest do
-  use Hueworks.DataCase, async: true
+  use Hueworks.DataCase, async: false
 
   alias Hueworks.Control.DesiredState
 

@@ -104,6 +104,26 @@ defmodule Hueworks.ScenesComponentsTest do
              ])
   end
 
+  test "replace_scene_components rejects atom-keyed manual color states for non-color lights" do
+    room = insert_room()
+    bridge = insert_bridge()
+    light = insert_light(room, bridge, %{name: "Lamp", supports_color: false})
+
+    state =
+      Repo.insert!(%LightState{
+        name: "Color",
+        type: :manual,
+        config: %{mode: :color, brightness: 70, hue: 210, saturation: 60}
+      })
+
+    {:ok, scene} = Scenes.create_scene(%{name: "Chill", room_id: room.id})
+
+    assert {:error, :invalid_color_targets} =
+             Scenes.replace_scene_components(scene, [
+               %{name: "Component 1", light_ids: [light.id], light_state_id: to_string(state.id)}
+             ])
+  end
+
   test "replace_scene_components uses selected manual light states without creating new ones" do
     room = insert_room()
     bridge = insert_bridge()

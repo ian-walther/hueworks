@@ -60,10 +60,7 @@ defmodule Hueworks.Circadian do
   def day_events_for_date(_config, _solar_config, _date, _opts), do: {:error, :invalid_args}
 
   defp normalize_config(config) do
-    config
-    |> stringify_keys()
-    |> then(&Map.merge(Config.defaults(), &1))
-    |> Config.normalize()
+    Config.runtime(config)
   end
 
   defp build_context(config, solar_config, timezone, now) do
@@ -116,8 +113,8 @@ defmodule Hueworks.Circadian do
   defp apply_curve_offsets(events, _config, :shared), do: {:ok, events}
 
   defp apply_curve_offsets(events, config, curve) when curve in [:brightness, :temperature] do
-    sunrise_offset = config["#{curve}_sunrise_offset"]
-    sunset_offset = config["#{curve}_sunset_offset"]
+    sunrise_offset = config[curve_offset_key(curve, :sunrise)]
+    sunset_offset = config[curve_offset_key(curve, :sunset)]
 
     events =
       events
@@ -132,30 +129,30 @@ defmodule Hueworks.Circadian do
 
   defp sunrise(config, solar_config, timezone, date) do
     base =
-      case config["sunrise_time"] do
+      case config[:sunrise_time] do
         nil -> solar_event(date, solar_config, :sunrise)
         time -> combine_local_time(date, time, timezone)
       end
 
     with {:ok, sunrise} <- base do
       sunrise
-      |> DateTime.add(config["sunrise_offset"], :second)
-      |> clamp_time(date, config["min_sunrise_time"], config["max_sunrise_time"], timezone)
+      |> DateTime.add(config[:sunrise_offset], :second)
+      |> clamp_time(date, config[:min_sunrise_time], config[:max_sunrise_time], timezone)
       |> then(&{:ok, &1})
     end
   end
 
   defp sunset(config, solar_config, timezone, date) do
     base =
-      case config["sunset_time"] do
+      case config[:sunset_time] do
         nil -> solar_event(date, solar_config, :sunset)
         time -> combine_local_time(date, time, timezone)
       end
 
     with {:ok, sunset} <- base do
       sunset
-      |> DateTime.add(config["sunset_offset"], :second)
-      |> clamp_time(date, config["min_sunset_time"], config["max_sunset_time"], timezone)
+      |> DateTime.add(config[:sunset_offset], :second)
+      |> clamp_time(date, config[:min_sunset_time], config[:max_sunset_time], timezone)
       |> then(&{:ok, &1})
     end
   end
@@ -183,12 +180,12 @@ defmodule Hueworks.Circadian do
 
   defp solar_times_constrained?(config) do
     Enum.any?([
-      config["sunrise_time"],
-      config["sunset_time"],
-      config["min_sunrise_time"],
-      config["max_sunrise_time"],
-      config["min_sunset_time"],
-      config["max_sunset_time"]
+      config[:sunrise_time],
+      config[:sunset_time],
+      config[:min_sunrise_time],
+      config[:max_sunrise_time],
+      config[:min_sunset_time],
+      config[:max_sunset_time]
     ])
   end
 
@@ -266,69 +263,69 @@ defmodule Hueworks.Circadian do
   end
 
   defp brightness_pct(config, context, now_utc) do
-    case config["brightness_mode"] do
-      "quadratic" ->
+    case config[:brightness_mode] do
+      :quadratic ->
         sun_position = sun_position(context, now_utc)
 
         if sun_position > 0 do
-          config["max_brightness"]
+          config[:max_brightness]
         else
-          delta = config["max_brightness"] - config["min_brightness"]
-          delta * (1 + sun_position) + config["min_brightness"]
+          delta = config[:max_brightness] - config[:min_brightness]
+          delta * (1 + sun_position) + config[:min_brightness]
         end
 
-      mode when mode in ["linear", "tanh"] ->
+      mode when mode in [:linear, :tanh] ->
         {event, event_dt} = closest_event(context, now_utc)
         delta_seconds = timestamp(now_utc) - timestamp(event_dt)
-        dark = config["brightness_mode_time_dark"]
-        light = config["brightness_mode_time_light"]
+        dark = config[:brightness_mode_time_dark]
+        light = config[:brightness_mode_time_light]
 
         brightness =
           case {mode, event} do
-            {"linear", :sunrise} ->
+            {:linear, :sunrise} ->
               lerp(
                 delta_seconds,
                 -dark,
                 light,
-                config["min_brightness"],
-                config["max_brightness"]
+                config[:min_brightness],
+                config[:max_brightness]
               )
 
-            {"linear", :sunset} ->
+            {:linear, :sunset} ->
               lerp(
                 delta_seconds,
                 -light,
                 dark,
-                config["max_brightness"],
-                config["min_brightness"]
+                config[:max_brightness],
+                config[:min_brightness]
               )
 
-            {"tanh", :sunrise} ->
+            {:tanh, :sunrise} ->
               scaled_tanh(delta_seconds,
                 x1: -dark,
                 x2: light,
                 y1: 0.05,
                 y2: 0.95,
-                y_min: config["min_brightness"],
-                y_max: config["max_brightness"]
+                y_min: config[:min_brightness],
+                y_max: config[:max_brightness]
               )
 
-            {"tanh", :sunset} ->
+            {:tanh, :sunset} ->
               scaled_tanh(delta_seconds,
                 x1: -light,
                 x2: dark,
                 y1: 0.95,
                 y2: 0.05,
-                y_min: config["min_brightness"],
-                y_max: config["max_brightness"]
+                y_min: config[:min_brightness],
+                y_max: config[:max_brightness]
               )
           end
 
-        clamp(brightness, config["min_brightness"], config["max_brightness"])
+        clamp(brightness, config[:min_brightness], config[:max_brightness])
 
       other ->
         Logger.warning("Unsupported circadian brightness mode: #{inspect(other)}")
-        brightness_pct(Map.put(config, "brightness_mode", "tanh"), context, now_utc)
+        brightness_pct(Map.put(config, :brightness_mode, :tanh), context, now_utc)
     end
   end
 
@@ -352,13 +349,13 @@ defmodule Hueworks.Circadian do
 
     kelvin =
       if sun_position > 0 do
-        delta = config["max_color_temp"] - config["min_color_temp"]
-        round_to_5(delta * sun_position + config["min_color_temp"])
+        delta = config[:max_color_temp] - config[:min_color_temp]
+        round_to_5(delta * sun_position + config[:min_color_temp])
       else
-        config["min_color_temp"]
+        config[:min_color_temp]
       end
 
-    apply_temperature_ceiling(kelvin, config["temperature_ceiling_kelvin"])
+    apply_temperature_ceiling(kelvin, config[:temperature_ceiling_kelvin])
   end
 
   defp apply_temperature_ceiling(kelvin, nil), do: kelvin
@@ -494,16 +491,8 @@ defmodule Hueworks.Circadian do
   defp lerp(x, x1, x2, y1, y2), do: y1 + (x - x1) * (y2 - y1) / (x2 - x1)
   defp clamp(value, minimum, maximum), do: max(minimum, min(value, maximum))
 
-  defp stringify_keys(map) do
-    Enum.into(map, %{}, fn {key, value} ->
-      normalized_key =
-        case key do
-          atom when is_atom(atom) -> Atom.to_string(atom)
-          binary when is_binary(binary) -> binary
-          other -> to_string(other)
-        end
-
-      {normalized_key, value}
-    end)
-  end
+  defp curve_offset_key(:brightness, :sunrise), do: :brightness_sunrise_offset
+  defp curve_offset_key(:brightness, :sunset), do: :brightness_sunset_offset
+  defp curve_offset_key(:temperature, :sunrise), do: :temperature_sunrise_offset
+  defp curve_offset_key(:temperature, :sunset), do: :temperature_sunset_offset
 end

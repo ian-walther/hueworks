@@ -486,8 +486,8 @@ defmodule HueworksWeb.LightsLive do
 
     {hue, saturation} =
       case Color.xy_to_hs(
-             Map.get(state, :x) || Map.get(state, "x"),
-             Map.get(state, :y) || Map.get(state, "y")
+             Map.get(state, :x),
+             Map.get(state, :y)
            ) do
         {hue, saturation} -> {hue, saturation}
         nil -> {0, 100}

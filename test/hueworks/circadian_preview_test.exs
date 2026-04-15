@@ -23,6 +23,8 @@ defmodule Hueworks.CircadianPreviewTest do
     assert preview.timezone == "Etc/UTC"
     assert preview.date == ~D[2026-03-08]
     assert preview.interval_minutes == 60
+    assert preview.config[:brightness_mode] == :tanh
+    assert preview.config[:min_brightness] == 1
     assert length(preview.points) == 25
 
     assert hd(preview.points) == %{minute: 0, brightness: 1, kelvin: 2000}

@@ -147,7 +147,7 @@ defmodule Hueworks.SceneActivationRoundTripTest do
              %{
                type: :group,
                id: ^group_id,
-               desired: %{power: :on, brightness: "50", kelvin: 3000}
+               desired: %{power: :on, brightness: 50, kelvin: 3000}
              }
            ] = actions
   end
@@ -318,12 +318,12 @@ defmodule Hueworks.SceneActivationRoundTripTest do
 
     assert Enum.any?(actions, fn action ->
              action.type == :group and action.id == group_ab.id and
-               action.desired == %{power: :on, brightness: "40", kelvin: 2400}
+               action.desired == %{power: :on, brightness: 40, kelvin: 2400}
            end)
 
     assert Enum.any?(actions, fn action ->
              action.type == :group and action.id == group_cd.id and
-               action.desired == %{power: :on, brightness: "80", kelvin: 5000}
+               action.desired == %{power: :on, brightness: 80, kelvin: 5000}
            end)
   end
 
@@ -441,7 +441,7 @@ defmodule Hueworks.SceneActivationRoundTripTest do
 
     assert Enum.any?(actions, fn action ->
              action.type == :light and action.id == light_on.id and
-               action.desired[:power] == :on and action.desired[:brightness] == "45" and
+               action.desired[:power] == :on and action.desired[:brightness] == 45 and
                action.desired[:kelvin] == 2800
            end)
 
@@ -636,7 +636,7 @@ defmodule Hueworks.SceneActivationRoundTripTest do
 
     assert Enum.any?(actions, fn action ->
              action.type == :light and action.id == force_on_light.id and
-               action.desired[:power] == :on and action.desired[:brightness] == "45" and
+               action.desired[:power] == :on and action.desired[:brightness] == 45 and
                action.desired[:kelvin] == 2800
            end)
   end

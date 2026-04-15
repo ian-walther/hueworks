@@ -3,7 +3,9 @@ defmodule Hueworks.SceneBuilderComponentTest do
 
   import Phoenix.LiveViewTest
 
+  alias Hueworks.Repo
   alias Hueworks.Scenes
+  alias Hueworks.Schemas.LightState
 
   defmodule TestLive do
     use Phoenix.LiveView
@@ -286,13 +288,30 @@ defmodule Hueworks.SceneBuilderComponentTest do
     {:ok, view, _html} = live_isolated(conn, TestLive)
     html = render(view)
 
-    assert has_element?(view, "select[name='light_state_id'] option[value=''][selected]", "Select light state")
+    assert has_element?(
+             view,
+             "select[name='light_state_id'] option[value=''][selected]",
+             "Select light state"
+           )
+
     assert html =~ ~s(option value="#{state.id}")
     refute html =~ ~s(option value="new")
     refute html =~ "Light state name"
     refute html =~ "Edit"
     refute html =~ "Duplicate"
     refute html =~ "Delete"
+  end
+
+  test "manual color labels render for atom-keyed manual configs", %{conn: conn} do
+    Repo.insert!(%LightState{
+      name: "Blue",
+      type: :manual,
+      config: %{mode: :color, brightness: 75, hue: 210, saturation: 60}
+    })
+
+    {:ok, _view, html} = live_isolated(conn, TestLive)
+
+    assert html =~ "Blue (manual color)"
   end
 
   test "selecting an existing light state updates the component dropdown", %{conn: conn} do
@@ -306,13 +325,20 @@ defmodule Hueworks.SceneBuilderComponentTest do
     })
     |> render_change()
 
-    assert has_element?(view, "select[name='light_state_id'] option[value='#{state.id}'][selected]")
+    assert has_element?(
+             view,
+             "select[name='light_state_id'] option[value='#{state.id}'][selected]"
+           )
   end
 
   test "missing light state defaults to a blank selection", %{conn: conn} do
     {:ok, view, _html} =
       live_isolated(conn, ComponentStateLive, session: %{"state_id" => "123"})
 
-    assert has_element?(view, "select[name='light_state_id'] option[value=''][selected]", "Select light state")
+    assert has_element?(
+             view,
+             "select[name='light_state_id'] option[value=''][selected]",
+             "Select light state"
+           )
   end
 end

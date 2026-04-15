@@ -6,6 +6,7 @@ defmodule HueworksWeb.LightStateEditorLive do
   alias Hueworks.Circadian.Config, as: CircadianConfig
   alias Hueworks.CircadianPreview
   alias Hueworks.Scenes
+  alias Hueworks.Schemas.LightState
   alias Hueworks.Util
 
   @manual_keys ["mode", "brightness", "temperature", "hue", "saturation"]
@@ -179,7 +180,11 @@ defmodule HueworksWeb.LightStateEditorLive do
         socket =
           socket
           |> assign_saved_snapshot(state.name, default_edits(state.type, state.config || %{}))
-          |> assign(light_state_usages: Scenes.light_state_usages(state.id), save_error: nil, dirty: false)
+          |> assign(
+            light_state_usages: Scenes.light_state_usages(state.id),
+            save_error: nil,
+            dirty: false
+          )
           |> refresh_circadian_preview()
           |> put_flash(:info, "Light state saved.")
 
@@ -273,12 +278,14 @@ defmodule HueworksWeb.LightStateEditorLive do
   defp default_edits(:circadian, config), do: circadian_default_edits(config)
 
   defp manual_default_edits(config \\ %{}) do
+    config = LightState.manual_config(config)
+
     %{
-      "mode" => manual_mode_from_config(config),
-      "brightness" => config_value(config, "brightness"),
-      "temperature" => config_value(config, "temperature"),
-      "hue" => config_value(config, "hue"),
-      "saturation" => config_value(config, "saturation")
+      "mode" => manual_mode_string(config),
+      "brightness" => manual_config_value(config, :brightness),
+      "temperature" => manual_config_value(config, :kelvin),
+      "hue" => manual_config_value(config, :hue),
+      "saturation" => manual_config_value(config, :saturation)
     }
   end
 
@@ -311,69 +318,19 @@ defmodule HueworksWeb.LightStateEditorLive do
   defp normalize_config_key(key) when is_binary(key), do: key
   defp normalize_config_key(key), do: to_string(key)
 
-  defp config_value(config, key) do
-    case config_lookup(config, key) do
+  defp manual_mode(assigns) do
+    assigns.light_state_config
+    |> LightState.manual_mode()
+    |> manual_mode_string()
+  end
+
+  defp manual_field_value(assigns, key) do
+    assigns.light_state_config
+    |> LightState.manual_config()
+    |> Map.get(key)
+    |> case do
       nil -> ""
       value -> value
-    end
-  end
-
-  defp config_lookup(config, key) do
-    cond do
-      is_map(config) and Map.has_key?(config, key) ->
-        Map.get(config, key)
-
-      true ->
-        atom_key = key_to_atom(key)
-
-        if atom_key && is_map(config) && Map.has_key?(config, atom_key) do
-          Map.get(config, atom_key)
-        else
-          nil
-        end
-    end
-  end
-
-  defp key_to_atom("brightness"), do: :brightness
-  defp key_to_atom("temperature"), do: :temperature
-  defp key_to_atom("hue"), do: :hue
-  defp key_to_atom("saturation"), do: :saturation
-  defp key_to_atom("mode"), do: :mode
-  defp key_to_atom("min_brightness"), do: :min_brightness
-  defp key_to_atom("max_brightness"), do: :max_brightness
-  defp key_to_atom("min_color_temp"), do: :min_color_temp
-  defp key_to_atom("max_color_temp"), do: :max_color_temp
-  defp key_to_atom("temperature_ceiling_kelvin"), do: :temperature_ceiling_kelvin
-  defp key_to_atom("sunrise_time"), do: :sunrise_time
-  defp key_to_atom("min_sunrise_time"), do: :min_sunrise_time
-  defp key_to_atom("max_sunrise_time"), do: :max_sunrise_time
-  defp key_to_atom("sunrise_offset"), do: :sunrise_offset
-  defp key_to_atom("sunset_time"), do: :sunset_time
-  defp key_to_atom("min_sunset_time"), do: :min_sunset_time
-  defp key_to_atom("max_sunset_time"), do: :max_sunset_time
-  defp key_to_atom("sunset_offset"), do: :sunset_offset
-  defp key_to_atom("brightness_mode"), do: :brightness_mode
-  defp key_to_atom("brightness_mode_time_dark"), do: :brightness_mode_time_dark
-  defp key_to_atom("brightness_mode_time_light"), do: :brightness_mode_time_light
-  defp key_to_atom("brightness_sunrise_offset"), do: :brightness_sunrise_offset
-  defp key_to_atom("brightness_sunset_offset"), do: :brightness_sunset_offset
-  defp key_to_atom("temperature_sunrise_offset"), do: :temperature_sunrise_offset
-  defp key_to_atom("temperature_sunset_offset"), do: :temperature_sunset_offset
-  defp key_to_atom(_key), do: nil
-
-  defp manual_mode_from_config(config) do
-    case config_lookup(config || %{}, "mode") do
-      "color" -> "color"
-      :color -> "color"
-      _ -> "temperature"
-    end
-  end
-
-  defp manual_mode(assigns) do
-    case Map.get(assigns.light_state_config, "mode") do
-      "color" -> "color"
-      :color -> "color"
-      _ -> "temperature"
     end
   end
 
@@ -383,22 +340,21 @@ defmodule HueworksWeb.LightStateEditorLive do
   end
 
   defp manual_color_preview_label(assigns) do
-    hue = Map.get(assigns.light_state_config, "hue") |> normalize_preview_number(0)
+    config = LightState.manual_config(assigns.light_state_config)
+    hue = Map.get(config, :hue) |> normalize_preview_number(0)
 
-    saturation =
-      Map.get(assigns.light_state_config, "saturation") |> normalize_preview_number(100)
+    saturation = Map.get(config, :saturation) |> normalize_preview_number(100)
 
-    brightness =
-      Map.get(assigns.light_state_config, "brightness") |> normalize_preview_number(100)
+    brightness = Map.get(config, :brightness) |> normalize_preview_number(100)
 
     "Preview: #{hue}°, #{saturation}% saturation, #{brightness}% brightness"
   end
 
   defp manual_saturation_scale_style(assigns) do
-    hue = Map.get(assigns.light_state_config, "hue") |> normalize_preview_number(0)
+    config = LightState.manual_config(assigns.light_state_config)
+    hue = Map.get(config, :hue) |> normalize_preview_number(0)
 
-    brightness =
-      Map.get(assigns.light_state_config, "brightness") |> normalize_preview_number(100)
+    brightness = Map.get(config, :brightness) |> normalize_preview_number(100)
 
     {r1, g1, b1} = Color.hsb_to_rgb(hue, 0, brightness) || {255, 255, 255}
     {r2, g2, b2} = Color.hsb_to_rgb(hue, 100, brightness) || {255, 255, 255}
@@ -407,10 +363,12 @@ defmodule HueworksWeb.LightStateEditorLive do
   end
 
   defp manual_color_rgb(assigns) do
+    config = LightState.manual_config(assigns.light_state_config)
+
     Color.hsb_to_rgb(
-      Map.get(assigns.light_state_config, "hue"),
-      Map.get(assigns.light_state_config, "saturation"),
-      Map.get(assigns.light_state_config, "brightness")
+      Map.get(config, :hue),
+      Map.get(config, :saturation),
+      Map.get(config, :brightness)
     )
   end
 
@@ -418,6 +376,29 @@ defmodule HueworksWeb.LightStateEditorLive do
     case Util.to_number(value) do
       number when is_number(number) -> round(number)
       _ -> fallback
+    end
+  end
+
+  defp manual_config_value(config, key) do
+    case Map.get(config, key) do
+      nil -> ""
+      value -> value
+    end
+  end
+
+  defp manual_mode_string(config) do
+    case config do
+      :color ->
+        "color"
+
+      _ when is_atom(config) ->
+        "temperature"
+
+      _ ->
+        case LightState.manual_mode(config) do
+          :color -> "color"
+          _ -> "temperature"
+        end
     end
   end
 
@@ -640,8 +621,12 @@ defmodule HueworksWeb.LightStateEditorLive do
   end
 
   defp preview_range_label(nil, _metric), do: "..."
-  defp preview_range_label(preview, :brightness), do: "#{preview.min_brightness}% - #{preview.max_brightness}%"
-  defp preview_range_label(preview, :kelvin), do: "#{preview.min_kelvin}K - #{preview.max_kelvin}K"
+
+  defp preview_range_label(preview, :brightness),
+    do: "#{preview.min_brightness}% - #{preview.max_brightness}%"
+
+  defp preview_range_label(preview, :kelvin),
+    do: "#{preview.min_kelvin}K - #{preview.max_kelvin}K"
 
   defp chart_domain(_preview, :brightness) do
     {0, 100}

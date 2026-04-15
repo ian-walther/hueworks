@@ -41,9 +41,9 @@ defmodule HueworksWeb.LightStateEditorLiveTest do
                "name" => "Warm",
                "mode" => "temperature",
                "brightness" => "55",
-                "temperature" => "3000",
-                "save_action" => "save_and_return"
-              })
+               "temperature" => "3000",
+               "save_action" => "save_and_return"
+             })
 
     state = Repo.get_by!(LightState, name: "Warm")
     assert state.type == :manual
@@ -66,9 +66,9 @@ defmodule HueworksWeb.LightStateEditorLiveTest do
                "mode" => "color",
                "brightness" => "75",
                "hue" => "210",
-                "saturation" => "60",
-                "save_action" => "save_and_return"
-              })
+               "saturation" => "60",
+               "save_action" => "save_and_return"
+             })
 
     state = Repo.get_by!(LightState, name: "Blue")
     assert state.type == :manual
@@ -92,14 +92,30 @@ defmodule HueworksWeb.LightStateEditorLiveTest do
                "name" => "Soft Updated",
                "mode" => "temperature",
                "brightness" => "65",
-                "temperature" => "3200",
-                "save_action" => "save_and_return"
-              })
+               "temperature" => "3200",
+               "save_action" => "save_and_return"
+             })
 
     updated = Repo.get!(LightState, state.id)
     assert updated.name == "Soft Updated"
     assert updated.config["brightness"] == 65
     assert updated.config["temperature"] == 3200
+  end
+
+  test "edit editor renders atom-keyed manual color config values", %{conn: conn} do
+    state =
+      Repo.insert!(%LightState{
+        name: "Blue",
+        type: :manual,
+        config: %{mode: :color, brightness: 75, hue: 210, saturation: 60}
+      })
+
+    {:ok, _view, html} = live(conn, "/config/light-states/#{state.id}/edit")
+
+    assert html =~ ~s(value="75")
+    assert html =~ ~s(value="210")
+    assert html =~ ~s(value="60")
+    assert html =~ ~s(<option value="color" selected="selected">Color</option>)
   end
 
   test "new circadian editor renders and saves all circadian inputs", %{conn: conn} do
@@ -150,12 +166,12 @@ defmodule HueworksWeb.LightStateEditorLiveTest do
                "sunset_offset" => "1200",
                "brightness_sunrise_offset" => "-300",
                "brightness_sunset_offset" => "600",
-                "temperature_sunrise_offset" => "-600",
-                "temperature_sunset_offset" => "900",
-                "brightness_mode_time_dark" => "1200",
-                "brightness_mode_time_light" => "5400",
-                "save_action" => "save_and_return"
-              })
+               "temperature_sunrise_offset" => "-600",
+               "temperature_sunset_offset" => "900",
+               "brightness_mode_time_dark" => "1200",
+               "brightness_mode_time_light" => "5400",
+               "save_action" => "save_and_return"
+             })
 
     state = Repo.get_by!(LightState, name: "Circadian A")
     assert state.type == :circadian
@@ -203,7 +219,9 @@ defmodule HueworksWeb.LightStateEditorLiveTest do
     assert html =~ ~s(data-points=)
   end
 
-  test "circadian preview errors keep inputs visible and replace charts with placeholders", %{conn: conn} do
+  test "circadian preview errors keep inputs visible and replace charts with placeholders", %{
+    conn: conn
+  } do
     {:ok, view, _html} = live(conn, "/config/light-states/new/circadian")
 
     _html =
@@ -229,7 +247,9 @@ defmodule HueworksWeb.LightStateEditorLiveTest do
     refute html =~ ~s(<svg class="hw-chart")
   end
 
-  test "circadian editor rejects a temperature ceiling below the minimum color temperature", %{conn: conn} do
+  test "circadian editor rejects a temperature ceiling below the minimum color temperature", %{
+    conn: conn
+  } do
     {:ok, view, _html} = live(conn, "/config/light-states/new/circadian")
 
     html =
@@ -266,7 +286,10 @@ defmodule HueworksWeb.LightStateEditorLiveTest do
 
   test "revert restores the last loaded values", %{conn: conn} do
     {:ok, state} =
-      Scenes.create_manual_light_state("Revert Me", %{"brightness" => "40", "temperature" => "2700"})
+      Scenes.create_manual_light_state("Revert Me", %{
+        "brightness" => "40",
+        "temperature" => "2700"
+      })
 
     {:ok, view, _html} = live(conn, "/config/light-states/#{state.id}/edit")
 

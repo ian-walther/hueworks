@@ -302,6 +302,48 @@ defmodule Hueworks.SchemasTest do
            }
   end
 
+  test "light_state manual config accepts kelvin as an input alias" do
+    changeset =
+      LightState.changeset(%LightState{}, %{
+        name: "Manual",
+        type: :manual,
+        config: %{kelvin: "3200"}
+      })
+
+    assert changeset.valid?
+
+    assert get_change(changeset, :config) == %{
+             "mode" => "temperature",
+             "temperature" => 3200
+           }
+  end
+
+  test "light_state manual_config returns canonical atom-keyed config" do
+    config =
+      LightState.manual_config(%{
+        "mode" => "color",
+        "brightness" => 80,
+        "temperature" => 3000,
+        "hue" => 210,
+        "saturation" => 60,
+        "custom" => "ignored"
+      })
+
+    assert config == %{
+             mode: :color,
+             brightness: 80,
+             kelvin: 3000,
+             hue: 210,
+             saturation: 60
+           }
+  end
+
+  test "light_state manual_mode returns canonical mode atoms" do
+    assert LightState.manual_mode(%{"mode" => "color"}) == :color
+    assert LightState.manual_mode(%{mode: :color}) == :color
+    assert LightState.manual_mode(%{"temperature" => 3000}) == :temperature
+  end
+
   test "scene_component_light requires scene_component_id and light_id" do
     changeset = SceneComponentLight.changeset(%SceneComponentLight{}, %{})
     errors = errors_on(changeset)

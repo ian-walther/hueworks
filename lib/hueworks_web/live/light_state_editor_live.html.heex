@@ -46,7 +46,7 @@
 
         <div class="hw-row">
           <label class="hw-modal-label">Brightness</label>
-          <span class="hw-slider-value"><%= Map.get(@light_state_config, "brightness", "") %>%</span>
+          <span class="hw-slider-value"><%= manual_field_value(assigns, :brightness) %>%</span>
         </div>
         <input
           type="range"
@@ -54,7 +54,7 @@
           class="hw-modal-input"
           min="1"
           max="100"
-          value={Map.get(@light_state_config, "brightness", "")}
+          value={manual_field_value(assigns, :brightness)}
         />
 
         <%= if manual_mode == "color" do %>
@@ -64,7 +64,7 @@
           </div>
           <div class="hw-row">
             <label class="hw-modal-label">Hue</label>
-            <span class="hw-slider-value"><%= Map.get(@light_state_config, "hue", "") %>°</span>
+            <span class="hw-slider-value"><%= manual_field_value(assigns, :hue) %>°</span>
           </div>
           <input
             type="range"
@@ -72,12 +72,12 @@
             class="hw-modal-input"
             min="0"
             max="360"
-            value={Map.get(@light_state_config, "hue", "")}
+            value={manual_field_value(assigns, :hue)}
           />
           <div class="hw-color-scale hw-hue-scale" aria-hidden="true"></div>
           <div class="hw-row">
             <label class="hw-modal-label">Saturation</label>
-            <span class="hw-slider-value"><%= Map.get(@light_state_config, "saturation", "") %>%</span>
+            <span class="hw-slider-value"><%= manual_field_value(assigns, :saturation) %>%</span>
           </div>
           <input
             type="range"
@@ -85,13 +85,13 @@
             class="hw-modal-input"
             min="0"
             max="100"
-            value={Map.get(@light_state_config, "saturation", "")}
+            value={manual_field_value(assigns, :saturation)}
           />
           <div class="hw-color-scale" style={manual_saturation_scale_style(assigns)} aria-hidden="true"></div>
         <% else %>
           <div class="hw-row">
             <label class="hw-modal-label">Temperature</label>
-            <span class="hw-slider-value"><%= Map.get(@light_state_config, "temperature", "") %>K</span>
+            <span class="hw-slider-value"><%= manual_field_value(assigns, :kelvin) %>K</span>
           </div>
           <input
             type="range"
@@ -99,7 +99,7 @@
             class="hw-modal-input"
             min="1000"
             max="10000"
-            value={Map.get(@light_state_config, "temperature", "")}
+            value={manual_field_value(assigns, :kelvin)}
           />
         <% end %>
       <% else %>

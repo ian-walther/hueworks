@@ -106,4 +106,19 @@ defmodule Hueworks.CircadianConfigTest do
 
     assert {"temperature_ceiling_kelvin", "must be less than or equal to max_color_temp"} in errors
   end
+
+  test "runtime returns a default-merged atom-keyed config for downstream consumers" do
+    assert {:ok, runtime} =
+             Config.runtime(%{
+               "brightness_mode" => "linear",
+               "min_brightness" => "10",
+               "sunrise_time" => "06:30"
+             })
+
+    assert runtime[:brightness_mode] == :linear
+    assert runtime[:min_brightness] == 10
+    assert runtime[:max_brightness] == 100
+    assert runtime[:sunrise_time] == "06:30:00"
+    assert runtime[:temperature_ceiling_kelvin] == nil
+  end
 end

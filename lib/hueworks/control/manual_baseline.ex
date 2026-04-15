@@ -17,8 +17,8 @@ defmodule Hueworks.Control.ManualBaseline do
 
   defp normalize_state(state) when is_map(state) do
     %{}
-    |> maybe_put_integer(:brightness, Map.get(state, :brightness) || Map.get(state, "brightness"))
-    |> maybe_put_integer(:kelvin, Map.get(state, :kelvin) || Map.get(state, "kelvin"))
+    |> maybe_put_integer(:brightness, Map.get(state, :brightness))
+    |> maybe_put_integer(:kelvin, Map.get(state, :kelvin))
   end
 
   defp normalize_state(_state), do: @default_on_state

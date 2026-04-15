@@ -2,6 +2,7 @@ defmodule HueworksWeb.SceneBuilderComponent do
   use Phoenix.LiveComponent
 
   alias Hueworks.Scenes.Builder
+  alias Hueworks.Schemas.LightState
   alias Hueworks.Util
 
   @blank_component %{
@@ -216,24 +217,37 @@ defmodule HueworksWeb.SceneBuilderComponent do
       |> Enum.max(fn -> 0 end)
       |> Kernel.+(1)
 
-    components = socket.assigns.components ++ [Map.put(@blank_component, :id, next_id) |> Map.put(:name, "Component #{next_id}")]
+    components =
+      socket.assigns.components ++
+        [Map.put(@blank_component, :id, next_id) |> Map.put(:name, "Component #{next_id}")]
+
     socket = refresh_builder(assign(socket, components: components))
     notify_parent(socket)
     {:noreply, socket}
   end
 
   def handle_event("select_light", %{"component_id" => id, "light_id" => light_id}, socket) do
-    selections = Map.put(socket.assigns[:selections] || %{}, {:light, parse_id(id)}, parse_id(light_id))
+    selections =
+      Map.put(socket.assigns[:selections] || %{}, {:light, parse_id(id)}, parse_id(light_id))
+
     {:noreply, assign(socket, selections: selections)}
   end
 
   def handle_event("select_group", %{"component_id" => id, "group_id" => group_id}, socket) do
-    selections = Map.put(socket.assigns[:selections] || %{}, {:group, parse_id(id)}, parse_id(group_id))
+    selections =
+      Map.put(socket.assigns[:selections] || %{}, {:group, parse_id(id)}, parse_id(group_id))
+
     {:noreply, assign(socket, selections: selections)}
   end
 
-  def handle_event("select_light_state", %{"component_id" => id, "light_state_id" => state_id}, socket) do
-    valid_ids = socket.assigns.light_states |> Enum.map(& &1.id) |> Enum.map(&to_string/1) |> MapSet.new()
+  def handle_event(
+        "select_light_state",
+        %{"component_id" => id, "light_state_id" => state_id},
+        socket
+      ) do
+    valid_ids =
+      socket.assigns.light_states |> Enum.map(& &1.id) |> Enum.map(&to_string/1) |> MapSet.new()
+
     component_id = parse_id(id)
     normalized_state_id = normalize_light_state_id(state_id, valid_ids)
 
@@ -259,7 +273,12 @@ defmodule HueworksWeb.SceneBuilderComponent do
       Enum.map(socket.assigns.components, fn component ->
         if component.id == component_id and is_integer(light_id) do
           defaults = component |> Map.get(:light_defaults, %{}) |> Map.put(light_id, :force_on)
-          %{component | light_ids: Enum.uniq(component.light_ids ++ [light_id]), light_defaults: defaults}
+
+          %{
+            component
+            | light_ids: Enum.uniq(component.light_ids ++ [light_id]),
+              light_defaults: defaults
+          }
         else
           component
         end
@@ -280,8 +299,10 @@ defmodule HueworksWeb.SceneBuilderComponent do
       Enum.map(socket.assigns.components, fn component ->
         if component.id == component_id and group do
           group_light_ids = Builder.group_room_light_ids(group, room_light_ids)
+
           defaults =
-            Enum.reduce(group_light_ids, Map.get(component, :light_defaults, %{}), fn light_id, acc ->
+            Enum.reduce(group_light_ids, Map.get(component, :light_defaults, %{}), fn light_id,
+                                                                                      acc ->
               Map.put_new(acc, light_id, :force_on)
             end)
 
@@ -309,7 +330,12 @@ defmodule HueworksWeb.SceneBuilderComponent do
       Enum.map(socket.assigns.components, fn component ->
         if component.id == component_id do
           defaults = component |> Map.get(:light_defaults, %{}) |> Map.delete(parsed_light_id)
-          %{component | light_ids: List.delete(component.light_ids, parsed_light_id), light_defaults: defaults}
+
+          %{
+            component
+            | light_ids: List.delete(component.light_ids, parsed_light_id),
+              light_defaults: defaults
+          }
         else
           component
         end
@@ -329,7 +355,11 @@ defmodule HueworksWeb.SceneBuilderComponent do
     {:noreply, socket}
   end
 
-  def handle_event("toggle_light_default_power", %{"component_id" => component_id, "light_id" => light_id}, socket) do
+  def handle_event(
+        "toggle_light_default_power",
+        %{"component_id" => component_id, "light_id" => light_id},
+        socket
+      ) do
     parsed_component_id = parse_id(component_id)
     parsed_light_id = parse_id(light_id)
 
@@ -337,8 +367,14 @@ defmodule HueworksWeb.SceneBuilderComponent do
       Enum.map(socket.assigns.components, fn component ->
         if component.id == parsed_component_id and is_integer(parsed_light_id) do
           defaults = Map.get(component, :light_defaults, %{})
-          current = Map.get(defaults, parsed_light_id, :force_on) |> normalize_default_power_value()
-          %{component | light_defaults: Map.put(defaults, parsed_light_id, next_power_policy(current))}
+
+          current =
+            Map.get(defaults, parsed_light_id, :force_on) |> normalize_default_power_value()
+
+          %{
+            component
+            | light_defaults: Map.put(defaults, parsed_light_id, next_power_policy(current))
+          }
         else
           component
         end
@@ -349,7 +385,11 @@ defmodule HueworksWeb.SceneBuilderComponent do
     {:noreply, socket}
   end
 
-  def handle_event("toggle_group_default_power", %{"component_id" => component_id, "group_id" => group_id}, socket) do
+  def handle_event(
+        "toggle_group_default_power",
+        %{"component_id" => component_id, "group_id" => group_id},
+        socket
+      ) do
     parsed_component_id = parse_id(component_id)
     parsed_group_id = parse_id(group_id)
     room_light_ids = socket.assigns.builder.room_light_ids
@@ -363,7 +403,12 @@ defmodule HueworksWeb.SceneBuilderComponent do
           current = group_default_power(component, group, room_light_ids)
           next = next_power_policy(current)
           defaults = Map.get(component, :light_defaults, %{})
-          updated_defaults = Enum.reduce(group_light_ids, defaults, fn light_id, acc -> Map.put(acc, light_id, next) end)
+
+          updated_defaults =
+            Enum.reduce(group_light_ids, defaults, fn light_id, acc ->
+              Map.put(acc, light_id, next)
+            end)
+
           %{component | light_defaults: updated_defaults}
         else
           component
@@ -376,7 +421,13 @@ defmodule HueworksWeb.SceneBuilderComponent do
   end
 
   defp refresh_builder(socket) do
-    builder = Builder.build(List.wrap(socket.assigns.room_lights), List.wrap(socket.assigns.groups), List.wrap(socket.assigns.components))
+    builder =
+      Builder.build(
+        List.wrap(socket.assigns.room_lights),
+        List.wrap(socket.assigns.groups),
+        List.wrap(socket.assigns.components)
+      )
+
     assign(socket, builder: builder)
   end
 
@@ -404,10 +455,13 @@ defmodule HueworksWeb.SceneBuilderComponent do
     groups
     |> Enum.filter(fn group ->
       group_light_ids = Builder.group_room_light_ids(group, room_light_ids)
-      group_light_ids != [] and Enum.all?(group_light_ids, &MapSet.member?(component_light_ids, &1))
+
+      group_light_ids != [] and
+        Enum.all?(group_light_ids, &MapSet.member?(component_light_ids, &1))
     end)
     |> Enum.sort_by(fn group ->
-      {-Enum.count(component_group_light_ids(component, group, room_light_ids)), group |> display_name() |> String.downcase(), group.id}
+      {-Enum.count(component_group_light_ids(component, group, room_light_ids)),
+       group |> display_name() |> String.downcase(), group.id}
     end)
   end
 
@@ -420,7 +474,12 @@ defmodule HueworksWeb.SceneBuilderComponent do
   end
 
   defp group_default_power(component, group, room_light_ids) do
-    policies = component |> component_group_light_ids(group, room_light_ids) |> Enum.map(&light_default_power(component, &1)) |> Enum.uniq()
+    policies =
+      component
+      |> component_group_light_ids(group, room_light_ids)
+      |> Enum.map(&light_default_power(component, &1))
+      |> Enum.uniq()
+
     case policies do
       [policy] -> policy
       _ -> :mixed
@@ -436,8 +495,7 @@ defmodule HueworksWeb.SceneBuilderComponent do
 
   defp state_option_label(%{type: :manual, name: name, config: config}) do
     suffix =
-      case Map.get(config || %{}, "mode") || Map.get(config || %{}, :mode) do
-        "color" -> "manual color"
+      case LightState.manual_mode(config) do
         :color -> "manual color"
         _ -> "manual temp"
       end
@@ -466,11 +524,16 @@ defmodule HueworksWeb.SceneBuilderComponent do
   end
 
   defp normalize_component_light_states(socket) do
-    valid_ids = socket.assigns.light_states |> Enum.map(& &1.id) |> Enum.map(&to_string/1) |> MapSet.new()
+    valid_ids =
+      socket.assigns.light_states |> Enum.map(& &1.id) |> Enum.map(&to_string/1) |> MapSet.new()
 
     components =
       Enum.map(socket.assigns.components, fn component ->
-        Map.put(component, :light_state_id, normalize_light_state_id(Map.get(component, :light_state_id), valid_ids))
+        Map.put(
+          component,
+          :light_state_id,
+          normalize_light_state_id(Map.get(component, :light_state_id), valid_ids)
+        )
       end)
 
     assign(socket, components: components)
@@ -510,10 +573,19 @@ defmodule HueworksWeb.SceneBuilderComponent do
   end
 
   defp normalize_default_power_value(value) when value in [:force_on, "force_on"], do: :force_on
-  defp normalize_default_power_value(value) when value in [:force_off, "force_off"], do: :force_off
-  defp normalize_default_power_value(value) when value in [:follow_occupancy, "follow_occupancy"], do: :follow_occupancy
-  defp normalize_default_power_value(value) when value in [true, "true", 1, "1", :on, "on"], do: :force_on
-  defp normalize_default_power_value(value) when value in [false, "false", 0, "0", :off, "off"], do: :force_off
+
+  defp normalize_default_power_value(value) when value in [:force_off, "force_off"],
+    do: :force_off
+
+  defp normalize_default_power_value(value) when value in [:follow_occupancy, "follow_occupancy"],
+    do: :follow_occupancy
+
+  defp normalize_default_power_value(value) when value in [true, "true", 1, "1", :on, "on"],
+    do: :force_on
+
+  defp normalize_default_power_value(value) when value in [false, "false", 0, "0", :off, "off"],
+    do: :force_off
+
   defp normalize_default_power_value(_value), do: :force_on
 
   defp next_power_policy(:force_on), do: :force_off

@@ -76,9 +76,9 @@ defmodule Hueworks.CircadianPreview do
            build_markers(brightness_events, parsed_date, normalized_solar.timezone),
          temperature_markers:
            build_markers(temperature_events, parsed_date, normalized_solar.timezone),
-         min_brightness: normalized_config["min_brightness"],
-         max_brightness: normalized_config["max_brightness"],
-         min_kelvin: normalized_config["min_color_temp"],
+         min_brightness: normalized_config[:min_brightness],
+         max_brightness: normalized_config[:max_brightness],
+         min_kelvin: normalized_config[:min_color_temp],
          max_kelvin: effective_max_kelvin(normalized_config)
        }}
     end
@@ -87,10 +87,7 @@ defmodule Hueworks.CircadianPreview do
   def sample_day(_config, _solar_config, _date, _opts), do: {:error, :invalid_args}
 
   defp normalize_config(config) do
-    config
-    |> stringify_keys()
-    |> then(&Map.merge(Config.defaults(), &1))
-    |> Config.normalize()
+    Config.runtime(config)
   end
 
   defp normalize_solar_config(solar_config) do
@@ -198,19 +195,6 @@ defmodule Hueworks.CircadianPreview do
     |> String.slice(0, 5)
   end
 
-  defp stringify_keys(map) do
-    Enum.into(map, %{}, fn {key, value} ->
-      normalized_key =
-        case key do
-          atom when is_atom(atom) -> Atom.to_string(atom)
-          binary when is_binary(binary) -> binary
-          other -> to_string(other)
-        end
-
-      {normalized_key, value}
-    end)
-  end
-
   defp parse_float(value) when is_integer(value), do: value * 1.0
   defp parse_float(value) when is_float(value), do: value
 
@@ -231,6 +215,6 @@ defmodule Hueworks.CircadianPreview do
   defp parse_timezone(_value), do: nil
 
   defp effective_max_kelvin(config) do
-    config["temperature_ceiling_kelvin"] || config["max_color_temp"]
+    config[:temperature_ceiling_kelvin] || config[:max_color_temp]
   end
 end

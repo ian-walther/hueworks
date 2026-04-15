@@ -6,7 +6,7 @@ defmodule HueworksWeb.ConfigLive do
   alias Hueworks.HomeAssistant.Export, as: HomeAssistantExport
   alias Hueworks.Repo
   alias Hueworks.Scenes
-  alias Hueworks.Schemas.Bridge
+  alias Hueworks.Schemas.{Bridge, LightState}
 
   def mount(_params, _session, socket) do
     app_setting = AppSettings.get_global()
@@ -406,8 +406,7 @@ defmodule HueworksWeb.ConfigLive do
 
   def state_label(%{type: :manual, name: name, config: config}) do
     suffix =
-      case Map.get(config || %{}, "mode") || Map.get(config || %{}, :mode) do
-        "color" -> "manual color"
+      case LightState.manual_mode(config) do
         :color -> "manual color"
         _ -> "manual temp"
       end

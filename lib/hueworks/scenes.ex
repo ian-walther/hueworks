@@ -516,8 +516,7 @@ defmodule Hueworks.Scenes do
   end
 
   defp manual_color_mode?(config) when is_map(config) do
-    mode = Map.get(config, "mode") || Map.get(config, :mode)
-    mode in ["color", :color]
+    LightState.manual_mode(config) == :color
   end
 
   defp manual_color_mode?(_config), do: false

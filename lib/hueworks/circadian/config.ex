@@ -7,6 +7,7 @@ defmodule Hueworks.Circadian.Config do
   """
 
   @brightness_modes ~w(quadratic linear tanh)
+  @runtime_mode_map %{"quadratic" => :quadratic, "linear" => :linear, "tanh" => :tanh}
 
   @supported_keys [
     "min_brightness",
@@ -30,6 +31,31 @@ defmodule Hueworks.Circadian.Config do
     "temperature_sunrise_offset",
     "temperature_sunset_offset"
   ]
+
+  @supported_key_atoms [
+    :min_brightness,
+    :max_brightness,
+    :min_color_temp,
+    :max_color_temp,
+    :temperature_ceiling_kelvin,
+    :sunrise_time,
+    :min_sunrise_time,
+    :max_sunrise_time,
+    :sunrise_offset,
+    :sunset_time,
+    :min_sunset_time,
+    :max_sunset_time,
+    :sunset_offset,
+    :brightness_mode,
+    :brightness_mode_time_dark,
+    :brightness_mode_time_light,
+    :brightness_sunrise_offset,
+    :brightness_sunset_offset,
+    :temperature_sunrise_offset,
+    :temperature_sunset_offset
+  ]
+
+  @supported_key_atom_set MapSet.new(@supported_key_atoms)
 
   @defaults %{
     "min_brightness" => 1,
@@ -56,6 +82,19 @@ defmodule Hueworks.Circadian.Config do
 
   def supported_keys, do: @supported_keys
   def defaults, do: @defaults
+
+  def runtime(config) when is_map(config) do
+    config
+    |> stringify_keys()
+    |> then(&Map.merge(@defaults, &1))
+    |> normalize()
+    |> case do
+      {:ok, normalized} -> {:ok, atomize_runtime_config(normalized)}
+      {:error, _reason} = error -> error
+    end
+  end
+
+  def runtime(_config), do: {:error, [{"config", "must be a map"}]}
 
   def normalize(config) when is_map(config) do
     config = stringify_keys(config)
@@ -146,6 +185,37 @@ defmodule Hueworks.Circadian.Config do
       Map.put(acc, normalized_key, value)
     end)
   end
+
+  defp atomize_runtime_config(config) do
+    Enum.reduce(config, %{}, fn {key, value}, acc ->
+      case runtime_key_atom(key) do
+        nil ->
+          acc
+
+        :brightness_mode ->
+          Map.put(acc, :brightness_mode, Map.fetch!(@runtime_mode_map, value))
+
+        atom_key ->
+          Map.put(acc, atom_key, value)
+      end
+    end)
+  end
+
+  defp runtime_key_atom(key) when is_binary(key) do
+    case existing_atom_or(key) do
+      atom when is_atom(atom) ->
+        if MapSet.member?(@supported_key_atom_set, atom), do: atom, else: nil
+
+      _ ->
+        nil
+    end
+  end
+
+  defp runtime_key_atom(key) when is_atom(key) do
+    if MapSet.member?(@supported_key_atom_set, key), do: key, else: nil
+  end
+
+  defp runtime_key_atom(_key), do: nil
 
   defp parse_int_in_range(value, min, max) do
     case parse_integer(value) do
@@ -319,4 +389,18 @@ defmodule Hueworks.Circadian.Config do
         errors
     end
   end
+
+  defp existing_atom_or(key, default \\ nil)
+
+  defp existing_atom_or(key, _default) when is_atom(key), do: key
+
+  defp existing_atom_or(key, default) when is_binary(key) do
+    try do
+      String.to_existing_atom(key)
+    rescue
+      ArgumentError -> default
+    end
+  end
+
+  defp existing_atom_or(_key, default), do: default
 end

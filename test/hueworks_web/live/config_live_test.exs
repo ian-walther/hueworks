@@ -172,6 +172,18 @@ defmodule HueworksWeb.ConfigLiveTest do
     assert html =~ "Circadian A (circadian)"
   end
 
+  test "shows manual color labels for atom-keyed manual configs", %{conn: conn} do
+    Repo.insert!(%LightState{
+      name: "Blue",
+      type: :manual,
+      config: %{mode: :color, brightness: 75, hue: 210, saturation: 60}
+    })
+
+    {:ok, _view, html} = live(conn, "/config")
+
+    assert html =~ "Blue (manual color)"
+  end
+
   test "duplicate light state action navigates to the copied editor", %{conn: conn} do
     {:ok, state} = Scenes.create_manual_light_state("Soft", %{"brightness" => "40"})
 
