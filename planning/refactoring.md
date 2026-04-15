@@ -29,7 +29,57 @@ In particular:
 
 ## Priority Order
 
-### 1) Finish thinning `Hueworks.HomeAssistant.Export`
+### 1) Normalize once at the boundary and keep downstream code atom-keyed
+The preferred direction is to normalize external payloads, DB-backed config maps, and form params at the boundary where they enter the domain, then make downstream code deterministic and atom-keyed.
+
+Preferred direction:
+- normalize payloads when they are first accepted from events, files, MQTT, or imports
+- normalize DB-backed config maps when they enter domain code
+- normalize LiveView/form params before they are handed to domain helpers
+- remove downstream mixed string/atom lookups as each boundary becomes canonical
+- prefer deleting dual-key logic over centralizing more `atom-or-string` helper access
+- when a shape is stable and bounded, prefer a typed boundary module or embedded schema over more ad hoc map helpers
+
+Method:
+- identify one loose map surface with repeated dual-key handling
+- define the canonical internal shape first
+- add one boundary module that owns load, cast, validation, and dump behavior
+- keep browser and persistence compatibility logic at that boundary only
+- switch downstream consumers to the canonical shape
+- update tests to assert deterministic internal types rather than raw stringly payload leakage
+- only then decide whether to tighten the persisted shape further
+
+Heuristics for good candidates:
+- repeated `Map.get(map, :key) || Map.get(map, "key")` patterns
+- repeated coercion of the same field family
+- maps with a bounded vocabulary that already behave like product surfaces
+- validation logic that currently lives outside the shape it validates
+- modules that would get smaller if they could assume typed fields instead of loose maps
+
+Expected payoff:
+- less duplicated key-handling logic
+- fewer hidden differences between payload sources
+- cleaner domain code with clearer expectations about input shape
+
+Good future candidates for this pattern:
+- `/Users/ianwalther/code/hueworks/lib/hueworks/circadian/config.ex`
+  - the runtime side is now canonical, but the persisted and form-facing circadian boundary is still string-keyed
+  - good fit for a typed circadian config boundary once the manual side settles
+- `/Users/ianwalther/code/hueworks/lib/hueworks/app_settings.ex`
+  - nested app-setting loading still does repeated key normalization and coercion
+  - good fit for typed boundary modules for solar config and HA export config
+- `/Users/ianwalther/code/hueworks/lib/hueworks/schemas/pico_button.ex`
+  - `action_config` is a bounded product surface even though it is stored as a loose map
+  - good fit for a typed boundary once Pico work is back in scope
+- `/Users/ianwalther/code/hueworks/lib/hueworks/schemas/bridge.ex`
+  - `credentials` is still a loose map but the shape is bounded per bridge type
+  - likely good fit for source-specific typed boundary modules
+
+Poor candidates for this pattern:
+- open-ended import blobs such as raw or normalized bridge payload snapshots
+- metadata maps whose job is to preserve external structure rather than enforce internal shape
+
+### 2) Finish thinning `Hueworks.HomeAssistant.Export`
 Keep the export runtime shell small and explicit.
 
 Files:
@@ -49,7 +99,7 @@ Expected payoff:
 - safer iteration on export features and cleanup behavior
 - simpler manual debugging of runtime state transitions
 
-### 2) Finish splitting `Hueworks.Picos`
+### 3) Finish splitting `Hueworks.Picos`
 Keep `Picos` as a small facade with clear helper boundaries.
 
 Files:
@@ -70,7 +120,7 @@ Expected payoff:
 - smaller review surface for button-binding changes
 - cleaner handoff when doing manual refactors later
 
-### 3) Tighten the `Scenes` and editor boundary
+### 4) Tighten the `Scenes` and editor boundary
 Keep editor-specific translation pressure out of scene persistence and orchestration.
 
 Files:
@@ -87,7 +137,7 @@ Expected payoff:
 - scene editing becomes easier to evolve without making the core scene context more magical
 - fewer editor-shaped conditionals in persistence code
 
-### 4) Delay planner/executor extraction until after upstream cleanup
+### 5) Delay planner/executor extraction until after upstream cleanup
 These are some of the riskiest modules in the app, and they should not be the first refactor target while the system is still being observed in real-world usage.
 
 Files:
@@ -104,7 +154,7 @@ Why this is lower than it sounds:
 - several oddities may still be upstream state issues rather than planner issues
 - upstream cleanup will make later planner work safer and clearer
 
-### 5) Keep LiveViews thin and move UI-specific logic outward
+### 6) Keep LiveViews thin and move UI-specific logic outward
 Keep LiveViews focused on UI concerns rather than domain orchestration.
 
 Files:
@@ -119,21 +169,21 @@ Preferred direction:
   - composition of helpers/components
 - keep domain orchestration and persistence translation out of the LiveView layer
 
-### 6) Extract shared UI components only after the boundaries are cleaner
+### 7) Extract shared UI components only after the boundaries are cleaner
 Shared UI extraction should wait until the surrounding responsibilities are less tangled.
 
 Preferred direction:
 - extract reusable light-state editing UI only after the editor/domain boundary is clearer
 - avoid baking current page-specific assumptions into a shared component API
 
-### 7) Clean up broad `rescue` usage in import/fetch paths
+### 8) Clean up broad `rescue` usage in import/fetch paths
 This matters, but it is not where the best stability payoff is right now.
 
 Preferred direction:
 - expected failures should be returned explicitly as `{:error, reason}`
 - true bugs should remain visible rather than being flattened into generic error strings
 
-### 8) Revisit high-complexity product behaviors only after the code is easier to observe
+### 9) Revisit high-complexity product behaviors only after the code is easier to observe
 There are a few features whose complexity cost may eventually outweigh their value, but they should be revisited deliberately, not mixed into structural cleanup.
 
 Candidate areas:
@@ -146,7 +196,6 @@ Candidate areas:
 
 ### 1) Keep light-state semantics centralized
 The code should continue to avoid reintroducing duplicated logic for:
-- key alias handling
 - desired-state clamping for per-light kelvin limits
 - desired-vs-physical equality checks
 - brightness tolerance
@@ -154,6 +203,7 @@ The code should continue to avoid reintroducing duplicated logic for:
 
 Guidance:
 - keep comparison and normalization rules centralized instead of letting helpers regrow in multiple modules
+- once a boundary is normalized, remove downstream key-alias handling instead of preserving it indefinitely
 
 ### 2) Keep scene intent separate from scene orchestration
 `Scenes.apply_scene/2` should stay mostly orchestration.
@@ -209,6 +259,7 @@ These are fine later, but they should not displace the higher-value structural w
 ## Recommended Sequence
 
 ### Phase 1
+- normalize one boundary at a time and remove downstream mixed-key handling as each boundary becomes canonical
 - finish thinning `Hueworks.HomeAssistant.Export`
 - keep the runtime shell focused on GenServer transitions only
 
