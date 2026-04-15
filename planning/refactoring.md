@@ -7,6 +7,9 @@ The best refactors right now are the ones that:
 - reduce the chance of subtle state drift
 - shrink the biggest conceptual hotspots
 - preserve behavior under the existing test suite
+- make the codebase easier for humans to read, own, and extend without needing hidden context
+
+Planning docs should stay explicit enough that a future pass by a different agent or by a human maintainer can quickly recover the intended direction and tradeoffs.
 
 ## Architectural Constraint
 When this document and `/Users/ianwalther/code/hueworks/planning/architecture-reset.md` pull in different directions, the architecture-reset doc wins.
@@ -39,6 +42,15 @@ Preferred direction:
 - remove downstream mixed string/atom lookups as each boundary becomes canonical
 - prefer deleting dual-key logic over centralizing more `atom-or-string` helper access
 - when a shape is stable and bounded, prefer a typed boundary module or embedded schema over more ad hoc map helpers
+
+Design rule:
+- use maps for foreign input
+- use structs for internal meaning
+
+Applied more concretely:
+- raw maps are acceptable at integration, file, DB JSON, and browser-param boundaries
+- once data has internal meaning, prefer a struct or embedded schema over passing loose maps deeper through the app
+- if a map keeps acquiring validation, normalization, or shape assumptions, it is a good candidate to become a struct
 
 Method:
 - identify one loose map surface with repeated dual-key handling
@@ -74,6 +86,18 @@ Good future candidates for this pattern:
 - `/Users/ianwalther/code/hueworks/lib/hueworks/schemas/bridge.ex`
   - `credentials` is still a loose map but the shape is bounded per bridge type
   - likely good fit for source-specific typed boundary modules
+
+Good runtime-only struct candidates:
+- `/Users/ianwalther/code/hueworks/lib/hueworks/circadian_preview.ex`
+  - preview inputs, points, markers, and results are bounded and already behave like real domain objects
+- `/Users/ianwalther/code/hueworks/lib/hueworks/scenes/intent.ex`
+  - scene intent or desired-state intermediate values could become explicit structs instead of map-shaped conventions
+- `/Users/ianwalther/code/hueworks/lib/hueworks/home_assistant/export/messages.ex`
+  - export entity descriptions and state payload intermediates are bounded shapes that could be easier to reason about as structs
+- `/Users/ianwalther/code/hueworks/lib/hueworks/picos/actions.ex`
+  - Pico target and action payloads are bounded runtime concepts and would likely benefit from explicit structs once Pico work resumes
+- `/Users/ianwalther/code/hueworks/lib/hueworks/control/planner.ex`
+  - planner inputs and planned actions are strong candidates for explicit runtime structs, but this should wait until planner work is intentionally back in scope
 
 Poor candidates for this pattern:
 - open-ended import blobs such as raw or normalized bridge payload snapshots
