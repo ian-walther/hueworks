@@ -9,13 +9,74 @@ defmodule Hueworks.Scenes.Intent do
   alias Hueworks.Control.DesiredState
   alias Hueworks.Schemas.{LightState, Scene}
 
+  defmodule BuildOptions do
+    @moduledoc false
+
+    @enforce_keys [
+      :occupied,
+      :now,
+      :target_light_ids,
+      :circadian_only,
+      :power_overrides,
+      :preserve_power_latches
+    ]
+    defstruct occupied: false,
+              now: nil,
+              target_light_ids: MapSet.new(),
+              circadian_only: false,
+              power_overrides: %{},
+              preserve_power_latches: true
+
+    def from_opts(opts) when is_list(opts) do
+      target_light_ids =
+        opts
+        |> Keyword.get(:target_light_ids, [])
+        |> normalize_target_light_ids()
+
+      %__MODULE__{
+        occupied: Keyword.get(opts, :occupied, false),
+        now: Keyword.get(opts, :now, DateTime.utc_now()),
+        target_light_ids: target_light_ids,
+        circadian_only: Keyword.get(opts, :circadian_only, false),
+        power_overrides: Keyword.get(opts, :power_overrides, %{}),
+        preserve_power_latches: Keyword.get(opts, :preserve_power_latches, true)
+      }
+    end
+
+    def from_opts(%__MODULE__{} = opts), do: opts
+
+    defp normalize_target_light_ids(%MapSet{} = target_light_ids), do: target_light_ids
+
+    defp normalize_target_light_ids(target_light_ids) when is_list(target_light_ids),
+      do: MapSet.new(target_light_ids)
+
+    defp normalize_target_light_ids(_target_light_ids), do: MapSet.new()
+  end
+
+  defmodule DesiredAttrs do
+    @moduledoc false
+
+    defstruct power: nil, brightness: nil, kelvin: nil, x: nil, y: nil
+
+    def on, do: %__MODULE__{power: :on}
+
+    def to_map(%__MODULE__{} = attrs) do
+      attrs
+      |> Map.from_struct()
+      |> Enum.reject(fn {_key, value} -> is_nil(value) end)
+      |> Map.new()
+    end
+  end
+
   def build_transaction(%Scene{} = scene, opts \\ []) do
-    occupied = Keyword.get(opts, :occupied, false)
-    now = Keyword.get(opts, :now, DateTime.utc_now())
-    target_light_ids = opts |> Keyword.get(:target_light_ids, []) |> MapSet.new()
-    circadian_only = Keyword.get(opts, :circadian_only, false)
-    power_overrides = Keyword.get(opts, :power_overrides, %{})
-    preserve_power_latches = Keyword.get(opts, :preserve_power_latches, true)
+    %BuildOptions{
+      occupied: occupied,
+      now: now,
+      target_light_ids: target_light_ids,
+      circadian_only: circadian_only,
+      power_overrides: power_overrides,
+      preserve_power_latches: preserve_power_latches
+    } = BuildOptions.from_opts(opts)
 
     txn = DesiredState.begin(scene.id)
 
@@ -44,7 +105,7 @@ defmodule Hueworks.Scenes.Intent do
             )
             |> maybe_apply_power_override(power_override)
 
-          DesiredState.apply(txn, :light, light.id, light_desired)
+          DesiredState.apply(txn, :light, light.id, DesiredAttrs.to_map(light_desired))
         end)
       end
     end)
@@ -63,7 +124,7 @@ defmodule Hueworks.Scenes.Intent do
 
   defp desired_from_light_state(%LightState{type: :manual, config: config}, _now) do
     config = LightState.manual_config(config)
-    base = %{power: :on}
+    base = DesiredAttrs.on()
     mode = Map.get(config, :mode, :temperature)
 
     base
@@ -74,21 +135,21 @@ defmodule Hueworks.Scenes.Intent do
 
   defp desired_from_light_state(%LightState{type: :circadian, config: config}, now) do
     solar_config = AppSettings.global_map()
-    base = %{power: :on}
+    base = DesiredAttrs.on()
 
     case Circadian.calculate(config || %{}, solar_config, now) do
       {:ok, circadian} ->
         base
-        |> Map.put(:brightness, circadian.brightness)
-        |> Map.put(:kelvin, circadian.kelvin)
+        |> put_attr(:brightness, circadian.brightness)
+        |> put_attr(:kelvin, circadian.kelvin)
 
       {:error, reason} ->
         Logger.warning("Skipping circadian apply due to calculation error: #{inspect(reason)}")
-        %{}
+        %DesiredAttrs{}
     end
   end
 
-  defp desired_from_light_state(_, _now), do: %{}
+  defp desired_from_light_state(_, _now), do: %DesiredAttrs{}
 
   defp maybe_put_manual_temperature(attrs, :temperature, config) do
     maybe_put(attrs, :kelvin, config)
@@ -103,8 +164,8 @@ defmodule Hueworks.Scenes.Intent do
     case Color.hs_to_xy(hue, saturation) do
       {x, y} ->
         attrs
-        |> Map.put(:x, x)
-        |> Map.put(:y, y)
+        |> put_attr(:x, x)
+        |> put_attr(:y, y)
 
       _ ->
         attrs
@@ -115,7 +176,7 @@ defmodule Hueworks.Scenes.Intent do
 
   defp maybe_apply_default_power(desired, %LightState{type: type}, power_policy, occupied)
        when type in [:manual, :circadian] do
-    Map.put(desired, :power, resolve_power_policy(power_policy, occupied))
+    put_attr(desired, :power, resolve_power_policy(power_policy, occupied))
   end
 
   defp maybe_apply_default_power(desired, _light_state, _power_policy, _occupied), do: desired
@@ -144,7 +205,7 @@ defmodule Hueworks.Scenes.Intent do
     if is_nil(value) do
       attrs
     else
-      Map.put(attrs, key, value)
+      put_attr(attrs, key, value)
     end
   end
 
@@ -195,10 +256,10 @@ defmodule Hueworks.Scenes.Intent do
   defp maybe_preserve_manual_power_latch(desired, current_desired, true) do
     cond do
       explicit_off_intent?(current_desired) and not explicit_off_intent?(desired) ->
-        %{power: :off}
+        %DesiredAttrs{power: :off}
 
       explicit_on_intent?(current_desired) and explicit_off_intent?(desired) ->
-        Map.put(desired, :power, :on)
+        put_attr(desired, :power, :on)
 
       true ->
         desired
@@ -211,21 +272,20 @@ defmodule Hueworks.Scenes.Intent do
   defp maybe_apply_power_override(desired, nil), do: desired
 
   defp maybe_apply_power_override(desired, power) when power in [:on, :off],
-    do: Map.put(desired, :power, power)
+    do: put_attr(desired, :power, power)
 
-  defp maybe_apply_power_override(desired, "on"), do: Map.put(desired, :power, :on)
-  defp maybe_apply_power_override(desired, "off"), do: Map.put(desired, :power, :off)
+  defp maybe_apply_power_override(desired, "on"), do: put_attr(desired, :power, :on)
+  defp maybe_apply_power_override(desired, "off"), do: put_attr(desired, :power, :off)
   defp maybe_apply_power_override(desired, _power), do: desired
 
-  defp explicit_off_intent?(state) when is_map(state) do
-    Map.get(state, :power) == :off
-  end
+  defp explicit_off_intent?(state), do: power_value(state) == :off
 
-  defp explicit_off_intent?(_state), do: false
+  defp explicit_on_intent?(state), do: power_value(state) == :on
 
-  defp explicit_on_intent?(state) when is_map(state) do
-    Map.get(state, :power) == :on
-  end
+  defp put_attr(%DesiredAttrs{} = desired, key, value), do: Map.put(desired, key, value)
+  defp put_attr(desired, key, value) when is_map(desired), do: Map.put(desired, key, value)
 
-  defp explicit_on_intent?(_state), do: false
+  defp power_value(%DesiredAttrs{power: power}), do: power
+  defp power_value(state) when is_map(state), do: Map.get(state, :power)
+  defp power_value(_state), do: nil
 end

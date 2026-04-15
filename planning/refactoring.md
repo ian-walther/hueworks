@@ -73,10 +73,22 @@ Expected payoff:
 - fewer hidden differences between payload sources
 - cleaner domain code with clearer expectations about input shape
 
+### Near-Term Embedded Schema Direction
+If the current deploy soaks cleanly in prod, the next likely step is to move from compatibility-first typed boundaries toward more native embedded-schema usage for `LightState.config`.
+
+Preferred direction:
+- keep the existing `light_states.config` column during the first native-embed pass
+- make manual and circadian config increasingly struct-first in parent-schema usage
+- let Ecto own more of the cast and validation flow directly
+- keep compatibility aliases and dump-shape glue only at the boundary while old persisted records still exist
+- avoid introducing a DB migration unless there is a concrete payoff beyond code clarity
+
+Guardrails:
+- do not change persisted shape casually just because the internal shape is cleaner
+- prefer rollout steps that are reversible by code deploy alone
+- keep tests focused on both typed internal shape and persisted compatibility shape until the compatibility layer is intentionally removed
+
 Good future candidates for this pattern:
-- `/Users/ianwalther/code/hueworks/lib/hueworks/circadian/config.ex`
-  - the runtime side is now canonical, but the persisted and form-facing circadian boundary is still string-keyed
-  - good fit for a typed circadian config boundary once the manual side settles
 - `/Users/ianwalther/code/hueworks/lib/hueworks/app_settings.ex`
   - nested app-setting loading still does repeated key normalization and coercion
   - good fit for typed boundary modules for solar config and HA export config
@@ -88,14 +100,6 @@ Good future candidates for this pattern:
   - likely good fit for source-specific typed boundary modules
 
 Good runtime-only struct candidates:
-- `/Users/ianwalther/code/hueworks/lib/hueworks/circadian_preview.ex`
-  - preview inputs, points, markers, and results are bounded and already behave like real domain objects
-- `/Users/ianwalther/code/hueworks/lib/hueworks/scenes/intent.ex`
-  - scene intent or desired-state intermediate values could become explicit structs instead of map-shaped conventions
-- `/Users/ianwalther/code/hueworks/lib/hueworks/home_assistant/export/messages.ex`
-  - export entity descriptions and state payload intermediates are bounded shapes that could be easier to reason about as structs
-- `/Users/ianwalther/code/hueworks/lib/hueworks/picos/actions.ex`
-  - Pico target and action payloads are bounded runtime concepts and would likely benefit from explicit structs once Pico work resumes
 - `/Users/ianwalther/code/hueworks/lib/hueworks/control/planner.ex`
   - planner inputs and planned actions are strong candidates for explicit runtime structs, but this should wait until planner work is intentionally back in scope
 

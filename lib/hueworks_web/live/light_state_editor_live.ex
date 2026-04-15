@@ -553,7 +553,8 @@ defmodule HueworksWeb.LightStateEditorLive do
   defp chart_path(preview, metric) do
     preview.points
     |> Enum.map(fn point ->
-      "#{x_position(point.minute)} #{y_position(point[metric], chart_domain(preview, metric))}"
+      value = Map.fetch!(point, metric)
+      "#{x_position(point.minute)} #{y_position(value, chart_domain(preview, metric))}"
     end)
     |> case do
       [] -> ""
@@ -566,7 +567,7 @@ defmodule HueworksWeb.LightStateEditorLive do
   defp chart_points_json(preview, metric) do
     preview.points
     |> Enum.map(fn point ->
-      value = point[metric]
+      value = Map.fetch!(point, metric)
 
       %{
         minute: point.minute,

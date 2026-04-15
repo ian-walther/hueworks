@@ -13,6 +13,7 @@ defmodule Hueworks.Scenes do
   alias Hueworks.Rooms
   alias Hueworks.Control.Apply, as: ControlApply
   alias Hueworks.Scenes.Intent
+  alias Hueworks.Scenes.Intent.BuildOptions
   alias Hueworks.Schemas.{Light, LightState, Room, Scene, SceneComponent, SceneComponentLight}
 
   def list_scenes_for_room(room_id) do
@@ -304,15 +305,16 @@ defmodule Hueworks.Scenes do
       scene
       |> Repo.preload(scene_components: [:lights, :light_state, :scene_component_lights])
 
-    preserve_power_latches = Keyword.get(opts, :preserve_power_latches, true)
-    # TODO: replace this temporary fallback with HA-provided occupancy input.
     occupied = Keyword.get_lazy(opts, :occupied, fn -> Rooms.room_occupied?(scene.room_id) end)
+
+    intent_opts =
+      opts
+      |> Keyword.put(:occupied, occupied)
+      |> BuildOptions.from_opts()
+
+    preserve_power_latches = intent_opts.preserve_power_latches
     force_apply = Keyword.get(opts, :force_apply, false)
     trace = enrich_trace(Keyword.get(opts, :trace), scene, occupied)
-    now = Keyword.get(opts, :now, DateTime.utc_now())
-    target_light_ids = opts |> Keyword.get(:target_light_ids, []) |> MapSet.new()
-    circadian_only = Keyword.get(opts, :circadian_only, false)
-    power_overrides = Keyword.get(opts, :power_overrides, %{})
 
     log_trace(
       trace,
@@ -324,15 +326,7 @@ defmodule Hueworks.Scenes do
       force_apply: force_apply
     )
 
-    txn =
-      Intent.build_transaction(scene,
-        preserve_power_latches: preserve_power_latches,
-        occupied: occupied,
-        now: now,
-        target_light_ids: target_light_ids,
-        circadian_only: circadian_only,
-        power_overrides: power_overrides
-      )
+    txn = Intent.build_transaction(scene, intent_opts)
 
     result =
       ControlApply.commit_and_enqueue(txn, scene.room_id,

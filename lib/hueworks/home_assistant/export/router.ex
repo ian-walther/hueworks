@@ -7,6 +7,7 @@ defmodule Hueworks.HomeAssistant.Export.Router do
   alias Hueworks.HomeAssistant.Export.Commands
   alias Hueworks.HomeAssistant.Export.Entities
   alias Hueworks.HomeAssistant.Export.Messages
+  alias Hueworks.HomeAssistant.Export.Messages.CommandTarget
   alias Hueworks.HomeAssistant.Export.Publisher
   alias Hueworks.Lights.ManualControl
   alias Hueworks.Scenes
@@ -24,10 +25,10 @@ defmodule Hueworks.HomeAssistant.Export.Router do
       {_scene_id, room_id, _entity_command, option_label} when is_integer(room_id) ->
         handle_room_select_command(room_id, option_label)
 
-      {_scene_id, _room_id, %{kind: kind, id: id, mode: :switch}, command_payload} ->
+      {_scene_id, _room_id, %CommandTarget{kind: kind, id: id, mode: :switch}, command_payload} ->
         handle_switch_command(kind, id, command_payload, config, publish_fun)
 
-      {_scene_id, _room_id, %{kind: kind, id: id, mode: :light}, command_payload} ->
+      {_scene_id, _room_id, %CommandTarget{kind: kind, id: id, mode: :light}, command_payload} ->
         handle_light_command(kind, id, command_payload, config, publish_fun)
 
       _ ->

@@ -10,6 +10,20 @@ defmodule Hueworks.HomeAssistant.Export.Messages do
   @default_discovery_prefix "homeassistant"
   @default_topic_prefix "hueworks/ha_export"
 
+  defmodule CommandTarget do
+    @moduledoc false
+
+    @enforce_keys [:kind, :mode, :id]
+    defstruct [:kind, :mode, :id]
+  end
+
+  defmodule RoomSceneOption do
+    @moduledoc false
+
+    @enforce_keys [:label, :scene]
+    defstruct [:label, :scene]
+  end
+
   def availability_topic, do: "#{@default_topic_prefix}/status"
 
   def command_topic(scene_id) when is_integer(scene_id),
@@ -286,16 +300,30 @@ defmodule Hueworks.HomeAssistant.Export.Messages do
     power = state_power_value(state)
 
     brightness =
-      normalize_export_brightness(Map.get(state, :brightness) || Map.get(state, "brightness"))
+      state
+      |> Map.get(:brightness)
+      |> Kernel.||(Map.get(state, "brightness"))
+      |> normalize_export_brightness()
 
     kelvin =
-      normalize_export_kelvin(
-        Map.get(state, :kelvin) || Map.get(state, "kelvin") || Map.get(state, :temperature) ||
-          Map.get(state, "temperature")
-      )
+      state
+      |> Map.get(:kelvin)
+      |> Kernel.||(Map.get(state, "kelvin"))
+      |> Kernel.||(Map.get(state, :temperature))
+      |> Kernel.||(Map.get(state, "temperature"))
+      |> normalize_export_kelvin()
 
-    x = normalize_xy_value(Map.get(state, :x) || Map.get(state, "x"))
-    y = normalize_xy_value(Map.get(state, :y) || Map.get(state, "y"))
+    x =
+      state
+      |> Map.get(:x)
+      |> Kernel.||(Map.get(state, "x"))
+      |> normalize_xy_value()
+
+    y =
+      state
+      |> Map.get(:y)
+      |> Kernel.||(Map.get(state, "y"))
+      |> normalize_xy_value()
 
     %{"state" => power_to_mqtt_json(power)}
     |> maybe_put("brightness", brightness)
@@ -349,8 +377,9 @@ defmodule Hueworks.HomeAssistant.Export.Messages do
         _ -> nil
       end
 
-    room_scene_options(scenes)
-    |> Enum.find_value("Manual", fn %{label: label, scene: scene} ->
+    scenes
+    |> room_scene_options()
+    |> Enum.find_value("Manual", fn %RoomSceneOption{label: label, scene: scene} ->
       if scene.id == active_scene_id, do: label, else: nil
     end)
   end
@@ -375,7 +404,7 @@ defmodule Hueworks.HomeAssistant.Export.Messages do
           base_name
         end
 
-      %{label: label, scene: scene}
+      %RoomSceneOption{label: label, scene: scene}
     end)
   end
 
@@ -451,7 +480,7 @@ defmodule Hueworks.HomeAssistant.Export.Messages do
   defp parse_command_target(kind, mode, id)
        when kind in [:light, :group] and mode in [:switch, :light] do
     case Integer.parse(id) do
-      {parsed, ""} -> %{kind: kind, mode: mode, id: parsed}
+      {parsed, ""} -> %CommandTarget{kind: kind, mode: mode, id: parsed}
       _ -> nil
     end
   end
@@ -485,7 +514,10 @@ defmodule Hueworks.HomeAssistant.Export.Messages do
   defp entity_name(entity), do: entity.display_name || entity.name
 
   defp room_select_option_labels(scenes) when is_list(scenes) do
-    ["Manual" | Enum.map(room_scene_options(scenes), & &1.label)]
+    scenes
+    |> room_scene_options()
+    |> Enum.map(& &1.label)
+    |> then(&["Manual" | &1])
   end
 
   defp maybe_put(payload, _key, nil), do: payload

@@ -6,6 +6,8 @@ defmodule Hueworks.HomeAssistant.ExportTest do
   alias Hueworks.Control.DesiredState
   alias Hueworks.Control.State
   alias Hueworks.HomeAssistant.Export
+  alias Hueworks.HomeAssistant.Export.Messages
+  alias Hueworks.HomeAssistant.Export.Messages.{CommandTarget, RoomSceneOption}
   alias Hueworks.Repo
   alias Hueworks.Schemas.{AppSetting, Bridge, Group, GroupLight, Light, Room, Scene}
 
@@ -97,6 +99,37 @@ defmodule Hueworks.HomeAssistant.ExportTest do
              "All Auto (##{scene_a.id})",
              "All Auto (##{scene_b.id})"
            ]
+  end
+
+  test "command export target returns a typed runtime struct" do
+    assert %CommandTarget{kind: :light, mode: :switch, id: 17} =
+             Messages.command_export_target("hueworks/ha_export/lights/17/switch/set")
+
+    assert %CommandTarget{kind: :group, mode: :light, id: 42} =
+             Messages.command_export_target([
+               "hueworks",
+               "ha_export",
+               "groups",
+               "42",
+               "light",
+               "set"
+             ])
+  end
+
+  test "room scene options return typed runtime structs" do
+    room = Repo.insert!(%Room{name: "Main Floor"})
+    scene_a = Repo.insert!(%Scene{name: "All Auto", room_id: room.id}) |> Repo.preload(:room)
+    scene_b = Repo.insert!(%Scene{name: "All Auto", room_id: room.id}) |> Repo.preload(:room)
+
+    assert [
+             %RoomSceneOption{label: label_a, scene: %Scene{id: scene_id_a}},
+             %RoomSceneOption{label: label_b, scene: %Scene{id: scene_id_b}}
+           ] = Messages.room_scene_options([scene_a, scene_b])
+
+    assert label_a == "All Auto (##{scene_a.id})"
+    assert label_b == "All Auto (##{scene_b.id})"
+    assert scene_id_a == scene_a.id
+    assert scene_id_b == scene_b.id
   end
 
   test "switch discovery payload uses stable IDs and switch topics" do

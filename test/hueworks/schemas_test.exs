@@ -344,6 +344,20 @@ defmodule Hueworks.SchemasTest do
     assert LightState.manual_mode(%{"temperature" => 3000}) == :temperature
   end
 
+  test "light_state circadian_config returns a typed circadian config struct" do
+    config =
+      LightState.circadian_config(%{
+        "min_brightness" => "15",
+        "brightness_mode" => "linear",
+        "sunrise_time" => "06:45"
+      })
+
+    assert %Hueworks.Circadian.Config{} = config
+    assert config.min_brightness == 15
+    assert config.brightness_mode == :linear
+    assert config.sunrise_time == "06:45:00"
+  end
+
   test "scene_component_light requires scene_component_id and light_id" do
     changeset = SceneComponentLight.changeset(%SceneComponentLight{}, %{})
     errors = errors_on(changeset)

@@ -3,6 +3,7 @@ defmodule Hueworks.PicosTest do
 
   alias Hueworks.ActiveScenes
   alias Hueworks.Picos
+  alias Hueworks.Picos.Actions.ActionConfig
   alias Phoenix.PubSub
   alias Hueworks.Scenes
   alias Hueworks.Control.{DesiredState, State}
@@ -24,6 +25,32 @@ defmodule Hueworks.PicosTest do
     }
 
     Repo.insert!(struct(Bridge, Map.merge(defaults, attrs)))
+  end
+
+  test "button action config returns a typed runtime struct" do
+    assert %ActionConfig{
+             target_kind: :scene,
+             target_id: 12,
+             light_ids: [],
+             room_id: 5
+           } =
+             ActionConfig.from_map(%{
+               "target_kind" => "scene",
+               "target_id" => "12",
+               "room_id" => "5"
+             })
+
+    assert %ActionConfig{
+             target_kind: :control_group,
+             target_id: 9,
+             light_ids: [1, 2],
+             room_id: nil
+           } =
+             ActionConfig.from_map(%{
+               target_kind: :control_group,
+               target_id: 9,
+               light_ids: ["1", 2, "bad"]
+             })
   end
 
   test "sync_bridge_picos derives room and button layout from Caseta raw data" do
@@ -293,7 +320,9 @@ defmodule Hueworks.PicosTest do
     assert button.action_type == "activate_scene"
     assert button.action_config["target_kind"] == "scene"
     assert button.action_config["target_id"] == scene.id
-    assert Picos.button_binding_summary(button, Picos.get_device(device.id)) == "Activate Scene Evening"
+
+    assert Picos.button_binding_summary(button, Picos.get_device(device.id)) ==
+             "Activate Scene Evening"
 
     assert :handled = Picos.handle_button_press(bridge.id, "1")
     assert ActiveScenes.get_for_room(room.id).scene_id == scene.id
@@ -400,10 +429,10 @@ defmodule Hueworks.PicosTest do
              })
 
     assert {:ok, _button} =
-      Picos.assign_button_binding(source, "s2", %{
-        "action" => "off",
-        "target_kind" => "all_groups"
-      })
+             Picos.assign_button_binding(source, "s2", %{
+               "action" => "off",
+               "target_kind" => "all_groups"
+             })
 
     assert {:ok, _button} =
              Picos.assign_button_binding(source, "s3", %{

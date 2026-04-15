@@ -5,36 +5,54 @@ defmodule Hueworks.CircadianPreview do
 
   alias Hueworks.Circadian
   alias Hueworks.Circadian.Config
+  alias __MODULE__.{Marker, Point, Result}
 
   @default_interval_minutes 10
 
-  @type preview_point :: %{
-          minute: integer(),
-          brightness: integer(),
-          kelvin: integer()
-        }
+  defmodule Point do
+    @enforce_keys [:minute, :brightness, :kelvin]
+    defstruct [:minute, :brightness, :kelvin]
+  end
 
-  @type preview_marker :: %{
-          key: :sunrise | :noon | :sunset,
-          label: String.t(),
-          minute: float(),
-          time_label: String.t()
-        }
+  defmodule Marker do
+    @enforce_keys [:key, :label, :minute, :time_label]
+    defstruct [:key, :label, :minute, :time_label]
+  end
 
-  @type preview_result :: %{
-          date: Date.t(),
-          timezone: String.t(),
-          config: map(),
-          interval_minutes: integer(),
-          points: [preview_point()],
-          markers: [preview_marker()],
-         brightness_markers: [preview_marker()],
-         temperature_markers: [preview_marker()],
-         min_brightness: integer(),
-         max_brightness: integer(),
-         min_kelvin: integer(),
-         max_kelvin: integer()
-        }
+  defmodule Result do
+    @enforce_keys [
+      :date,
+      :timezone,
+      :config,
+      :interval_minutes,
+      :points,
+      :markers,
+      :brightness_markers,
+      :temperature_markers,
+      :min_brightness,
+      :max_brightness,
+      :min_kelvin,
+      :max_kelvin
+    ]
+    defstruct [
+      :date,
+      :timezone,
+      :config,
+      :interval_minutes,
+      :points,
+      :markers,
+      :brightness_markers,
+      :temperature_markers,
+      :min_brightness,
+      :max_brightness,
+      :min_kelvin,
+      :max_kelvin
+    ]
+  end
+
+  @type preview_point :: %Point{}
+  @type preview_marker :: %Marker{}
+  @type preview_result :: %Result{}
 
   @spec sample_day(map(), map(), Date.t() | String.t(), keyword()) ::
           {:ok, preview_result()} | {:error, term()}
@@ -65,7 +83,7 @@ defmodule Hueworks.CircadianPreview do
          {:ok, points} <-
            sample_points(normalized_config, normalized_solar, parsed_date, interval_minutes) do
       {:ok,
-       %{
+       %Result{
          date: parsed_date,
          timezone: normalized_solar.timezone,
          config: normalized_config,
@@ -123,7 +141,7 @@ defmodule Hueworks.CircadianPreview do
     |> Enum.reduce_while({:ok, []}, fn minute, {:ok, acc} ->
       with {:ok, now_utc} <- local_minute_to_utc(date, minute, solar_config.timezone),
            {:ok, result} <- Circadian.calculate(config, solar_config, now_utc) do
-        point = %{minute: minute, brightness: result.brightness, kelvin: result.kelvin}
+        point = %Point{minute: minute, brightness: result.brightness, kelvin: result.kelvin}
         {:cont, {:ok, [point | acc]}}
       else
         {:error, reason} -> {:halt, {:error, reason}}
@@ -164,19 +182,25 @@ defmodule Hueworks.CircadianPreview do
   defp build_markers(events, date, timezone) do
     events
     |> Enum.filter(fn {key, _dt} -> key in [:sunrise, :noon, :sunset] end)
-    |> Enum.map(fn {key, datetime} ->
+    |> Enum.reduce([], fn {key, datetime}, acc ->
       local = DateTime.shift_zone!(datetime, timezone)
+      marker_date = DateTime.to_date(local)
 
-      %{
-        key: key,
-        label: marker_label(key),
-        minute: minute_of_day(local),
-        time_label: format_time(local),
-        date: DateTime.to_date(local)
-      }
+      if marker_date == date do
+        [
+          %Marker{
+            key: key,
+            label: marker_label(key),
+            minute: minute_of_day(local),
+            time_label: format_time(local)
+          }
+          | acc
+        ]
+      else
+        acc
+      end
     end)
-    |> Enum.filter(fn marker -> marker.date == date end)
-    |> Enum.map(&Map.delete(&1, :date))
+    |> Enum.reverse()
     |> Enum.sort_by(& &1.minute)
   end
 

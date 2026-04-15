@@ -14,6 +14,57 @@ defmodule Hueworks.Picos.Actions do
   alias Hueworks.Schemas.{PicoButton, PicoDevice}
   alias Phoenix.PubSub
 
+  defmodule ActionConfig do
+    @moduledoc false
+
+    @enforce_keys [:target_kind]
+    defstruct target_kind: :none, target_id: nil, light_ids: [], room_id: nil
+
+    def from_map(config) when is_map(config) do
+      %__MODULE__{
+        target_kind: config |> target_kind_value() |> normalize_target_kind(),
+        target_id: config |> target_id_value() |> normalize_integer(),
+        light_ids: config |> light_ids_value() |> Targets.normalize_integer_ids(),
+        room_id: config |> room_id_value() |> normalize_integer()
+      }
+    end
+
+    def from_map(_config), do: %__MODULE__{target_kind: :none}
+
+    defp target_kind_value(config) do
+      Map.get(config, "target_kind") || Map.get(config, :target_kind)
+    end
+
+    defp target_id_value(config) do
+      Map.get(config, "target_id") || Map.get(config, :target_id)
+    end
+
+    defp light_ids_value(config) do
+      Map.get(config, "light_ids") || Map.get(config, :light_ids) || []
+    end
+
+    defp room_id_value(config) do
+      Map.get(config, "room_id") || Map.get(config, :room_id)
+    end
+
+    defp normalize_target_kind(kind) when kind in [:scene, :all_groups, :control_group], do: kind
+    defp normalize_target_kind("scene"), do: :scene
+    defp normalize_target_kind("all_groups"), do: :all_groups
+    defp normalize_target_kind("control_group"), do: :control_group
+    defp normalize_target_kind(_kind), do: :none
+
+    defp normalize_integer(value) when is_integer(value), do: value
+
+    defp normalize_integer(value) when is_binary(value) do
+      case Integer.parse(value) do
+        {parsed, ""} -> parsed
+        _ -> nil
+      end
+    end
+
+    defp normalize_integer(_value), do: nil
+  end
+
   def handle_button_press(bridge_id, button_source_id, topic)
       when is_integer(bridge_id) and is_binary(button_source_id) and is_binary(topic) do
     Logger.info(
@@ -79,7 +130,10 @@ defmodule Hueworks.Picos.Actions do
          pico_device: device,
          action_config: config
        }) do
-    light_ids = action_light_ids(device, config)
+    light_ids =
+      config
+      |> ActionConfig.from_map()
+      |> action_light_ids(device)
 
     Logger.info(
       "[pico-trace] execute_button_action room_id=#{device.room_id} action=:on light_ids=#{inspect(light_ids)}"
@@ -94,7 +148,10 @@ defmodule Hueworks.Picos.Actions do
          pico_device: device,
          action_config: config
        }) do
-    light_ids = action_light_ids(device, config)
+    light_ids =
+      config
+      |> ActionConfig.from_map()
+      |> action_light_ids(device)
 
     Logger.info(
       "[pico-trace] execute_button_action room_id=#{device.room_id} action=:off light_ids=#{inspect(light_ids)}"
@@ -109,7 +166,11 @@ defmodule Hueworks.Picos.Actions do
          pico_device: device,
          action_config: config
        }) do
-    light_ids = action_light_ids(device, config)
+    light_ids =
+      config
+      |> ActionConfig.from_map()
+      |> action_light_ids(device)
+
     any_on? = Enum.any?(light_ids, &light_powered?/1)
 
     action = if(any_on?, do: :off, else: :on)
@@ -125,16 +186,21 @@ defmodule Hueworks.Picos.Actions do
   defp execute_button_action(%PicoButton{
          action_type: "activate_scene",
          pico_device: device,
-         action_config: %{"target_kind" => "scene", "target_id" => scene_id}
-       })
-       when is_integer(scene_id) do
-    Logger.info(
-      "[pico-trace] execute_button_action room_id=#{device.room_id} action=:activate_scene scene_id=#{scene_id}"
-    )
+         action_config: config
+       }) do
+    case ActionConfig.from_map(config) do
+      %ActionConfig{target_kind: :scene, target_id: scene_id} when is_integer(scene_id) ->
+        Logger.info(
+          "[pico-trace] execute_button_action room_id=#{device.room_id} action=:activate_scene scene_id=#{scene_id}"
+        )
 
-    case Scenes.activate_scene(scene_id) do
-      {:ok, _diff, _updated} -> :handled
-      _ -> :ignored
+        case Scenes.activate_scene(scene_id) do
+          {:ok, _diff, _updated} -> :handled
+          _ -> :ignored
+        end
+
+      _ ->
+        :ignored
     end
   end
 
@@ -146,18 +212,19 @@ defmodule Hueworks.Picos.Actions do
     :ignored
   end
 
-  defp action_light_ids(_device, %{"light_ids" => light_ids}) when is_list(light_ids) do
+  defp action_light_ids(%ActionConfig{light_ids: light_ids}, _device) when light_ids != [] do
     Targets.normalize_integer_ids(light_ids)
   end
 
-  defp action_light_ids(device, %{"target_kind" => "all_groups"}) do
+  defp action_light_ids(%ActionConfig{target_kind: :all_groups}, device) do
     device
     |> Picos.control_groups()
     |> Enum.flat_map(&Targets.control_group_light_ids(device.room_id, &1))
     |> Enum.uniq()
   end
 
-  defp action_light_ids(device, %{"target_kind" => "control_group", "target_id" => target_id}) do
+  defp action_light_ids(%ActionConfig{target_kind: :control_group, target_id: target_id}, device)
+       when is_integer(target_id) do
     device
     |> Picos.control_groups()
     |> Enum.find(&(Map.get(&1, "id") == target_id))
@@ -167,7 +234,7 @@ defmodule Hueworks.Picos.Actions do
     end
   end
 
-  defp action_light_ids(_device, _config), do: []
+  defp action_light_ids(_config, _device), do: []
 
   defp light_powered?(light_id) do
     state = DesiredState.get(:light, light_id) || State.get(:light, light_id) || %{}

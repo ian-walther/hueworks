@@ -121,4 +121,17 @@ defmodule Hueworks.CircadianConfigTest do
     assert runtime[:sunrise_time] == "06:30:00"
     assert runtime[:temperature_ceiling_kelvin] == nil
   end
+
+  test "load returns a typed circadian config struct" do
+    assert {:ok, %Config{} = config} =
+             Config.load(%{
+               "brightness_mode" => "linear",
+               "min_brightness" => "10",
+               "sunrise_time" => "06:30"
+             })
+
+    assert config.brightness_mode == :linear
+    assert config.min_brightness == 10
+    assert config.sunrise_time == "06:30:00"
+  end
 end

@@ -2,6 +2,7 @@ defmodule Hueworks.CircadianPreviewTest do
   use ExUnit.Case, async: true
 
   alias Hueworks.CircadianPreview
+  alias Hueworks.CircadianPreview.{Marker, Point, Result}
 
   @solar_config %{latitude: 40.7128, longitude: -74.0060, timezone: "Etc/UTC"}
 
@@ -20,6 +21,7 @@ defmodule Hueworks.CircadianPreviewTest do
                interval_minutes: 60
              )
 
+    assert %Result{} = preview
     assert preview.timezone == "Etc/UTC"
     assert preview.date == ~D[2026-03-08]
     assert preview.interval_minutes == 60
@@ -27,16 +29,14 @@ defmodule Hueworks.CircadianPreviewTest do
     assert preview.config[:min_brightness] == 1
     assert length(preview.points) == 25
 
-    assert hd(preview.points) == %{minute: 0, brightness: 1, kelvin: 2000}
+    assert hd(preview.points) == %Point{minute: 0, brightness: 1, kelvin: 2000}
 
-    assert Enum.find(preview.points, &(&1.minute == 720)) == %{
-             minute: 720,
-             brightness: 100,
-             kelvin: 5500
-           }
+    assert Enum.find(preview.points, &(&1.minute == 720)) ==
+             %Point{minute: 720, brightness: 100, kelvin: 5500}
 
     assert List.last(preview.points).minute == 1439
 
+    assert Enum.all?(preview.markers, &match?(%Marker{}, &1))
     assert Enum.map(preview.markers, & &1.key) == [:sunrise, :noon, :sunset]
     assert Enum.map(preview.brightness_markers, & &1.key) == [:sunrise, :noon, :sunset]
     assert Enum.map(preview.temperature_markers, & &1.key) == [:sunrise, :noon, :sunset]

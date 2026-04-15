@@ -5,6 +5,7 @@ defmodule Hueworks.HomeAssistant.Export.Entities do
 
   alias Hueworks.Groups
   alias Hueworks.HomeAssistant.Export.Messages
+  alias Hueworks.HomeAssistant.Export.Messages.RoomSceneOption
   alias Hueworks.Repo
   alias Hueworks.Schemas.{Group, Light, Room, Scene}
 
@@ -87,7 +88,7 @@ defmodule Hueworks.HomeAssistant.Export.Entities do
     room_id
     |> list_exportable_scenes_for_room()
     |> Messages.room_scene_options()
-    |> Enum.find_value(fn %{label: label, scene: scene} ->
+    |> Enum.find_value(fn %RoomSceneOption{label: label, scene: scene} ->
       if label == option_label, do: scene, else: nil
     end)
   end

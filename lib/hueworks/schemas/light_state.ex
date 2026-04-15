@@ -28,6 +28,15 @@ defmodule Hueworks.Schemas.LightState do
   def manual_mode(%__MODULE__{} = light_state), do: manual_mode(light_state.config)
   def manual_mode(config), do: ManualConfig.mode(config)
 
+  def circadian_config(%__MODULE__{config: config}), do: circadian_config(config)
+
+  def circadian_config(config) do
+    case CircadianConfig.load(config) do
+      {:ok, circadian_config} -> circadian_config
+      {:error, _errors} -> %CircadianConfig{}
+    end
+  end
+
   defp validate_type_config(changeset) do
     case get_field(changeset, :type) do
       :manual ->
