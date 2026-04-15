@@ -63,9 +63,10 @@ defmodule Hueworks.Import.Fetch.Caseta do
   end
 
   defp connect(bridge) do
-    cert_path = bridge.credentials["cert_path"]
-    key_path = bridge.credentials["key_path"]
-    cacert_path = bridge.credentials["cacert_path"]
+    credentials = Bridge.credentials_struct(bridge)
+    cert_path = credentials.cert_path
+    key_path = credentials.key_path
+    cacert_path = credentials.cacert_path
 
     if Enum.any?([cert_path, key_path, cacert_path], &invalid_credential?/1) do
       raise "Missing Caseta TLS credentials for bridge #{bridge.name} (#{bridge.host})"

@@ -86,6 +86,48 @@ defmodule Hueworks.SchemasTest do
     assert Map.has_key?(errors_on(dupe), :type) or Map.has_key?(errors_on(dupe), :host)
   end
 
+  test "bridge credentials are normalized through the typed boundary" do
+    changeset =
+      Bridge.changeset(%Bridge{}, %{
+        type: :z2m,
+        name: "Z2M",
+        host: "10.0.0.90",
+        credentials: %{
+          "broker_port" => "1883",
+          "username" => "  zigbee  ",
+          "password" => " secret ",
+          "base_topic" => " zigbee2mqtt "
+        }
+      })
+
+    assert changeset.valid?
+
+    assert Ecto.Changeset.get_change(changeset, :credentials) == %{
+             "broker_port" => 1883,
+             "username" => "zigbee",
+             "password" => "secret",
+             "base_topic" => "zigbee2mqtt"
+           }
+  end
+
+  test "bridge credentials struct exposes typed credentials for the bridge type" do
+    bridge =
+      %Bridge{
+        type: :caseta,
+        credentials: %{
+          "cert_path" => "/tmp/caseta.crt",
+          "key_path" => "/tmp/caseta.key",
+          "cacert_path" => "/tmp/caseta-ca.crt"
+        }
+      }
+
+    credentials = Bridge.credentials_struct(bridge)
+
+    assert credentials.cert_path == "/tmp/caseta.crt"
+    assert credentials.key_path == "/tmp/caseta.key"
+    assert credentials.cacert_path == "/tmp/caseta-ca.crt"
+  end
+
   test "bridge import requires bridge_id, raw_blob, status, imported_at" do
     changeset = BridgeImport.changeset(%BridgeImport{}, %{})
     errors = errors_on(changeset)

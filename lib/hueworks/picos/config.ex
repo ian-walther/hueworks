@@ -6,6 +6,7 @@ defmodule Hueworks.Picos.Config do
   alias Hueworks.Picos
   alias Hueworks.Picos.Targets
   alias Hueworks.Repo
+  alias Hueworks.Schemas.PicoButton.ActionConfig, as: StoredActionConfig
   alias Hueworks.Schemas.{PicoButton, PicoDevice}
   alias Hueworks.Util
 
@@ -73,7 +74,7 @@ defmodule Hueworks.Picos.Config do
                     action_type: source_button.action_type,
                     action_config:
                       clone_action_config(
-                        source_button.action_config || %{},
+                        PicoButton.action_config_struct(source_button),
                         group_id_map,
                         source.room_id
                       ),
@@ -267,13 +268,13 @@ defmodule Hueworks.Picos.Config do
     if Picos.control_groups(device) == [] do
       {:error, :missing_target}
     else
-      {:ok, %{"target_kind" => "all_groups"}}
+      StoredActionConfig.normalize(%{"target_kind" => "all_groups"})
     end
   end
 
   defp binding_action_config(device, %{"target_kind" => "control_group", "target_id" => target_id}) do
     if Enum.any?(Picos.control_groups(device), &(&1["id"] == target_id)) do
-      {:ok, %{"target_kind" => "control_group", "target_id" => target_id}}
+      StoredActionConfig.normalize(%{"target_kind" => "control_group", "target_id" => target_id})
     else
       {:error, :missing_target}
     end
@@ -283,7 +284,7 @@ defmodule Hueworks.Picos.Config do
     scene_id = Util.parse_optional_integer(target_id)
 
     if is_integer(device.room_id) and Targets.scene_exists_in_room?(device.room_id, scene_id) do
-      {:ok, %{"target_kind" => "scene", "target_id" => scene_id}}
+      StoredActionConfig.normalize(%{"target_kind" => "scene", "target_id" => scene_id})
     else
       {:error, :missing_target}
     end
@@ -325,10 +326,12 @@ defmodule Hueworks.Picos.Config do
   end
 
   defp clone_action_config(
-         %{"target_kind" => "control_group", "target_id" => target_id},
+         %StoredActionConfig{target_kind: :control_group} = config,
          group_id_map,
          room_id
        ) do
+    target_id = StoredActionConfig.target_id(config)
+
     %{
       "target_kind" => "control_group",
       "target_id" => Map.get(group_id_map, target_id),
@@ -336,7 +339,7 @@ defmodule Hueworks.Picos.Config do
     }
   end
 
-  defp clone_action_config(%{"target_kind" => "all_groups"}, _group_id_map, room_id) do
+  defp clone_action_config(%StoredActionConfig{target_kind: :all_groups}, _group_id_map, room_id) do
     %{
       "target_kind" => "all_groups",
       "room_id" => room_id
@@ -344,18 +347,21 @@ defmodule Hueworks.Picos.Config do
   end
 
   defp clone_action_config(
-         %{"target_kind" => "scene", "target_id" => target_id},
+         %StoredActionConfig{target_kind: :scene} = config,
          _group_id_map,
          room_id
        ) do
+    target_id = StoredActionConfig.target_id(config)
+
     %{
       "target_kind" => "scene",
-      "target_id" => Util.parse_optional_integer(target_id),
+      "target_id" => target_id,
       "room_id" => room_id
     }
   end
 
-  defp clone_action_config(%{"light_ids" => light_ids}, _group_id_map, room_id) do
+  defp clone_action_config(%StoredActionConfig{light_ids: light_ids}, _group_id_map, room_id)
+       when light_ids != [] do
     %{
       "light_ids" => Targets.normalize_integer_ids(light_ids),
       "room_id" => room_id

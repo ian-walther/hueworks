@@ -14,10 +14,11 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.Connection do
   alias Hueworks.Repo
   alias Hueworks.Schemas.Group
   alias Hueworks.Schemas.Light
+  alias Hueworks.Schemas.Bridge
 
   def start_link(bridge) do
     url = "ws://#{Host.normalize(bridge.host)}/api/websocket"
-    token = bridge.credentials["token"]
+    token = Bridge.credentials_struct(bridge).token
 
     if invalid_credential?(token) do
       Logger.warning("HA events missing token for #{bridge.name} (#{bridge.host})")

@@ -28,13 +28,13 @@ defmodule Hueworks.Subscription.Z2MEventStream.Connection do
     do: Hueworks.Instance.z2m_client_id("hwz2ms", bridge_id)
 
   defp config_for_bridge(bridge) do
-    credentials = bridge.credentials || %{}
+    credentials = Bridge.credentials_struct(bridge)
 
     %{
-      base_topic: normalize_base_topic(Map.get(credentials, "base_topic")),
-      port: normalize_port(Map.get(credentials, "broker_port")),
-      username: normalize_optional(Map.get(credentials, "username")),
-      password: normalize_optional(Map.get(credentials, "password"))
+      base_topic: normalize_base_topic(credentials.base_topic),
+      port: normalize_port(credentials.broker_port),
+      username: normalize_optional(credentials.username),
+      password: normalize_optional(credentials.password)
     }
   end
 

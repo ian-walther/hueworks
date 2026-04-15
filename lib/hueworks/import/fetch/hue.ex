@@ -13,7 +13,7 @@ defmodule Hueworks.Import.Fetch.Hue do
 
     bridges =
       Enum.map(bridges, fn bridge ->
-        api_key = bridge.credentials["api_key"]
+        api_key = Bridge.credentials_struct(bridge).api_key
 
         if is_nil(api_key) or api_key == "" do
           raise "Missing Hue api_key for bridge #{bridge.name} (#{bridge.host})"
@@ -45,7 +45,7 @@ defmodule Hueworks.Import.Fetch.Hue do
   end
 
   def fetch_for_bridge(bridge) do
-    api_key = bridge.credentials["api_key"]
+    api_key = Bridge.credentials_struct(bridge).api_key
 
     if is_nil(api_key) or api_key == "" do
       raise "Missing Hue api_key for bridge #{bridge.name} (#{bridge.host})"

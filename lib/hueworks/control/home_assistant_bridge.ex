@@ -26,7 +26,7 @@ defmodule Hueworks.Control.HomeAssistantBridge do
         {:error, :bridge_not_found}
 
       bridge ->
-        token = bridge.credentials["token"]
+        token = Bridge.credentials_struct(bridge).token
 
         if is_binary(token) and token != "" do
           {:ok, Host.normalize(bridge.host), token}

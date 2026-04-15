@@ -8,6 +8,7 @@ defmodule Hueworks.Picos do
   alias Hueworks.Picos.{Actions, Config, Sync}
   alias Hueworks.Picos.Targets
   alias Hueworks.Repo
+  alias Hueworks.Schemas.PicoButton.ActionConfig, as: StoredActionConfig
   alias Hueworks.Schemas.{Bridge, Group, Light, PicoButton, PicoDevice}
   alias Hueworks.Util
 
@@ -142,14 +143,16 @@ defmodule Hueworks.Picos do
   def button_slot_label(_device, slot_index), do: "Button #{slot_index + 1}"
 
   def button_binding_summary(%PicoButton{} = button, %PicoDevice{} = device) do
-    case {button.action_type, button.action_config || %{}} do
-      {nil, _} ->
+    case {button.action_type, PicoButton.action_config_struct(button)} do
+      {nil, _config} ->
         "Not assigned"
 
-      {action_type, %{"target_kind" => "all_groups"}} ->
+      {action_type, %StoredActionConfig{target_kind: :all_groups}} ->
         "#{binding_action_label(action_type)} All Control Groups"
 
-      {action_type, %{"target_kind" => "control_group", "target_id" => target_id}} ->
+      {action_type, %StoredActionConfig{target_kind: :control_group} = config} ->
+        target_id = StoredActionConfig.target_id(config)
+
         target_name =
           device
           |> control_groups()
@@ -159,10 +162,11 @@ defmodule Hueworks.Picos do
 
         "#{binding_action_label(action_type)} #{target_name}"
 
-      {action_type, %{"target_kind" => "scene", "target_id" => target_id}} ->
-        "#{binding_action_label(action_type)} #{scene_name_for_target(Util.parse_optional_integer(target_id), device.room_id)}"
+      {action_type, %StoredActionConfig{target_kind: :scene} = config} ->
+        target_id = StoredActionConfig.target_id(config)
+        "#{binding_action_label(action_type)} #{scene_name_for_target(target_id, device.room_id)}"
 
-      {action_type, config} when is_map_key(config, "light_ids") ->
+      {action_type, %StoredActionConfig{light_ids: light_ids}} when light_ids != [] ->
         "#{binding_action_label(action_type)} Custom Lights"
 
       {action_type, _config} ->

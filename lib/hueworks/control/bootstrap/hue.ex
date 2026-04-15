@@ -13,7 +13,7 @@ defmodule Hueworks.Control.Bootstrap.Hue do
     bridges = Repo.all(from(b in Bridge, where: b.type == :hue and b.enabled == true))
 
     Enum.each(bridges, fn bridge ->
-      api_key = bridge.credentials["api_key"]
+      api_key = Bridge.credentials_struct(bridge).api_key
 
       if is_binary(api_key) and api_key != "" do
         lights = fetch_hue_endpoint(bridge.host, api_key, "/lights")

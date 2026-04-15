@@ -10,9 +10,10 @@ defmodule Hueworks.Control.CasetaBridge do
         {:error, :bridge_not_found}
 
       bridge ->
-        cert_path = bridge.credentials["cert_path"]
-        key_path = bridge.credentials["key_path"]
-        cacert_path = bridge.credentials["cacert_path"]
+        credentials = Bridge.credentials_struct(bridge)
+        cert_path = credentials.cert_path
+        key_path = credentials.key_path
+        cacert_path = credentials.cacert_path
 
         if Enum.any?([cert_path, key_path, cacert_path], &invalid_credential?/1) do
           {:error, :missing_credentials}

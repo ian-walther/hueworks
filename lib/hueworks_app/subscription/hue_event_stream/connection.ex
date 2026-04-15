@@ -36,7 +36,7 @@ defmodule Hueworks.Subscription.HueEventStream.Connection do
 
   @impl true
   def handle_info(:connect, state) do
-    api_key = state.bridge.credentials["api_key"]
+    api_key = Hueworks.Schemas.Bridge.credentials_struct(state.bridge).api_key
 
     if is_binary(api_key) and api_key != "" do
       url = "https://#{state.bridge.host}/eventstream/clip/v2"

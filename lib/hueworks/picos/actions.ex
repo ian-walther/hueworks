@@ -11,6 +11,7 @@ defmodule Hueworks.Picos.Actions do
   alias Hueworks.Picos.Targets
   alias Hueworks.Repo
   alias Hueworks.Scenes
+  alias Hueworks.Schemas.PicoButton.ActionConfig, as: StoredActionConfig
   alias Hueworks.Schemas.{PicoButton, PicoDevice}
   alias Phoenix.PubSub
 
@@ -21,48 +22,20 @@ defmodule Hueworks.Picos.Actions do
     defstruct target_kind: :none, target_id: nil, light_ids: [], room_id: nil
 
     def from_map(config) when is_map(config) do
+      stored = StoredActionConfig.load(config)
+
       %__MODULE__{
-        target_kind: config |> target_kind_value() |> normalize_target_kind(),
-        target_id: config |> target_id_value() |> normalize_integer(),
-        light_ids: config |> light_ids_value() |> Targets.normalize_integer_ids(),
-        room_id: config |> room_id_value() |> normalize_integer()
+        target_kind: normalize_target_kind(stored.target_kind),
+        target_id: StoredActionConfig.target_id(stored),
+        light_ids: Targets.normalize_integer_ids(stored.light_ids),
+        room_id: stored.room_id
       }
     end
 
     def from_map(_config), do: %__MODULE__{target_kind: :none}
 
-    defp target_kind_value(config) do
-      Map.get(config, "target_kind") || Map.get(config, :target_kind)
-    end
-
-    defp target_id_value(config) do
-      Map.get(config, "target_id") || Map.get(config, :target_id)
-    end
-
-    defp light_ids_value(config) do
-      Map.get(config, "light_ids") || Map.get(config, :light_ids) || []
-    end
-
-    defp room_id_value(config) do
-      Map.get(config, "room_id") || Map.get(config, :room_id)
-    end
-
     defp normalize_target_kind(kind) when kind in [:scene, :all_groups, :control_group], do: kind
-    defp normalize_target_kind("scene"), do: :scene
-    defp normalize_target_kind("all_groups"), do: :all_groups
-    defp normalize_target_kind("control_group"), do: :control_group
     defp normalize_target_kind(_kind), do: :none
-
-    defp normalize_integer(value) when is_integer(value), do: value
-
-    defp normalize_integer(value) when is_binary(value) do
-      case Integer.parse(value) do
-        {parsed, ""} -> parsed
-        _ -> nil
-      end
-    end
-
-    defp normalize_integer(_value), do: nil
   end
 
   def handle_button_press(bridge_id, button_source_id, topic)

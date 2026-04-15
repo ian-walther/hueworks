@@ -2,14 +2,11 @@ defmodule HueworksWeb.LightStateEditorLive do
   use Phoenix.LiveView
 
   alias Hueworks.AppSettings
-  alias Hueworks.Color
-  alias Hueworks.Circadian.Config, as: CircadianConfig
   alias Hueworks.CircadianPreview
   alias Hueworks.Scenes
-  alias Hueworks.Schemas.LightState
   alias Hueworks.Util
+  alias HueworksWeb.LightStateEditorLive.FormState
 
-  @manual_keys ["mode", "brightness", "temperature", "hue", "saturation"]
   @preview_interval_minutes 5
   @chart_width 640
   @chart_height 188
@@ -25,18 +22,18 @@ defmodule HueworksWeb.LightStateEditorLive do
        light_state_id: nil,
        light_state_type: :manual,
        light_state_name: "",
-       light_state_config: manual_default_edits(),
+       light_state_config: FormState.manual_default_edits(),
        original_light_state_name: "",
-       original_light_state_config: manual_default_edits(),
+       original_light_state_config: FormState.manual_default_edits(),
        light_state_usages: [],
-       preview_date: default_preview_date(preview_timezone),
-       preview_latitude: format_coord(app_setting.latitude),
-       preview_longitude: format_coord(app_setting.longitude),
+       preview_date: FormState.default_preview_date(preview_timezone),
+       preview_latitude: FormState.format_coord(app_setting.latitude),
+       preview_longitude: FormState.format_coord(app_setting.longitude),
        preview_timezone: preview_timezone,
-       preview_timezones: timezone_options(preview_timezone),
-       original_preview_date: default_preview_date(preview_timezone),
-       original_preview_latitude: format_coord(app_setting.latitude),
-       original_preview_longitude: format_coord(app_setting.longitude),
+       preview_timezones: FormState.timezone_options(preview_timezone),
+       original_preview_date: FormState.default_preview_date(preview_timezone),
+       original_preview_latitude: FormState.format_coord(app_setting.latitude),
+       original_preview_longitude: FormState.format_coord(app_setting.longitude),
        original_preview_timezone: preview_timezone,
        circadian_preview: nil,
        circadian_preview_error: nil,
@@ -62,8 +59,15 @@ defmodule HueworksWeb.LightStateEditorLive do
   end
 
   def handle_event("update_form", params, socket) do
-    {name, config} = merge_form_params(socket, params)
-    preview_assigns = merge_preview_params(socket, params)
+    {name, config} =
+      FormState.merge_form_params(
+        socket.assigns.light_state_type,
+        socket.assigns.light_state_name,
+        socket.assigns.light_state_config,
+        params
+      )
+
+    preview_assigns = FormState.merge_preview_params(socket.assigns, params)
 
     socket =
       socket
@@ -80,7 +84,14 @@ defmodule HueworksWeb.LightStateEditorLive do
   end
 
   def handle_event("save", params, socket) do
-    {name, config} = merge_form_params(socket, params)
+    {name, config} =
+      FormState.merge_form_params(
+        socket.assigns.light_state_type,
+        socket.assigns.light_state_name,
+        socket.assigns.light_state_config,
+        params
+      )
+
     save_action = normalize_save_action(Map.get(params, "save_action"))
 
     attrs = %{
@@ -108,7 +119,7 @@ defmodule HueworksWeb.LightStateEditorLive do
         preview_latitude: socket.assigns.original_preview_latitude,
         preview_longitude: socket.assigns.original_preview_longitude,
         preview_timezone: socket.assigns.original_preview_timezone,
-        preview_timezones: timezone_options(socket.assigns.original_preview_timezone),
+        preview_timezones: FormState.timezone_options(socket.assigns.original_preview_timezone),
         save_error: nil,
         dirty: false
       )
@@ -135,10 +146,10 @@ defmodule HueworksWeb.LightStateEditorLive do
     socket =
       socket
       |> assign(
-        preview_latitude: format_coord(latitude),
-        preview_longitude: format_coord(longitude),
+        preview_latitude: FormState.format_coord(latitude),
+        preview_longitude: FormState.format_coord(longitude),
         preview_timezone: timezone,
-        preview_timezones: timezone_options(timezone),
+        preview_timezones: FormState.timezone_options(timezone),
         circadian_preview_error: nil
       )
       |> refresh_circadian_preview()
@@ -179,7 +190,10 @@ defmodule HueworksWeb.LightStateEditorLive do
 
         socket =
           socket
-          |> assign_saved_snapshot(state.name, default_edits(state.type, state.config || %{}))
+          |> assign_saved_snapshot(
+            state.name,
+            FormState.default_edits(state.type, state.config || %{})
+          )
           |> assign(
             light_state_usages: Scenes.light_state_usages(state.id),
             save_error: nil,
@@ -202,7 +216,7 @@ defmodule HueworksWeb.LightStateEditorLive do
   end
 
   defp assign_new_state(socket, type) do
-    config = default_edits(type)
+    config = FormState.default_edits(type)
 
     socket
     |> assign(
@@ -224,7 +238,7 @@ defmodule HueworksWeb.LightStateEditorLive do
         push_navigate(socket, to: "/config")
 
       state ->
-        config = default_edits(state.type, state.config || %{})
+        config = FormState.default_edits(state.type, state.config || %{})
 
         socket
         |> assign(
@@ -273,133 +287,24 @@ defmodule HueworksWeb.LightStateEditorLive do
   defp new_page_title(:manual), do: "New Manual Light State"
   defp new_page_title(:circadian), do: "New Circadian Light State"
 
-  defp default_edits(type, config \\ %{})
-  defp default_edits(:manual, config), do: manual_default_edits(config)
-  defp default_edits(:circadian, config), do: circadian_default_edits(config)
-
-  defp manual_default_edits(config \\ %{}) do
-    config = LightState.manual_config(config)
-
-    %{
-      "mode" => manual_mode_string(config),
-      "brightness" => manual_config_value(config, :brightness),
-      "temperature" => manual_config_value(config, :kelvin),
-      "hue" => manual_config_value(config, :hue),
-      "saturation" => manual_config_value(config, :saturation)
-    }
-  end
-
-  defp circadian_default_edits(config) do
-    defaults =
-      CircadianConfig.defaults()
-      |> Enum.map(fn {key, value} -> {key, stringify_config_value(value)} end)
-      |> Map.new()
-
-    Enum.reduce(config, defaults, fn {key, value}, acc ->
-      normalized_key = normalize_config_key(key)
-
-      if normalized_key in circadian_form_keys() do
-        Map.put(acc, normalized_key, stringify_config_value(value))
-      else
-        acc
-      end
-    end)
-  end
-
-  defp circadian_form_keys, do: CircadianConfig.supported_keys()
-
-  defp stringify_config_value(nil), do: ""
-  defp stringify_config_value(value) when is_binary(value), do: value
-  defp stringify_config_value(value) when is_integer(value), do: Integer.to_string(value)
-  defp stringify_config_value(value) when is_float(value), do: Float.to_string(value)
-  defp stringify_config_value(value), do: to_string(value)
-
-  defp normalize_config_key(key) when is_atom(key), do: Atom.to_string(key)
-  defp normalize_config_key(key) when is_binary(key), do: key
-  defp normalize_config_key(key), do: to_string(key)
-
   defp manual_mode(assigns) do
-    assigns.light_state_config
-    |> LightState.manual_mode()
-    |> manual_mode_string()
+    FormState.manual_mode(assigns.light_state_config)
   end
 
   defp manual_field_value(assigns, key) do
-    assigns.light_state_config
-    |> LightState.manual_config()
-    |> Map.get(key)
-    |> case do
-      nil -> ""
-      value -> value
-    end
+    FormState.manual_field_value(assigns.light_state_config, key)
   end
 
   defp manual_color_preview_style(assigns) do
-    {r, g, b} = manual_color_rgb(assigns) || {143, 177, 255}
-    "background-color: rgb(#{r} #{g} #{b});"
+    FormState.manual_color_preview_style(assigns.light_state_config)
   end
 
   defp manual_color_preview_label(assigns) do
-    config = LightState.manual_config(assigns.light_state_config)
-    hue = Map.get(config, :hue) |> normalize_preview_number(0)
-
-    saturation = Map.get(config, :saturation) |> normalize_preview_number(100)
-
-    brightness = Map.get(config, :brightness) |> normalize_preview_number(100)
-
-    "Preview: #{hue}°, #{saturation}% saturation, #{brightness}% brightness"
+    FormState.manual_color_preview_label(assigns.light_state_config)
   end
 
   defp manual_saturation_scale_style(assigns) do
-    config = LightState.manual_config(assigns.light_state_config)
-    hue = Map.get(config, :hue) |> normalize_preview_number(0)
-
-    brightness = Map.get(config, :brightness) |> normalize_preview_number(100)
-
-    {r1, g1, b1} = Color.hsb_to_rgb(hue, 0, brightness) || {255, 255, 255}
-    {r2, g2, b2} = Color.hsb_to_rgb(hue, 100, brightness) || {255, 255, 255}
-
-    "background: linear-gradient(90deg, rgb(#{r1} #{g1} #{b1}), rgb(#{r2} #{g2} #{b2}));"
-  end
-
-  defp manual_color_rgb(assigns) do
-    config = LightState.manual_config(assigns.light_state_config)
-
-    Color.hsb_to_rgb(
-      Map.get(config, :hue),
-      Map.get(config, :saturation),
-      Map.get(config, :brightness)
-    )
-  end
-
-  defp normalize_preview_number(value, fallback) do
-    case Util.to_number(value) do
-      number when is_number(number) -> round(number)
-      _ -> fallback
-    end
-  end
-
-  defp manual_config_value(config, key) do
-    case Map.get(config, key) do
-      nil -> ""
-      value -> value
-    end
-  end
-
-  defp manual_mode_string(config) do
-    case config do
-      :color ->
-        "color"
-
-      _ when is_atom(config) ->
-        "temperature"
-
-      _ ->
-        case LightState.manual_mode(config) do
-          :color -> "color"
-          _ -> "temperature"
-        end
-    end
+    FormState.manual_saturation_scale_style(assigns.light_state_config)
   end
 
   defp refresh_circadian_preview(%{assigns: %{light_state_type: :circadian}} = socket) do
@@ -696,101 +601,9 @@ defmodule HueworksWeb.LightStateEditorLive do
     end
   end
 
-  defp time_input_value(value), do: stringify_config_value(value)
+  defp time_input_value(value) when is_integer(value), do: Integer.to_string(value)
+  defp time_input_value(value) when is_float(value), do: Float.to_string(value)
+  defp time_input_value(value), do: to_string(value)
 
   defp parse_id(value), do: Util.parse_id(value)
-
-  defp merge_form_params(socket, params) do
-    name = Map.get(params, "name", socket.assigns.light_state_name)
-
-    config =
-      case socket.assigns.light_state_type do
-        :manual ->
-          Enum.reduce(@manual_keys, socket.assigns.light_state_config, fn key, acc ->
-            if Map.has_key?(params, key) do
-              Map.put(acc, key, Map.get(params, key))
-            else
-              acc
-            end
-          end)
-          |> Map.put_new("mode", "temperature")
-
-        :circadian ->
-          Enum.reduce(circadian_form_keys(), socket.assigns.light_state_config, fn key, acc ->
-            if Map.has_key?(params, key) do
-              Map.put(acc, key, Map.get(params, key))
-            else
-              acc
-            end
-          end)
-      end
-
-    {name, config}
-  end
-
-  defp merge_preview_params(socket, params) do
-    timezone = Map.get(params, "preview_timezone", socket.assigns.preview_timezone)
-
-    %{
-      preview_date: Map.get(params, "preview_date", socket.assigns.preview_date),
-      preview_latitude: Map.get(params, "preview_latitude", socket.assigns.preview_latitude),
-      preview_longitude: Map.get(params, "preview_longitude", socket.assigns.preview_longitude),
-      preview_timezone: timezone,
-      preview_timezones: timezone_options(timezone)
-    }
-  end
-
-  defp default_preview_date(timezone) do
-    case DateTime.now(timezone) do
-      {:ok, datetime} -> Date.to_iso8601(DateTime.to_date(datetime))
-      {:error, _reason} -> Date.to_iso8601(Date.utc_today())
-    end
-  end
-
-  defp format_coord(nil), do: ""
-
-  defp format_coord(value) when is_binary(value) do
-    case Float.parse(value) do
-      {number, _} -> format_coord(number)
-      :error -> ""
-    end
-  end
-
-  defp format_coord(value) when is_integer(value), do: format_coord(value * 1.0)
-  defp format_coord(value) when is_float(value), do: :erlang.float_to_binary(value, decimals: 6)
-  defp format_coord(_value), do: ""
-
-  defp timezone_options(current_timezone) do
-    base_timezones = [
-      "Etc/UTC",
-      "America/New_York",
-      "America/Chicago",
-      "America/Denver",
-      "America/Los_Angeles",
-      "America/Phoenix",
-      "America/Anchorage",
-      "Pacific/Honolulu",
-      "Europe/London",
-      "Europe/Paris",
-      "Europe/Berlin",
-      "Europe/Madrid",
-      "Europe/Rome",
-      "Asia/Tokyo",
-      "Asia/Seoul",
-      "Asia/Shanghai",
-      "Australia/Sydney"
-    ]
-
-    case normalize_timezone(current_timezone) do
-      nil -> base_timezones
-      timezone -> Enum.uniq([timezone | base_timezones])
-    end
-  end
-
-  defp normalize_timezone(value) when is_binary(value) do
-    trimmed = String.trim(value)
-    if trimmed == "", do: nil, else: trimmed
-  end
-
-  defp normalize_timezone(_value), do: nil
 end

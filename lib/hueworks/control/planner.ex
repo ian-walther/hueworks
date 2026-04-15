@@ -6,9 +6,10 @@ defmodule Hueworks.Control.Planner do
   import Ecto.Query, only: [from: 2]
   require Logger
 
-  alias Hueworks.AppSettings
   alias Hueworks.DebugLogging
   alias Hueworks.Control.LightStateSemantics
+  alias Hueworks.Control.Planner.Action
+  alias Hueworks.Control.Planner.Context
   alias Hueworks.Control.RoomSnapshot
   alias Hueworks.Control.Transition
   alias Hueworks.Repo
@@ -48,27 +49,19 @@ defmodule Hueworks.Control.Planner do
     diff
     |> Enum.flat_map(fn
       {{:light, id}, desired} when is_integer(id) and is_map(desired) ->
-        case Map.get(bridge_by_light_id, id) do
-          nil ->
-            []
-
-          bridge_id ->
-            [
-              %{type: :light, id: id, bridge_id: bridge_id, desired: desired}
-              |> maybe_put_apply_opts(apply_opts)
-            ]
+        bridge_by_light_id
+        |> Map.get(id)
+        |> case do
+          nil -> []
+          bridge_id -> [Action.light(id, bridge_id, desired, apply_opts) |> Action.to_map()]
         end
 
       {{"light", id}, desired} when is_integer(id) and is_map(desired) ->
-        case Map.get(bridge_by_light_id, id) do
-          nil ->
-            []
-
-          bridge_id ->
-            [
-              %{type: :light, id: id, bridge_id: bridge_id, desired: desired}
-              |> maybe_put_apply_opts(apply_opts)
-            ]
+        bridge_by_light_id
+        |> Map.get(id)
+        |> case do
+          nil -> []
+          bridge_id -> [Action.light(id, bridge_id, desired, apply_opts) |> Action.to_map()]
         end
 
       _ ->
@@ -77,67 +70,40 @@ defmodule Hueworks.Control.Planner do
   end
 
   def plan_snapshot(snapshot, diff, opts \\ []) when is_map(snapshot) and is_map(diff) do
-    trace = Keyword.get(opts, :trace)
-    base_transition_ms = transition_ms(opts)
-    scale_transition_by_brightness = scale_transition_by_brightness?()
-    room_id = Map.get(snapshot, :room_id)
-    room_lights = Map.get(snapshot, :room_lights, [])
-    desired_by_light = Map.get(snapshot, :desired_by_light, %{})
-    physical_by_light = Map.get(snapshot, :physical_by_light, %{})
-    group_memberships = Map.get(snapshot, :group_memberships, [])
-
-    room_light_ids = MapSet.new(Enum.map(room_lights, & &1.id))
-
-    effective_desired_by_light =
-      Map.new(room_lights, fn light ->
-        desired = Map.get(desired_by_light, light.id) || %{}
-        {light.id, effective_desired_for_light(desired, light)}
-      end)
-
-    diff_light_ids =
-      diff
-      |> Map.keys()
-      |> Enum.flat_map(fn
-        {:light, id} when is_integer(id) -> [id]
-        {"light", id} when is_integer(id) -> [id]
-        _ -> []
-      end)
-      |> Enum.filter(&MapSet.member?(room_light_ids, &1))
+    context = Context.from_snapshot(snapshot, opts)
+    trace = context.trace
+    diff_light_ids = Context.diff_light_ids(context, diff)
 
     actionable_diff_light_ids =
-      Enum.filter(diff_light_ids, fn id ->
-        desired = Map.get(effective_desired_by_light, id) || %{}
-        physical = Map.get(physical_by_light, id, %{})
-        desired_differs_from_physical?(desired, physical)
-      end)
+      Context.actionable_diff_light_ids(context, diff, &desired_differs_from_physical?/2)
 
     log_trace(trace, "planner_input",
-      room_id: room_id,
-      room_light_count: length(room_lights),
+      room_id: context.room_id,
+      room_light_count: length(context.room_lights),
       diff_light_ids: Enum.sort(diff_light_ids),
       actionable_diff_light_ids: Enum.sort(actionable_diff_light_ids)
     )
 
     log_light_decisions(
       trace,
-      room_lights,
+      context.room_lights,
       diff_light_ids,
-      effective_desired_by_light,
-      physical_by_light
+      context.desired_by_light,
+      context.physical_by_light
     )
 
     actions =
       actionable_diff_light_ids
       |> Enum.group_by(fn id ->
-        desired = Map.get(effective_desired_by_light, id) || %{}
-        {desired_key(desired), desired, light_bridge(room_lights, id)}
+        desired = Context.desired_for_light(context, id)
+        {desired_key(desired), desired, Context.bridge_for_light(context, id)}
       end)
       |> Enum.flat_map(fn {{_key, desired, bridge_id}, ids} ->
         candidate_ids =
-          room_lights
+          context.room_lights
           |> Enum.filter(fn light ->
             light.bridge_id == bridge_id and
-              desired_key(Map.get(effective_desired_by_light, light.id) || %{}) ==
+              desired_key(Context.desired_for_light(context, light.id)) ==
                 desired_key(desired)
           end)
           |> Enum.map(& &1.id)
@@ -150,7 +116,7 @@ defmodule Hueworks.Control.Planner do
           candidate_ids: candidate_ids |> MapSet.to_list() |> Enum.sort()
         )
 
-        groups = Enum.filter(group_memberships, &(&1.bridge_id == bridge_id))
+        groups = Enum.filter(context.group_memberships, &(&1.bridge_id == bridge_id))
 
         {group_actions, remaining} =
           plan_groups(
@@ -158,9 +124,9 @@ defmodule Hueworks.Control.Planner do
             candidate_ids,
             MapSet.new(ids),
             desired,
-            base_transition_ms,
-            scale_transition_by_brightness,
-            physical_by_light,
+            context.base_transition_ms,
+            context.scale_transition_by_brightness,
+            context.physical_by_light,
             trace
           )
 
@@ -176,27 +142,21 @@ defmodule Hueworks.Control.Planner do
             remaining,
             bridge_id,
             desired,
-            base_transition_ms,
-            scale_transition_by_brightness,
-            physical_by_light
+            context.base_transition_ms,
+            context.scale_transition_by_brightness,
+            context.physical_by_light
           )
       end)
+      |> Enum.map(&Action.to_map/1)
 
     log_trace(trace, "planner_output",
-      room_id: room_id,
+      room_id: context.room_id,
       actions_total: length(actions),
       group_actions: Enum.count(actions, &(&1.type == :group)),
       light_actions: Enum.count(actions, &(&1.type == :light))
     )
 
     actions
-  end
-
-  defp light_bridge(room_lights, id) do
-    case Enum.find(room_lights, &(&1.id == id)) do
-      nil -> nil
-      %{bridge_id: bridge_id} -> bridge_id
-    end
   end
 
   defp plan_groups(
@@ -246,11 +206,7 @@ defmodule Hueworks.Control.Planner do
             scale_transition_by_brightness
           )
 
-        {[
-           %{type: :group, id: group.id, bridge_id: group.bridge_id, desired: desired}
-           |> maybe_put_apply_opts(apply_opts)
-           | rest
-         ], final_remaining}
+        {[Action.group(group.id, group.bridge_id, desired, apply_opts) | rest], final_remaining}
     end
   end
 
@@ -284,8 +240,7 @@ defmodule Hueworks.Control.Planner do
           scale_transition_by_brightness
         )
 
-      %{type: :light, id: id, bridge_id: bridge_id, desired: desired}
-      |> maybe_put_apply_opts(apply_opts)
+      Action.light(id, bridge_id, desired, apply_opts)
     end)
   end
 
@@ -294,12 +249,6 @@ defmodule Hueworks.Control.Planner do
     |> Map.to_list()
     |> Enum.sort()
   end
-
-  defp effective_desired_for_light(desired, light) when is_map(desired) do
-    LightStateSemantics.effective_desired_for_light(desired, light)
-  end
-
-  defp effective_desired_for_light(_desired, _light), do: %{}
 
   defp desired_differs_from_physical?(desired, _physical) when map_size(desired) == 0, do: false
 
@@ -366,23 +315,7 @@ defmodule Hueworks.Control.Planner do
   defp normalize_light_ids(light_id) when is_integer(light_id), do: [light_id]
   defp normalize_light_ids(_light_ids), do: []
 
-  defp transition_ms(opts) do
-    case Transition.transition_ms(opts) do
-      value when is_integer(value) -> value
-      _ -> default_transition_ms()
-    end
-  end
-
-  defp default_transition_ms do
-    AppSettings.get_global().default_transition_ms || 0
-  end
-
-  defp scale_transition_by_brightness? do
-    AppSettings.get_global().scale_transition_by_brightness == true
-  end
-
-  defp maybe_put_apply_opts(action, apply_opts) when map_size(apply_opts) == 0, do: action
-  defp maybe_put_apply_opts(action, apply_opts), do: Map.put(action, :apply_opts, apply_opts)
+  defp transition_ms(opts), do: Context.transition_ms(opts)
 
   defp explicit_off_intent?(desired) when is_map(desired) do
     case Map.get(desired, :power) || Map.get(desired, "power") do

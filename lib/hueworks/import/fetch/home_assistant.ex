@@ -11,7 +11,7 @@ defmodule Hueworks.Import.Fetch.HomeAssistant do
 
   def fetch do
     bridge = load_bridge(:ha)
-    token = bridge.credentials["token"]
+    token = Bridge.credentials_struct(bridge).token
 
     if invalid_credential?(token) do
       raise "Missing Home Assistant token for bridge #{bridge.name} (#{bridge.host})"
@@ -75,7 +75,7 @@ defmodule Hueworks.Import.Fetch.HomeAssistant do
   end
 
   def fetch_for_bridge(bridge) do
-    token = bridge.credentials["token"]
+    token = Bridge.credentials_struct(bridge).token
 
     if invalid_credential?(token) do
       raise "Missing Home Assistant token for bridge #{bridge.name} (#{bridge.host})"
@@ -130,7 +130,7 @@ defmodule Hueworks.Import.Fetch.HomeAssistant do
   end
 
   def fetch_scene_entities_for_bridge(bridge) do
-    token = bridge.credentials["token"]
+    token = Bridge.credentials_struct(bridge).token
 
     if invalid_credential?(token) do
       raise "Missing Home Assistant token for bridge #{bridge.name} (#{bridge.host})"

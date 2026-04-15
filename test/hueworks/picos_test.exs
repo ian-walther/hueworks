@@ -8,6 +8,7 @@ defmodule Hueworks.PicosTest do
   alias Hueworks.Scenes
   alias Hueworks.Control.{DesiredState, State}
   alias Hueworks.Repo
+  alias Hueworks.Schemas.PicoButton.ActionConfig, as: StoredActionConfig
   alias Hueworks.Schemas.{Bridge, Group, GroupLight, Light, PicoButton, PicoDevice, Room}
 
   defp insert_bridge(attrs \\ %{}) do
@@ -42,15 +43,51 @@ defmodule Hueworks.PicosTest do
 
     assert %ActionConfig{
              target_kind: :control_group,
-             target_id: 9,
+             target_id: "group-9",
              light_ids: [1, 2],
              room_id: nil
            } =
              ActionConfig.from_map(%{
                target_kind: :control_group,
-               target_id: 9,
+               target_id: "group-9",
                light_ids: ["1", 2, "bad"]
              })
+  end
+
+  test "stored pico action config normalizes to a compatible persisted map" do
+    assert {:ok,
+            %{
+              "target_kind" => "scene",
+              "target_id" => 12,
+              "light_ids" => [1, 2],
+              "room_id" => 5
+            }} =
+             StoredActionConfig.normalize(%{
+               target_kind: :scene,
+               target_id: "12",
+               light_ids: ["1", 2, "bad"],
+               room_id: "5"
+             })
+  end
+
+  test "pico button changeset normalizes action_config through the typed boundary" do
+    changeset =
+      PicoButton.changeset(%PicoButton{}, %{
+        pico_device_id: 1,
+        source_id: "1",
+        button_number: 2,
+        slot_index: 0,
+        action_type: "activate_scene",
+        action_config: %{target_kind: :scene, target_id: "12", room_id: "5"}
+      })
+
+    assert changeset.valid?
+
+    assert Ecto.Changeset.get_change(changeset, :action_config) == %{
+             "target_kind" => "scene",
+             "target_id" => 12,
+             "room_id" => 5
+           }
   end
 
   test "sync_bridge_picos derives room and button layout from Caseta raw data" do

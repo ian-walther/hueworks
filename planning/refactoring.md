@@ -26,7 +26,6 @@ In particular:
 - `/Users/ianwalther/code/hueworks/lib/hueworks/picos.ex`
 - `/Users/ianwalther/code/hueworks/lib/hueworks/picos/config.ex`
 - `/Users/ianwalther/code/hueworks/lib/hueworks/scenes.ex`
-- `/Users/ianwalther/code/hueworks/lib/hueworks/control/planner.ex`
 - `/Users/ianwalther/code/hueworks/lib/hueworks_app/control/executor.ex`
 - `/Users/ianwalther/code/hueworks/lib/hueworks_web/live/lights_live.ex`
 
@@ -89,16 +88,6 @@ Guardrails:
 - keep tests focused on both typed internal shape and persisted compatibility shape until the compatibility layer is intentionally removed
 
 Good future candidates for this pattern:
-- `/Users/ianwalther/code/hueworks/lib/hueworks/schemas/pico_button.ex`
-  - `action_config` is a bounded product surface even though it is stored as a loose map
-  - good fit for a typed boundary once Pico work is back in scope
-- `/Users/ianwalther/code/hueworks/lib/hueworks/schemas/bridge.ex`
-  - `credentials` is still a loose map but the shape is bounded per bridge type
-  - likely good fit for source-specific typed boundary modules
-
-Good runtime-only struct candidates:
-- `/Users/ianwalther/code/hueworks/lib/hueworks/control/planner.ex`
-  - planner inputs and planned actions are strong candidates for explicit runtime structs, but this should wait until planner work is intentionally back in scope
 
 Poor candidates for this pattern:
 - open-ended import blobs such as raw or normalized bridge payload snapshots
@@ -150,11 +139,19 @@ Keep editor-specific translation pressure out of scene persistence and orchestra
 
 Files:
 - `/Users/ianwalther/code/hueworks/lib/hueworks/scenes.ex`
+- `/Users/ianwalther/code/hueworks/lib/hueworks/scenes/active.ex`
+- `/Users/ianwalther/code/hueworks/lib/hueworks/scenes/components.ex`
+- `/Users/ianwalther/code/hueworks/lib/hueworks/scenes/light_states.ex`
+- `/Users/ianwalther/code/hueworks/lib/hueworks/scenes/persistence.ex`
 - `/Users/ianwalther/code/hueworks/lib/hueworks_web/live/scene_builder_component.ex`
+- `/Users/ianwalther/code/hueworks/lib/hueworks_web/live/scene_builder_component/state.ex`
 - `/Users/ianwalther/code/hueworks/lib/hueworks_web/live/light_state_editor_live.ex`
+- `/Users/ianwalther/code/hueworks/lib/hueworks_web/live/light_state_editor_live/form_state.ex`
 
 Preferred direction:
 - keep `Scenes` focused on orchestration and persistence
+- keep bounded scene helper modules responsible for active-scene refresh/recompute, replacement, validation, persistence side effects, and light-state CRUD
+- keep bounded editor helper modules responsible for component mutation, normalization, and form-state shaping
 - keep editor token translation and UI-only concerns at the LiveView boundary
 - continue moving toward cleaner already-resolved inputs before persistence
 
@@ -162,22 +159,21 @@ Expected payoff:
 - scene editing becomes easier to evolve without making the core scene context more magical
 - fewer editor-shaped conditionals in persistence code
 
-### 5) Delay planner/executor extraction until after upstream cleanup
-These are some of the riskiest modules in the app, and they should not be the first refactor target while the system is still being observed in real-world usage.
+### 5) Delay deeper control-path extraction until after upstream cleanup
+The remaining control-path hotspots are some of the riskiest modules in the app, and they should not be the first refactor target while the system is still being observed in real-world usage.
 
 Files:
-- `/Users/ianwalther/code/hueworks/lib/hueworks/control/planner.ex`
 - `/Users/ianwalther/code/hueworks/lib/hueworks_app/control/executor.ex`
 
 Preferred direction:
 - defer major structural work here until after upstream state and export cleanup stabilizes
-- when these modules are touched, prefer behavior-preserving extraction first
+- when the control path is touched, prefer behavior-preserving extraction first
 - preserve public entrypoints while moving logic lower into purer helpers over time
 
 Why this is lower than it sounds:
-- the planner/executor path is reliability-critical
+- the executor and surrounding control path are reliability-critical
 - several oddities may still be upstream state issues rather than planner issues
-- upstream cleanup will make later planner work safer and clearer
+- upstream cleanup will make any later control-path work safer and clearer
 
 ### 6) Keep LiveViews thin and move UI-specific logic outward
 Keep LiveViews focused on UI concerns rather than domain orchestration.
@@ -185,7 +181,9 @@ Keep LiveViews focused on UI concerns rather than domain orchestration.
 Files:
 - `/Users/ianwalther/code/hueworks/lib/hueworks_web/live/lights_live.ex`
 - `/Users/ianwalther/code/hueworks/lib/hueworks_web/live/scene_builder_component.ex`
+- `/Users/ianwalther/code/hueworks/lib/hueworks_web/live/scene_builder_component/state.ex`
 - `/Users/ianwalther/code/hueworks/lib/hueworks_web/live/light_state_editor_live.ex`
+- `/Users/ianwalther/code/hueworks/lib/hueworks_web/live/light_state_editor_live/form_state.ex`
 
 Preferred direction:
 - keep LiveViews focused on:

@@ -35,7 +35,7 @@ defmodule Hueworks.Control.HueBridge do
         {:error, :bridge_not_found}
 
       bridge ->
-        api_key = bridge.credentials["api_key"]
+        api_key = Bridge.credentials_struct(bridge).api_key
 
         if is_binary(api_key) and api_key != "" do
           {:ok, host, api_key}

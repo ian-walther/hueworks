@@ -117,8 +117,12 @@ defmodule Hueworks.HardwareSmoke do
 
     control_groups = Picos.control_groups(device)
 
-    overhead_group = Enum.find(control_groups, &(&1["name"] == "Overhead")) || raise "missing Overhead control group"
-    lower_group = Enum.find(control_groups, &(&1["name"] == "Lower")) || raise "missing Lower control group"
+    overhead_group =
+      Enum.find(control_groups, &(&1["name"] == "Overhead")) ||
+        raise "missing Overhead control group"
+
+    lower_group =
+      Enum.find(control_groups, &(&1["name"] == "Lower")) || raise "missing Lower control group"
 
     overhead_light_ids = expand_control_group_light_ids(room.id, overhead_group)
     lower_light_ids = expand_control_group_light_ids(room.id, lower_group)
@@ -130,7 +134,11 @@ defmodule Hueworks.HardwareSmoke do
       device: device,
       assert_keys: [:power],
       groups: %{
-        overhead: %{id: overhead_group["id"], name: overhead_group["name"], light_ids: overhead_light_ids},
+        overhead: %{
+          id: overhead_group["id"],
+          name: overhead_group["name"],
+          light_ids: overhead_light_ids
+        },
         lower: %{id: lower_group["id"], name: lower_group["name"], light_ids: lower_light_ids}
       },
       all_light_ids: all_light_ids,
@@ -205,6 +213,7 @@ defmodule Hueworks.HardwareSmoke do
 
     baseline = capture_desired_states(scenario.all_light_ids)
     assert_scene_active!(scenario)
+
     assert_expected_desired!(
       "baseline",
       baseline,
@@ -213,13 +222,16 @@ defmodule Hueworks.HardwareSmoke do
       scenario.lights,
       scenario.assert_keys
     )
+
     wait_for_executor_idle!("activate_scene executor idle", timeout_ms, poll_ms)
     sleep_settle(settle_ms)
     baseline
   end
 
   defp run_step!(step, scenario, timeout_ms, poll_ms, settle_ms) do
-    info("Pressing #{step.name} via button #{step.button.button_number} (source #{step.button.source_id})")
+    info(
+      "Pressing #{step.name} via button #{step.button.button_number} (source #{step.button.source_id})"
+    )
 
     case Picos.handle_button_press(scenario.device.bridge_id, step.button.source_id) do
       :handled -> :ok
@@ -227,6 +239,7 @@ defmodule Hueworks.HardwareSmoke do
     end
 
     assert_scene_active!(scenario)
+
     assert_expected_desired!(
       step.name,
       step.expected_desired,
@@ -388,7 +401,10 @@ defmodule Hueworks.HardwareSmoke do
 
   defp select_keys(state, _keys), do: state
 
-  defp expand_control_group_light_ids(room_id, %{"group_ids" => group_ids, "light_ids" => light_ids}) do
+  defp expand_control_group_light_ids(room_id, %{
+         "group_ids" => group_ids,
+         "light_ids" => light_ids
+       }) do
     allowed_light_ids =
       Repo.all(
         from(l in Light,
@@ -417,16 +433,20 @@ defmodule Hueworks.HardwareSmoke do
 
   defp find_control_group_button!(device, action_type, group_id) do
     Enum.find(device.buttons, fn button ->
+      config = Hueworks.Schemas.PicoButton.action_config_struct(button)
+
       button.enabled and button.action_type == action_type and
-        Map.get(button.action_config || %{}, "target_kind") == "control_group" and
-        Map.get(button.action_config || %{}, "target_id") == group_id
+        config.target_kind == :control_group and
+        config.target_id == group_id
     end) || raise "missing #{action_type} button for control group #{inspect(group_id)}"
   end
 
   defp find_all_groups_button!(device, action_type) do
     Enum.find(device.buttons, fn button ->
+      config = Hueworks.Schemas.PicoButton.action_config_struct(button)
+
       button.enabled and button.action_type == action_type and
-        Map.get(button.action_config || %{}, "target_kind") == "all_groups"
+        config.target_kind == :all_groups
     end) || raise "missing #{action_type} button for all_groups"
   end
 
@@ -439,13 +459,17 @@ defmodule Hueworks.HardwareSmoke do
     values
     |> List.wrap()
     |> Enum.flat_map(fn
-      value when is_integer(value) -> [value]
+      value when is_integer(value) ->
+        [value]
+
       value when is_binary(value) ->
         case Integer.parse(value) do
           {parsed, ""} -> [parsed]
           _ -> []
         end
-      _ -> []
+
+      _ ->
+        []
     end)
     |> Enum.uniq()
   end
@@ -467,7 +491,11 @@ defmodule Hueworks.HardwareSmoke do
     info("  Timeout: #{timeout_ms}ms")
     info("  Poll: #{poll_ms}ms")
     info("  Settle: #{settle_ms}ms")
-    info("  Overhead lights: #{format_light_list(scenario.groups.overhead.light_ids, scenario.lights)}")
+
+    info(
+      "  Overhead lights: #{format_light_list(scenario.groups.overhead.light_ids, scenario.lights)}"
+    )
+
     info("  Lower lights: #{format_light_list(scenario.groups.lower.light_ids, scenario.lights)}")
     info("  All lights: #{format_light_list(scenario.all_light_ids, scenario.lights)}")
   end
@@ -502,7 +530,9 @@ defmodule Hueworks.HardwareSmoke do
     divergences
     |> Enum.map(fn divergence ->
       light = Map.get(lights_by_id, divergence.light_id)
-      light_label = if light, do: "#{light.name}##{light.id}", else: "light##{divergence.light_id}"
+
+      light_label =
+        if light, do: "#{light.name}##{light.id}", else: "light##{divergence.light_id}"
 
       "- #{light_label} diverging_keys=#{inspect(divergence.diverging_keys)} expected=#{inspect(divergence.expected)} actual=#{inspect(divergence.actual)}"
     end)

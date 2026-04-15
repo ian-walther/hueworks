@@ -14,7 +14,7 @@ defmodule Hueworks.Control.Bootstrap.HomeAssistant do
     bridge = Repo.one(from(b in Bridge, where: b.type == :ha and b.enabled == true))
 
     if bridge do
-      token = bridge.credentials["token"]
+      token = Bridge.credentials_struct(bridge).token
 
       if is_binary(token) and token != "" do
         lights_by_id = Indexes.lights_by_source_id(bridge.id, :ha)

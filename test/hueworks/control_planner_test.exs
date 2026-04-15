@@ -2,6 +2,8 @@ defmodule Hueworks.Control.PlannerTest do
   use Hueworks.DataCase, async: false
   import Ecto.Query, only: [from: 2]
 
+  alias Hueworks.Control.Planner.Action
+  alias Hueworks.Control.Planner.Context
   alias Hueworks.Control.{DesiredState, Planner, State}
   alias Hueworks.Repo
   alias Hueworks.Schemas.{AppSetting, Bridge, Group, GroupLight, Light, Room}
@@ -19,6 +21,45 @@ defmodule Hueworks.Control.PlannerTest do
     end
 
     :ok
+  end
+
+  test "planner action drops empty apply_opts when converted to a map" do
+    assert Action.light(1, 10, %{power: :on}) |> Action.to_map() == %{
+             type: :light,
+             id: 1,
+             bridge_id: 10,
+             desired: %{power: :on}
+           }
+  end
+
+  test "planner context normalizes effective desired state per light" do
+    context =
+      Context.from_snapshot(
+        %{
+          room_id: 123,
+          room_lights: [
+            %{
+              id: 1,
+              bridge_id: 10,
+              supports_temp: false,
+              supports_color: false,
+              reported_min_kelvin: 2000,
+              reported_max_kelvin: 6500,
+              actual_min_kelvin: nil,
+              actual_max_kelvin: nil,
+              extended_kelvin_range: false
+            }
+          ],
+          desired_by_light: %{1 => %{power: :on, brightness: 75, x: 0.2, y: 0.3}},
+          physical_by_light: %{},
+          group_memberships: []
+        },
+        []
+      )
+
+    assert Context.desired_for_light(context, 1) == %{power: :on, brightness: 75}
+    assert Context.bridge_for_light(context, 1) == 10
+    assert Context.diff_light_ids(context, %{{:light, 1} => %{power: :on}}) == [1]
   end
 
   test "plan_room prefers largest exact-match group and ignores in-state lights for individual actions" do
