@@ -47,8 +47,16 @@ defmodule Hueworks.Util do
   def parse_id(value), do: parse_optional_integer(value)
 
   def parse_optional_bool(nil), do: nil
-  def parse_optional_bool(value) when value in ["true", "false"], do: value == "true"
   def parse_optional_bool(value) when is_boolean(value), do: value
+
+  def parse_optional_bool(value) when is_binary(value) do
+    case value |> String.trim() |> String.downcase() do
+      "true" -> true
+      "false" -> false
+      _ -> nil
+    end
+  end
+
   def parse_optional_bool(_value), do: nil
 
   def format_integer(nil), do: ""

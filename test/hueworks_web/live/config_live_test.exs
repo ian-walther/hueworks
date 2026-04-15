@@ -88,6 +88,37 @@ defmodule HueworksWeb.ConfigLiveTest do
     assert settings.scale_transition_by_brightness == true
   end
 
+  test "shows a validation error for invalid solar input", %{conn: conn} do
+    Repo.insert!(%AppSetting{
+      scope: "global",
+      latitude: 40.7128,
+      longitude: -74.0060,
+      timezone: "America/New_York",
+      default_transition_ms: 900,
+      scale_transition_by_brightness: false
+    })
+
+    HueworksApp.Cache.flush_namespace(:app_settings)
+
+    {:ok, view, _html} = live(conn, "/config")
+
+    view
+    |> form("form[phx-submit='save_global_solar']", %{
+      "timezone" => "America/Chicago",
+      "latitude" => "41.8781",
+      "longitude" => "-87.6298",
+      "default_transition_ms" => "fast",
+      "scale_transition_by_brightness" => "true"
+    })
+    |> render_submit()
+
+    html = render(view)
+    assert html =~ "default_transition_ms must be an integer"
+
+    settings = AppSettings.get_global()
+    assert settings.default_transition_ms == 900
+  end
+
   test "shows home assistant export settings form and saves values", %{conn: conn} do
     Repo.insert!(%AppSetting{
       scope: "global",
@@ -130,6 +161,45 @@ defmodule HueworksWeb.ConfigLiveTest do
     assert settings.ha_export_mqtt_username == "ha_user"
     assert settings.ha_export_mqtt_password == "secret"
     assert settings.ha_export_discovery_prefix == "homeassistant"
+  end
+
+  test "shows a validation error for invalid HA export input", %{conn: conn} do
+    Repo.insert!(%AppSetting{
+      scope: "global",
+      latitude: 40.7128,
+      longitude: -74.0060,
+      timezone: "America/New_York",
+      ha_export_enabled: true,
+      ha_export_scenes_enabled: true,
+      ha_export_room_selects_enabled: false,
+      ha_export_lights_enabled: false,
+      ha_export_mqtt_host: "mqtt.local",
+      ha_export_mqtt_port: 1883,
+      ha_export_discovery_prefix: "homeassistant"
+    })
+
+    HueworksApp.Cache.flush_namespace(:app_settings)
+
+    {:ok, view, _html} = live(conn, "/config")
+
+    view
+    |> form("form[phx-submit='save_ha_export']", %{
+      "ha_export_scenes_enabled" => "true",
+      "ha_export_room_selects_enabled" => "false",
+      "ha_export_lights_enabled" => "false",
+      "ha_export_mqtt_host" => "mqtt.local",
+      "ha_export_mqtt_port" => "eighteen eighty three",
+      "ha_export_mqtt_username" => "ha_user",
+      "ha_export_mqtt_password" => "secret",
+      "ha_export_discovery_prefix" => "homeassistant"
+    })
+    |> render_submit()
+
+    html = render(view)
+    assert html =~ "ha_export_mqtt_port must be an integer"
+
+    settings = AppSettings.get_global()
+    assert settings.ha_export_mqtt_port == 1883
   end
 
   test "republish button is available for enabled HA export and shows status", %{conn: conn} do

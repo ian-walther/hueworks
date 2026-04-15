@@ -89,9 +89,6 @@ Guardrails:
 - keep tests focused on both typed internal shape and persisted compatibility shape until the compatibility layer is intentionally removed
 
 Good future candidates for this pattern:
-- `/Users/ianwalther/code/hueworks/lib/hueworks/app_settings.ex`
-  - nested app-setting loading still does repeated key normalization and coercion
-  - good fit for typed boundary modules for solar config and HA export config
 - `/Users/ianwalther/code/hueworks/lib/hueworks/schemas/pico_button.ex`
   - `action_config` is a bounded product surface even though it is stored as a loose map
   - good fit for a typed boundary once Pico work is back in scope
