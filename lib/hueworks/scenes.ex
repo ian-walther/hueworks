@@ -107,10 +107,12 @@ defmodule Hueworks.Scenes do
       scene ->
         _ = ActiveScenes.set_active(scene)
 
-        apply_scene(scene,
-          preserve_power_latches: false,
-          force_apply: true,
-          trace: Keyword.get(opts, :trace)
+        scene
+        |> apply_scene(
+          opts
+          |> Keyword.put(:preserve_power_latches, false)
+          |> Keyword.put(:force_apply, true)
+          |> Keyword.put_new(:enqueue_mode, :append)
         )
     end
   end
@@ -129,6 +131,7 @@ defmodule Hueworks.Scenes do
 
     preserve_power_latches = intent_opts.preserve_power_latches
     force_apply = Keyword.get(opts, :force_apply, false)
+    enqueue_mode = Keyword.get(opts, :enqueue_mode, :replace)
     trace = enrich_trace(Keyword.get(opts, :trace), scene, occupied)
 
     log_trace(
@@ -146,6 +149,7 @@ defmodule Hueworks.Scenes do
     result =
       ControlApply.commit_and_enqueue(txn, scene.room_id,
         force_apply: force_apply,
+        enqueue_mode: enqueue_mode,
         trace: trace
       )
 
