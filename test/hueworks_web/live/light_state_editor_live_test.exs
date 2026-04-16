@@ -265,6 +265,64 @@ defmodule HueworksWeb.LightStateEditorLiveTest do
     assert html =~ "must be greater than or equal to min_color_temp"
   end
 
+  test "edit editor renders an existing circadian state", %{conn: conn} do
+    {:ok, state} =
+      Scenes.create_light_state("Circadian Existing", :circadian, %{
+        "min_brightness" => "30",
+        "max_brightness" => "100",
+        "min_color_temp" => "2000",
+        "max_color_temp" => "5500",
+        "brightness_mode" => "tanh",
+        "brightness_mode_time_dark" => "5400",
+        "brightness_mode_time_light" => "900"
+      })
+
+    {:ok, _view, html} = live(conn, "/config/light-states/#{state.id}/edit")
+
+    assert html =~ "Edit Light State"
+    assert html =~ ~s(value="Circadian Existing")
+    assert html =~ ~s(id="light-state-min_brightness")
+    assert html =~ ~s(value="30")
+    assert html =~ ~s(id="light-state-brightness-mode")
+    assert html =~ ~s(value="tanh" selected)
+  end
+
+  test "edit editor updates an existing circadian state", %{conn: conn} do
+    {:ok, state} =
+      Scenes.create_light_state("Circadian Existing", :circadian, %{
+        "min_brightness" => "30",
+        "max_brightness" => "100",
+        "min_color_temp" => "2000",
+        "max_color_temp" => "5500",
+        "brightness_mode" => "tanh"
+      })
+
+    {:ok, view, _html} = live(conn, "/config/light-states/#{state.id}/edit")
+
+    assert {:error, {:live_redirect, %{to: "/config"}}} =
+             render_submit(view, "save", %{
+               "name" => "Circadian Updated",
+                "brightness_mode" => "linear",
+                "min_brightness" => "20",
+                "max_brightness" => "90",
+                "min_color_temp" => "2200",
+                "max_color_temp" => "5000",
+                "sunrise_offset" => "0",
+                "sunset_offset" => "0",
+                "brightness_mode_time_dark" => "5400",
+                "brightness_mode_time_light" => "900",
+                "save_action" => "save_and_return"
+              })
+
+    updated = Repo.get!(LightState, state.id)
+    assert updated.name == "Circadian Updated"
+    assert LightState.persisted_config(updated)["brightness_mode"] == "linear"
+    assert LightState.persisted_config(updated)["min_brightness"] == 20
+    assert LightState.persisted_config(updated)["max_brightness"] == 90
+    assert LightState.persisted_config(updated)["min_color_temp"] == 2200
+    assert LightState.persisted_config(updated)["max_color_temp"] == 5000
+  end
+
   test "save keeps a new light state in the editor on its edit route", %{conn: conn} do
     {:ok, view, _html} = live(conn, "/config/light-states/new/manual")
 

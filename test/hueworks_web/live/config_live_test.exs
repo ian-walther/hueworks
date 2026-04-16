@@ -7,7 +7,7 @@ defmodule HueworksWeb.ConfigLiveTest do
   alias Hueworks.HomeAssistant.Export
   alias Hueworks.Repo
   alias Hueworks.Scenes
-  alias Hueworks.Schemas.{AppSetting, LightState, Room, SceneComponent}
+  alias Hueworks.Schemas.{AppSetting, Bridge, Group, Light, LightState, PicoDevice, Room, SceneComponent}
 
   setup do
     original_tortoise = Application.get_env(:hueworks, :ha_export_tortoise_module)
@@ -373,6 +373,80 @@ defmodule HueworksWeb.ConfigLiveTest do
     assert html =~ "Scene Import"
     assert html =~ "/config/bridge/"
     assert html =~ "/external-scenes"
+  end
+
+  test "delete entities removes imported bridge entities but keeps the bridge", %{conn: conn} do
+    bridge =
+      insert_bridge!(%{
+        type: :caseta,
+        name: "Caseta",
+        host: "10.0.0.95",
+        credentials: %{"cert_path" => "a", "key_path" => "b", "cacert_path" => "c"},
+        enabled: true,
+        import_complete: true
+      })
+
+    room = Repo.insert!(%Room{name: "Studio", metadata: %{}})
+
+    Repo.insert!(%Light{
+      name: "Lamp",
+      source: :caseta,
+      source_id: "42",
+      bridge_id: bridge.id,
+      room_id: room.id,
+      enabled: true
+    })
+
+    Repo.insert!(%Group{
+      name: "Overhead",
+      source: :caseta,
+      source_id: "group-42",
+      bridge_id: bridge.id,
+      room_id: room.id,
+      enabled: true
+    })
+
+    Repo.insert!(%PicoDevice{
+      bridge_id: bridge.id,
+      room_id: room.id,
+      source_id: "device-1",
+      name: "Main Floor Pico",
+      hardware_profile: "5_button",
+      metadata: %{}
+    })
+
+    {:ok, view, _html} = live(conn, "/config")
+
+    view
+    |> element("button[phx-click='delete_entities'][phx-value-id='#{bridge.id}']")
+    |> render_click()
+
+    assert Repo.get(Bridge, bridge.id)
+    assert Repo.aggregate(Light, :count) == 0
+    assert Repo.aggregate(Group, :count) == 0
+    assert Repo.aggregate(PicoDevice, :count) == 0
+    refute render(view) =~ "Delete Entities"
+  end
+
+  test "delete bridge removes the bridge from config", %{conn: conn} do
+    bridge =
+      insert_bridge!(%{
+        type: :hue,
+        name: "Hue Bridge",
+        host: "10.0.0.96",
+        credentials: %{"api_key" => "key"},
+        enabled: true,
+        import_complete: false
+      })
+
+    {:ok, view, _html} = live(conn, "/config")
+
+    view
+    |> element("button[phx-click='delete_bridge'][phx-value-id='#{bridge.id}']")
+    |> render_click()
+
+    refute Repo.get(Bridge, bridge.id)
+    refute render(view) =~ "Hue Bridge"
   end
 
   defmodule TortoiseStub do

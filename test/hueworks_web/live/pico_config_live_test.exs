@@ -596,4 +596,122 @@ defmodule HueworksWeb.PicoConfigLiveTest do
 
     assert scene_id == scene.id
   end
+
+  test "pico config can delete a control group", %{conn: conn} do
+    room = Repo.insert!(%Room{name: "Studio"})
+
+    bridge =
+      insert_bridge!(%{
+        type: :caseta,
+        name: "Caseta",
+        host: "10.0.0.67",
+        credentials: %{"cert_path" => "a", "key_path" => "b", "cacert_path" => "c"},
+        enabled: true,
+        import_complete: true
+      })
+
+    device =
+      Repo.insert!(%PicoDevice{
+        bridge_id: bridge.id,
+        room_id: room.id,
+        source_id: "delete-pico",
+        name: "Delete Pico",
+        hardware_profile: "5_button",
+        metadata: %{
+          "room_override" => true,
+          "control_groups" => [
+            %{"id" => "group-a", "name" => "Overhead", "group_ids" => [], "light_ids" => []}
+          ]
+        }
+      })
+
+    insert_pico_button(%{
+      pico_device_id: device.id,
+      source_id: "b1",
+      button_number: 2,
+      slot_index: 0,
+      enabled: true
+    })
+
+    {:ok, _button} =
+      Picos.assign_button_binding(device, "b1", %{
+        "action" => "toggle",
+        "target_kind" => "control_group",
+        "target_id" => "group-a"
+      })
+
+    {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/picos/#{device.id}")
+
+    assert render(view) =~ "Overhead"
+    assert render(view) =~ "Toggle Overhead"
+
+    view
+    |> element("button[phx-click='delete_control_group'][phx-value-id='group-a']")
+    |> render_click()
+
+    assert render(view) =~ "Control group deleted."
+    refute render(view) =~ "Toggle Overhead"
+    refute has_element?(view, "button[phx-click='select_control_group'][phx-value-id='group-a']")
+    assert render(view) =~ "binding: Not assigned"
+    assert Picos.control_groups(Picos.get_device(device.id)) == []
+  end
+
+  test "pico config can clear a learned button binding", %{conn: conn} do
+    room = Repo.insert!(%Room{name: "Movie Room"})
+
+    bridge =
+      insert_bridge!(%{
+        type: :caseta,
+        name: "Caseta",
+        host: "10.0.0.68",
+        credentials: %{"cert_path" => "a", "key_path" => "b", "cacert_path" => "c"},
+        enabled: true,
+        import_complete: true
+      })
+
+    device =
+      Repo.insert!(%PicoDevice{
+        bridge_id: bridge.id,
+        room_id: room.id,
+        source_id: "clear-pico",
+        name: "Clear Pico",
+        hardware_profile: "5_button",
+        metadata: %{"room_override" => true}
+      })
+
+    button =
+      insert_pico_button(%{
+        pico_device_id: device.id,
+        source_id: "b1",
+        button_number: 2,
+        slot_index: 0,
+        enabled: true
+      })
+
+    {:ok, state} =
+      Scenes.create_manual_light_state("Movie", %{"brightness" => "25", "temperature" => "2600"})
+
+    {:ok, scene} = Scenes.create_scene(%{name: "Movie Night", room_id: room.id})
+    {:ok, _} = Scenes.replace_scene_components(scene, [%{light_state_id: to_string(state.id), light_ids: []}])
+
+    {:ok, _button} =
+      Picos.assign_button_binding(device, "b1", %{
+        "action" => "activate_scene",
+        "target_kind" => "scene",
+        "target_id" => scene.id
+      })
+
+    {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/picos/#{device.id}")
+
+    assert render(view) =~ "Activate Scene Movie Night"
+
+    view
+    |> element("button[phx-click='clear_button_binding'][phx-value-id='#{button.id}']")
+    |> render_click()
+
+    updated = Repo.get!(PicoButton, button.id)
+    assert updated.action_type == nil
+    assert render(view) =~ "Button binding cleared."
+    assert render(view) =~ "binding: Not assigned"
+  end
 end

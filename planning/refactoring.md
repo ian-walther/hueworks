@@ -220,6 +220,42 @@ Preferred direction:
 - pairs naturally with the struct/embedded schema work — specs become more useful once the data shapes are well-defined
 - do not try to spec everything at once; grow coverage incrementally as modules are touched
 
+### 7) Run a deliberate test coverage phase before new features
+The next phase should improve confidence, especially after the large refactor stretch. The goal is not just "more tests" but better protection for user-visible behavior, failure paths, and correctness-critical internals.
+
+Preferred direction:
+- prioritize direct tests for route-backed CRUD behavior before adding more feature surface
+- add failure-path coverage anywhere a UI or domain operation can silently no-op, partially apply, or return a generic error
+- prefer focused tests for specific helpers and context modules when behavior is currently only covered indirectly through larger integration tests
+- keep using bug-driven red-green tests for regressions, then fill the remaining asymmetries proactively
+
+Suggested sequence:
+- finish auditing route-backed CRUD symmetry so create/read/update/delete paths are directly exercised where the UI exposes them
+- add more direct tests for context/query modules that are currently mostly protected indirectly
+- add failure-path tests for import, bridge setup, external-scene mapping, and other admin/config flows
+- add property-style tests for calculation-heavy modules like `Circadian`, `Color`, and `Kelvin`
+- then add `dialyxir` and begin `@spec` work on the correctness-critical modules
+
+High-value coverage targets:
+- destructive UI actions
+  - delete, clear, remove, clone-copy, and reimport paths
+- edit flows with existing persisted records
+  - especially embed-backed and typed-boundary forms
+- context modules with meaningful query or lifecycle behavior
+  - `Bridges`, `Rooms`, `Groups`, `Lights`
+- failure scenarios
+  - validation errors
+  - missing records
+  - stale UI targets
+  - import/setup failures
+  - queue/retry/recovery edges
+
+Guardrails:
+- prefer direct tests over assuming one large integration test covers every branch of a UI surface
+- keep large integration tests where state interaction matters, but add smaller tests when they make regressions easier to localize
+- when a new coverage pass exposes a real bug, fix the bug instead of weakening the test
+- do not chase coverage numbers for their own sake; prioritize correctness and regression resistance
+
 ## Architectural Constraint: No Authentication
 
 All routes are publicly accessible — no authentication or authorization layer exists. This is intentional (local-network appliance) but should be documented as a constraint. If the app is ever exposed beyond a trusted network, an auth pipeline would be needed. Not an action item unless the deployment model changes.
@@ -300,9 +336,12 @@ These are fine later, but they should not displace the higher-value structural w
 - clean up broad `rescue` usage in import paths
 
 ### Phase 4
-- add dialyxir and begin @spec coverage on critical modules
+- run the deliberate test coverage phase across remaining CRUD, failure-path, and correctness-critical modules
 
 ### Phase 5
+- add dialyxir and begin @spec coverage on critical modules
+
+### Phase 6
 - re-evaluate whether the highest-complexity product behaviors still justify their implementation cost
 
 ## Refactor Guardrails

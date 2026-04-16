@@ -36,10 +36,11 @@ defmodule HueworksWeb.LightStateEditorLive.FormState do
       |> Map.new()
 
     config
+    |> normalize_config_entries()
     |> Enum.reduce(defaults, fn {key, value}, acc ->
       normalized_key = normalize_config_key(key)
 
-      if normalized_key in circadian_form_keys() do
+      if normalized_key in circadian_form_keys() and not is_nil(value) do
         Map.put(acc, normalized_key, stringify_config_value(value))
       else
         acc
@@ -239,6 +240,10 @@ defmodule HueworksWeb.LightStateEditorLive.FormState do
   defp normalize_config_key(key) when is_atom(key), do: Atom.to_string(key)
   defp normalize_config_key(key) when is_binary(key), do: key
   defp normalize_config_key(key), do: to_string(key)
+
+  defp normalize_config_entries(%_{} = config), do: Map.from_struct(config)
+  defp normalize_config_entries(config) when is_map(config), do: config
+  defp normalize_config_entries(_config), do: %{}
 
   defp normalize_timezone(value) when is_binary(value) do
     trimmed = String.trim(value)

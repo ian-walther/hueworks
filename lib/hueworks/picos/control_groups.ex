@@ -6,6 +6,7 @@ defmodule Hueworks.Picos.ControlGroups do
   alias Hueworks.Picos.Devices
   alias Hueworks.Picos.Targets
   alias Hueworks.Repo
+  alias Hueworks.Schemas.PicoButton.ActionConfig, as: StoredActionConfig
   alias Hueworks.Schemas.{PicoButton, PicoDevice}
 
   def normalize(groups) when is_list(groups) do
@@ -84,20 +85,18 @@ defmodule Hueworks.Picos.ControlGroups do
 
   def delete(%PicoDevice{} = device, group_id) when is_binary(group_id) do
     control_groups = Enum.reject(list_for_device(device), &(&1["id"] == group_id))
+    buttons = buttons_for_group(device.id, group_id)
 
     Repo.transaction(fn ->
       update_device_metadata!(device, fn metadata ->
         Map.put(metadata, "control_groups", control_groups)
       end)
 
-      Repo.update_all(
-        from(pb in PicoButton,
-          where: pb.pico_device_id == ^device.id,
-          where: fragment("?->>'target_kind' = 'control_group'", pb.action_config),
-          where: fragment("?->>'target_id' = ?", pb.action_config, ^group_id)
-        ),
-        set: [action_type: nil, action_config: %{}, enabled: true]
-      )
+      Enum.each(buttons, fn button ->
+        button
+        |> PicoButton.changeset(%{action_type: nil, action_config: %{}, enabled: true})
+        |> Repo.update!()
+      end)
     end)
 
     {:ok, Devices.get(device.id)}
@@ -131,5 +130,18 @@ defmodule Hueworks.Picos.ControlGroups do
     device
     |> PicoDevice.changeset(%{metadata: fun.(device.metadata || %{})})
     |> Repo.update!()
+  end
+
+  defp buttons_for_group(device_id, group_id) do
+    Repo.all(from(pb in PicoButton, where: pb.pico_device_id == ^device_id))
+    |> Enum.filter(fn button ->
+      case PicoButton.action_config_struct(button) do
+        %StoredActionConfig{target_kind: :control_group} = config ->
+          StoredActionConfig.target_id(config) == group_id
+
+        _ ->
+          false
+      end
+    end)
   end
 end
