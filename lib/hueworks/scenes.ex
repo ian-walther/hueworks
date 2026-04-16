@@ -165,7 +165,12 @@ defmodule Hueworks.Scenes do
   end
 
   def apply_active_scene(%Scene{} = scene, active_scene, opts \\ []) when is_list(opts) do
-    case apply_scene(scene, opts) do
+    power_overrides =
+      active_scene
+      |> ActiveScenes.power_overrides()
+      |> Map.merge(Keyword.get(opts, :power_overrides, %{}))
+
+    case apply_scene(scene, Keyword.put(opts, :power_overrides, power_overrides)) do
       {:ok, _diff, _updated} = ok ->
         _ = ActiveScenes.mark_applied(active_scene)
         ok

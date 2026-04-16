@@ -7,6 +7,7 @@ defmodule Hueworks.ScenesComponentsTest do
   alias Hueworks.ActiveScenes
   alias Hueworks.Color
   alias Hueworks.Control.DesiredState
+  alias Hueworks.Lights.ManualControl
 
   alias Hueworks.Schemas.{
     ActiveScene,
@@ -633,6 +634,54 @@ defmodule Hueworks.ScenesComponentsTest do
     assert desired[:power] == :on
     assert desired[:brightness] == 90
     assert desired[:kelvin] == 5000
+  end
+
+  test "active scene reapply preserves manual off latch after desired-state restart" do
+    room = insert_room()
+    bridge = insert_bridge()
+    light = insert_light(room, bridge, %{name: "Lamp"})
+
+    {:ok, state} =
+      Scenes.create_light_state("Circadian", :circadian, %{
+        "sunrise_time" => "06:00:00",
+        "sunset_time" => "18:00:00",
+        "min_brightness" => 10,
+        "max_brightness" => 90,
+        "min_color_temp" => 2200,
+        "max_color_temp" => 5000
+      })
+
+    {:ok, scene} = Scenes.create_scene(%{name: "Daylight", room_id: room.id})
+
+    {:ok, _} =
+      Scenes.replace_scene_components(scene, [
+        %{name: "Component 1", light_ids: [light.id], light_state_id: to_string(state.id)}
+      ])
+
+    {:ok, _} =
+      AppSettings.upsert_global(%{
+        latitude: 40.7128,
+        longitude: -74.0060,
+        timezone: "Etc/UTC"
+      })
+
+    {:ok, _} = ActiveScenes.set_active(scene)
+
+    assert {:ok, %{power: :off}} =
+             ManualControl.apply_power_action(room.id, [light.id], :off)
+
+    if :ets.whereis(:hueworks_desired_state) != :undefined do
+      :ets.delete_all_objects(:hueworks_desired_state)
+    end
+
+    {:ok, _diff, _updated} =
+      Scenes.apply_active_scene(scene, ActiveScenes.get_for_room(room.id),
+        preserve_power_latches: true,
+        occupied: false,
+        now: utc_dt("2026-03-08T12:00:00Z")
+      )
+
+    assert DesiredState.get(:light, light.id) == %{power: :off}
   end
 
   defp utc_dt(iso8601) do

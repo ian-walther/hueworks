@@ -65,6 +65,8 @@ defmodule Hueworks.Scenes.Active do
         {:ok, %{}, %{}}
 
       {_light_ids, active_scene} ->
+        {active_scene, power_overrides} = persist_power_overrides(active_scene, room_id, light_ids, opts)
+
         active_scene.scene_id
         |> Scenes.get_scene()
         |> case do
@@ -72,14 +74,6 @@ defmodule Hueworks.Scenes.Active do
             {:error, :not_found}
 
           scene ->
-            power_overrides =
-              opts
-              |> Keyword.get(:power_override)
-              |> case do
-                nil -> %{}
-                power -> Map.new(light_ids, &{&1, power})
-              end
-
             Scenes.apply_active_scene(scene, active_scene,
               preserve_power_latches: true,
               occupied: Rooms.room_occupied?(room_id),
@@ -103,6 +97,28 @@ defmodule Hueworks.Scenes.Active do
   end
 
   def recompute_circadian_lights(_room_id, _light_ids, _opts), do: {:error, :invalid_args}
+
+  defp persist_power_overrides(active_scene, room_id, light_ids, opts) do
+    opts
+    |> Keyword.get(:power_override)
+    |> case do
+      nil ->
+        {active_scene, %{}}
+
+      power ->
+        power_overrides = Map.new(light_ids, &{&1, power})
+
+        updated_active_scene =
+          room_id
+          |> ActiveScenes.merge_power_overrides(power_overrides)
+          |> case do
+            {:ok, updated_active_scene} -> updated_active_scene
+            _ -> active_scene
+          end
+
+        {updated_active_scene, power_overrides}
+    end
+  end
 
   defp active_scene_pairs_for_light_state(light_state_id) do
     light_state_id

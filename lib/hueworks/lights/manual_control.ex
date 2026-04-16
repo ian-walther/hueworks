@@ -64,9 +64,32 @@ defmodule Hueworks.Lights.ManualControl do
 
   def apply_power_action(room_id, light_ids, action)
       when is_integer(room_id) and is_list(light_ids) and action in [:off, "off"] do
-    with {:ok, _diff} <-
-           apply_updates(room_id, light_ids, %{power: :off}) do
-      {:ok, %{power: :off}}
+    trace = %{
+      trace_id: "manual-off-#{room_id}-#{System.unique_integer([:positive])}",
+      source: "lights_live.manual_power_off",
+      started_at_ms: System.monotonic_time(:millisecond)
+    }
+
+    case ActiveScenes.get_for_room(room_id) do
+      nil ->
+        with {:ok, _diff} <- apply_updates(room_id, light_ids, %{power: :off}) do
+          {:ok, %{power: :off}}
+        end
+
+      _active_scene ->
+        case Scenes.recompute_active_scene_lights(room_id, light_ids,
+               power_override: :off,
+               trace: trace
+             ) do
+          {:ok, _diff, updated} when map_size(updated) > 0 ->
+            {:ok, merged_updated_light_attrs(updated, light_ids)}
+
+          {:ok, _diff, _updated} ->
+            {:ok, %{power: :off}}
+
+          other ->
+            other
+        end
     end
   end
 
