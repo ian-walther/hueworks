@@ -96,6 +96,125 @@ Poor candidates for this pattern:
 - open-ended import blobs such as raw or normalized bridge payload snapshots
 - metadata maps whose job is to preserve external structure rather than enforce internal shape
 
+### Embedded Schema Rollout
+The preferred rollout is incremental and compatibility-first. The goal is to replace bounded persisted map surfaces with native Ecto embed usage where that buys determinism, while keeping rollback safety and avoiding speculative schema churn.
+
+#### Rollout Rules
+- prefer parent-level `embeds_one` or `embeds_many` on the existing column before considering any DB migration
+- keep the existing persisted column name and storage shape while the new embed soaks
+- keep load, cast, validation, and dump behavior at the embed boundary instead of redistributing compatibility helpers downstream
+- switch read paths to struct-first access before tightening any persisted shape further
+- keep browser/form boundaries explicit; do not feed dumped persisted maps back inward unless that code is truly at a persistence boundary
+- treat rollback-by-code-deploy as the default safety bar for each step
+
+#### Phase 0: Consolidate The Current LightState Embed
+This phase is already underway and should continue until `LightState.persisted_config/1` is narrow and intentional.
+
+Goals:
+- keep `LightState.config` as the reference example for future embed migrations
+- keep reducing downstream compatibility-map access in UI and scene code
+- keep tests asserting both typed internal shape and compatible persisted dump behavior
+
+Exit criteria:
+- most read paths use `state.config` or typed helper accessors
+- `persisted_config/1` is primarily used at true persistence or compatibility boundaries
+
+#### Phase 1: Convert Existing Typed Boundary Modules Into Parent-Level Embeds
+These are the safest next native-embed migrations because they already have bounded vocabularies and typed load/dump helpers.
+
+Primary targets:
+- `/Users/ianwalther/code/hueworks/lib/hueworks/schemas/bridge.ex`
+  - move `credentials` from a validated `:map` field to a parent-level embed on the same `credentials` column
+  - reuse `/Users/ianwalther/code/hueworks/lib/hueworks/schemas/bridge/credentials.ex` as the embed boundary
+
+Method for each target:
+- add the parent-level embed on the existing column
+- keep current typed `load/normalize/dump` behavior available during transition
+- add struct-first accessors on the parent schema if needed
+- switch downstream callers from `*_struct(...)` helpers toward the parent embed field
+- only then consider deleting or shrinking the compatibility wrapper helpers
+
+Why these come first:
+- they already behave like bounded product surfaces
+- they already have strong typed helper modules
+- they do not require changing table shape
+- they should be reversible by code deploy alone
+
+Current note:
+- `/Users/ianwalther/code/hueworks/lib/hueworks/schemas/pico_button.ex` now uses a parent-level embed on the existing `action_config` column
+- `/Users/ianwalther/code/hueworks/lib/hueworks/schemas/bridge.ex` is still the next native-embed candidate, but it has a real prerequisite:
+  - eliminate direct raw `%Bridge{credentials: %{...}}` insert/update paths first
+  - native embeds cannot dump a raw map for the embed field, so test helpers and any remaining direct struct inserts need to go through the schema boundary before the flip
+
+#### Phase 2: Evaluate Mixed Metadata Surfaces Carefully
+Some metadata maps have enough structure to be candidates later, but they should not be treated like the phase-1 conversions.
+
+Most plausible later candidate:
+- `/Users/ianwalther/code/hueworks/lib/hueworks/schemas/pico_device.ex`
+  - `metadata` currently carries several bounded meanings:
+    - `room_override`
+    - `detected_room_id`
+    - `control_groups`
+    - preset-related fields
+  - if this moves, it should likely become:
+    - a parent-level metadata embed
+    - plus an embedded control-group child shape
+
+Guardrails for this phase:
+- do not force unrelated metadata concerns into a fake single schema just to eliminate maps
+- only convert the metadata surface if the resulting embed shape is still easier to understand than the current map
+- prefer proving the read path and helper API first before replacing all writes
+
+Possible but lower-confidence candidates:
+- `/Users/ianwalther/code/hueworks/lib/hueworks/schemas/scene.ex` metadata
+- `/Users/ianwalther/code/hueworks/lib/hueworks/schemas/room.ex` metadata
+
+These should only move if a stable bounded vocabulary actually emerges. Right now they are not strong enough candidates to prioritize.
+
+#### Phase 3: Decide Whether Compatibility Dumping Should Stay Permanent
+Once parent-level embed usage is stable for a surface, decide deliberately whether to keep or retire its compatibility dump behavior.
+
+Questions to answer per surface:
+- does old persisted shape still need to be read in prod?
+- is rollback safety still relying on legacy dump compatibility?
+- are there tests or fixtures still depending on the old dumped shape?
+- is there a real product payoff to canonicalizing the stored JSON, or only a cleanliness payoff?
+
+Preferred direction:
+- keep compatibility dumping longer than feels elegant
+- only remove it after the read paths have soaked and the operational need is low
+- avoid one-time backfills unless they produce more than just cosmetic cleanup
+
+#### Surfaces To Leave As Maps
+These should stay map-backed unless their role in the system changes materially.
+
+Keep as maps:
+- `/Users/ianwalther/code/hueworks/lib/hueworks/schemas/bridge_import.ex`
+  - `raw_blob`
+  - `normalized_blob`
+  - `review_blob`
+- `/Users/ianwalther/code/hueworks/lib/hueworks/schemas/light.ex`
+  - `normalized_json`
+  - `metadata`
+- `/Users/ianwalther/code/hueworks/lib/hueworks/schemas/group.ex`
+  - `normalized_json`
+  - `metadata`
+
+Why:
+- these fields preserve external or import-oriented structure
+- they are not stable internal vocabularies
+- forcing them into embeds would mostly relocate complexity instead of reducing it
+
+#### AppSettings Note
+`AppSetting` is not currently a strong native-embed target because the persisted model is already flat columns, not a bounded JSON blob.
+
+Preferred direction:
+- keep using typed boundary modules like:
+  - `/Users/ianwalther/code/hueworks/lib/hueworks/app_settings/solar_config.ex`
+  - `/Users/ianwalther/code/hueworks/lib/hueworks/app_settings/ha_export_config.ex`
+- only consider embedded schemas there as form or boundary engines if the setting families grow more complex
+- do not introduce JSON columns just to make AppSettings “more embedded-schema-like”
+
 ### 2) Finish thinning `Hueworks.HomeAssistant.Export`
 Keep the export runtime shell small and explicit.
 

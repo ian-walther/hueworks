@@ -28,6 +28,12 @@ defmodule Hueworks.PicosTest do
     Repo.insert!(struct(Bridge, Map.merge(defaults, attrs)))
   end
 
+  defp insert_pico_button(attrs) do
+    %PicoButton{}
+    |> PicoButton.changeset(attrs)
+    |> Repo.insert!()
+  end
+
   test "button action config returns a typed runtime struct" do
     assert %ActionConfig{
              target_kind: :scene,
@@ -83,11 +89,11 @@ defmodule Hueworks.PicosTest do
 
     assert changeset.valid?
 
-    assert Ecto.Changeset.get_change(changeset, :action_config) == %{
-             "target_kind" => "scene",
-             "target_id" => 12,
-             "room_id" => 5
-           }
+    assert %StoredActionConfig{
+             target_kind: :scene,
+             scene_id: 12,
+             room_id: 5
+           } = Ecto.Changeset.apply_changes(changeset).action_config
   end
 
   test "sync_bridge_picos derives room and button layout from Caseta raw data" do
@@ -240,7 +246,7 @@ defmodule Hueworks.PicosTest do
           {"4", 5, 3},
           {"5", 6, 4}
         ] do
-      Repo.insert!(%PicoButton{
+      insert_pico_button(%{
         pico_device_id: device.id,
         source_id: source_id,
         button_number: button_number,
@@ -291,8 +297,12 @@ defmodule Hueworks.PicosTest do
       )
 
     assert button.action_type == "toggle_any_on"
-    assert button.action_config["target_kind"] == "control_group"
-    assert button.action_config["target_id"] == control_group["id"]
+    assert %StoredActionConfig{
+             target_kind: :control_group,
+             control_group_id: control_group_id
+           } = PicoButton.action_config_struct(button)
+
+    assert control_group_id == control_group["id"]
 
     # The control group should expand only to room-local lights.
     assert Picos.button_binding_summary(button, Picos.get_device(updated.id)) == "Toggle Overhead"
@@ -324,7 +334,7 @@ defmodule Hueworks.PicosTest do
         metadata: %{"room_override" => true}
       })
 
-    Repo.insert!(%PicoButton{
+    insert_pico_button(%{
       pico_device_id: device.id,
       source_id: "1",
       button_number: 2,
@@ -355,8 +365,10 @@ defmodule Hueworks.PicosTest do
       )
 
     assert button.action_type == "activate_scene"
-    assert button.action_config["target_kind"] == "scene"
-    assert button.action_config["target_id"] == scene.id
+    assert %StoredActionConfig{target_kind: :scene, scene_id: scene_id} =
+             PicoButton.action_config_struct(button)
+
+    assert scene_id == scene.id
 
     assert Picos.button_binding_summary(button, Picos.get_device(device.id)) ==
              "Activate Scene Evening"
@@ -440,7 +452,7 @@ defmodule Hueworks.PicosTest do
           {destination.id, "d2", 3, 1},
           {destination.id, "d3", 4, 2}
         ] do
-      Repo.insert!(%PicoButton{
+      insert_pico_button(%{
         pico_device_id: device_id,
         source_id: source_id,
         button_number: button_number,
@@ -498,18 +510,30 @@ defmodule Hueworks.PicosTest do
     scene_button = Enum.find(cloned_buttons, &(&1.button_number == 4))
 
     assert toggle_button.action_type == "toggle_any_on"
-    assert toggle_button.action_config["target_kind"] == "control_group"
-    assert toggle_button.action_config["target_id"] == cloned_group["id"]
-    assert toggle_button.action_config["room_id"] == room.id
+    assert %StoredActionConfig{
+             target_kind: :control_group,
+             control_group_id: toggle_group_id,
+             room_id: toggle_room_id
+           } = PicoButton.action_config_struct(toggle_button)
+
+    assert toggle_group_id == cloned_group["id"]
+    assert toggle_room_id == room.id
 
     assert all_groups_button.action_type == "turn_off"
-    assert all_groups_button.action_config["target_kind"] == "all_groups"
-    assert all_groups_button.action_config["room_id"] == room.id
+    assert %StoredActionConfig{target_kind: :all_groups, room_id: all_groups_room_id} =
+             PicoButton.action_config_struct(all_groups_button)
+
+    assert all_groups_room_id == room.id
 
     assert scene_button.action_type == "activate_scene"
-    assert scene_button.action_config["target_kind"] == "scene"
-    assert scene_button.action_config["target_id"] == scene.id
-    assert scene_button.action_config["room_id"] == room.id
+    assert %StoredActionConfig{
+             target_kind: :scene,
+             scene_id: scene_button_scene_id,
+             room_id: scene_button_room_id
+           } = PicoButton.action_config_struct(scene_button)
+
+    assert scene_button_scene_id == scene.id
+    assert scene_button_room_id == room.id
   end
 
   test "manual room override survives sync and can be cleared back to auto-detected room" do
@@ -602,7 +626,7 @@ defmodule Hueworks.PicosTest do
       })
 
     button =
-      Repo.insert!(%PicoButton{
+      insert_pico_button(%{
         pico_device_id: device.id,
         source_id: "1",
         button_number: 2,
@@ -658,7 +682,7 @@ defmodule Hueworks.PicosTest do
       })
 
     _button =
-      Repo.insert!(%PicoButton{
+      insert_pico_button(%{
         pico_device_id: device.id,
         source_id: "1",
         button_number: 2,

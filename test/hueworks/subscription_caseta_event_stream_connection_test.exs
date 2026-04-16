@@ -7,6 +7,12 @@ defmodule Hueworks.Subscription.CasetaEventStream.ConnectionTest do
   alias Hueworks.Schemas.{Bridge, Light, PicoButton, PicoDevice, Room}
   alias Hueworks.Subscription.CasetaEventStream.Connection
 
+  defp insert_pico_button(attrs) do
+    %PicoButton{}
+    |> PicoButton.changeset(attrs)
+    |> Repo.insert!()
+  end
+
   setup do
     if :ets.whereis(:hueworks_control_state) != :undefined do
       :ets.delete_all_objects(:hueworks_control_state)
@@ -96,7 +102,7 @@ defmodule Hueworks.Subscription.CasetaEventStream.ConnectionTest do
       })
 
     _button =
-      Repo.insert!(%PicoButton{
+      insert_pico_button(%{
         pico_device_id: device.id,
         source_id: "1",
         button_number: 2,
@@ -156,7 +162,7 @@ defmodule Hueworks.Subscription.CasetaEventStream.ConnectionTest do
         hardware_profile: "5_button"
       })
 
-    Repo.insert!(%PicoButton{
+    insert_pico_button(%{
       pico_device_id: device.id,
       source_id: "101",
       button_number: 2,

@@ -6,6 +6,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
   alias Hueworks.Picos
   alias Hueworks.Repo
   alias Hueworks.Scenes
+  alias Hueworks.Schemas.PicoButton.ActionConfig, as: StoredActionConfig
   alias Hueworks.Schemas.{Bridge, Group, GroupLight, Light, PicoButton, PicoDevice, Room}
 
   defmodule CasetaPicoFetcherStub do
@@ -68,6 +69,12 @@ defmodule HueworksWeb.PicoConfigLiveTest do
     end)
 
     :ok
+  end
+
+  defp insert_pico_button(attrs) do
+    %PicoButton{}
+    |> PicoButton.changeset(attrs)
+    |> Repo.insert!()
   end
 
   test "config page shows Pico Config button for Caseta bridges", %{conn: conn} do
@@ -263,8 +270,13 @@ defmodule HueworksWeb.PicoConfigLiveTest do
 
     assigned = Enum.find(buttons, &(&1.source_id == "1"))
     assert assigned.action_type == "toggle_any_on"
-    assert assigned.action_config["target_kind"] == "control_group"
-    assert assigned.action_config["target_id"] == control_group["id"]
+
+    assert %StoredActionConfig{
+             target_kind: :control_group,
+             control_group_id: control_group_id
+           } = PicoButton.action_config_struct(assigned)
+
+    assert control_group_id == control_group["id"]
   end
 
   test "detect pico mode redirects from the list page into the matching pico config", %{conn: conn} do
@@ -361,7 +373,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
           {destination.id, "d1", 2, 0},
           {destination.id, "d2", 3, 1}
         ] do
-      Repo.insert!(%PicoButton{
+      insert_pico_button(%{
         pico_device_id: device_id,
         source_id: source_id,
         button_number: button_number,
@@ -492,7 +504,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
         }
       })
 
-    Repo.insert!(%PicoButton{
+    insert_pico_button(%{
       pico_device_id: device.id,
       source_id: "b1",
       button_number: 2,
@@ -534,7 +546,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
         metadata: %{"room_override" => true}
       })
 
-    Repo.insert!(%PicoButton{
+    insert_pico_button(%{
       pico_device_id: device.id,
       source_id: "b1",
       button_number: 2,
@@ -578,7 +590,10 @@ defmodule HueworksWeb.PicoConfigLiveTest do
 
     button = Repo.one!(PicoButton)
     assert button.action_type == "activate_scene"
-    assert button.action_config["target_kind"] == "scene"
-    assert button.action_config["target_id"] == scene.id
+
+    assert %StoredActionConfig{target_kind: :scene, scene_id: scene_id} =
+             PicoButton.action_config_struct(button)
+
+    assert scene_id == scene.id
   end
 end
