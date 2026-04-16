@@ -189,7 +189,7 @@ defmodule Hueworks.HomeAssistant.Export.Messages do
         "model" => "Room Scenes"
       }
     }
-    |> maybe_put("configuration_url", config[:configuration_url])
+    |> maybe_put("configuration_url", configuration_url(config))
   end
 
   def scene_attributes_payload(%Scene{} = scene) do
@@ -221,7 +221,7 @@ defmodule Hueworks.HomeAssistant.Export.Messages do
         "model" => "Room Scenes"
       }
     }
-    |> maybe_put("configuration_url", config[:configuration_url])
+    |> maybe_put("configuration_url", configuration_url(config))
   end
 
   def room_select_attributes_payload(%Room{} = room, scenes) when is_list(scenes) do
@@ -253,7 +253,7 @@ defmodule Hueworks.HomeAssistant.Export.Messages do
       "json_attributes_topic" => entity_attributes_topic(kind, entity.id),
       "device" => room_device(entity)
     }
-    |> maybe_put("configuration_url", config[:configuration_url])
+    |> maybe_put("configuration_url", configuration_url(config))
   end
 
   def light_discovery_payload(kind, entity, config)
@@ -274,7 +274,7 @@ defmodule Hueworks.HomeAssistant.Export.Messages do
       "transition" => false,
       "device" => room_device(entity)
     }
-    |> maybe_put("configuration_url", config[:configuration_url])
+    |> maybe_put("configuration_url", configuration_url(config))
     |> maybe_put_kelvin_range(entity)
   end
 
@@ -473,6 +473,9 @@ defmodule Hueworks.HomeAssistant.Export.Messages do
   defp entity_object_id(kind, id) when kind in [:light, :group] and is_integer(id) do
     "hueworks_#{kind}_#{id}"
   end
+
+  defp configuration_url(%{configuration_url: configuration_url}), do: configuration_url
+  defp configuration_url(_config), do: nil
 
   defp kind_segment(:light), do: "lights"
   defp kind_segment(:group), do: "groups"

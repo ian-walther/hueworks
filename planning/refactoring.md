@@ -192,15 +192,20 @@ Preferred direction:
 Keep the export runtime shell small and explicit.
 
 Files:
+- `/Users/ianwalther/code/hueworks/lib/hueworks/home_assistant/export/config.ex`
 - `/Users/ianwalther/code/hueworks/lib/hueworks/home_assistant/export.ex`
 - `/Users/ianwalther/code/hueworks/lib/hueworks/home_assistant/export/lifecycle.ex`
+- `/Users/ianwalther/code/hueworks/lib/hueworks/home_assistant/export/router/entity_commands.ex`
+- `/Users/ianwalther/code/hueworks/lib/hueworks/home_assistant/export/router/scene_commands.ex`
 - `/Users/ianwalther/code/hueworks/lib/hueworks/home_assistant/export/runtime.ex`
 - `/Users/ianwalther/code/hueworks/lib/hueworks/home_assistant/export/router.ex`
 - `/Users/ianwalther/code/hueworks/lib/hueworks/home_assistant/export/sync.ex`
 
 Preferred direction:
 - keep `export.ex` focused on GenServer state transitions and public entrypoints
+- keep runtime config as a typed internal struct instead of a loose map
 - keep connection lifecycle, config transition behavior, and sync dispatch out of the GenServer shell
+- keep scene/select command handling separate from light/group command handling
 - move any remaining process-local policy/helpers out of the runtime shell
 - decide whether `runtime.ex` should stay as a separate helper or be folded into clearer, smaller responsibilities
 - keep transport, publishing, routing, and selection logic outside the runtime shell

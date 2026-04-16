@@ -5,6 +5,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
   alias Hueworks.AppSettings
   alias Hueworks.Control.DesiredState
   alias Hueworks.Control.State
+  alias Hueworks.HomeAssistant.Export.Config
   alias Hueworks.HomeAssistant.Export
   alias Hueworks.HomeAssistant.Export.Messages
   alias Hueworks.HomeAssistant.Export.Messages.{CommandTarget, RoomSceneOption}
@@ -78,6 +79,32 @@ defmodule Hueworks.HomeAssistant.ExportTest do
     assert payload["json_attributes_topic"] == "hueworks/ha_export/scenes/#{scene.id}/attributes"
     assert payload["device"]["identifiers"] == ["hueworks_room_#{room.id}"]
     assert payload["device"]["name"] == "HueWorks Main Floor"
+  end
+
+  test "export_config returns a typed runtime config" do
+    put_export_settings(%{
+      ha_export_scenes_enabled: true,
+      ha_export_room_selects_enabled: false,
+      ha_export_lights_enabled: true,
+      ha_export_mqtt_host: "mqtt.local",
+      ha_export_mqtt_port: 2883,
+      ha_export_mqtt_username: "ha_user",
+      ha_export_mqtt_password: "secret",
+      ha_export_discovery_prefix: "custom_discovery"
+    })
+
+    assert %Config{
+             enabled: true,
+             scenes_enabled: true,
+             room_selects_enabled: false,
+             lights_enabled: true,
+             host: "mqtt.local",
+             port: 2883,
+             username: "ha_user",
+             password: "secret",
+             discovery_prefix: "custom_discovery",
+             configuration_url: nil
+           } = Export.export_config()
   end
 
   test "room select discovery payload uses stable IDs and disambiguated options" do
