@@ -197,7 +197,7 @@ defmodule Hueworks.Picos.Actions do
   end
 
   defp action_light_ids(%ActionConfig{target_kind: :control_group, target_id: target_id}, device)
-       when is_integer(target_id) do
+       when is_binary(target_id) do
     device
     |> Picos.control_groups()
     |> Enum.find(&(Map.get(&1, "id") == target_id))

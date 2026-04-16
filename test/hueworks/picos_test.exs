@@ -378,6 +378,84 @@ defmodule Hueworks.PicosTest do
     assert DesiredState.get(:light, light.id) == %{power: :on, brightness: 55, kelvin: 3200}
   end
 
+  test "control-group bindings execute on button press" do
+    bridge = insert_bridge(%{host: "10.0.0.516"})
+    room = Repo.insert!(%Room{name: "Kitchen"})
+
+    overhead =
+      Repo.insert!(%Light{
+        name: "Overhead",
+        source: :caseta,
+        source_id: "81",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        enabled: true
+      })
+
+    lamp =
+      Repo.insert!(%Light{
+        name: "Lamp",
+        source: :caseta,
+        source_id: "82",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        enabled: true
+      })
+
+    group =
+      Repo.insert!(%Group{
+        name: "Kitchen Overhead",
+        source: :caseta,
+        source_id: "group-81",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        enabled: true
+      })
+
+    Repo.insert!(%GroupLight{group_id: group.id, light_id: overhead.id})
+
+    device =
+      Repo.insert!(%PicoDevice{
+        bridge_id: bridge.id,
+        room_id: room.id,
+        source_id: "device-control-group",
+        name: "Kitchen Pico",
+        hardware_profile: "5_button",
+        metadata: %{"room_override" => true}
+      })
+
+    insert_pico_button(%{
+      pico_device_id: device.id,
+      source_id: "1",
+      button_number: 2,
+      slot_index: 0,
+      enabled: true
+    })
+
+    assert {:ok, device} =
+             Picos.save_control_group(device, %{
+               "name" => "Overhead",
+               "group_ids" => [group.id],
+               "light_ids" => [lamp.id]
+             })
+
+    [control_group] = Picos.control_groups(device)
+
+    assert {:ok, _button} =
+             Picos.assign_button_binding(device, "1", %{
+               "action" => "toggle",
+               "target_kind" => "control_group",
+               "target_id" => control_group["id"]
+             })
+
+    State.put(:light, overhead.id, %{power: :off})
+    State.put(:light, lamp.id, %{power: :off})
+
+    assert :handled = Picos.handle_button_press(bridge.id, "1")
+    assert DesiredState.get(:light, overhead.id)[:power] == :on
+    assert DesiredState.get(:light, lamp.id)[:power] == :on
+  end
+
   test "clone_device_config copies room scope, control groups, and bindings onto another pico" do
     bridge = insert_bridge(%{host: "10.0.0.511"})
     room = Repo.insert!(%Room{name: "Kitchen"})

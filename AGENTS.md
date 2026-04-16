@@ -14,3 +14,6 @@
 
 5. Do not use worktree isolation when spawning agents.
    Always edit files directly in the working tree. Do not pass `isolation: "worktree"` when using the Agent tool.
+
+6. Reproduce bugs with a failing test before fixing them.
+   For bug fixes and regressions, first add or identify a test that fails because of the bug, confirm the failure, and only then add the fix. After the fix, rerun the focused test and the full suite to confirm the red-green cycle.
