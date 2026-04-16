@@ -7,7 +7,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
   alias Hueworks.Repo
   alias Hueworks.Scenes
   alias Hueworks.Schemas.PicoButton.ActionConfig, as: StoredActionConfig
-  alias Hueworks.Schemas.{Bridge, Group, GroupLight, Light, PicoButton, PicoDevice, Room}
+  alias Hueworks.Schemas.{Group, GroupLight, Light, PicoButton, PicoDevice, Room}
 
   defmodule CasetaPicoFetcherStub do
     def fetch_for_bridge(_bridge) do
@@ -78,7 +78,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
   end
 
   test "config page shows Pico Config button for Caseta bridges", %{conn: conn} do
-    Repo.insert!(%Bridge{
+    insert_bridge!(%{
       type: :caseta,
       name: "Caseta",
       host: "10.0.0.60",
@@ -87,7 +87,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
       import_complete: true
     })
 
-    Repo.insert!(%Bridge{
+    insert_bridge!(%{
       type: :hue,
       name: "Hue",
       host: "10.0.0.61",
@@ -107,7 +107,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
     override_room = Repo.insert!(%Room{name: "Override Room"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         type: :caseta,
         name: "Caseta",
         host: "10.0.0.62",
@@ -281,7 +281,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
 
   test "detect pico mode redirects from the list page into the matching pico config", %{conn: conn} do
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         type: :caseta,
         name: "Caseta",
         host: "10.0.0.63",
@@ -316,7 +316,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
     room = Repo.insert!(%Room{name: "Main Floor"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         type: :caseta,
         name: "Caseta",
         host: "10.0.0.64",
@@ -429,7 +429,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
     room = Repo.insert!(%Room{name: "Office"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         type: :caseta,
         name: "Caseta",
         host: "10.0.0.65",
@@ -527,7 +527,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
     room = Repo.insert!(%Room{name: "Movie Room"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         type: :caseta,
         name: "Caseta",
         host: "10.0.0.66",

@@ -9,7 +9,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
   alias Hueworks.HomeAssistant.Export.Messages
   alias Hueworks.HomeAssistant.Export.Messages.{CommandTarget, RoomSceneOption}
   alias Hueworks.Repo
-  alias Hueworks.Schemas.{AppSetting, Bridge, Group, GroupLight, Light, Room, Scene}
+  alias Hueworks.Schemas.{AppSetting, Group, GroupLight, Light, Room, Scene}
 
   setup do
     original_tortoise = Application.get_env(:hueworks, :ha_export_tortoise_module)
@@ -141,7 +141,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
         source: :hue,
         source_id: "17",
         bridge_id:
-          Repo.insert!(%Bridge{name: "Hue", type: :hue, host: "hue.local", credentials: %{}}).id,
+          insert_bridge!(%{name: "Hue", type: :hue, host: "hue.local", credentials: %{}}).id,
         room_id: room.id,
         ha_export_mode: :switch
       })
@@ -165,7 +165,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
         source: :ha,
         source_id: "light.kitchen_pendants",
         bridge_id:
-          Repo.insert!(%Bridge{name: "HA", type: :ha, host: "ha.local", credentials: %{}}).id,
+          insert_bridge!(%{name: "HA", type: :ha, host: "ha.local", credentials: %{}}).id,
         room_id: room.id,
         ha_export_mode: :light,
         supports_temp: true,
@@ -347,7 +347,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
     })
 
     room = Repo.insert!(%Room{name: "Kitchen"})
-    bridge = Repo.insert!(%Bridge{name: "Hue", type: :hue, host: "hue.local", credentials: %{}})
+    bridge = insert_bridge!(%{name: "Hue", type: :hue, host: "hue.local", credentials: %{}})
 
     light =
       Repo.insert!(%Light{
@@ -391,7 +391,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
     })
 
     room = Repo.insert!(%Room{name: "Kitchen"})
-    bridge = Repo.insert!(%Bridge{name: "Hue", type: :hue, host: "hue.local", credentials: %{}})
+    bridge = insert_bridge!(%{name: "Hue", type: :hue, host: "hue.local", credentials: %{}})
 
     light =
       Repo.insert!(%Light{
@@ -424,7 +424,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
     })
 
     room = Repo.insert!(%Room{name: "Kitchen"})
-    bridge = Repo.insert!(%Bridge{name: "HA", type: :ha, host: "ha.local", credentials: %{}})
+    bridge = insert_bridge!(%{name: "HA", type: :ha, host: "ha.local", credentials: %{}})
 
     light_a =
       Repo.insert!(%Light{
@@ -482,7 +482,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
     })
 
     room = Repo.insert!(%Room{name: "Kitchen"})
-    bridge = Repo.insert!(%Bridge{name: "Hue", type: :hue, host: "hue.local", credentials: %{}})
+    bridge = insert_bridge!(%{name: "Hue", type: :hue, host: "hue.local", credentials: %{}})
 
     light =
       Repo.insert!(%Light{
@@ -521,7 +521,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
     })
 
     room = Repo.insert!(%Room{name: "Kitchen"})
-    bridge = Repo.insert!(%Bridge{name: "Hue", type: :hue, host: "hue.local", credentials: %{}})
+    bridge = insert_bridge!(%{name: "Hue", type: :hue, host: "hue.local", credentials: %{}})
 
     light =
       Repo.insert!(%Light{
@@ -562,7 +562,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
     })
 
     room = Repo.insert!(%Room{name: "Kitchen"})
-    bridge = Repo.insert!(%Bridge{name: "Hue", type: :hue, host: "hue.local", credentials: %{}})
+    bridge = insert_bridge!(%{name: "Hue", type: :hue, host: "hue.local", credentials: %{}})
 
     light =
       Repo.insert!(%Light{
@@ -697,7 +697,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
     })
 
     room = Repo.insert!(%Room{name: "Kitchen"})
-    bridge = Repo.insert!(%Bridge{name: "Hue", type: :hue, host: "hue.local", credentials: %{}})
+    bridge = insert_bridge!(%{name: "Hue", type: :hue, host: "hue.local", credentials: %{}})
 
     light =
       Repo.insert!(%Light{

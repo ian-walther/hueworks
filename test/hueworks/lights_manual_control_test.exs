@@ -4,7 +4,7 @@ defmodule Hueworks.LightsManualControlTest do
   alias Hueworks.Control.{DesiredState, Executor, State}
   alias Hueworks.Lights.ManualControl
   alias Hueworks.Repo
-  alias Hueworks.Schemas.{Bridge, Light, Room, Scene}
+  alias Hueworks.Schemas.{Light, Room, Scene}
 
   setup do
     actions_id = {:executor_manual_control_actions, self()}
@@ -51,7 +51,7 @@ defmodule Hueworks.LightsManualControlTest do
     room = Repo.insert!(%Room{name: "Kitchen"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         name: "Hue Bridge",
         type: :hue,
         host: "192.168.1.91",
@@ -106,7 +106,7 @@ defmodule Hueworks.LightsManualControlTest do
     room = Repo.insert!(%Room{name: "Office"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         name: "Hue Bridge",
         type: :hue,
         host: "192.168.1.92",

@@ -3,7 +3,7 @@ defmodule Hueworks.Control.ExecutorConvergenceTest do
 
   alias Hueworks.Control.{DesiredState, Executor, State}
   alias Hueworks.Repo
-  alias Hueworks.Schemas.{Bridge, Light, Room}
+  alias Hueworks.Schemas.{Light, Room}
 
   setup do
     original_enabled = Application.get_env(:hueworks, :control_executor_enabled)
@@ -43,7 +43,7 @@ defmodule Hueworks.Control.ExecutorConvergenceTest do
     room = Repo.insert!(%Room{name: "Convergence Retry Room"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         type: :hue,
         name: "Hue Bridge",
         host: "10.0.0.80",
@@ -100,7 +100,7 @@ defmodule Hueworks.Control.ExecutorConvergenceTest do
     room = Repo.insert!(%Room{name: "Convergence OK Room"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         type: :hue,
         name: "Hue Bridge",
         host: "10.0.0.81",

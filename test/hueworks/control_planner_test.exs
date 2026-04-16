@@ -6,7 +6,7 @@ defmodule Hueworks.Control.PlannerTest do
   alias Hueworks.Control.Planner.Context
   alias Hueworks.Control.{DesiredState, Planner, State}
   alias Hueworks.Repo
-  alias Hueworks.Schemas.{AppSetting, Bridge, Group, GroupLight, Light, Room}
+  alias Hueworks.Schemas.{AppSetting, Group, GroupLight, Light, Room}
 
   setup do
     Repo.delete_all(AppSetting)
@@ -66,7 +66,7 @@ defmodule Hueworks.Control.PlannerTest do
     room = Repo.insert!(%Room{name: "Studio"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         name: "Hue",
         type: :hue,
         host: "bridge-1",
@@ -151,7 +151,7 @@ defmodule Hueworks.Control.PlannerTest do
     room = Repo.insert!(%Room{name: "Direct"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         name: "Hue",
         type: :hue,
         host: "bridge-direct",
@@ -190,7 +190,7 @@ defmodule Hueworks.Control.PlannerTest do
     room = Repo.insert!(%Room{name: "Transition Room"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         name: "Hue",
         type: :hue,
         host: "bridge-transition",
@@ -223,7 +223,7 @@ defmodule Hueworks.Control.PlannerTest do
     room = Repo.insert!(%Room{name: "Scaled Transition Room"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         name: "Hue",
         type: :hue,
         host: "bridge-scaled-transition",
@@ -253,7 +253,7 @@ defmodule Hueworks.Control.PlannerTest do
     room = Repo.insert!(%Room{name: "Kelvin Transition Room"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         name: "Hue",
         type: :hue,
         host: "bridge-kelvin-transition",
@@ -283,7 +283,7 @@ defmodule Hueworks.Control.PlannerTest do
     room = Repo.insert!(%Room{name: "Unknown Brightness Transition Room"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         name: "Hue",
         type: :hue,
         host: "bridge-unknown-brightness-transition",
@@ -313,7 +313,7 @@ defmodule Hueworks.Control.PlannerTest do
     room = Repo.insert!(%Room{name: "Brightness Delta Transition Room"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         name: "Hue",
         type: :hue,
         host: "bridge-brightness-delta-transition",
@@ -344,7 +344,7 @@ defmodule Hueworks.Control.PlannerTest do
     room = Repo.insert!(%Room{name: "Grouped Transition Room"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         name: "Hue",
         type: :hue,
         host: "bridge-grouped-transition",
@@ -387,7 +387,7 @@ defmodule Hueworks.Control.PlannerTest do
     room = Repo.insert!(%Room{name: "Grouped Mixed Knowledge Transition Room"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         name: "Hue",
         type: :hue,
         host: "bridge-grouped-mixed-transition",
@@ -421,7 +421,7 @@ defmodule Hueworks.Control.PlannerTest do
     room = Repo.insert!(%Room{name: "Office"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         name: "Hue",
         type: :hue,
         host: "bridge-2",
@@ -458,7 +458,7 @@ defmodule Hueworks.Control.PlannerTest do
     room = Repo.insert!(%Room{name: "Den"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         name: "Hue",
         type: :hue,
         host: "bridge-3",
@@ -466,7 +466,7 @@ defmodule Hueworks.Control.PlannerTest do
       })
 
     other_bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         name: "HA",
         type: :ha,
         host: "bridge-4",
@@ -499,7 +499,7 @@ defmodule Hueworks.Control.PlannerTest do
     room = Repo.insert!(%Room{name: "Kitchen"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         name: "Hue",
         type: :hue,
         host: "bridge-5",
@@ -562,7 +562,7 @@ defmodule Hueworks.Control.PlannerTest do
     room = Repo.insert!(%Room{name: "Warm Drift"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         name: "Hue",
         type: :hue,
         host: "bridge-warm-drift",
@@ -583,7 +583,7 @@ defmodule Hueworks.Control.PlannerTest do
     room = Repo.insert!(%Room{name: "Color Room"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         name: "Hue Color",
         type: :hue,
         host: "bridge-color-#{System.unique_integer([:positive])}",
@@ -609,7 +609,7 @@ defmodule Hueworks.Control.PlannerTest do
     room = Repo.insert!(%Room{name: "Mono Room"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         name: "Hue Mono",
         type: :hue,
         host: "bridge-mono-#{System.unique_integer([:positive])}",
@@ -635,7 +635,7 @@ defmodule Hueworks.Control.PlannerTest do
     room = Repo.insert!(%Room{name: "Mixed"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         name: "HA",
         type: :ha,
         host: "bridge-6",
@@ -844,7 +844,7 @@ defmodule Hueworks.Control.PlannerTest do
     room = Repo.insert!(%Room{name: "Clamp Match"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         name: "Hue",
         type: :hue,
         host: "bridge-clamp-match",
@@ -934,7 +934,7 @@ defmodule Hueworks.Control.PlannerTest do
     room = Repo.insert!(%Room{name: "Main Floor Fixture"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         name: "HA",
         type: :ha,
         host: "bridge-main-floor-#{System.unique_integer([:positive])}",

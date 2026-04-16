@@ -3,11 +3,11 @@ defmodule Hueworks.Import.NormalizeFromDbTest do
 
   alias Hueworks.Import.NormalizeFromDb
   alias Hueworks.Repo
-  alias Hueworks.Schemas.{Bridge, Group, GroupLight, Light}
+  alias Hueworks.Schemas.{Group, GroupLight, Light}
 
   test "builds normalized map from stored normalized_json" do
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         type: :hue,
         name: "Hue Bridge",
         host: "10.0.0.220",

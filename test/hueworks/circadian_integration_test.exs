@@ -438,7 +438,7 @@ defmodule Hueworks.CircadianIntegrationTest do
     room = Repo.insert!(%Room{name: "Component Room"})
 
     hue_bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         type: :hue,
         name: "Hue Bridge",
         host: "10.0.0.50",
@@ -538,7 +538,7 @@ defmodule Hueworks.CircadianIntegrationTest do
     room = Repo.insert!(%Room{name: "Poller Room"})
 
     hue_bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         type: :hue,
         name: "Hue Bridge",
         host: "10.0.0.60",
@@ -627,7 +627,7 @@ defmodule Hueworks.CircadianIntegrationTest do
     room = Repo.insert!(%Room{name: "Compressed Day Room"})
 
     hue_bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         type: :hue,
         name: "Hue Bridge",
         host: "10.0.0.61",
@@ -860,7 +860,7 @@ defmodule Hueworks.CircadianIntegrationTest do
     room = Repo.insert!(%Room{name: "Main Floor#{room_suffix}"})
 
     hue_bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         type: :hue,
         name: "Hue Bridge#{room_suffix}",
         host: if(suffix == "", do: "10.0.0.40", else: "10.0.0.40#{id_suffix}"),
@@ -869,7 +869,7 @@ defmodule Hueworks.CircadianIntegrationTest do
       })
 
     z2m_bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         type: :z2m,
         name: "Z2M Bridge#{room_suffix}",
         host: if(suffix == "", do: "10.0.0.80", else: "10.0.0.80#{id_suffix}"),

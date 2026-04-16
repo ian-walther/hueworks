@@ -4,7 +4,7 @@ defmodule Hueworks.Subscription.Z2MHandlerTest do
   alias Hueworks.Control.HomeAssistantPayload
   alias Hueworks.Control.State
   alias Hueworks.Repo
-  alias Hueworks.Schemas.{Bridge, Group, Light, Room}
+  alias Hueworks.Schemas.{Group, Light, Room}
   alias Hueworks.Subscription.Z2MEventStream.Connection.Handler
 
   setup do
@@ -19,7 +19,7 @@ defmodule Hueworks.Subscription.Z2MHandlerTest do
     room = Repo.insert!(%Room{name: "Main"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         type: :z2m,
         name: "Z2M",
         host: "10.0.0.70",
@@ -89,7 +89,7 @@ defmodule Hueworks.Subscription.Z2MHandlerTest do
 
   test "handler ignores bridge and set topics" do
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         type: :z2m,
         name: "Z2M",
         host: "10.0.0.71",
@@ -118,7 +118,7 @@ defmodule Hueworks.Subscription.Z2MHandlerTest do
     room = Repo.insert!(%Room{name: "Extended"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         type: :z2m,
         name: "Z2M",
         host: "10.0.0.72",
@@ -163,7 +163,7 @@ defmodule Hueworks.Subscription.Z2MHandlerTest do
     room = Repo.insert!(%Room{name: "Color Temp Preferred"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         type: :z2m,
         name: "Z2M",
         host: "10.0.0.73",
@@ -209,7 +209,7 @@ defmodule Hueworks.Subscription.Z2MHandlerTest do
     room = Repo.insert!(%Room{name: "Color Temp Crossover"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         type: :z2m,
         name: "Z2M",
         host: "10.0.0.731",
@@ -255,7 +255,7 @@ defmodule Hueworks.Subscription.Z2MHandlerTest do
     room = Repo.insert!(%Room{name: "Extended Floor"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         type: :z2m,
         name: "Z2M",
         host: "10.0.0.74",
@@ -295,7 +295,7 @@ defmodule Hueworks.Subscription.Z2MHandlerTest do
     room = Repo.insert!(%Room{name: "Grouped Extended"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         type: :z2m,
         name: "Z2M",
         host: "10.0.0.76",
@@ -351,7 +351,7 @@ defmodule Hueworks.Subscription.Z2MHandlerTest do
     room = Repo.insert!(%Room{name: "Bar Cabinets"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         type: :z2m,
         name: "Z2M",
         host: "10.0.0.78",
@@ -436,7 +436,7 @@ defmodule Hueworks.Subscription.Z2MHandlerTest do
     room = Repo.insert!(%Room{name: "Mapped Cabinets"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         type: :z2m,
         name: "Z2M",
         host: "10.0.0.79",
@@ -513,7 +513,7 @@ defmodule Hueworks.Subscription.Z2MHandlerTest do
     room = Repo.insert!(%Room{name: "Midrange Extended"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         type: :z2m,
         name: "Z2M",
         host: "10.0.0.77",
@@ -558,7 +558,7 @@ defmodule Hueworks.Subscription.Z2MHandlerTest do
     room = Repo.insert!(%Room{name: "Refresh"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         type: :z2m,
         name: "Z2M",
         host: "10.0.0.73",

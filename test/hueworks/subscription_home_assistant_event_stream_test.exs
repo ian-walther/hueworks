@@ -1,8 +1,6 @@
 defmodule Hueworks.Subscription.HomeAssistantEventStreamTest do
   use Hueworks.DataCase, async: false
 
-  alias Hueworks.Repo
-  alias Hueworks.Schemas.Bridge
   alias Hueworks.Subscription.HomeAssistantEventStream
 
   defmodule FakeConnection do
@@ -41,7 +39,7 @@ defmodule Hueworks.Subscription.HomeAssistantEventStreamTest do
 
   test "retries failed bridge connections and eventually monitors successful ones" do
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         type: :ha,
         name: "HA",
         host: "10.0.0.110",
@@ -68,7 +66,7 @@ defmodule Hueworks.Subscription.HomeAssistantEventStreamTest do
 
   test "waits for readiness before starting bridge connections" do
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         type: :ha,
         name: "HA",
         host: "10.0.0.111",

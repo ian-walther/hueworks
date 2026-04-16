@@ -30,7 +30,7 @@ defmodule Hueworks.SchemasTest do
       import_complete: false
     }
 
-    Repo.insert!(struct(Bridge, Map.merge(defaults, attrs)))
+    insert_bridge!(Map.merge(defaults, attrs))
   end
 
   defp insert_room(name \\ "Room") do
@@ -102,12 +102,12 @@ defmodule Hueworks.SchemasTest do
 
     assert changeset.valid?
 
-    assert Ecto.Changeset.get_change(changeset, :credentials) == %{
-             "broker_port" => 1883,
-             "username" => "zigbee",
-             "password" => "secret",
-             "base_topic" => "zigbee2mqtt"
-           }
+    assert %Hueworks.Schemas.Bridge.Credentials{
+             broker_port: 1883,
+             username: "zigbee",
+             password: "secret",
+             base_topic: "zigbee2mqtt"
+           } = Ecto.Changeset.apply_changes(changeset).credentials
   end
 
   test "bridge credentials struct exposes typed credentials for the bridge type" do

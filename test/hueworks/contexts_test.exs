@@ -12,7 +12,6 @@ defmodule Hueworks.ContextsTest do
 
   alias Hueworks.Schemas.{
     AppSetting,
-    Bridge,
     BridgeImport,
     ExternalScene,
     Group,
@@ -31,7 +30,7 @@ defmodule Hueworks.ContextsTest do
       import_complete: false
     }
 
-    Repo.insert!(struct(Bridge, Map.merge(defaults, attrs)))
+    insert_bridge!(Map.merge(defaults, attrs))
   end
 
   defp insert_light(bridge, attrs) do

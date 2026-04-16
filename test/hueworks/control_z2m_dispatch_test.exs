@@ -3,7 +3,6 @@ defmodule Hueworks.Control.Z2MDispatchTest do
 
   alias Hueworks.Control.{DesiredState, Executor, Group, Light, Planner}
   alias Hueworks.Repo
-  alias Hueworks.Schemas.Bridge
   alias Hueworks.Schemas.Group, as: GroupSchema
   alias Hueworks.Schemas.Light, as: LightSchema
   alias Hueworks.Schemas.Room
@@ -33,7 +32,7 @@ defmodule Hueworks.Control.Z2MDispatchTest do
     room = Repo.insert!(%Room{name: "Kitchen"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         type: :z2m,
         name: "Z2M",
         host: "10.0.0.60",
@@ -68,7 +67,7 @@ defmodule Hueworks.Control.Z2MDispatchTest do
     room = Repo.insert!(%Room{name: "Main"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         type: :z2m,
         name: "Z2M",
         host: "10.0.0.61",
@@ -112,7 +111,7 @@ defmodule Hueworks.Control.Z2MDispatchTest do
     room = Repo.insert!(%Room{name: "Kitchen"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         type: :z2m,
         name: "Z2M",
         host: "10.0.0.62",

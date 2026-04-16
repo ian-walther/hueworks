@@ -29,7 +29,7 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.ConnectionTest do
     room = Repo.insert!(%Room{name: "Living"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         type: :ha,
         name: "HA",
         host: "10.0.0.80",
@@ -138,7 +138,7 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.ConnectionTest do
     room = Repo.insert!(%Room{name: "Living"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         type: :ha,
         name: "HA",
         host: "10.0.0.81",
@@ -236,7 +236,7 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.ConnectionTest do
     room = Repo.insert!(%Room{name: "Kitchen"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         type: :ha,
         name: "HA",
         host: "10.0.0.82",

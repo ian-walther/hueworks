@@ -4,7 +4,7 @@ defmodule Hueworks.Control.Bootstrap.Z2MTest do
   alias Hueworks.Control.Bootstrap.Z2M
   alias Hueworks.Control.State
   alias Hueworks.Repo
-  alias Hueworks.Schemas.{Bridge, Group, Light, Room}
+  alias Hueworks.Schemas.{Group, Light, Room}
 
   setup do
     original_tortoise = Application.get_env(:hueworks, :z2m_bootstrap_tortoise_module)
@@ -62,7 +62,7 @@ defmodule Hueworks.Control.Bootstrap.Z2MTest do
     room = Repo.insert!(%Room{name: "Kitchen"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         type: :z2m,
         name: "Z2M",
         host: "10.0.0.80",
@@ -116,7 +116,7 @@ defmodule Hueworks.Control.Bootstrap.Z2MTest do
     room = Repo.insert!(%Room{name: "Request Fields"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         type: :z2m,
         name: "Z2M Request Fields",
         host: "10.0.0.82",
@@ -162,7 +162,7 @@ defmodule Hueworks.Control.Bootstrap.Z2MTest do
     room = Repo.insert!(%Room{name: "Delayed Kitchen"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         type: :z2m,
         name: "Z2M Delayed",
         host: "10.0.0.81",
@@ -218,7 +218,7 @@ defmodule Hueworks.Control.Bootstrap.Z2MTest do
     room = Repo.insert!(%Room{name: "Bar"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         type: :z2m,
         name: "Z2M Diverged",
         host: "10.0.0.83",
@@ -291,7 +291,7 @@ defmodule Hueworks.Control.Bootstrap.Z2MTest do
     room = Repo.insert!(%Room{name: "Mapped Bar"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         type: :z2m,
         name: "Z2M Mapped",
         host: "10.0.0.84",

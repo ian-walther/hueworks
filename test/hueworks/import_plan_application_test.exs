@@ -3,7 +3,7 @@ defmodule Hueworks.Import.PlanApplicationTest do
 
   alias Hueworks.Import.Materialize
   alias Hueworks.Repo
-  alias Hueworks.Schemas.{Bridge, Group, Light, Room}
+  alias Hueworks.Schemas.{Group, Light, Room}
 
   defp insert_bridge(attrs \\ %{}) do
     defaults = %{
@@ -15,7 +15,7 @@ defmodule Hueworks.Import.PlanApplicationTest do
       enabled: true
     }
 
-    Repo.insert!(struct(Bridge, Map.merge(defaults, attrs)))
+    insert_bridge!(Map.merge(defaults, attrs))
   end
 
   test "room skip plan does not create a new room" do

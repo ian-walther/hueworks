@@ -129,21 +129,16 @@ defmodule Hueworks.BridgeSeeds do
   end
 
   defp upsert_bridge(attrs) do
-    now = NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
+    case Repo.get_by(Bridge, type: attrs.type, host: attrs.host) do
+      nil ->
+        %Bridge{}
+        |> Bridge.changeset(attrs)
+        |> Repo.insert()
 
-    %Bridge{}
-    |> Bridge.changeset(attrs)
-    |> Repo.insert(
-      on_conflict: [
-        set: [
-          name: attrs.name,
-          credentials: attrs.credentials,
-          enabled: attrs.enabled,
-          import_complete: attrs.import_complete,
-          updated_at: now
-        ]
-      ],
-      conflict_target: [:type, :host]
-    )
+      bridge ->
+        bridge
+        |> Bridge.changeset(attrs)
+        |> Repo.update()
+    end
   end
 end

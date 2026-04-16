@@ -102,12 +102,12 @@ defmodule Hueworks.BridgeSeedsTest do
 
     ha = Repo.get_by!(Bridge, type: :ha, host: "192.168.1.41")
     assert ha.name == "Home Assistant"
-    assert ha.credentials["token"] == "token-1"
+    assert ha.credentials.token == "token-1"
 
     z2m = Repo.get_by!(Bridge, type: :z2m, host: "192.168.1.50")
     assert z2m.name == "Z2M Broker"
-    assert z2m.credentials["broker_port"] == 1883
-    assert z2m.credentials["username"] == "zigbee"
+    assert z2m.credentials.broker_port == 1883
+    assert z2m.credentials.username == "zigbee"
 
     updated_path =
       temp_json!(
@@ -128,7 +128,7 @@ defmodule Hueworks.BridgeSeedsTest do
 
     updated = Repo.get_by!(Bridge, type: :ha, host: "192.168.1.41")
     assert updated.name == "HA Main"
-    assert updated.credentials["token"] == "token-2"
+    assert updated.credentials.token == "token-2"
   end
 
   test "load_from_file returns descriptive error for invalid root shape" do

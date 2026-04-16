@@ -4,7 +4,7 @@ defmodule Hueworks.Subscription.CasetaEventStream.ConnectionTest do
   alias Hueworks.Control.State
   alias Hueworks.Control.DesiredState
   alias Hueworks.Repo
-  alias Hueworks.Schemas.{Bridge, Light, PicoButton, PicoDevice, Room}
+  alias Hueworks.Schemas.{Light, PicoButton, PicoDevice, Room}
   alias Hueworks.Subscription.CasetaEventStream.Connection
 
   defp insert_pico_button(attrs) do
@@ -25,7 +25,7 @@ defmodule Hueworks.Subscription.CasetaEventStream.ConnectionTest do
     room = Repo.insert!(%Room{name: "Living"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         type: :caseta,
         name: "Caseta",
         host: "10.0.0.90",
@@ -70,7 +70,7 @@ defmodule Hueworks.Subscription.CasetaEventStream.ConnectionTest do
     room = Repo.insert!(%Room{name: "Living"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         type: :caseta,
         name: "Caseta",
         host: "10.0.0.91",
@@ -131,7 +131,7 @@ defmodule Hueworks.Subscription.CasetaEventStream.ConnectionTest do
     room = Repo.insert!(%Room{name: "Kitchen"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         type: :caseta,
         name: "Caseta",
         host: "10.0.0.92",

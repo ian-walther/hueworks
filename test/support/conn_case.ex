@@ -5,6 +5,7 @@ defmodule HueworksWeb.ConnCase do
     quote do
       import Plug.Conn
       import Phoenix.ConnTest
+      import Hueworks.DataCase
       import HueworksWeb.ConnCase
 
       alias HueworksWeb.Router.Helpers, as: Routes

@@ -11,7 +11,6 @@ defmodule Hueworks.LightsLivePipelineTest do
   alias Hueworks.Repo
 
   alias Hueworks.Schemas.{
-    Bridge,
     Group,
     GroupLight,
     Light,
@@ -57,7 +56,7 @@ defmodule Hueworks.LightsLivePipelineTest do
     room = Repo.insert!(%Room{name: "Studio"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         name: "Hue Bridge",
         type: :hue,
         host: "192.168.1.80",
@@ -113,7 +112,7 @@ defmodule Hueworks.LightsLivePipelineTest do
     room = Repo.insert!(%Room{name: "Kitchen"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         name: "Hue Bridge",
         type: :hue,
         host: "192.168.1.81",
@@ -203,7 +202,7 @@ defmodule Hueworks.LightsLivePipelineTest do
     room = Repo.insert!(%Room{name: "Kitchen"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         name: "Hue Bridge",
         type: :hue,
         host: "192.168.1.81",
@@ -289,7 +288,7 @@ defmodule Hueworks.LightsLivePipelineTest do
     room = Repo.insert!(%Room{name: "Office"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         name: "Hue Bridge",
         type: :hue,
         host: "192.168.1.82",
@@ -350,7 +349,7 @@ defmodule Hueworks.LightsLivePipelineTest do
     room = Repo.insert!(%Room{name: "Scene Room"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         name: "Hue Bridge",
         type: :hue,
         host: "192.168.1.88",
@@ -404,7 +403,7 @@ defmodule Hueworks.LightsLivePipelineTest do
     room = Repo.insert!(%Room{name: "Live Scene Room"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         name: "Hue Bridge",
         type: :hue,
         host: "192.168.1.98",
@@ -462,7 +461,7 @@ defmodule Hueworks.LightsLivePipelineTest do
     room = Repo.insert!(%Room{name: "Color Room"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         name: "Hue Bridge",
         type: :hue,
         host: "192.168.1.91",
@@ -522,7 +521,7 @@ defmodule Hueworks.LightsLivePipelineTest do
     room = Repo.insert!(%Room{name: "Bedroom"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         name: "Hue Bridge",
         type: :hue,
         host: "192.168.1.84",
@@ -618,7 +617,7 @@ defmodule Hueworks.LightsLivePipelineTest do
     room = Repo.insert!(%Room{name: "Den"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         name: "Hue Bridge",
         type: :hue,
         host: "192.168.1.89",
@@ -707,7 +706,7 @@ defmodule Hueworks.LightsLivePipelineTest do
     room = Repo.insert!(%Room{name: "Dining"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         name: "Z2M Bridge",
         type: :z2m,
         host: "192.168.1.83",
@@ -747,7 +746,7 @@ defmodule Hueworks.LightsLivePipelineTest do
     room = Repo.insert!(%Room{name: "Media"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         name: "Z2M Bridge",
         type: :z2m,
         host: "192.168.1.88",
@@ -796,7 +795,7 @@ defmodule Hueworks.LightsLivePipelineTest do
     room = Repo.insert!(%Room{name: "Living Room"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         name: "Hue Bridge",
         type: :hue,
         host: "192.168.1.85",
@@ -830,7 +829,7 @@ defmodule Hueworks.LightsLivePipelineTest do
     room = Repo.insert!(%Room{name: "Kitchen"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         name: "Mixed Bridge",
         type: :ha,
         host: "192.168.1.86",
@@ -884,7 +883,7 @@ defmodule Hueworks.LightsLivePipelineTest do
     room = Repo.insert!(%Room{name: "Kitchen"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         name: "HA Bridge",
         type: :ha,
         host: "192.168.1.90",
@@ -919,7 +918,7 @@ defmodule Hueworks.LightsLivePipelineTest do
     room = Repo.insert!(%Room{name: "Office"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         name: "HA Bridge",
         type: :ha,
         host: "192.168.1.87",

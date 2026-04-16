@@ -15,7 +15,7 @@ defmodule Hueworks.Import.EdgeCasesTest do
       enabled: true
     }
 
-    Repo.insert!(struct(Bridge, Map.merge(defaults, attrs)))
+    insert_bridge!(Map.merge(defaults, attrs))
   end
 
   test "normalize handles empty raw payloads" do

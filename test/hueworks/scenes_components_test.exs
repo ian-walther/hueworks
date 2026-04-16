@@ -10,7 +10,6 @@ defmodule Hueworks.ScenesComponentsTest do
 
   alias Hueworks.Schemas.{
     ActiveScene,
-    Bridge,
     Light,
     LightState,
     Room,
@@ -23,7 +22,7 @@ defmodule Hueworks.ScenesComponentsTest do
   end
 
   defp insert_bridge do
-    Repo.insert!(%Bridge{
+    insert_bridge!(%{
       type: :hue,
       name: "Hue Bridge",
       host: "10.0.0.230",

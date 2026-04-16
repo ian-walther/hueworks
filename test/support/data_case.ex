@@ -1,6 +1,9 @@
 defmodule Hueworks.DataCase do
   use ExUnit.CaseTemplate
 
+  alias Hueworks.Repo
+  alias Hueworks.Schemas.Bridge
+
   using do
     quote do
       alias Hueworks.Repo
@@ -22,6 +25,12 @@ defmodule Hueworks.DataCase do
     clear_ets(:hueworks_desired_state)
     clear_ets(:hueworks_control_state)
     on_exit(fn -> Ecto.Adapters.SQL.Sandbox.stop_owner(pid) end)
+  end
+
+  def insert_bridge!(attrs) when is_map(attrs) do
+    %Bridge{}
+    |> Bridge.changeset(attrs)
+    |> Repo.insert!()
   end
 
   defp clear_ets(table) do

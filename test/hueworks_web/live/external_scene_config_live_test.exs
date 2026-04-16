@@ -5,12 +5,12 @@ defmodule HueworksWeb.ExternalSceneConfigLiveTest do
 
   alias Hueworks.ExternalScenes
   alias Hueworks.Repo
-  alias Hueworks.Schemas.{Bridge, Room}
+  alias Hueworks.Schemas.Room
   alias Hueworks.Scenes
 
   test "scene config page syncs HA scenes and saves mappings", %{conn: conn} do
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         type: :ha,
         name: "Home Assistant",
         host: "10.0.0.91",

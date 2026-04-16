@@ -10,7 +10,6 @@ defmodule Hueworks.SceneActivationRoundTripTest do
   alias Hueworks.Repo
 
   alias Hueworks.Schemas.{
-    Bridge,
     Group,
     GroupLight,
     Light,
@@ -59,7 +58,7 @@ defmodule Hueworks.SceneActivationRoundTripTest do
     room = Repo.insert!(%Room{name: "Studio"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         name: "Hue Bridge",
         type: :hue,
         host: "192.168.1.2",
@@ -160,7 +159,7 @@ defmodule Hueworks.SceneActivationRoundTripTest do
     room = Repo.insert!(%Room{name: "Loft"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         name: "Hue Bridge",
         type: :hue,
         host: "192.168.1.3",
@@ -335,7 +334,7 @@ defmodule Hueworks.SceneActivationRoundTripTest do
     room = Repo.insert!(%Room{name: "Kitchen"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         name: "Hue Bridge",
         type: :hue,
         host: "192.168.1.9",
@@ -460,7 +459,7 @@ defmodule Hueworks.SceneActivationRoundTripTest do
     room = Repo.insert!(%Room{name: "Hallway"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         name: "Hue Bridge",
         type: :hue,
         host: "192.168.1.10",
@@ -540,7 +539,7 @@ defmodule Hueworks.SceneActivationRoundTripTest do
     room = Repo.insert!(%Room{name: "Occupancy Test"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         name: "Hue Bridge",
         type: :hue,
         host: "192.168.1.11",

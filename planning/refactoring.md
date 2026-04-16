@@ -119,34 +119,7 @@ Exit criteria:
 - most read paths use `state.config` or typed helper accessors
 - `persisted_config/1` is primarily used at true persistence or compatibility boundaries
 
-#### Phase 1: Convert Existing Typed Boundary Modules Into Parent-Level Embeds
-These are the safest next native-embed migrations because they already have bounded vocabularies and typed load/dump helpers.
-
-Primary targets:
-- `/Users/ianwalther/code/hueworks/lib/hueworks/schemas/bridge.ex`
-  - move `credentials` from a validated `:map` field to a parent-level embed on the same `credentials` column
-  - reuse `/Users/ianwalther/code/hueworks/lib/hueworks/schemas/bridge/credentials.ex` as the embed boundary
-
-Method for each target:
-- add the parent-level embed on the existing column
-- keep current typed `load/normalize/dump` behavior available during transition
-- add struct-first accessors on the parent schema if needed
-- switch downstream callers from `*_struct(...)` helpers toward the parent embed field
-- only then consider deleting or shrinking the compatibility wrapper helpers
-
-Why these come first:
-- they already behave like bounded product surfaces
-- they already have strong typed helper modules
-- they do not require changing table shape
-- they should be reversible by code deploy alone
-
-Current note:
-- `/Users/ianwalther/code/hueworks/lib/hueworks/schemas/pico_button.ex` now uses a parent-level embed on the existing `action_config` column
-- `/Users/ianwalther/code/hueworks/lib/hueworks/schemas/bridge.ex` is still the next native-embed candidate, but it has a real prerequisite:
-  - eliminate direct raw `%Bridge{credentials: %{...}}` insert/update paths first
-  - native embeds cannot dump a raw map for the embed field, so test helpers and any remaining direct struct inserts need to go through the schema boundary before the flip
-
-#### Phase 2: Evaluate Mixed Metadata Surfaces Carefully
+#### Next Native-Embed Candidates: Evaluate Mixed Metadata Surfaces Carefully
 Some metadata maps have enough structure to be candidates later, but they should not be treated like the phase-1 conversions.
 
 Most plausible later candidate:
@@ -171,7 +144,7 @@ Possible but lower-confidence candidates:
 
 These should only move if a stable bounded vocabulary actually emerges. Right now they are not strong enough candidates to prioritize.
 
-#### Phase 3: Decide Whether Compatibility Dumping Should Stay Permanent
+#### Later: Decide Whether Compatibility Dumping Should Stay Permanent
 Once parent-level embed usage is stable for a surface, decide deliberately whether to keep or retire its compatibility dump behavior.
 
 Questions to answer per surface:

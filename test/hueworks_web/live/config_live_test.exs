@@ -7,7 +7,7 @@ defmodule HueworksWeb.ConfigLiveTest do
   alias Hueworks.HomeAssistant.Export
   alias Hueworks.Repo
   alias Hueworks.Scenes
-  alias Hueworks.Schemas.{AppSetting, Bridge, LightState, Room, SceneComponent}
+  alias Hueworks.Schemas.{AppSetting, LightState, Room, SceneComponent}
 
   setup do
     original_tortoise = Application.get_env(:hueworks, :ha_export_tortoise_module)
@@ -359,7 +359,7 @@ defmodule HueworksWeb.ConfigLiveTest do
   end
 
   test "shows Scene Import button for Home Assistant bridges", %{conn: conn} do
-    Repo.insert!(%Bridge{
+    insert_bridge!(%{
       type: :ha,
       name: "Home Assistant",
       host: "10.0.0.90",

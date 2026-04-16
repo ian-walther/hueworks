@@ -1,8 +1,6 @@
 defmodule Hueworks.Subscription.CasetaEventStreamTest do
   use Hueworks.DataCase, async: false
 
-  alias Hueworks.Repo
-  alias Hueworks.Schemas.Bridge
   alias Hueworks.Subscription.CasetaEventStream
 
   defmodule FakeConnection do
@@ -40,7 +38,7 @@ defmodule Hueworks.Subscription.CasetaEventStreamTest do
 
   test "retries failed bridge connections and eventually monitors successful ones" do
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         type: :caseta,
         name: "Caseta",
         host: "10.0.0.92",
@@ -71,7 +69,7 @@ defmodule Hueworks.Subscription.CasetaEventStreamTest do
 
   test "waits for readiness before starting bridge connections" do
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         type: :caseta,
         name: "Caseta",
         host: "10.0.0.93",

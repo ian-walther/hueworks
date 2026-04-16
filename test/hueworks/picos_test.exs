@@ -9,7 +9,7 @@ defmodule Hueworks.PicosTest do
   alias Hueworks.Control.{DesiredState, State}
   alias Hueworks.Repo
   alias Hueworks.Schemas.PicoButton.ActionConfig, as: StoredActionConfig
-  alias Hueworks.Schemas.{Bridge, Group, GroupLight, Light, PicoButton, PicoDevice, Room}
+  alias Hueworks.Schemas.{Group, GroupLight, Light, PicoButton, PicoDevice, Room}
 
   defp insert_bridge(attrs \\ %{}) do
     defaults = %{
@@ -25,7 +25,7 @@ defmodule Hueworks.PicosTest do
       import_complete: true
     }
 
-    Repo.insert!(struct(Bridge, Map.merge(defaults, attrs)))
+    insert_bridge!(Map.merge(defaults, attrs))
   end
 
   defp insert_pico_button(attrs) do

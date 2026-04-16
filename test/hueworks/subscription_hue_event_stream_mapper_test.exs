@@ -3,7 +3,7 @@ defmodule Hueworks.Subscription.HueEventStream.MapperTest do
 
   alias Hueworks.Control.State
   alias Hueworks.Repo
-  alias Hueworks.Schemas.{Bridge, Group, GroupLight, Light, Room}
+  alias Hueworks.Schemas.{Group, GroupLight, Light, Room}
   alias Hueworks.Subscription.HueEventStream.Mapper
 
   setup do
@@ -18,7 +18,7 @@ defmodule Hueworks.Subscription.HueEventStream.MapperTest do
     room = Repo.insert!(%Room{name: "Hue Room"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         type: :hue,
         name: "Hue",
         host: "10.0.0.40",
@@ -83,7 +83,7 @@ defmodule Hueworks.Subscription.HueEventStream.MapperTest do
     room = Repo.insert!(%Room{name: "Hue Room"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         type: :hue,
         name: "Hue",
         host: "10.0.0.41",
@@ -135,7 +135,7 @@ defmodule Hueworks.Subscription.HueEventStream.MapperTest do
     room = Repo.insert!(%Room{name: "Hue Room"})
 
     bridge =
-      Repo.insert!(%Bridge{
+      insert_bridge!(%{
         type: :hue,
         name: "Hue",
         host: "10.0.0.42",

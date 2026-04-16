@@ -5,7 +5,7 @@ defmodule HueworksWeb.LightStateEditorLiveTest do
 
   alias Hueworks.Repo
   alias Hueworks.Scenes
-  alias Hueworks.Schemas.{AppSetting, Bridge, LightState, Room, SceneComponent}
+  alias Hueworks.Schemas.{AppSetting, LightState, Room, SceneComponent}
 
   setup do
     Repo.delete_all(AppSetting)
@@ -317,7 +317,7 @@ defmodule HueworksWeb.LightStateEditorLiveTest do
   test "edit editor shows where a light state is used", %{conn: conn} do
     room = insert_room()
 
-    Repo.insert!(%Bridge{
+    insert_bridge!(%{
       type: :hue,
       name: "Hue Bridge",
       host: "10.0.0.230",
