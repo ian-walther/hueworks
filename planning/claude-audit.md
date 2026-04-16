@@ -3,21 +3,18 @@
 ## Purpose
 Independent code audit of the HueWorks codebase, performed by Claude as a second-opinion review alongside the existing `refactoring.md` priorities. Findings here are complementary — they focus on code-level patterns, duplication, error handling, naming, and structural issues rather than repeating the architectural direction already documented.
 
-## Audit Status
+## Recent Progress (as of 2026-04-15)
 
-| Area | Status | Chunk |
-|------|--------|-------|
-| Control layer (executor, planner, state) | Done | 1 |
-| Scenes + HA export | Done | 1 |
-| LiveViews + domain (picos, circadian, kelvin) | Done | 1 |
-| Import pipeline + subscriptions | Done | 1 |
-| Schemas + Ecto queries | Done | 2 |
-| Mix tasks + application startup | Done | 2 |
-| Test suite structure + coverage gaps | Done | 2 |
-| Config/env management patterns | Done | 2 |
-| Cross-cutting: type safety + specs | Done | 3 |
-| Cross-cutting: observability + logging | Done | 3 |
-| Cross-cutting: dependency review | Done | 3 |
+Major refactoring toward well-defined structs and embedded schemas. Key wins:
+
+- **Embedded schemas added:** `Bridge.Credentials`, `PicoButton.ActionConfig`, `LightState.Config`, `LightState.ManualConfig` — all with proper validation, normalization, and type-specific logic
+- **Planner decomposed:** `Planner.Action` struct (37 lines) and `Planner.Context` struct (96 lines) replace bare maps and the 8-parameter recursive call
+- **Scenes broken into submodules:** `Active` (131), `Components` (123), `LightStates` (165), `Persistence` (63) — parent `scenes.ex` is now a clean 228-line facade
+- **Picos.Config broken into submodules:** `Bindings` (223), `Clone` (97), `ControlGroups` (128) — parent `config.ex` is now 35 lines
+- **AppSettings decomposed:** `HaExportConfig` (183) and `SolarConfig` (168) extracted — parent down to 165 lines
+- **LiveView state extraction:** `LightStateEditorLive.FormState` (249), `LightsLive.Actions` (233), `SceneBuilderComponent.State` (337)
+- **Color/temperature harmonization consolidated** into `LightStateSemantics` (was duplicated across 3 modules)
+- **DesiredAttrs struct** added in `scenes/intent.ex` (first step toward typed light state in control pipeline)
 
 ---
 
@@ -40,16 +37,6 @@ Data from MQTT and external sources arrives with string keys; the domain model u
 
 **Recommendation:** Extract a shared `KeyNormalize` or similar utility with `get_any(map, atom_key)` that checks both forms, and `delete_any(map, keys)` / `has_any?(map, keys)` helpers. Then progressively adopt it. This would eliminate ~100 lines of duplicated guard logic.
 
-#### 1b. Color/Temperature Harmonization (3 modules)
-
-The logic ensuring xy coordinates and kelvin don't coexist is copy-pasted:
-
-- `hueworks_app/control/state.ex` lines 114-158: `harmonize_color_and_temperature`, `drop_kelvin`, `drop_xy`, `incoming_has_xy?`, `incoming_has_kelvin?`
-- `hueworks_app/control/desired_state.ex` lines 118-186: exact same functions
-- `control/light_state_semantics.ex` lines 163-181: `drop_kelvin`, `drop_xy`
-
-**Recommendation:** Single source of truth in `LightStateSemantics` (or a new `LightState.Normalize` module), imported by State and DesiredState.
-
 #### 1c. Event Stream Manager Duplication (4 files, ~250 lines)
 
 The four event stream managers are structurally identical:
@@ -69,17 +56,11 @@ They share: `@restart_delay_ms`, `@retry_delay_ms`, identical `start_link/init/h
 
 **Recommendation:** Extract shared `fetch_all(type, &fetch_fn/1)` and `fetch_one(bridge, &fetch_fn/1)` wrappers. Also: `invalid_credential?/1` is repeated verbatim in 4+ files — extract to `Credentials` module.
 
-#### 1e. LightsLive dispatch_action Duplication (~100 lines)
+#### 1f. Blank Component Definition (2 files)
 
-`dispatch_action/4` has 8 clauses for light/group x brightness/color_temp/color/power. The light and group variants for each action type are ~90% identical.
+`@blank_component` is still defined identically in `SceneEditorLive` and `SceneBuilderComponent.State` (was 3 files, `PicoConfigLive` no longer has it).
 
-**Recommendation:** Consolidate to a single function per action type that accepts entity type as parameter.
-
-#### 1f. Blank Component Definition (3 files)
-
-`@blank_component` is defined identically in `SceneBuilderComponent`, `SceneEditorLive`, and `PicoConfigLive`.
-
-**Recommendation:** Define once in a shared location (e.g., `Scenes.Builder` already exists and is the natural home).
+**Recommendation:** Define once in a shared location (e.g., `Scenes.Builder` or `Scenes.Components`).
 
 #### 1g. Materialize upsert Duplication
 
@@ -123,39 +104,19 @@ They share: `@restart_delay_ms`, `@retry_delay_ms`, identical `start_link/init/h
 
 These are the functions and modules where cognitive complexity is highest.
 
-#### 3a. Planner Group/Light Planning (planner.ex lines 129-183)
+#### 3b. LightStateEditorLive (621 lines, down from 810)
 
-The planning loop groups actions by desired state, then reconstructs candidate_ids by re-filtering ALL room_lights with the same criteria it already grouped by. Data is transformed multiple times unnecessarily. Recursive group planning (lines 229-238) passes 8 parameters.
-
-**Recommendation:** Pass through original grouping data instead of reconstructing. Consider a struct for the 8-parameter recursive call.
-
-#### 3b. LightStateEditorLive (810 lines — largest file)
-
-This LiveView handles form updates, chart pixel calculations, circadian preview rendering, and timezone management. Specific issues:
-- `key_to_atom/1` (lines 337-362): 26 match clauses converting strings to atoms — indicates a data structure normalization problem
-- Chart calculation functions (lines 572-693): pixel math, axis labels, tick marks tightly coupled to LiveView
-- Hardcoded timezone list (lines 777-796)
+`FormState` (249 lines) was extracted, handling form value coercion and preview calculations. Remaining issues:
+- Chart calculation functions are still tightly coupled to the LiveView
 - `@chart_width 640`, `@chart_height 188`, `@chart_padding` — magic numbers for chart rendering
 
-**Recommendation:** Extract chart rendering logic to a dedicated `CircadianChart` module. The `key_to_atom` problem should be solved upstream by normalizing keys at the boundary where data enters the system.
-
-#### 3c. PicoConfigLive handle_info (lines 397-451)
-
-4-5 levels of nested `cond` blocks handling Pico button press events. 40+ lines of logic in a single function.
-
-**Recommendation:** Extract each branch to a named helper function.
+**Recommendation:** Extract chart rendering logic to a dedicated `CircadianChart` module. Lower priority now that the file is more manageable.
 
 #### 3d. HA Normalize Reducer (normalize/home_assistant.ex lines 19-149)
 
 Single 149-line reducer function with 4 levels of nesting and a `cond` block distinguishing groups, grouped lights, and standalone lights.
 
 **Recommendation:** Break into separate functions per entity type.
-
-#### 3e. Picos.Config.clone_device_config (lines 14-91)
-
-78-line transaction with nested device cloning. No error recovery if transaction fails mid-stream.
-
-**Recommendation:** Break into smaller transactional steps with explicit error handling.
 
 ---
 
@@ -428,10 +389,6 @@ Only 2 metrics are collected:
 
 **Recommendation:** Split into focused submodules: `Util.Numeric`, `Util.Display`, `Util.Parsing`. This can be done incrementally.
 
-`app_settings.ex` (278 lines) has significant internal duplication — settings are projected in 2+ places (`with_defaults_from_current` and `normalize_attrs`), so adding a new setting requires updating multiple functions.
-
-**Recommendation:** Consolidate setting projections into a single map definition.
-
 #### 10f. bridge_seeds.ex — Well Implemented
 
 Comprehensive validation, proper error tuples, transactional upserts with `on_conflict`. One of the better-implemented infrastructure modules.
@@ -557,19 +514,13 @@ Every other module — including the critical state/control/planner/executor pat
 
 **Recommendation:** Adding `@spec` everywhere at once is impractical. Start with the 5 modules that matter most for correctness: `state.ex`, `desired_state.ex`, `light_state_semantics.ex`, `state_parser.ex`, `scenes.ex`. Then add dialyxir so future specs are verified. This pairs well with the light state struct recommendation below.
 
-#### 13b. Light State Is a Bare Map Everywhere
+#### 13b. Light State Is Still a Bare Map in the Control Pipeline
 
-The most consequential data shape in the system — `%{power: :on, brightness: 0..100, kelvin: 2000..6500, x: float, y: float}` — is represented as a bare map throughout:
+**Progress:** A `DesiredAttrs` struct exists in `scenes/intent.ex` (fields: power, brightness, kelvin, x, y) and several non-Ecto structs now exist (`Planner.Action`, `Planner.Context`, `DesiredState.Transaction`). The codebase has moved significantly toward structs.
 
-- `hueworks_app/control/desired_state.ex` lines 41-104: state stored as `%{}`, merged with `Map.merge(attrs)`, no type guarantee
-- `hueworks_app/control/state.ex` lines 97-112: `merge_and_store/3` accepts and returns bare maps
-- `control/light_state_semantics.ex` lines 9-20: `diff_state/2` uses `is_map(actual)` / `is_map(desired)` guards only
+**Remaining gap:** The ETS-backed control pipeline (`state.ex`, `desired_state.ex`, `state_parser.ex`) still operates entirely on bare maps with atom/string dual-key handling. `DesiredAttrs` is converted to a map via `to_map/1` before entering this layer.
 
-These maps are interchangeably keyed with atoms or strings (already documented in Chunk 1 finding 1a, but the type-safety angle is that this ambiguity is only possible because there's no struct).
-
-Only **one non-Ecto struct exists in the entire codebase**: `Hueworks.Control.DesiredState.Transaction` — and even that one has no `@type t` definition.
-
-**Recommendation:** Define a `LightState` struct (non-Ecto, in-memory only) with unified atom keys and a `@type t` definition. Use it as the return type of `state_parser.ex` functions and the storage shape in State/DesiredState. This would eliminate the atom/string duality at its root and give every downstream function a concrete type to pattern-match on.
+**Recommendation:** The natural next step is to make `state_parser.ex` return a struct (or at minimum atom-keyed maps) so that normalized data enters the ETS layer in a consistent shape. This would eliminate the dual-key problem (1a) at its root. The `DesiredAttrs` struct in intent.ex is a good model for what the control-layer struct should look like.
 
 #### 13c. Mixed Return Types Without Specs
 
@@ -735,15 +686,14 @@ All three planned chunks are done. 15 finding sections covering:
 
 ### Recommended Next Steps
 
-These are the highest-leverage starting points across all three chunks, in rough order:
+Updated to reflect recent progress. The struct/schema and module decomposition work has been excellent — the remaining items are the ones that weren't part of that effort.
 
-1. **Log retry exhaustion in Executor** (14e) — small change, fixes a real operational blind spot
-2. **Replace IO.puts with Logger in fetch modules** (14b) — trivial cleanup
-3. **Extract string/atom dual-key helper** (1a) — 100+ lines eliminated across 6 modules
-4. **Define a `LightState` struct** (13b) — unlocks type safety work and fixes 1a at its root
-5. **Add `dialyxir` + @specs on the critical 5 modules** (13a, 15b) — state.ex, desired_state.ex, light_state_semantics.ex, state_parser.ex, scenes.ex
-6. **Generate trace IDs by default in `apply_scene`** (14d) — activates already-built trace infrastructure
-7. **Consolidate event stream managers** (1c) — ~250 lines eliminated, low risk
-8. **Fix the N+1 in `picos/targets.ex`** (8b) — performance win
+1. **Normalize keys at `state_parser.ex` boundary** (1a + 13b) — the biggest remaining structural issue. Make `state_parser.ex` return atom-keyed maps (or a struct) so the dual-key problem doesn't propagate into ETS. The `DesiredAttrs` struct in intent.ex is a good model.
+2. **Log retry exhaustion in Executor** (14e) — small change, fixes a real operational blind spot
+3. **Replace IO.puts with Logger in fetch modules** (14b) — trivial cleanup
+4. **Add `dialyxir` + @specs on the critical 5 modules** (13a, 15b) — state.ex, desired_state.ex, light_state_semantics.ex, state_parser.ex, scenes.ex
+5. **Generate trace IDs by default in `apply_scene`** (14d) — activates already-built trace infrastructure
+6. **Consolidate event stream managers** (1c) — ~250 lines eliminated, low risk
+7. **Fix the N+1 in `picos/targets.ex`** (8b) — performance win
 
 The architectural direction laid out in `refactoring.md` and `architecture-reset.md` remains the governing priority; this audit is meant to surface specific code-level wins that can be taken on opportunistically as those larger refactors happen.
