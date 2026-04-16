@@ -4,10 +4,10 @@ defmodule Hueworks.HomeAssistant.Export do
   use GenServer
 
   alias Hueworks.HomeAssistant.Export.Connection
+  alias Hueworks.HomeAssistant.Export.Lifecycle
   alias Hueworks.HomeAssistant.Export.Messages
   alias Hueworks.HomeAssistant.Export.Router
   alias Hueworks.HomeAssistant.Export.Runtime
-  alias Hueworks.HomeAssistant.Export.Sync
   alias Hueworks.Instance
   alias Hueworks.Schemas.{Group, Light, Scene}
   alias Phoenix.PubSub
@@ -148,17 +148,12 @@ defmodule Hueworks.HomeAssistant.Export do
   end
 
   def handle_cast(message, state) do
-    {:noreply, handle_export_cast(message, state)}
+    {:noreply, Lifecycle.handle_cast(message, state, &publish/3)}
   end
 
   @impl true
-  def handle_info({:mqtt_connected, connection_client_id}, %{config: config} = state) do
-    if connection_client_id == client_id() and Runtime.export_enabled?(config) do
-      :ok = publish_availability("online")
-      {:noreply, run_sync(state, :publish_all_entities, [])}
-    else
-      {:noreply, state}
-    end
+  def handle_info({:mqtt_connected, connection_client_id}, state) do
+    {:noreply, Lifecycle.handle_connected(connection_client_id, state, client_id(), &publish/3)}
   end
 
   def handle_info({:mqtt_message, topic_levels, payload}, %{config: config} = state) do
@@ -171,129 +166,14 @@ defmodule Hueworks.HomeAssistant.Export do
 
   def handle_info({:control_state, kind, id, _control_state}, state)
       when kind in [:light, :group] do
-    if Runtime.export_enabled?(state.config) and Runtime.lights_enabled?(state.config) and
-         Connection.alive?(state.connection_pid) do
-      {:noreply, run_sync(state, :publish_entity, [kind, id])}
-    else
-      {:noreply, state}
-    end
+    {:noreply, Lifecycle.handle_control_state(kind, id, state, &publish/3)}
   end
 
   def handle_info(_message, state), do: {:noreply, state}
 
   defp configure(state) do
-    config = export_config()
-    state = maybe_unpublish_removed_entities(state, config)
-
-    cond do
-      not Runtime.export_enabled?(config) ->
-        state
-        |> publish_availability_if_connected("offline")
-        |> stop_connection()
-        |> Map.put(:config, config)
-
-      Runtime.same_config?(state.config, config) and Connection.alive?(state.connection_pid) ->
-        %{state | config: config}
-
-      true ->
-        state
-        |> publish_availability_if_connected("offline")
-        |> stop_connection()
-        |> start_connection(config)
-    end
-  end
-
-  defp maybe_unpublish_removed_entities(%{config: previous} = state, config) do
-    cond do
-      not Connection.alive?(state.connection_pid) ->
-        state
-
-      not is_map(previous) ->
-        state
-
-      true ->
-        if Runtime.scenes_enabled?(previous) and not Runtime.scenes_enabled?(config) do
-          Sync.unpublish_all_scenes(&publish/3, previous)
-        end
-
-        if Runtime.room_selects_enabled?(previous) and
-             not Runtime.room_selects_enabled?(config) do
-          Sync.unpublish_all_room_selects(&publish/3, previous)
-        end
-
-        if Runtime.lights_enabled?(previous) and not Runtime.lights_enabled?(config) do
-          Sync.unpublish_all_light_entities(&publish/3, previous)
-        end
-
-        state
-    end
-  end
-
-  defp start_connection(state, config) do
-    case Connection.start(client_id(), self(), config, Runtime.command_topic_filters()) do
-      {:ok, pid} ->
-        %{state | config: config, connection_pid: pid}
-
-      {:error, reason} ->
-        _ = reason
-        %{state | config: config, connection_pid: nil}
-    end
-  end
-
-  defp stop_connection(%{connection_pid: nil} = state), do: %{state | connection_pid: nil}
-
-  defp stop_connection(%{connection_pid: pid} = state) do
-    _ = Connection.stop(pid)
-    %{state | connection_pid: nil}
-  end
-
-  defp handle_export_cast(:refresh_all_scenes, state),
-    do: run_sync(state, :publish_all_entities, [])
-
-  defp handle_export_cast({:refresh_room, room_id}, state),
-    do: run_sync(state, :publish_room_entities, [room_id])
-
-  defp handle_export_cast({:refresh_room_select, room_id}, state),
-    do: run_sync(state, :publish_room_select, [room_id])
-
-  defp handle_export_cast({:refresh_light, light_id}, state),
-    do: run_sync(state, :publish_entity, [:light, light_id])
-
-  defp handle_export_cast({:refresh_group, group_id}, state),
-    do: run_sync(state, :publish_entity, [:group, group_id])
-
-  defp handle_export_cast({:refresh_scene, scene_id}, state),
-    do: run_sync(state, :publish_scene, [scene_id])
-
-  defp handle_export_cast({:remove_light, light_id}, state),
-    do: run_sync(state, :unpublish_entity, [:light, light_id])
-
-  defp handle_export_cast({:remove_group, group_id}, state),
-    do: run_sync(state, :unpublish_entity, [:group, group_id])
-
-  defp handle_export_cast({:remove_scene, scene_id}, state),
-    do: run_sync(state, :unpublish_scene, [scene_id])
-
-  defp handle_export_cast({:remove_room, room_id}, state),
-    do: run_sync(state, :unpublish_room_select, [room_id])
-
-  defp handle_export_cast(_message, state), do: state
-
-  defp run_sync(state, function_name, extra_args) when is_list(extra_args) do
-    :ok = apply(Sync, function_name, [(&publish/3) | extra_args] ++ [state.config])
     state
-  end
-
-  defp publish_availability_if_connected(state, value) do
-    if Connection.alive?(state.connection_pid) do
-      :ok = publish_availability(value)
-    end
-
-    state
-  end
-
-  defp publish_availability(value) do
-    publish(availability_topic(), value, retain: true)
+    |> Lifecycle.configure(export_config(), client_id(), &publish/3)
   end
 
   defp publish(topic, payload, opts) do

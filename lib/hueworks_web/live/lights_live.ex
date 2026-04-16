@@ -3,12 +3,11 @@ defmodule HueworksWeb.LightsLive do
 
   alias Hueworks.Control.State
   alias Hueworks.Color
-  alias Hueworks.Groups
-  alias Hueworks.Lights.ManualControl
   alias HueworksWeb.FilterPrefs
+  alias HueworksWeb.LightsLive.Actions
+  alias HueworksWeb.LightsLive.Actions.Result
   alias HueworksWeb.LightsLive.DisplayState
   alias HueworksWeb.LightsLive.Editor
-  alias HueworksWeb.LightsLive.Entities
   alias HueworksWeb.LightsLive.Loader
   alias Hueworks.Util
 
@@ -149,31 +148,31 @@ defmodule HueworksWeb.LightsLive do
   end
 
   def handle_event("toggle_on", %{"type" => type, "id" => id}, socket) do
-    {:noreply, dispatch_action(socket, type, id, :on)}
+    {:noreply, run_action(socket, type, id, :on)}
   end
 
   def handle_event("toggle_off", %{"type" => type, "id" => id}, socket) do
-    {:noreply, dispatch_action(socket, type, id, :off)}
+    {:noreply, run_action(socket, type, id, :off)}
   end
 
   def handle_event("toggle", %{"type" => type, "id" => id}, socket) do
-    {:noreply, dispatch_toggle(socket, type, id)}
+    {:noreply, run_toggle(socket, type, id)}
   end
 
   def handle_event("set_brightness", %{"type" => type, "id" => id, "level" => level}, socket) do
-    {:noreply, dispatch_action(socket, type, id, {:brightness, level})}
+    {:noreply, run_action(socket, type, id, {:brightness, level})}
   end
 
   def handle_event("set_color_temp", %{"type" => type, "id" => id, "kelvin" => kelvin}, socket) do
-    {:noreply, dispatch_action(socket, type, id, {:color_temp, kelvin})}
+    {:noreply, run_action(socket, type, id, {:color_temp, kelvin})}
   end
 
-  def handle_event(
+      def handle_event(
         "set_color",
         %{"type" => type, "id" => id, "hue" => hue, "saturation" => saturation},
         socket
       ) do
-    {:noreply, dispatch_action(socket, type, id, {:color, hue, saturation})}
+    {:noreply, run_action(socket, type, id, {:color, hue, saturation})}
   end
 
   @impl true
@@ -213,199 +212,41 @@ defmodule HueworksWeb.LightsLive do
     {:noreply, socket}
   end
 
-  defp dispatch_action(socket, "light", id, {:brightness, level}) do
-    with {:ok, light} <- Entities.fetch_light(id),
-         {:ok, parsed} <- Util.parse_level(level),
-         {:ok, _diff} <-
-           ManualControl.apply_updates(light.room_id, [light.id], %{brightness: parsed}) do
-      socket
-      |> update_light_state_assign(light.id, %{brightness: parsed})
-      |> assign(status: "BRIGHTNESS light #{Util.display_name(light)} -> #{parsed}%")
-    else
-      {:error, :scene_active_manual_adjustment_not_allowed} ->
-        assign(socket, status: scene_active_manual_adjustment_message())
-
-      {:error, reason} ->
-        assign(socket, status: "ERROR light #{id}: #{Util.format_reason(reason)}")
+  defp run_action(socket, type, id, action) do
+    case Actions.dispatch(type, id, action) do
+      {:ok, result} -> apply_action_result(socket, result)
+      {:error, status} -> assign(socket, status: status)
     end
   end
 
-  defp dispatch_action(socket, "light", id, {:color_temp, kelvin}) do
-    with {:ok, light} <- Entities.fetch_light(id),
-         {:ok, parsed} <- Util.parse_kelvin(kelvin),
-         {:ok, _diff} <- ManualControl.apply_updates(light.room_id, [light.id], %{kelvin: parsed}) do
-      socket
-      |> update_light_state_assign(light.id, %{kelvin: parsed})
-      |> assign(status: "TEMP light #{Util.display_name(light)} -> #{parsed}K")
-    else
-      {:error, :scene_active_manual_adjustment_not_allowed} ->
-        assign(socket, status: scene_active_manual_adjustment_message())
-
-      {:error, reason} ->
-        assign(socket, status: "ERROR light #{id}: #{Util.format_reason(reason)}")
+  defp run_toggle(socket, "light", id) do
+    case Actions.toggle("light", id, socket.assigns.light_state) do
+      {:ok, result} -> apply_action_result(socket, result)
+      {:error, status} -> assign(socket, status: status)
     end
   end
 
-  defp dispatch_action(socket, "group", id, {:brightness, level}) do
-    with {:ok, group} <- Entities.fetch_group(id),
-         {:ok, parsed} <- Util.parse_level(level),
-         light_ids when light_ids != [] <- group_light_ids(group.id),
-         {:ok, _diff} <-
-           ManualControl.apply_updates(group.room_id, light_ids, %{brightness: parsed}) do
-      socket
-      |> update_group_state_assign(group.id, %{brightness: parsed})
-      |> assign(status: "BRIGHTNESS group #{Util.display_name(group)} -> #{parsed}%")
-    else
-      [] ->
-        assign(socket, status: "ERROR group #{id}: no_members")
-
-      {:error, :scene_active_manual_adjustment_not_allowed} ->
-        assign(socket, status: scene_active_manual_adjustment_message())
-
-      {:error, reason} ->
-        assign(socket, status: "ERROR group #{id}: #{Util.format_reason(reason)}")
+  defp run_toggle(socket, "group", id) do
+    case Actions.toggle("group", id, socket.assigns.group_state) do
+      {:ok, result} -> apply_action_result(socket, result)
+      {:error, status} -> assign(socket, status: status)
     end
   end
 
-  defp dispatch_action(socket, "group", id, {:color_temp, kelvin}) do
-    with {:ok, group} <- Entities.fetch_group(id),
-         {:ok, parsed} <- Util.parse_kelvin(kelvin),
-         light_ids when light_ids != [] <- group_light_ids(group.id),
-         {:ok, _diff} <- ManualControl.apply_updates(group.room_id, light_ids, %{kelvin: parsed}) do
-      socket
-      |> update_group_state_assign(group.id, %{kelvin: parsed})
-      |> assign(status: "TEMP group #{Util.display_name(group)} -> #{parsed}K")
-    else
-      [] ->
-        assign(socket, status: "ERROR group #{id}: no_members")
-
-      {:error, :scene_active_manual_adjustment_not_allowed} ->
-        assign(socket, status: scene_active_manual_adjustment_message())
-
-      {:error, reason} ->
-        assign(socket, status: "ERROR group #{id}: #{Util.format_reason(reason)}")
-    end
-  end
-
-  defp dispatch_action(socket, "light", id, {:color, hue, saturation}) do
-    with {:ok, light} <- Entities.fetch_light(id),
-         {:ok, parsed_hue, parsed_saturation, x, y} <- parse_color(hue, saturation),
-         {:ok, _diff} <-
-           ManualControl.apply_updates(light.room_id, [light.id], %{power: :on, x: x, y: y}) do
-      socket
-      |> update_light_state_assign(light.id, %{
-        power: :on,
-        x: x,
-        y: y,
-        kelvin: nil,
-        temperature: nil
-      })
-      |> assign(
-        status:
-          "COLOR light #{Util.display_name(light)} -> #{parsed_hue}° / #{parsed_saturation}%"
-      )
-    else
-      {:error, :scene_active_manual_adjustment_not_allowed} ->
-        assign(socket, status: scene_active_manual_adjustment_message())
-
-      {:error, reason} ->
-        assign(socket, status: "ERROR light #{id}: #{Util.format_reason(reason)}")
-    end
-  end
-
-  defp dispatch_action(socket, "group", id, {:color, hue, saturation}) do
-    with {:ok, group} <- Entities.fetch_group(id),
-         {:ok, parsed_hue, parsed_saturation, x, y} <- parse_color(hue, saturation),
-         light_ids when light_ids != [] <- group_light_ids(group.id),
-         {:ok, _diff} <-
-           ManualControl.apply_updates(group.room_id, light_ids, %{power: :on, x: x, y: y}) do
-      socket
-      |> update_group_state_assign(group.id, %{
-        power: :on,
-        x: x,
-        y: y,
-        kelvin: nil,
-        temperature: nil
-      })
-      |> assign(
-        status:
-          "COLOR group #{Util.display_name(group)} -> #{parsed_hue}° / #{parsed_saturation}%"
-      )
-    else
-      [] ->
-        assign(socket, status: "ERROR group #{id}: no_members")
-
-      {:error, :scene_active_manual_adjustment_not_allowed} ->
-        assign(socket, status: scene_active_manual_adjustment_message())
-
-      {:error, reason} ->
-        assign(socket, status: "ERROR group #{id}: #{Util.format_reason(reason)}")
-    end
-  end
-
-  defp dispatch_action(socket, "light", id, action) do
-    with {:ok, light} <- Entities.fetch_light(id),
-         {:ok, updated_attrs} <-
-           ManualControl.apply_power_action(light.room_id, [light.id], action) do
-      socket
-      |> update_light_state_assign(light.id, updated_attrs)
-      |> assign(status: "#{action_label(action)} light #{Util.display_name(light)}")
-    else
-      {:error, reason} ->
-        assign(socket, status: "ERROR light #{id}: #{Util.format_reason(reason)}")
-    end
-  end
-
-  defp dispatch_action(socket, "group", id, action) do
-    with {:ok, group} <- Entities.fetch_group(id),
-         light_ids when light_ids != [] <- group_light_ids(group.id),
-         {:ok, updated_attrs} <-
-           ManualControl.apply_power_action(group.room_id, light_ids, action) do
-      socket
-      |> update_group_state_assign(group.id, updated_attrs)
-      |> assign(status: "#{action_label(action)} group #{Util.display_name(group)}")
-    else
-      [] ->
-        assign(socket, status: "ERROR group #{id}: no_members")
-
-      {:error, reason} ->
-        assign(socket, status: "ERROR group #{id}: #{Util.format_reason(reason)}")
-    end
-  end
-
-  defp dispatch_action(socket, type, id, _action) do
+  defp run_toggle(socket, type, id) do
     assign(socket, status: "ERROR #{type} #{id}: unsupported")
   end
 
-  defp dispatch_toggle(socket, "light", id) do
-    with {:ok, light} <- Entities.fetch_light(id) do
-      action = toggle_action(socket.assigns.light_state, light.id)
-      dispatch_action(socket, "light", id, action)
-    else
-      {:error, reason} ->
-        assign(socket, status: "ERROR light #{id}: #{Util.format_reason(reason)}")
-    end
+  defp apply_action_result(socket, %Result{target_type: :light, target_id: id, attrs: attrs, status: status}) do
+    socket
+    |> update_light_state_assign(id, attrs)
+    |> assign(status: status)
   end
 
-  defp dispatch_toggle(socket, "group", id) do
-    with {:ok, group} <- Entities.fetch_group(id) do
-      action = toggle_action(socket.assigns.group_state, group.id)
-      dispatch_action(socket, "group", id, action)
-    else
-      {:error, reason} ->
-        assign(socket, status: "ERROR group #{id}: #{Util.format_reason(reason)}")
-    end
-  end
-
-  defp dispatch_toggle(socket, type, id) do
-    assign(socket, status: "ERROR #{type} #{id}: unsupported")
-  end
-
-  defp toggle_action(state_map, id) do
-    case Map.get(state_map, id, %{}) do
-      %{power: power} when power in [:on, "on", true] -> :off
-      _ -> :on
-    end
+  defp apply_action_result(socket, %Result{target_type: :group, target_id: id, attrs: attrs, status: status}) do
+    socket
+    |> update_group_state_assign(id, attrs)
+    |> assign(status: status)
   end
 
   defp save_edit(socket, params) do
@@ -433,14 +274,6 @@ defmodule HueworksWeb.LightsLive do
   defp close_edit_modal(socket) do
     assign(socket, Editor.default_assigns())
   end
-
-  defp group_light_ids(group_id) when is_integer(group_id) do
-    Groups.member_light_ids(group_id)
-  end
-
-  defp action_label(:on), do: "ON"
-  defp action_label(:off), do: "OFF"
-  defp action_label(_action), do: "ACTION"
 
   defp light_for_id(lights, id) do
     Enum.find(lights, &(&1.id == id))
@@ -476,10 +309,6 @@ defmodule HueworksWeb.LightsLive do
   end
 
   defp manual_adjustment_locked?(_active_scene_by_room, _room_id), do: false
-
-  defp scene_active_manual_adjustment_message do
-    "Brightness, temperature, and color are read-only while a scene is active. Deactivate the scene to adjust them manually."
-  end
 
   defp color_preview_values(state_map, id) do
     state = Map.get(state_map, id, %{})
@@ -523,18 +352,6 @@ defmodule HueworksWeb.LightsLive do
     {r1, g1, b1} = Color.hsb_to_rgb(hue, 0, brightness) || {255, 255, 255}
     {r2, g2, b2} = Color.hsb_to_rgb(hue, 100, brightness) || {255, 255, 255}
     "background: linear-gradient(90deg, rgb(#{r1} #{g1} #{b1}), rgb(#{r2} #{g2} #{b2}));"
-  end
-
-  defp parse_color(hue, saturation) do
-    with parsed_hue when is_integer(parsed_hue) <- Util.normalize_hue_degrees(hue),
-         parsed_saturation when is_integer(parsed_saturation) <-
-           Util.normalize_saturation(saturation),
-         {x, y} when is_number(x) and is_number(y) <-
-           Color.hs_to_xy(parsed_hue, parsed_saturation) do
-      {:ok, parsed_hue, parsed_saturation, x, y}
-    else
-      _ -> {:error, :invalid_color}
-    end
   end
 
   defp filter_entities(entities, filter, room_filter, show_disabled) do

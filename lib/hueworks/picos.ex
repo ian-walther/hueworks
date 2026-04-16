@@ -5,7 +5,7 @@ defmodule Hueworks.Picos do
 
   import Ecto.Query, only: [from: 2]
 
-  alias Hueworks.Picos.{Actions, Config, Sync}
+  alias Hueworks.Picos.{Actions, Config, ControlGroups, Sync}
   alias Hueworks.Picos.Targets
   alias Hueworks.Repo
   alias Hueworks.Schemas.PicoButton.ActionConfig, as: StoredActionConfig
@@ -105,7 +105,7 @@ defmodule Hueworks.Picos do
     device
     |> Map.get(:metadata, %{})
     |> Map.get("control_groups", [])
-    |> normalize_control_groups()
+    |> ControlGroups.normalize()
   end
 
   def clone_device_config(%PicoDevice{} = destination, %PicoDevice{} = source) do
@@ -189,39 +189,6 @@ defmodule Hueworks.Picos do
   defp binding_action_label("toggle_any_on"), do: "Toggle"
   defp binding_action_label("activate_scene"), do: "Activate Scene"
   defp binding_action_label(action), do: to_string(action)
-
-  defp normalize_control_groups(groups) when is_list(groups) do
-    groups
-    |> Enum.flat_map(fn
-      %{} = group ->
-        id = Map.get(group, "id") || Map.get(group, :id)
-        name = Map.get(group, "name") || Map.get(group, :name)
-
-        if is_binary(id) and is_binary(name) and String.trim(name) != "" do
-          [
-            %{
-              "id" => id,
-              "name" => String.trim(name),
-              "group_ids" =>
-                Targets.normalize_integer_ids(
-                  Map.get(group, "group_ids") || Map.get(group, :group_ids)
-                ),
-              "light_ids" =>
-                Targets.normalize_integer_ids(
-                  Map.get(group, "light_ids") || Map.get(group, :light_ids)
-                )
-            }
-          ]
-        else
-          []
-        end
-
-      _ ->
-        []
-    end)
-  end
-
-  defp normalize_control_groups(_groups), do: []
 
   defp scene_name_for_target(scene_id, room_id),
     do: Targets.scene_name_for_target(scene_id, room_id)

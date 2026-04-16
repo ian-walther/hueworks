@@ -101,12 +101,14 @@ Keep the export runtime shell small and explicit.
 
 Files:
 - `/Users/ianwalther/code/hueworks/lib/hueworks/home_assistant/export.ex`
+- `/Users/ianwalther/code/hueworks/lib/hueworks/home_assistant/export/lifecycle.ex`
 - `/Users/ianwalther/code/hueworks/lib/hueworks/home_assistant/export/runtime.ex`
 - `/Users/ianwalther/code/hueworks/lib/hueworks/home_assistant/export/router.ex`
 - `/Users/ianwalther/code/hueworks/lib/hueworks/home_assistant/export/sync.ex`
 
 Preferred direction:
 - keep `export.ex` focused on GenServer state transitions and public entrypoints
+- keep connection lifecycle, config transition behavior, and sync dispatch out of the GenServer shell
 - move any remaining process-local policy/helpers out of the runtime shell
 - decide whether `runtime.ex` should stay as a separate helper or be folded into clearer, smaller responsibilities
 - keep transport, publishing, routing, and selection logic outside the runtime shell
@@ -121,14 +123,20 @@ Keep `Picos` as a small facade with clear helper boundaries.
 
 Files:
 - `/Users/ianwalther/code/hueworks/lib/hueworks/picos.ex`
+- `/Users/ianwalther/code/hueworks/lib/hueworks/picos/bindings.ex`
+- `/Users/ianwalther/code/hueworks/lib/hueworks/picos/clone.ex`
 - `/Users/ianwalther/code/hueworks/lib/hueworks/picos/config.ex`
 - `/Users/ianwalther/code/hueworks/lib/hueworks/picos/actions.ex`
+- `/Users/ianwalther/code/hueworks/lib/hueworks/picos/control_groups.ex`
 - `/Users/ianwalther/code/hueworks/lib/hueworks/picos/targets.ex`
 - `/Users/ianwalther/code/hueworks/lib/hueworks/picos/sync.ex`
 
 Preferred direction:
 - keep `picos.ex` as a small public facade instead of a secondary implementation module
 - continue reducing cross-module leakage of helper details
+- keep control-group normalization and persistence behavior out of both the facade and higher-level config workflow
+- keep button binding assignment, preset wiring, and cloned binding config rewriting together instead of scattering them across config helpers
+- keep full device-config copy workflow in its own helper instead of leaving the higher-level config module as a hidden implementation hotspot
 - keep sync, config, targets, and runtime action logic conceptually separate
 - consider whether some naming or public entrypoints should be made more explicit before future Pico work lands
 
@@ -183,6 +191,7 @@ Keep LiveViews focused on UI concerns rather than domain orchestration.
 
 Files:
 - `/Users/ianwalther/code/hueworks/lib/hueworks_web/live/lights_live.ex`
+- `/Users/ianwalther/code/hueworks/lib/hueworks_web/live/lights_live/actions.ex`
 - `/Users/ianwalther/code/hueworks/lib/hueworks_web/live/scene_builder_component.ex`
 - `/Users/ianwalther/code/hueworks/lib/hueworks_web/live/scene_builder_component/state.ex`
 - `/Users/ianwalther/code/hueworks/lib/hueworks_web/live/light_state_editor_live.ex`
@@ -193,6 +202,7 @@ Preferred direction:
   - event wiring
   - assign updates
   - composition of helpers/components
+- keep manual-control fetch/parse/dispatch branches out of the LightsLive shell
 - keep domain orchestration and persistence translation out of the LiveView layer
 
 ### 7) Extract shared UI components only after the boundaries are cleaner
