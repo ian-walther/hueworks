@@ -4,6 +4,7 @@ defmodule Hueworks.PicosTest do
   alias Hueworks.ActiveScenes
   alias Hueworks.Picos
   alias Hueworks.Picos.Actions.ActionConfig
+  alias Hueworks.Picos.LegacyActionConfigBackfill
   alias Phoenix.PubSub
   alias Hueworks.Scenes
   alias Hueworks.Control.{DesiredState, State}
@@ -32,6 +33,31 @@ defmodule Hueworks.PicosTest do
     %PicoButton{}
     |> PicoButton.changeset(attrs)
     |> Repo.insert!()
+  end
+
+  defp insert_legacy_pico_button!(attrs) when is_map(attrs) do
+    now = NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
+
+    sql = """
+    INSERT INTO pico_buttons
+      (pico_device_id, source_id, button_number, slot_index, action_type, action_config, enabled, inserted_at, updated_at)
+    VALUES
+      (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """
+
+    params = [
+      attrs.pico_device_id,
+      attrs.source_id,
+      attrs.button_number,
+      attrs.slot_index,
+      attrs.action_type,
+      Jason.encode!(attrs.action_config),
+      if(Map.get(attrs, :enabled, true), do: 1, else: 0),
+      NaiveDateTime.to_iso8601(now),
+      NaiveDateTime.to_iso8601(now)
+    ]
+
+    Ecto.Adapters.SQL.query!(Repo, sql, params)
   end
 
   test "button action config returns a typed runtime struct" do
@@ -456,6 +482,92 @@ defmodule Hueworks.PicosTest do
     assert DesiredState.get(:light, lamp.id)[:power] == :on
   end
 
+  test "legacy persisted control-group bindings with target_id still execute on button press" do
+    bridge = insert_bridge(%{host: "10.0.0.5161"})
+    room = Repo.insert!(%Room{name: "Kitchen"})
+
+    overhead =
+      Repo.insert!(%Light{
+        name: "Overhead",
+        source: :caseta,
+        source_id: "81",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        enabled: true
+      })
+
+    lamp =
+      Repo.insert!(%Light{
+        name: "Lamp",
+        source: :caseta,
+        source_id: "82",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        enabled: true
+      })
+
+    group =
+      Repo.insert!(%Group{
+        name: "Kitchen Overhead",
+        source: :caseta,
+        source_id: "group-81",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        enabled: true
+      })
+
+    Repo.insert!(%GroupLight{group_id: group.id, light_id: overhead.id})
+
+    device =
+      Repo.insert!(%PicoDevice{
+        bridge_id: bridge.id,
+        room_id: room.id,
+        source_id: "device-control-group-legacy",
+        name: "Kitchen Pico",
+        hardware_profile: "5_button",
+        metadata: %{
+          "room_override" => true,
+          "control_groups" => [
+            %{
+              "id" => "legacy-group",
+              "name" => "Overhead",
+              "group_ids" => [group.id],
+              "light_ids" => [lamp.id]
+            }
+          ]
+        }
+      })
+
+    insert_legacy_pico_button!(%{
+      pico_device_id: device.id,
+      source_id: "1",
+      button_number: 2,
+      slot_index: 0,
+      action_type: "toggle_any_on",
+      action_config: %{"target_kind" => "control_group", "target_id" => "legacy-group"},
+      enabled: true
+    })
+
+    :ok = LegacyActionConfigBackfill.run(Repo)
+
+    button =
+      Repo.one!(
+        from(pb in PicoButton, where: pb.pico_device_id == ^device.id and pb.source_id == "1")
+      )
+
+    assert %StoredActionConfig{
+             target_kind: :control_group,
+             control_group_id: "legacy-group"
+           } = PicoButton.action_config_struct(button)
+
+    State.put(:light, overhead.id, %{power: :off})
+    State.put(:light, lamp.id, %{power: :off})
+
+    assert :handled = Picos.handle_button_press(bridge.id, "1")
+    assert DesiredState.get(:light, overhead.id)[:power] == :on
+    assert DesiredState.get(:light, lamp.id)[:power] == :on
+  end
+
   test "clone_device_config copies room scope, control groups, and bindings onto another pico" do
     bridge = insert_bridge(%{host: "10.0.0.511"})
     room = Repo.insert!(%Room{name: "Kitchen"})
@@ -612,6 +724,67 @@ defmodule Hueworks.PicosTest do
 
     assert scene_button_scene_id == scene.id
     assert scene_button_room_id == room.id
+  end
+
+  test "legacy persisted scene bindings with target_id still activate the selected scene" do
+    bridge = insert_bridge(%{host: "10.0.0.5151"})
+    room = Repo.insert!(%Room{name: "Living Room"})
+
+    light =
+      Repo.insert!(%Light{
+        name: "Lamp",
+        source: :caseta,
+        source_id: "61",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        enabled: true
+      })
+
+    device =
+      Repo.insert!(%PicoDevice{
+        bridge_id: bridge.id,
+        room_id: room.id,
+        source_id: "scene-device-legacy",
+        name: "Scene Pico",
+        hardware_profile: "5_button",
+        metadata: %{"room_override" => true}
+      })
+
+    {:ok, state} =
+      Scenes.create_manual_light_state("Warm", %{"brightness" => "55", "temperature" => "3200"})
+
+    {:ok, scene} = Scenes.create_scene(%{name: "Evening", room_id: room.id})
+
+    {:ok, _} =
+      Scenes.replace_scene_components(scene, [
+        %{name: "Lamps", light_ids: [light.id], light_state_id: to_string(state.id)}
+      ])
+
+    insert_legacy_pico_button!(%{
+      pico_device_id: device.id,
+      source_id: "1",
+      button_number: 2,
+      slot_index: 0,
+      action_type: "activate_scene",
+      action_config: %{"target_kind" => "scene", "target_id" => scene.id},
+      enabled: true
+    })
+
+    :ok = LegacyActionConfigBackfill.run(Repo)
+
+    button =
+      Repo.one!(
+        from(pb in PicoButton, where: pb.pico_device_id == ^device.id and pb.source_id == "1")
+      )
+
+    assert %StoredActionConfig{target_kind: :scene, scene_id: scene_id} =
+             PicoButton.action_config_struct(button)
+
+    assert scene_id == scene.id
+
+    assert :handled = Picos.handle_button_press(bridge.id, "1")
+    assert ActiveScenes.get_for_room(room.id).scene_id == scene.id
+    assert DesiredState.get(:light, light.id) == %{power: :on, brightness: 55, kelvin: 3200}
   end
 
   test "manual room override survives sync and can be cleared back to auto-detected room" do

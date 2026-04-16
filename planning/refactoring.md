@@ -106,6 +106,7 @@ The preferred rollout is incremental and compatibility-first. The goal is to rep
 - switch read paths to struct-first access before tightening any persisted shape further
 - keep browser/form boundaries explicit; do not feed dumped persisted maps back inward unless that code is truly at a persistence boundary
 - treat rollback-by-code-deploy as the default safety bar for each step
+- if an embed migration exposes a concrete legacy persisted shape bug in bounded production data, prefer a one-time backfill migration over carrying dual-shape runtime support indefinitely
 
 #### Phase 0: Consolidate The Current LightState Embed
 This phase is already underway and should continue until `LightState.persisted_config/1` is narrow and intentional.
