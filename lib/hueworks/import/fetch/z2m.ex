@@ -3,9 +3,7 @@ defmodule Hueworks.Import.Fetch.Z2M do
   Fetch Zigbee2MQTT snapshot data over MQTT for import.
   """
 
-  import Ecto.Query, only: [from: 2]
-
-  alias Hueworks.Repo
+  alias Hueworks.Import.Fetch.Common
   alias Hueworks.Schemas.Bridge
   alias Hueworks.Util
 
@@ -14,8 +12,9 @@ defmodule Hueworks.Import.Fetch.Z2M do
   @snapshot_timeout 8_000
 
   def fetch do
-    bridge = load_bridge(:z2m)
-    fetch_for_bridge(bridge)
+    :z2m
+    |> Common.load_enabled_bridge!()
+    |> fetch_for_bridge()
   end
 
   def fetch_for_bridge(bridge) do
@@ -210,9 +209,6 @@ defmodule Hueworks.Import.Fetch.Z2M do
 
   defp normalize_base_topic(_value), do: @default_base_topic
 
-  defp load_bridge(type) do
-    Repo.one!(from(b in Bridge, where: b.type == ^type and b.enabled == true))
-  end
 
   defp format_error({:error, reason}), do: format_error(reason)
   defp format_error(reason) when is_binary(reason), do: reason

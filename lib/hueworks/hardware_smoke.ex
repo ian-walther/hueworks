@@ -2,6 +2,7 @@ defmodule Hueworks.HardwareSmoke do
   @moduledoc false
 
   import Ecto.Query, only: [from: 2]
+  require Logger
 
   alias Hueworks.{Groups, Picos, Repo, Scenes}
   alias Hueworks.Control.Executor
@@ -539,5 +540,5 @@ defmodule Hueworks.HardwareSmoke do
     |> Enum.join("\n")
   end
 
-  defp info(message), do: IO.puts(message)
+  defp info(message), do: Logger.info(message)
 end

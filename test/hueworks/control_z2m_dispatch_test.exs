@@ -19,10 +19,10 @@ defmodule Hueworks.Control.Z2MDispatchTest do
     Application.put_env(:hueworks, :z2m_publish_sink, self())
 
     on_exit(fn ->
-      Application.put_env(:hueworks, :z2m_tortoise_module, original_tortoise)
-      Application.put_env(:hueworks, :z2m_tortoise_supervisor_module, original_supervisor)
-      Application.put_env(:hueworks, :z2m_tortoise_connection_module, original_connection)
-      Application.put_env(:hueworks, :z2m_publish_sink, original_sink)
+      restore_app_env(:hueworks, :z2m_tortoise_module, original_tortoise)
+      restore_app_env(:hueworks, :z2m_tortoise_supervisor_module, original_supervisor)
+      restore_app_env(:hueworks, :z2m_tortoise_connection_module, original_connection)
+      restore_app_env(:hueworks, :z2m_publish_sink, original_sink)
     end)
 
     :ok
@@ -101,7 +101,7 @@ defmodule Hueworks.Control.Z2MDispatchTest do
     Application.put_env(:hueworks, :control_executor_enabled, true)
 
     on_exit(fn ->
-      Application.put_env(:hueworks, :control_executor_enabled, original_enabled)
+      restore_app_env(:hueworks, :control_executor_enabled, original_enabled)
     end)
 
     if :ets.whereis(:hueworks_desired_state) != :undefined do

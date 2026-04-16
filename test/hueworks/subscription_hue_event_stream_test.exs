@@ -101,4 +101,92 @@ defmodule Hueworks.Subscription.HueEventStreamTest do
 
     assert_receive {:connection_attempt, ^bridge_id, :error}, 200
   end
+
+  test "starts only enabled bridges of the matching type" do
+    target =
+      insert_bridge!(%{
+        type: :hue,
+        name: "Hue Target",
+        host: "10.0.0.120",
+        credentials: %{"api_key" => "key"},
+        enabled: true
+      })
+
+    _disabled =
+      insert_bridge!(%{
+        type: :hue,
+        name: "Hue Disabled",
+        host: "10.0.0.121",
+        credentials: %{"api_key" => "key"},
+        enabled: false
+      })
+
+    _other_type =
+      insert_bridge!(%{
+        type: :ha,
+        name: "HA Other",
+        host: "10.0.0.122",
+        credentials: %{"token" => "token"},
+        enabled: true
+      })
+
+    target_id = target.id
+
+    {:ok, _pid} =
+      start_supervised(
+        {HueEventStream,
+         [
+           name: :hue_stream_filter_test,
+           connection_module: __MODULE__.SucceedingConnection,
+           readiness_fun: fn -> true end,
+           restart_delay_ms: 10
+         ]}
+      )
+
+    assert_receive {:connection_attempt, ^target_id, :ok}, 200
+    refute_receive {:connection_attempt, _, _}, 50
+  end
+
+  test "restarts a monitored connection when it exits" do
+    bridge =
+      insert_bridge!(%{
+        type: :hue,
+        name: "Hue Restart",
+        host: "10.0.0.123",
+        credentials: %{"api_key" => "key"},
+        enabled: true
+      })
+
+    bridge_id = bridge.id
+
+    {:ok, pid} =
+      start_supervised(
+        {HueEventStream,
+         [
+           name: :hue_stream_restart_test,
+           connection_module: __MODULE__.SucceedingConnection,
+           readiness_fun: fn -> true end,
+           restart_delay_ms: 10
+         ]}
+      )
+
+    assert_receive {:connection_attempt, ^bridge_id, :ok}, 200
+
+    {_child_ref, child_bridge} = hd(Map.to_list(:sys.get_state(pid).monitors))
+    assert child_bridge.id == bridge_id
+    child_pid = Process.info(pid, :monitors) |> elem(1) |> Keyword.fetch!(:process)
+    assert is_pid(child_pid)
+    Process.exit(child_pid, :shutdown)
+
+    assert_receive {:connection_attempt, ^bridge_id, :ok}, 200
+  end
+
+  defmodule SucceedingConnection do
+    def start_link(bridge) do
+      listener = Process.whereis(:hue_stream_test_listener)
+      if listener, do: send(listener, {:connection_attempt, bridge.id, :ok})
+      Task.start_link(fn -> Process.sleep(:infinity) end)
+    end
+  end
+
 end

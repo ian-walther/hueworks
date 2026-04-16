@@ -12,13 +12,8 @@ defmodule Hueworks.Control.ExecutorConvergenceTest do
     Application.put_env(:hueworks, :control_executor_convergence_delay_ms, 10)
 
     on_exit(fn ->
-      Application.put_env(:hueworks, :control_executor_enabled, original_enabled)
-
-      if is_nil(original_delay) do
-        Application.delete_env(:hueworks, :control_executor_convergence_delay_ms)
-      else
-        Application.put_env(:hueworks, :control_executor_convergence_delay_ms, original_delay)
-      end
+      restore_app_env(:hueworks, :control_executor_enabled, original_enabled)
+      restore_app_env(:hueworks, :control_executor_convergence_delay_ms, original_delay)
     end)
 
     :ok

@@ -19,16 +19,6 @@ In particular:
 - planner/executor should own downstream operational behavior
 - refactors should simplify toward that boundary, not away from it
 
-## Current High-Value Hotspots
-- `/Users/ianwalther/code/hueworks/lib/hueworks/home_assistant/export.ex`
-- `/Users/ianwalther/code/hueworks/lib/hueworks/home_assistant/export/runtime.ex`
-- `/Users/ianwalther/code/hueworks/lib/hueworks/home_assistant/export/router.ex`
-- `/Users/ianwalther/code/hueworks/lib/hueworks/picos.ex`
-- `/Users/ianwalther/code/hueworks/lib/hueworks/picos/config.ex`
-- `/Users/ianwalther/code/hueworks/lib/hueworks/scenes.ex`
-- `/Users/ianwalther/code/hueworks/lib/hueworks_app/control/executor.ex`
-- `/Users/ianwalther/code/hueworks/lib/hueworks_web/live/lights_live.ex`
-
 ## Priority Order
 
 ### 1) Normalize once at the boundary and keep downstream code atom-keyed
@@ -89,8 +79,6 @@ Guardrails:
 - do not change persisted shape casually just because the internal shape is cleaner
 - prefer rollout steps that are reversible by code deploy alone
 - keep tests focused on both typed internal shape and persisted compatibility shape until the compatibility layer is intentionally removed
-
-Good future candidates for this pattern:
 
 Poor candidates for this pattern:
 - open-ended import blobs such as raw or normalized bridge payload snapshots
@@ -189,145 +177,32 @@ Preferred direction:
 - only consider embedded schemas there as form or boundary engines if the setting families grow more complex
 - do not introduce JSON columns just to make AppSettings “more embedded-schema-like”
 
-### 2) Finish thinning `Hueworks.HomeAssistant.Export`
-Keep the export runtime shell small and explicit.
-
-Files:
-- `/Users/ianwalther/code/hueworks/lib/hueworks/home_assistant/export/config.ex`
-- `/Users/ianwalther/code/hueworks/lib/hueworks/home_assistant/export.ex`
-- `/Users/ianwalther/code/hueworks/lib/hueworks/home_assistant/export/lifecycle.ex`
-- `/Users/ianwalther/code/hueworks/lib/hueworks/home_assistant/export/router/entity_commands.ex`
-- `/Users/ianwalther/code/hueworks/lib/hueworks/home_assistant/export/router/scene_commands.ex`
-- `/Users/ianwalther/code/hueworks/lib/hueworks/home_assistant/export/runtime.ex`
-- `/Users/ianwalther/code/hueworks/lib/hueworks/home_assistant/export/router.ex`
-- `/Users/ianwalther/code/hueworks/lib/hueworks/home_assistant/export/sync.ex`
-
-Preferred direction:
-- keep `export.ex` focused on GenServer state transitions and public entrypoints
-- keep runtime config as a typed internal struct instead of a loose map
-- keep connection lifecycle, config transition behavior, and sync dispatch out of the GenServer shell
-- keep scene/select command handling separate from light/group command handling
-- move any remaining process-local policy/helpers out of the runtime shell
-- decide whether `runtime.ex` should stay as a separate helper or be folded into clearer, smaller responsibilities
-- keep transport, publishing, routing, and selection logic outside the runtime shell
-
-Expected payoff:
-- easier to reason about HA MQTT behavior without paging through multiple concerns at once
-- safer iteration on export features and cleanup behavior
-- simpler manual debugging of runtime state transitions
-
-### 3) Finish splitting `Hueworks.Picos`
-Keep `Picos` as a small facade with clear helper boundaries.
-
-Files:
-- `/Users/ianwalther/code/hueworks/lib/hueworks/picos.ex`
-- `/Users/ianwalther/code/hueworks/lib/hueworks/picos/bindings.ex`
-- `/Users/ianwalther/code/hueworks/lib/hueworks/picos/clone.ex`
-- `/Users/ianwalther/code/hueworks/lib/hueworks/picos/config.ex`
-- `/Users/ianwalther/code/hueworks/lib/hueworks/picos/actions.ex`
-- `/Users/ianwalther/code/hueworks/lib/hueworks/picos/control_groups.ex`
-- `/Users/ianwalther/code/hueworks/lib/hueworks/picos/targets.ex`
-- `/Users/ianwalther/code/hueworks/lib/hueworks/picos/sync.ex`
-
-Preferred direction:
-- keep `picos.ex` as a small public facade instead of a secondary implementation module
-- continue reducing cross-module leakage of helper details
-- keep control-group normalization and persistence behavior out of both the facade and higher-level config workflow
-- keep button binding assignment, preset wiring, and cloned binding config rewriting together instead of scattering them across config helpers
-- keep full device-config copy workflow in its own helper instead of leaving the higher-level config module as a hidden implementation hotspot
-- keep sync, config, targets, and runtime action logic conceptually separate
-- consider whether some naming or public entrypoints should be made more explicit before future Pico work lands
-
-Expected payoff:
-- easier changes to Pico behavior without risking sync code
-- smaller review surface for button-binding changes
-- cleaner handoff when doing manual refactors later
-
-### 4) Tighten the `Scenes` and editor boundary
-Keep editor-specific translation pressure out of scene persistence and orchestration.
-
-Files:
-- `/Users/ianwalther/code/hueworks/lib/hueworks/scenes.ex`
-- `/Users/ianwalther/code/hueworks/lib/hueworks/scenes/active.ex`
-- `/Users/ianwalther/code/hueworks/lib/hueworks/scenes/components.ex`
-- `/Users/ianwalther/code/hueworks/lib/hueworks/scenes/light_states.ex`
-- `/Users/ianwalther/code/hueworks/lib/hueworks/scenes/persistence.ex`
-- `/Users/ianwalther/code/hueworks/lib/hueworks_web/live/scene_builder_component.ex`
-- `/Users/ianwalther/code/hueworks/lib/hueworks_web/live/scene_builder_component/state.ex`
-- `/Users/ianwalther/code/hueworks/lib/hueworks_web/live/light_state_editor_live.ex`
-- `/Users/ianwalther/code/hueworks/lib/hueworks_web/live/light_state_editor_live/form_state.ex`
-
-Preferred direction:
-- keep `Scenes` focused on orchestration and persistence
-- keep bounded scene helper modules responsible for active-scene refresh/recompute, replacement, validation, persistence side effects, and light-state CRUD
-- keep bounded editor helper modules responsible for component mutation, normalization, and form-state shaping
-- keep editor token translation and UI-only concerns at the LiveView boundary
-- continue moving toward cleaner already-resolved inputs before persistence
-
-Expected payoff:
-- scene editing becomes easier to evolve without making the core scene context more magical
-- fewer editor-shaped conditionals in persistence code
-
-### 5) Delay deeper control-path extraction until after upstream cleanup
-The remaining control-path hotspots are some of the riskiest modules in the app, and they should not be the first refactor target while the system is still being observed in real-world usage.
-
-Files:
-- `/Users/ianwalther/code/hueworks/lib/hueworks_app/control/executor.ex`
-
-Preferred direction:
-- defer major structural work here until after upstream state and export cleanup stabilizes
-- when the control path is touched, prefer behavior-preserving extraction first
-- preserve public entrypoints while moving logic lower into purer helpers over time
-
-Why this is lower than it sounds:
-- the executor and surrounding control path are reliability-critical
-- several oddities may still be upstream state issues rather than planner issues
-- upstream cleanup will make any later control-path work safer and clearer
-
-#### Safe carve-outs that don't require structural changes
-
-These are small, targeted fixes that improve observability without touching executor structure:
-
-**Retry exhaustion is silent:** `requeue_action/4` silently drops actions when `action.attempts + 1 > state.max_retries`. No log, no metric. During a hardware outage, failed commands are invisible. Fix: add a `Logger.warning` with action details on retry exhaustion. One-line change, no structural risk.
-
-**Trace IDs should be generated by default:** The trace infrastructure (planner events, dispatch logging, latency measurement) already exists but goes silent when callers don't pass a `:trace` option. `Scenes.apply_scene/2` should generate a trace_id by default when one isn't provided. This activates already-built plumbing without adding new plumbing. The subscription event → scene apply path is also untraced — no trace is injected at event stream boundaries.
-
-### 6) Keep LiveViews thin and move UI-specific logic outward
+### 2) Keep LiveViews thin and move UI-specific logic outward
 Keep LiveViews focused on UI concerns rather than domain orchestration.
-
-Files:
-- `/Users/ianwalther/code/hueworks/lib/hueworks_web/live/lights_live.ex`
-- `/Users/ianwalther/code/hueworks/lib/hueworks_web/live/lights_live/actions.ex`
-- `/Users/ianwalther/code/hueworks/lib/hueworks_web/live/scene_builder_component.ex`
-- `/Users/ianwalther/code/hueworks/lib/hueworks_web/live/scene_builder_component/state.ex`
-- `/Users/ianwalther/code/hueworks/lib/hueworks_web/live/light_state_editor_live.ex`
-- `/Users/ianwalther/code/hueworks/lib/hueworks_web/live/light_state_editor_live/form_state.ex`
 
 Preferred direction:
 - keep LiveViews focused on:
   - event wiring
   - assign updates
   - composition of helpers/components
-- keep manual-control fetch/parse/dispatch branches out of the LightsLive shell
 - keep domain orchestration and persistence translation out of the LiveView layer
 
-### 7) Extract shared UI components only after the boundaries are cleaner
+### 3) Extract shared UI components only after the boundaries are cleaner
 Shared UI extraction should wait until the surrounding responsibilities are less tangled.
 
 Preferred direction:
 - extract reusable light-state editing UI only after the editor/domain boundary is clearer
 - avoid baking current page-specific assumptions into a shared component API
 
-### 8) Clean up broad `rescue` usage and IO.puts in import/fetch paths
+### 4) Clean up broad `rescue` usage in import paths
 This matters, but it is not where the best stability payoff is right now.
 
 Preferred direction:
 - expected failures should be returned explicitly as `{:error, reason}`
 - true bugs should remain visible rather than being flattened into generic error strings
-- replace `IO.puts` with `Logger` in production code — 12 instances in fetch modules (`import/fetch/caseta.ex`, `import/fetch/home_assistant.ex`, `import/fetch/hue.ex`, `hardware_smoke.ex`) bypass the log formatter and log level filtering under Docker
-- standardize on `Logger.warning` (remove deprecated `Logger.warn` where it still exists)
+- keep narrowing broad rescue behavior in import code until error handling is explicit and local
 
-### 9) Revisit high-complexity product behaviors only after the code is easier to observe
+### 5) Revisit high-complexity product behaviors only after the code is easier to observe
 There are a few features whose complexity cost may eventually outweigh their value, but they should be revisited deliberately, not mixed into structural cleanup.
 
 Candidate areas:
@@ -336,48 +211,8 @@ Candidate areas:
 - timing-based scene-clear protection
 - manual power-latch survival across scene reapply
 
-### 10) Consolidate event stream managers
-The four event stream GenServers are structurally identical (~250 lines total duplication).
-
-Files:
-- `/Users/ianwalther/code/hueworks_app/subscription/hue_event_stream.ex`
-- `/Users/ianwalther/code/hueworks_app/subscription/home_assistant_event_stream.ex`
-- `/Users/ianwalther/code/hueworks_app/subscription/caseta_event_stream.ex`
-- `/Users/ianwalther/code/hueworks_app/subscription/z2m_event_stream.ex`
-
-They share `@restart_delay_ms`, `@retry_delay_ms`, identical `start_link/init/handle_info` implementations, and the same `maybe_start_connections` pattern with only the `:type` filter varying.
-
-Preferred direction:
-- a single parametrized `GenericEventStream` module with bridge type as init arg
-- low risk since the structure is already proven identical
-- connection-specific logic stays in the per-bridge `connection.ex` modules
-
-### 11) Deduplicate fetch modules
-`fetch/0` and `fetch_for_bridge/1` in each fetch module (Hue, HA, Caseta) are 80-90% identical — they differ only in the bridge type filter and credential extraction.
-
-Files:
-- `/Users/ianwalther/code/hueworks/lib/hueworks/import/fetch/hue.ex`
-- `/Users/ianwalther/code/hueworks/lib/hueworks/import/fetch/home_assistant.ex`
-- `/Users/ianwalther/code/hueworks/lib/hueworks/import/fetch/caseta.ex`
-
-Preferred direction:
-- extract shared `fetch_all(type, &fetch_fn/1)` and `fetch_one(bridge, &fetch_fn/1)` wrappers
-- `invalid_credential?/1` is repeated verbatim in 4+ files — extract to a shared location
-
-### 12) Fix N+1 query in picos/targets.ex
-`expand_room_targets/3` does one query per `group_id` plus one query per group for member lights — O(n) queries inside a flat_map.
-
-File:
-- `/Users/ianwalther/code/hueworks/lib/hueworks/picos/targets.ex` (lines 22-38)
-
-Also: `scene_name_for_target/2` loads ALL scenes for a room via `Scenes.list_scenes_for_room/1` then finds one by ID in memory. Should query the specific scene directly.
-
-Preferred direction:
-- batch-load all group room_ids and member lights in a single query
-- query specific scene by ID instead of loading all and filtering
-
-### 13) Add dialyxir and begin @spec coverage
-`dialyxir` is not in `mix.exs` — no static type checking is configured. Only 3 `@spec` declarations exist across 153 modules.
+### 6) Add dialyxir and begin @spec coverage
+`dialyxir` is not in `mix.exs` — no static type checking is configured. Only 3 `@spec` declarations exist across the codebase today.
 
 Preferred direction:
 - add `{:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false}` to mix.exs
@@ -457,34 +292,17 @@ These are fine later, but they should not displace the higher-value structural w
 
 ### Phase 1
 - normalize one boundary at a time and remove downstream mixed-key handling as each boundary becomes canonical
-- finish thinning `Hueworks.HomeAssistant.Export`
-- keep the runtime shell focused on GenServer transitions only
-- fix executor retry exhaustion logging and default trace ID generation (safe carve-outs from #5)
 
 ### Phase 2
-- finish splitting `Hueworks.Picos`
-- keep sync, config, targets, and runtime action code easier to reason about independently
-- fix the N+1 query in `picos/targets.ex` while the module is being touched
-
-### Phase 3
-- keep tightening the `Scenes` and editor boundary
-- move more editor-only translation to the LiveView layer
-
-### Phase 4
-- revisit planner/executor extraction only after the upstream layers are cleaner
-- focus on behavior-preserving extraction and observability, not semantics changes
-
-### Phase 5
 - continue thinning LiveViews and extracting shared UI only where the boundaries are already stable
 
-### Phase 6
-- clean up broad `rescue` usage and IO.puts in fetch/import paths
-- consolidate event stream managers and fetch module duplication
+### Phase 3
+- clean up broad `rescue` usage in import paths
 
-### Phase 7
+### Phase 4
 - add dialyxir and begin @spec coverage on critical modules
 
-### Phase 8
+### Phase 5
 - re-evaluate whether the highest-complexity product behaviors still justify their implementation cost
 
 ## Refactor Guardrails

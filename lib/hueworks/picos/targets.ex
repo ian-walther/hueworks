@@ -3,30 +3,38 @@ defmodule Hueworks.Picos.Targets do
 
   import Ecto.Query, only: [from: 2]
 
-  alias Hueworks.Groups
   alias Hueworks.Repo
-  alias Hueworks.Scenes
-  alias Hueworks.Schemas.{Group, Light, Scene}
+  alias Hueworks.Schemas.{Group, GroupLight, Light, Scene}
 
-  def expand_room_targets(room_id, group_ids, light_ids) do
-    allowed_light_ids =
+  def list_room_targets(room_id) when is_integer(room_id) do
+    lights =
       Repo.all(
         from(l in Light,
           where: l.room_id == ^room_id and is_nil(l.canonical_light_id),
-          select: l.id
+          order_by: [asc: l.name]
         )
       )
+
+    groups =
+      Repo.all(
+        from(g in Group,
+          where: g.room_id == ^room_id and is_nil(g.canonical_group_id),
+          order_by: [asc: g.name]
+        )
+      )
+
+    {groups, lights}
+  end
+
+  def expand_room_targets(room_id, group_ids, light_ids) do
+    allowed_light_ids =
+      room_light_ids(room_id)
       |> MapSet.new()
 
     group_light_ids =
       group_ids
       |> normalize_integer_ids()
-      |> Enum.flat_map(fn group_id ->
-        case Repo.one(from(g in Group, where: g.id == ^group_id, select: g.room_id)) do
-          ^room_id -> Groups.member_light_ids(group_id)
-          _ -> []
-        end
-      end)
+      |> room_group_light_ids(room_id)
 
     direct_light_ids =
       light_ids
@@ -40,21 +48,11 @@ defmodule Hueworks.Picos.Targets do
 
   def valid_room_targets?(room_id, group_ids, light_ids) do
     allowed_light_ids =
-      Repo.all(
-        from(l in Light,
-          where: l.room_id == ^room_id and is_nil(l.canonical_light_id),
-          select: l.id
-        )
-      )
+      room_light_ids(room_id)
       |> MapSet.new()
 
     allowed_group_ids =
-      Repo.all(
-        from(g in Group,
-          where: g.room_id == ^room_id and is_nil(g.canonical_group_id),
-          select: g.id
-        )
-      )
+      room_group_ids(room_id)
       |> MapSet.new()
 
     Enum.all?(group_ids, &MapSet.member?(allowed_group_ids, &1)) and
@@ -95,12 +93,53 @@ defmodule Hueworks.Picos.Targets do
 
   def scene_name_for_target(scene_id, room_id)
       when is_integer(scene_id) and is_integer(room_id) do
-    room_id
-    |> Scenes.list_scenes_for_room()
-    |> Enum.find_value("Unknown Scene", fn scene ->
-      if scene.id == scene_id, do: scene.name, else: nil
-    end)
+    Scene
+    |> where_room_and_id(room_id, scene_id)
+    |> Repo.one()
+    |> case do
+      %Scene{name: name} -> name
+      _ -> "Unknown Scene"
+    end
   end
 
   def scene_name_for_target(_scene_id, _room_id), do: "Unknown Scene"
+
+  defp room_light_ids(room_id) do
+    Repo.all(
+      from(l in Light,
+        where: l.room_id == ^room_id and is_nil(l.canonical_light_id),
+        select: l.id
+      )
+    )
+  end
+
+  defp room_group_ids(room_id) do
+    Repo.all(
+      from(g in Group,
+        where: g.room_id == ^room_id and is_nil(g.canonical_group_id),
+        select: g.id
+      )
+    )
+  end
+
+  defp room_group_light_ids(group_ids, room_id) do
+    valid_group_ids =
+      Repo.all(
+        from(g in Group,
+          where: g.id in ^group_ids and g.room_id == ^room_id and is_nil(g.canonical_group_id),
+          select: g.id
+        )
+      )
+
+    Repo.all(
+      from(gl in GroupLight,
+        where: gl.group_id in ^valid_group_ids,
+        select: gl.light_id
+      )
+    )
+  end
+
+  defp where_room_and_id(query, room_id, scene_id) do
+    from(s in query, where: s.room_id == ^room_id and s.id == ^scene_id)
+  end
 end

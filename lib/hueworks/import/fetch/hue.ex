@@ -3,40 +3,16 @@ defmodule Hueworks.Import.Fetch.Hue do
   Fetch minimal Hue data needed for import.
   """
 
-  import Ecto.Query, only: [from: 2]
+  require Logger
 
+  alias Hueworks.Import.Fetch.Common
   alias Hueworks.Schemas.Bridge
-  alias Hueworks.Repo
 
   def fetch do
-    bridges = load_bridges(:hue)
+    bridges = Common.load_enabled_bridges(:hue)
 
     bridges =
-      Enum.map(bridges, fn bridge ->
-        api_key = Bridge.credentials_struct(bridge).api_key
-
-        if is_nil(api_key) or api_key == "" do
-          raise "Missing Hue api_key for bridge #{bridge.name} (#{bridge.host})"
-        end
-
-        IO.puts("Fetching Hue lights from #{bridge.name}...")
-
-        lights =
-          fetch_endpoint(bridge.host, api_key, "/lights")
-          |> add_hue_macs()
-          |> simplify_hue_lights()
-
-        groups =
-          fetch_endpoint(bridge.host, api_key, "/groups")
-          |> simplify_hue_groups()
-
-        %{
-          name: bridge.name,
-          host: bridge.host,
-          lights: lights,
-          groups: groups
-        }
-      end)
+      Enum.map(bridges, &fetch_bridge(&1, true))
 
     %{
       bridges: bridges,
@@ -45,10 +21,19 @@ defmodule Hueworks.Import.Fetch.Hue do
   end
 
   def fetch_for_bridge(bridge) do
+    fetch_bridge(bridge, false)
+  end
+
+
+  defp fetch_bridge(bridge, log?) do
     api_key = Bridge.credentials_struct(bridge).api_key
 
-    if is_nil(api_key) or api_key == "" do
+    if Common.invalid_credential?(api_key) do
       raise "Missing Hue api_key for bridge #{bridge.name} (#{bridge.host})"
+    end
+
+    if log? do
+      Logger.info("Fetching Hue lights from #{bridge.name}...")
     end
 
     lights =
@@ -158,7 +143,4 @@ defmodule Hueworks.Import.Fetch.Hue do
 
   defp simplify_hue_groups(groups), do: groups
 
-  defp load_bridges(type) do
-    Repo.all(from(b in Bridge, where: b.type == ^type and b.enabled == true))
-  end
 end

@@ -1,8 +1,7 @@
 defmodule HueworksWeb.SceneBuilderComponent do
   use Phoenix.LiveComponent
 
-  alias Hueworks.Scenes.Builder
-  alias Hueworks.Util
+  alias HueworksWeb.SceneBuilderComponent.Flow
   alias HueworksWeb.SceneBuilderComponent.State
 
   def mount(socket) do
@@ -19,11 +18,8 @@ defmodule HueworksWeb.SceneBuilderComponent do
   end
 
   def update(assigns, socket) do
-    socket =
-      socket
-      |> assign(assigns)
-      |> normalize_components()
-      |> refresh_builder()
+    socket = assign(socket, assigns)
+    socket = assign(socket, Flow.initialize(socket.assigns))
 
     {:ok, socket}
   end
@@ -201,25 +197,20 @@ defmodule HueworksWeb.SceneBuilderComponent do
   end
 
   def handle_event("add_component", _params, socket) do
-    next_id =
-      socket.assigns.components
-      |> State.add_component()
+    socket =
+      socket.assigns
+      |> Flow.add_component()
+      |> apply_component_change(socket)
 
-    socket = refresh_builder(assign(socket, components: next_id))
-    notify_parent(socket)
     {:noreply, socket}
   end
 
   def handle_event("select_light", %{"component_id" => id, "light_id" => light_id}, socket) do
-    selections = State.select_light(socket.assigns[:selections], id, light_id)
-
-    {:noreply, assign(socket, selections: selections)}
+    {:noreply, socket |> assign(Flow.select_light(socket.assigns, id, light_id))}
   end
 
   def handle_event("select_group", %{"component_id" => id, "group_id" => group_id}, socket) do
-    selections = State.select_group(socket.assigns[:selections], id, group_id)
-
-    {:noreply, assign(socket, selections: selections)}
+    {:noreply, socket |> assign(Flow.select_group(socket.assigns, id, group_id))}
   end
 
   def handle_event(
@@ -227,55 +218,47 @@ defmodule HueworksWeb.SceneBuilderComponent do
         %{"component_id" => id, "light_state_id" => state_id},
         socket
       ) do
-    components =
-      State.select_light_state(
-        socket.assigns.components,
-        id,
-        state_id,
-        socket.assigns.light_states
-      )
+    socket =
+      socket.assigns
+      |> Flow.select_light_state(id, state_id)
+      |> apply_component_change(socket)
 
-    socket = socket |> assign(components: components) |> refresh_builder()
-    notify_parent(socket)
     {:noreply, socket}
   end
 
   def handle_event("add_light", %{"component_id" => id}, socket) do
-    component_id = Util.parse_id(id)
-    light_id = Map.get(socket.assigns[:selections] || %{}, {:light, component_id})
-    components = State.add_light(socket.assigns.components, id, light_id)
+    socket =
+      socket.assigns
+      |> Flow.add_light(id)
+      |> apply_component_change(socket)
 
-    socket = refresh_builder(assign(socket, components: components))
-    notify_parent(socket)
     {:noreply, socket}
   end
 
   def handle_event("add_group", %{"component_id" => id}, socket) do
-    component_id = Util.parse_id(id)
-    group_id = Map.get(socket.assigns[:selections] || %{}, {:group, component_id})
-    group = Enum.find(socket.assigns.groups, &(&1.id == group_id))
+    socket =
+      socket.assigns
+      |> Flow.add_group(id)
+      |> apply_component_change(socket)
 
-    components =
-      State.add_group(socket.assigns.components, id, group, socket.assigns.builder.room_light_ids)
-
-    socket = refresh_builder(assign(socket, components: components))
-    notify_parent(socket)
     {:noreply, socket}
   end
 
   def handle_event("remove_light", %{"component_id" => id, "light_id" => light_id}, socket) do
-    components = State.remove_light(socket.assigns.components, id, light_id)
+    socket =
+      socket.assigns
+      |> Flow.remove_light(id, light_id)
+      |> apply_component_change(socket)
 
-    socket = refresh_builder(assign(socket, components: components))
-    notify_parent(socket)
     {:noreply, socket}
   end
 
   def handle_event("remove_component", %{"component_id" => id}, socket) do
-    components = State.remove_component(socket.assigns.components, id)
+    socket =
+      socket.assigns
+      |> Flow.remove_component(id)
+      |> apply_component_change(socket)
 
-    socket = refresh_builder(assign(socket, components: components))
-    notify_parent(socket)
     {:noreply, socket}
   end
 
@@ -284,11 +267,11 @@ defmodule HueworksWeb.SceneBuilderComponent do
         %{"component_id" => component_id, "light_id" => light_id},
         socket
       ) do
-    components =
-      State.toggle_light_default_power(socket.assigns.components, component_id, light_id)
+    socket =
+      socket.assigns
+      |> Flow.toggle_light_default_power(component_id, light_id)
+      |> apply_component_change(socket)
 
-    socket = refresh_builder(assign(socket, components: components))
-    notify_parent(socket)
     {:noreply, socket}
   end
 
@@ -297,34 +280,25 @@ defmodule HueworksWeb.SceneBuilderComponent do
         %{"component_id" => component_id, "group_id" => group_id},
         socket
       ) do
-    group = Enum.find(socket.assigns.groups, &(&1.id == Util.parse_id(group_id)))
+    socket =
+      socket.assigns
+      |> Flow.toggle_group_default_power(component_id, group_id)
+      |> apply_component_change(socket)
 
-    components =
-      State.toggle_group_default_power(
-        socket.assigns.components,
-        component_id,
-        group,
-        socket.assigns.builder.room_light_ids
-      )
-
-    socket = refresh_builder(assign(socket, components: components))
-    notify_parent(socket)
     {:noreply, socket}
-  end
-
-  defp refresh_builder(socket) do
-    builder =
-      Builder.build(
-        List.wrap(socket.assigns.room_lights),
-        List.wrap(socket.assigns.groups),
-        List.wrap(socket.assigns.components)
-      )
-
-    assign(socket, builder: builder)
   end
 
   defp notify_parent(socket) do
     send(self(), {:scene_builder_updated, socket.assigns.components, socket.assigns.builder})
+  end
+
+  defp apply_component_change(changes, socket) do
+    socket =
+      socket
+      |> assign(changes)
+
+    notify_parent(socket)
+    socket
   end
 
   defp light_name(lights, id), do: State.light_name(lights, id)
@@ -346,14 +320,6 @@ defmodule HueworksWeb.SceneBuilderComponent do
   defp selected_state_id(component), do: State.selected_state_id(component)
 
   defp state_option_label(state), do: State.state_option_label(state)
-
-  defp normalize_components(socket) do
-    assign(
-      socket,
-      components:
-        State.normalize_components(socket.assigns.components, socket.assigns.light_states)
-    )
-  end
 
   defp power_policy_label(policy), do: State.power_policy_label(policy)
 end

@@ -7,6 +7,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
   alias Hueworks.Control.State
   alias Hueworks.HomeAssistant.Export.Config
   alias Hueworks.HomeAssistant.Export
+  alias Hueworks.HomeAssistant.Export.ServerState
   alias Hueworks.HomeAssistant.Export.Messages
   alias Hueworks.HomeAssistant.Export.Messages.{CommandTarget, RoomSceneOption}
   alias Hueworks.Repo
@@ -46,22 +47,22 @@ defmodule Hueworks.HomeAssistant.ExportTest do
     _ = :sys.get_state(Export)
 
     on_exit(fn ->
-      Application.put_env(:hueworks, :ha_export_tortoise_module, original_tortoise)
-      Application.put_env(:hueworks, :ha_export_tortoise_supervisor_module, original_supervisor)
+      restore_app_env(:hueworks, :ha_export_tortoise_module, original_tortoise)
+      restore_app_env(:hueworks, :ha_export_tortoise_supervisor_module, original_supervisor)
 
-      Application.put_env(
+      restore_app_env(
         :hueworks,
         :ha_export_dynamic_supervisor_module,
         original_dynamic_supervisor
       )
 
-      Application.put_env(
+      restore_app_env(
         :hueworks,
         :ha_export_tortoise_supervisor_name,
         original_supervisor_name
       )
 
-      Application.put_env(:hueworks, :ha_export_publish_sink, original_sink)
+      restore_app_env(:hueworks, :ha_export_publish_sink, original_sink)
     end)
 
     :ok
@@ -105,6 +106,10 @@ defmodule Hueworks.HomeAssistant.ExportTest do
              discovery_prefix: "custom_discovery",
              configuration_url: nil
            } = Export.export_config()
+  end
+
+  test "export server keeps a typed internal state" do
+    assert %ServerState{config: %Config{}, connection_pid: nil} = :sys.get_state(Export)
   end
 
   test "room select discovery payload uses stable IDs and disambiguated options" do

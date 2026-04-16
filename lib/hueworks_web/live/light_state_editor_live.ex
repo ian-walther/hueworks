@@ -2,15 +2,10 @@ defmodule HueworksWeb.LightStateEditorLive do
   use Phoenix.LiveView
 
   alias Hueworks.AppSettings
-  alias Hueworks.CircadianPreview
   alias Hueworks.Scenes
   alias Hueworks.Util
   alias HueworksWeb.LightStateEditorLive.FormState
-
-  @preview_interval_minutes 5
-  @chart_width 640
-  @chart_height 188
-  @chart_padding %{left: 42, right: 14, top: 16, bottom: 28}
+  alias HueworksWeb.LightStateEditorLive.Preview
 
   def mount(_params, _session, socket) do
     app_setting = AppSettings.get_global()
@@ -320,44 +315,23 @@ defmodule HueworksWeb.LightStateEditorLive do
   end
 
   defp refresh_circadian_preview(%{assigns: %{light_state_type: :circadian}} = socket) do
-    solar_config = %{
-      latitude: socket.assigns.preview_latitude,
-      longitude: socket.assigns.preview_longitude,
-      timezone: socket.assigns.preview_timezone
-    }
-
-    case CircadianPreview.sample_day(
-           socket.assigns.light_state_config,
-           solar_config,
-           socket.assigns.preview_date,
-           interval_minutes: @preview_interval_minutes
-         ) do
-      {:ok, preview} ->
-        assign(socket, circadian_preview: preview, circadian_preview_error: nil)
-
-      {:error, reason} ->
-        assign(
-          socket,
-          circadian_preview: nil,
-          circadian_preview_error: preview_error_message(reason)
-        )
-    end
+    socket
+    |> assign(
+      Preview.refresh_assigns(
+        :circadian,
+        socket.assigns.light_state_config,
+        socket.assigns.preview_date,
+        socket.assigns.preview_latitude,
+        socket.assigns.preview_longitude,
+        socket.assigns.preview_timezone
+      )
+    )
   end
 
   defp refresh_circadian_preview(socket) do
-    assign(socket, circadian_preview: nil, circadian_preview_error: nil)
+    socket
+    |> assign(Preview.refresh_assigns(:manual, nil, nil, nil, nil, nil))
   end
-
-  defp preview_error_message(:missing_latitude), do: "Preview needs a latitude."
-  defp preview_error_message(:missing_longitude), do: "Preview needs a longitude."
-  defp preview_error_message(:missing_timezone), do: "Preview needs a timezone."
-  defp preview_error_message(:invalid_date), do: "Preview date must be valid."
-  defp preview_error_message(:invalid_interval), do: "Preview interval must be positive."
-
-  defp preview_error_message(:missing_coordinates),
-    do: "Preview needs both latitude and longitude."
-
-  defp preview_error_message(reason), do: "Preview unavailable: #{inspect(reason)}"
 
   attr(:label, :string, required: true)
   attr(:text, :string, required: true)
@@ -462,160 +436,6 @@ defmodule HueworksWeb.LightStateEditorLive do
   defp help_text(:temperature_curve_offsets),
     do:
       "Shifts only the temperature curve relative to the shared solar timing above. Sunrise moves warming earlier or later; sunset moves cooling earlier or later."
-
-  defp chart_view_box, do: "0 0 #{@chart_width} #{@chart_height}"
-
-  defp chart_path(nil, _metric), do: ""
-
-  defp chart_path(preview, metric) do
-    preview.points
-    |> Enum.map(fn point ->
-      value = Map.fetch!(point, metric)
-      "#{x_position(point.minute)} #{y_position(value, chart_domain(preview, metric))}"
-    end)
-    |> case do
-      [] -> ""
-      [first | rest] -> "M #{first} " <> Enum.map_join(rest, " ", &"L #{&1}")
-    end
-  end
-
-  defp chart_points_json(nil, _metric), do: "[]"
-
-  defp chart_points_json(preview, metric) do
-    preview.points
-    |> Enum.map(fn point ->
-      value = Map.fetch!(point, metric)
-
-      %{
-        minute: point.minute,
-        time_label: minute_label(point.minute),
-        value: value,
-        value_label: chart_value_label(metric, value),
-        x: x_position(point.minute),
-        y: y_position(value, chart_domain(preview, metric))
-      }
-    end)
-    |> Jason.encode!()
-  end
-
-  defp marker_x_position(minute), do: x_position(minute)
-
-  defp x_ticks do
-    [
-      %{minute: 0, label: "00:00"},
-      %{minute: 360, label: "06:00"},
-      %{minute: 720, label: "12:00"},
-      %{minute: 1080, label: "18:00"},
-      %{minute: 1440, label: "24:00"}
-    ]
-  end
-
-  defp y_ticks(preview, :brightness) do
-    domain = chart_domain(preview, :brightness)
-
-    [0, 25, 50, 75, 100]
-    |> Enum.filter(fn value -> value >= elem(domain, 0) and value <= elem(domain, 1) end)
-    |> Enum.map(&%{value: &1, label: "#{&1}%"})
-  end
-
-  defp y_ticks(preview, :kelvin) do
-    {min_kelvin, max_kelvin} = chart_domain(preview, :kelvin)
-    step = max(round((max_kelvin - min_kelvin) / 4 / 25) * 25, 25)
-
-    Stream.iterate(min_kelvin, &(&1 + step))
-    |> Enum.take_while(&(&1 < max_kelvin))
-    |> Kernel.++([max_kelvin])
-    |> Enum.uniq()
-    |> Enum.map(&%{value: &1, label: "#{&1}K"})
-  end
-
-  defp marker_summary(nil, _key), do: "..."
-
-  defp marker_summary(preview, key) do
-    case Enum.find(preview.markers, &(&1.key == key)) do
-      nil -> "..."
-      marker -> marker.time_label
-    end
-  end
-
-  defp preview_range_label(nil, _metric), do: "..."
-
-  defp preview_range_label(preview, :brightness),
-    do: "#{preview.min_brightness}% - #{preview.max_brightness}%"
-
-  defp preview_range_label(preview, :kelvin),
-    do: "#{preview.min_kelvin}K - #{preview.max_kelvin}K"
-
-  defp chart_domain(_preview, :brightness) do
-    {0, 100}
-  end
-
-  defp chart_domain(nil, :kelvin) do
-    {0, 100}
-  end
-
-  defp chart_domain(preview, :kelvin) do
-    min_kelvin = preview.min_kelvin
-    max_kelvin = preview.max_kelvin
-
-    if min_kelvin == max_kelvin do
-      {min_kelvin - 100, max_kelvin + 100}
-    else
-      {min_kelvin, max_kelvin}
-    end
-  end
-
-  defp plot_width, do: @chart_width - @chart_padding.left - @chart_padding.right
-  defp plot_height, do: @chart_height - @chart_padding.top - @chart_padding.bottom
-  defp chart_top_padding, do: @chart_padding.top
-  defp chart_left_padding, do: @chart_padding.left
-  defp chart_bottom_y, do: @chart_height - @chart_padding.bottom
-  defp chart_x_label_y, do: @chart_height - 8
-
-  defp minute_label(total_minutes) do
-    hour = div(total_minutes, 60)
-    minute = rem(total_minutes, 60)
-    :io_lib.format("~2..0B:~2..0B", [hour, minute]) |> IO.iodata_to_binary()
-  end
-
-  defp chart_value_label(:brightness, value), do: "#{value}%"
-  defp chart_value_label(:kelvin, value), do: "#{value}K"
-
-  defp x_position(minute) do
-    @chart_padding.left + plot_width() * minute / 1440
-  end
-
-  defp y_position(value, {min_value, max_value}) do
-    ratio =
-      cond do
-        max_value == min_value -> 0.5
-        true -> (value - min_value) / (max_value - min_value)
-      end
-
-    @chart_padding.top + plot_height() * (1 - ratio)
-  end
-
-  defp time_input_value(nil), do: ""
-  defp time_input_value(""), do: ""
-
-  defp time_input_value(value) when is_binary(value) do
-    value
-    |> String.trim()
-    |> case do
-      <<hour::binary-size(2), ?:, minute::binary-size(2), ?:, second::binary-size(2)>> ->
-        "#{hour}:#{minute}:#{second}"
-
-      <<hour::binary-size(2), ?:, minute::binary-size(2)>> ->
-        "#{hour}:#{minute}:00"
-
-      other ->
-        other
-    end
-  end
-
-  defp time_input_value(value) when is_integer(value), do: Integer.to_string(value)
-  defp time_input_value(value) when is_float(value), do: Float.to_string(value)
-  defp time_input_value(value), do: to_string(value)
 
   defp parse_id(value), do: Util.parse_id(value)
 end

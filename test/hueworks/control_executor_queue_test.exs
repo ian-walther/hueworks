@@ -1,5 +1,7 @@
 defmodule Hueworks.Control.ExecutorQueueTest do
-  use ExUnit.Case, async: false
+  use Hueworks.DataCase, async: false
+
+  import ExUnit.CaptureLog
 
   alias Hueworks.Control.Executor
 
@@ -10,8 +12,8 @@ defmodule Hueworks.Control.ExecutorQueueTest do
     Application.put_env(:hueworks, :control_executor_server, nil)
 
     on_exit(fn ->
-      Application.put_env(:hueworks, :control_executor_enabled, original)
-      Application.put_env(:hueworks, :control_executor_server, original_server)
+      restore_app_env(:hueworks, :control_executor_enabled, original)
+      restore_app_env(:hueworks, :control_executor_server, original_server)
     end)
 
     :ok
@@ -98,6 +100,86 @@ defmodule Hueworks.Control.ExecutorQueueTest do
     assert_receive {:dispatched, %{id: 2}}
   end
 
+  test "single tick dispatches one due action per bridge" do
+    parent = self()
+
+    dispatch_fun = fn action ->
+      send(parent, {:dispatched, action.bridge_id, action.id})
+      :ok
+    end
+
+    {:ok, now_agent} = start_supervised({Agent, fn -> 1_000 end}, id: :executor_multi_bridge_now)
+    now_fn = fn :millisecond -> Agent.get(now_agent, & &1) end
+
+    {:ok, _pid} =
+      start_supervised(
+        {Executor,
+         name: :executor_multi_bridge,
+         dispatch_fun: dispatch_fun,
+         now_fn: now_fn,
+         bridge_rate_fun: fn _ -> 10 end}
+      )
+
+    assert :ok ==
+             Executor.enqueue(
+               [
+                 %{type: :light, id: 1, bridge_id: 10, desired: %{power: :on}},
+                 %{type: :light, id: 2, bridge_id: 11, desired: %{power: :on}}
+               ],
+               server: :executor_multi_bridge,
+               mode: :append
+             )
+
+    assert %{had_work: true, has_pending: false} =
+             Executor.tick(:executor_multi_bridge, force: true)
+
+    assert_receive {:dispatched, 10, 1}
+    assert_receive {:dispatched, 11, 2}
+  end
+
+  test "tick reply reports remaining pending work for same-bridge queue" do
+    parent = self()
+
+    dispatch_fun = fn action ->
+      send(parent, {:dispatched, action.id})
+      :ok
+    end
+
+    {:ok, now_agent} = start_supervised({Agent, fn -> 1_000 end}, id: :executor_tick_status_now)
+    now_fn = fn :millisecond -> Agent.get(now_agent, & &1) end
+
+    {:ok, _pid} =
+      start_supervised(
+        {Executor,
+         name: :executor_tick_status,
+         dispatch_fun: dispatch_fun,
+         now_fn: now_fn,
+         bridge_rate_fun: fn _ -> 5 end}
+      )
+
+    assert :ok ==
+             Executor.enqueue(
+               [
+                 %{type: :light, id: 1, bridge_id: 10, desired: %{power: :on}},
+                 %{type: :light, id: 2, bridge_id: 10, desired: %{power: :on}}
+               ],
+               server: :executor_tick_status,
+               mode: :append
+             )
+
+    assert %{had_work: true, has_pending: true} =
+             Executor.tick(:executor_tick_status, force: true)
+
+    assert_receive {:dispatched, 1}
+
+    Agent.update(now_agent, fn _ -> 1_400 end)
+
+    assert %{had_work: true, has_pending: false} =
+             Executor.tick(:executor_tick_status, force: true)
+
+    assert_receive {:dispatched, 2}
+  end
+
   test "retry backoff requeues failed actions" do
     parent = self()
     {:ok, now_agent} = start_supervised({Agent, fn -> 1_000 end}, id: :executor_retry_now)
@@ -140,6 +222,41 @@ defmodule Hueworks.Control.ExecutorQueueTest do
     Agent.update(now_agent, fn _ -> 1_400 end)
     Executor.tick(:executor_retry)
     assert_receive {:dispatched, %{id: 1, attempts: 1}}
+  end
+
+  test "retry exhaustion logs a warning before dropping the action" do
+    {:ok, now_agent} = start_supervised({Agent, fn -> 1_000 end}, id: :executor_exhausted_now)
+
+    dispatch_fun = fn _action -> {:error, :failed} end
+    now_fn = fn :millisecond -> Agent.get(now_agent, & &1) end
+
+    {:ok, _pid} =
+      start_supervised(
+        {Executor,
+         name: :executor_exhausted,
+         dispatch_fun: dispatch_fun,
+         now_fn: now_fn,
+         max_retries: 1,
+         backoff_ms: 250,
+         bridge_rate_fun: fn _ -> 5 end}
+      )
+
+    assert :ok ==
+             Executor.enqueue([%{type: :light, id: 1, bridge_id: 10, desired: %{power: :on}}],
+               server: :executor_exhausted,
+               mode: :replace
+             )
+
+    log =
+      capture_log(fn ->
+        Executor.tick(:executor_exhausted)
+        Agent.update(now_agent, fn _ -> 1_400 end)
+        Executor.tick(:executor_exhausted)
+      end)
+
+    assert log =~ "executor_retry_exhausted"
+    assert log =~ "type=:light"
+    assert log =~ "id=1"
   end
 
   test "initial enqueue schedules immediate dispatch with negative monotonic time" do

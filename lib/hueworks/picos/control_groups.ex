@@ -3,7 +3,7 @@ defmodule Hueworks.Picos.ControlGroups do
 
   import Ecto.Query, only: [from: 2]
 
-  alias Hueworks.Picos
+  alias Hueworks.Picos.Devices
   alias Hueworks.Picos.Targets
   alias Hueworks.Repo
   alias Hueworks.Schemas.{PicoButton, PicoDevice}
@@ -41,6 +41,13 @@ defmodule Hueworks.Picos.ControlGroups do
 
   def normalize(_groups), do: []
 
+  def list_for_device(%PicoDevice{} = device) do
+    device
+    |> Map.get(:metadata, %{})
+    |> Map.get("control_groups", [])
+    |> normalize()
+  end
+
   def save(%PicoDevice{} = device, attrs) when is_map(attrs) do
     with room_id when is_integer(room_id) <- device.room_id,
          name when is_binary(name) and name != "" <- String.trim(attrs["name"] || ""),
@@ -51,7 +58,7 @@ defmodule Hueworks.Picos.ControlGroups do
       if Targets.valid_room_targets?(room_id, group_ids, light_ids) do
         updated_groups =
           device
-          |> Picos.control_groups()
+          |> list_for_device()
           |> Enum.reject(&(&1["id"] == group_id))
           |> Kernel.++([
             %{
@@ -76,7 +83,7 @@ defmodule Hueworks.Picos.ControlGroups do
   end
 
   def delete(%PicoDevice{} = device, group_id) when is_binary(group_id) do
-    control_groups = Enum.reject(Picos.control_groups(device), &(&1["id"] == group_id))
+    control_groups = Enum.reject(list_for_device(device), &(&1["id"] == group_id))
 
     Repo.transaction(fn ->
       update_device_metadata!(device, fn metadata ->
@@ -93,12 +100,12 @@ defmodule Hueworks.Picos.ControlGroups do
       )
     end)
 
-    {:ok, Picos.get_device(device.id)}
+    {:ok, Devices.get(device.id)}
   end
 
   def clone_for_copy(%PicoDevice{} = device) do
     device
-    |> Picos.control_groups()
+    |> list_for_device()
     |> Enum.map(fn group ->
       %{
         "id" => Ecto.UUID.generate(),
@@ -115,7 +122,7 @@ defmodule Hueworks.Picos.ControlGroups do
     |> PicoDevice.changeset(%{metadata: fun.(device.metadata || %{})})
     |> Repo.update()
     |> case do
-      {:ok, updated} -> {:ok, Picos.get_device(updated.id)}
+      {:ok, updated} -> {:ok, Devices.get(updated.id)}
       other -> other
     end
   end

@@ -38,21 +38,21 @@ defmodule Hueworks.Control.Bootstrap.Z2MTest do
     end
 
     on_exit(fn ->
-      Application.put_env(:hueworks, :z2m_bootstrap_tortoise_module, original_tortoise)
+      restore_app_env(:hueworks, :z2m_bootstrap_tortoise_module, original_tortoise)
 
-      Application.put_env(
+      restore_app_env(
         :hueworks,
         :z2m_bootstrap_tortoise_supervisor_module,
         original_supervisor
       )
 
-      Application.put_env(
+      restore_app_env(
         :hueworks,
         :z2m_bootstrap_tortoise_connection_module,
         original_connection
       )
 
-      Application.put_env(:hueworks, :z2m_bootstrap_test_sink, original_sink)
+      restore_app_env(:hueworks, :z2m_bootstrap_test_sink, original_sink)
     end)
 
     :ok
@@ -190,11 +190,7 @@ defmodule Hueworks.Control.Bootstrap.Z2MTest do
     assert String.starts_with?(client_id, "hwz2mb#{bridge.id}_")
     assert :ok == Task.await(task, 500)
 
-    Application.put_env(
-      :hueworks,
-      :z2m_bootstrap_tortoise_supervisor_module,
-      original_supervisor
-    )
+    restore_app_env(:hueworks, :z2m_bootstrap_tortoise_supervisor_module, original_supervisor)
   end
 
   test "bootstrap keeps individual member states when group state arrives later" do
@@ -208,7 +204,7 @@ defmodule Hueworks.Control.Bootstrap.Z2MTest do
     )
 
     on_exit(fn ->
-      Application.put_env(
+      restore_app_env(
         :hueworks,
         :z2m_bootstrap_tortoise_supervisor_module,
         original_supervisor
@@ -281,7 +277,7 @@ defmodule Hueworks.Control.Bootstrap.Z2MTest do
     )
 
     on_exit(fn ->
-      Application.put_env(
+      restore_app_env(
         :hueworks,
         :z2m_bootstrap_tortoise_supervisor_module,
         original_supervisor

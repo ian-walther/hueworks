@@ -6,7 +6,7 @@ defmodule Hueworks.ScenesComponentsTest do
   alias Hueworks.AppSettings
   alias Hueworks.ActiveScenes
   alias Hueworks.Color
-  alias Hueworks.Control.DesiredState
+  alias Hueworks.Control.{DesiredState, Executor}
   alias Hueworks.Lights.ManualControl
 
   alias Hueworks.Schemas.{
@@ -634,6 +634,52 @@ defmodule Hueworks.ScenesComponentsTest do
     assert desired[:power] == :on
     assert desired[:brightness] == 90
     assert desired[:kelvin] == 5000
+  end
+
+  test "apply_scene generates a trace by default when none is provided" do
+    parent = self()
+    original_enabled = Application.get_env(:hueworks, :control_executor_enabled)
+    original_server = Application.get_env(:hueworks, :control_executor_server)
+
+    on_exit(fn ->
+      restore_app_env(:hueworks, :control_executor_enabled, original_enabled)
+      restore_app_env(:hueworks, :control_executor_server, original_server)
+    end)
+
+    {:ok, _pid} =
+      start_supervised(
+        {Executor,
+         name: :scene_trace_executor,
+         dispatch_fun: fn action ->
+           send(parent, {:dispatched, action})
+           :ok
+         end,
+         bridge_rate_fun: fn _ -> 10 end}
+      )
+
+    Application.put_env(:hueworks, :control_executor_enabled, true)
+    Application.put_env(:hueworks, :control_executor_server, :scene_trace_executor)
+
+    room = insert_room()
+    bridge = insert_bridge()
+    light = insert_light(room, bridge, %{name: "Lamp"})
+    {:ok, state} = Scenes.create_manual_light_state("Soft", %{"brightness" => "40"})
+    {:ok, scene} = Scenes.create_scene(%{name: "Chill", room_id: room.id})
+
+    {:ok, _} =
+      Scenes.replace_scene_components(scene, [
+        %{name: "Component 1", light_ids: [light.id], light_state_id: to_string(state.id)}
+      ])
+
+    assert {:ok, _diff, _updated} = Scenes.apply_scene(scene)
+    _ = Executor.tick(:scene_trace_executor, force: true)
+
+    assert_receive {:dispatched, action}
+    assert is_binary(action.trace_id)
+    assert String.starts_with?(action.trace_id, "scene-#{scene.id}-")
+    assert action.trace_source == "scenes.apply_scene"
+    assert action.trace_room_id == room.id
+    assert action.trace_scene_id == scene.id
   end
 
   test "active scene reapply preserves manual off latch after desired-state restart" do

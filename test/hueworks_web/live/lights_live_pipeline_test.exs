@@ -40,8 +40,8 @@ defmodule Hueworks.LightsLivePipelineTest do
     Application.put_env(:hueworks, :control_executor_server, server)
 
     on_exit(fn ->
-      Application.put_env(:hueworks, :control_executor_enabled, original_enabled)
-      Application.put_env(:hueworks, :control_executor_server, original_server)
+      restore_app_env(:hueworks, :control_executor_enabled, original_enabled)
+      restore_app_env(:hueworks, :control_executor_server, original_server)
     end)
 
     {:ok, actions_agent: actions_agent, executor_server: server}

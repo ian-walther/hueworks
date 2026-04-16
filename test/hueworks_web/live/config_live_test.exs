@@ -40,16 +40,16 @@ defmodule HueworksWeb.ConfigLiveTest do
     Export.reload()
 
     on_exit(fn ->
-      Application.put_env(:hueworks, :ha_export_tortoise_module, original_tortoise)
-      Application.put_env(:hueworks, :ha_export_tortoise_supervisor_module, original_supervisor)
+      restore_app_env(:hueworks, :ha_export_tortoise_module, original_tortoise)
+      restore_app_env(:hueworks, :ha_export_tortoise_supervisor_module, original_supervisor)
 
-      Application.put_env(
+      restore_app_env(
         :hueworks,
         :ha_export_dynamic_supervisor_module,
         original_dynamic_supervisor
       )
 
-      Application.put_env(
+      restore_app_env(
         :hueworks,
         :ha_export_tortoise_supervisor_name,
         original_supervisor_name

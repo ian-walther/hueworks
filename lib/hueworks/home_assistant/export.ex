@@ -4,6 +4,7 @@ defmodule Hueworks.HomeAssistant.Export do
   use GenServer
 
   alias Hueworks.HomeAssistant.Export.Connection
+  alias Hueworks.HomeAssistant.Export.ServerState
   alias Hueworks.HomeAssistant.Export.Lifecycle
   alias Hueworks.HomeAssistant.Export.Messages
   alias Hueworks.HomeAssistant.Export.Router
@@ -134,7 +135,7 @@ defmodule Hueworks.HomeAssistant.Export do
   @impl true
   def init(_state) do
     PubSub.subscribe(Hueworks.PubSub, "control_state")
-    {:ok, %{config: nil, connection_pid: nil}, {:continue, :configure}}
+    {:ok, ServerState.new(), {:continue, :configure}}
   end
 
   @impl true
@@ -156,7 +157,7 @@ defmodule Hueworks.HomeAssistant.Export do
     {:noreply, Lifecycle.handle_connected(connection_client_id, state, client_id(), &publish/3)}
   end
 
-  def handle_info({:mqtt_message, topic_levels, payload}, %{config: config} = state) do
+  def handle_info({:mqtt_message, topic_levels, payload}, %ServerState{config: config} = state) do
     if Runtime.export_enabled?(config) do
       Router.dispatch(topic_levels, payload, config, &publish/3)
     end

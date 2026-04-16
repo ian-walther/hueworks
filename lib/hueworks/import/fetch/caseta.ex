@@ -5,47 +5,43 @@ defmodule Hueworks.Import.Fetch.Caseta do
 
   @bridge_port 8081
 
-  import Ecto.Query, only: [from: 2]
+  require Logger
 
+  alias Hueworks.Import.Fetch.Common
   alias Hueworks.Schemas.Bridge
-  alias Hueworks.Repo
 
   def fetch do
-    bridge = load_bridge(:caseta)
-
-    {:ok, socket} = connect(bridge)
-    :ssl.setopts(socket, [{:active, false}, {:packet, :line}])
-
-    IO.puts("Fetching Lutron devices...")
-    devices = read_endpoint(socket, "/device")
-
-    IO.puts("Fetching Lutron buttons...")
-    buttons = read_endpoint(socket, "/button")
-
-    IO.puts("Fetching Lutron virtual buttons...")
-    virtual_buttons = read_endpoint(socket, "/virtualbutton")
-
-    lights = lutron_lights(devices)
-    pico_buttons = lutron_buttons(devices, buttons)
-    groups = lutron_groups(virtual_buttons)
-
-    :ssl.close(socket)
-
-    %{
-      bridge_ip: bridge.host,
-      lights: lights,
-      pico_buttons: pico_buttons,
-      groups: groups,
-      exported_at: DateTime.utc_now() |> DateTime.to_iso8601()
-    }
+    :caseta
+    |> Common.load_enabled_bridge!()
+    |> fetch_snapshot(true)
+    |> Map.put(:exported_at, DateTime.utc_now() |> DateTime.to_iso8601())
   end
 
   def fetch_for_bridge(bridge) do
+    fetch_snapshot(bridge, false)
+  end
+
+
+  defp fetch_snapshot(bridge, log?) do
     {:ok, socket} = connect(bridge)
     :ssl.setopts(socket, [{:active, false}, {:packet, :line}])
 
+    if log? do
+      Logger.info("Fetching Lutron devices...")
+    end
+
     devices = read_endpoint(socket, "/device")
+
+    if log? do
+      Logger.info("Fetching Lutron buttons...")
+    end
+
     buttons = read_endpoint(socket, "/button")
+
+    if log? do
+      Logger.info("Fetching Lutron virtual buttons...")
+    end
+
     virtual_buttons = read_endpoint(socket, "/virtualbutton")
 
     lights = lutron_lights(devices)
@@ -68,7 +64,7 @@ defmodule Hueworks.Import.Fetch.Caseta do
     key_path = credentials.key_path
     cacert_path = credentials.cacert_path
 
-    if Enum.any?([cert_path, key_path, cacert_path], &invalid_credential?/1) do
+    if Enum.any?([cert_path, key_path, cacert_path], &Common.invalid_credential?/1) do
       raise "Missing Caseta TLS credentials for bridge #{bridge.name} (#{bridge.host})"
     end
 
@@ -90,7 +86,7 @@ defmodule Hueworks.Import.Fetch.Caseta do
         {:ok, socket}
 
       {:error, reason} ->
-        IO.puts("Lutron connection failed: #{inspect(reason)}")
+        Logger.warning("Lutron connection failed: #{inspect(reason)}")
         {:error, reason}
     end
   end
@@ -132,7 +128,7 @@ defmodule Hueworks.Import.Fetch.Caseta do
         end
 
       {:error, reason} ->
-        IO.puts("Failed to read #{url}: #{inspect(reason)}")
+        Logger.warning("Failed to read #{url}: #{inspect(reason)}")
         %{error: inspect(reason), responses: acc}
     end
   end
@@ -336,20 +332,4 @@ defmodule Hueworks.Import.Fetch.Caseta do
     end
   end
 
-  defp load_bridge(type) do
-    case Repo.all(from(b in Bridge, where: b.type == ^type and b.enabled == true)) do
-      [bridge] ->
-        bridge
-
-      [] ->
-        raise "No enabled #{type} bridge found. Seed bridges before fetching."
-
-      _ ->
-        raise "Multiple enabled #{type} bridges found. Only one is supported for now."
-    end
-  end
-
-  defp invalid_credential?(value) do
-    not is_binary(value) or value == "" or value == "CHANGE_ME"
-  end
 end

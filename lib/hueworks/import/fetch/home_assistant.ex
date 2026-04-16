@@ -3,89 +3,59 @@ defmodule Hueworks.Import.Fetch.HomeAssistant do
   Fetch minimal Home Assistant data needed for import.
   """
 
-  import Ecto.Query, only: [from: 2]
+  require Logger
 
+  alias Hueworks.Import.Fetch.Common
   alias Hueworks.Import.Fetch.HomeAssistant.Client
   alias Hueworks.Schemas.Bridge
-  alias Hueworks.Repo
 
   def fetch do
-    bridge = load_bridge(:ha)
-    token = Bridge.credentials_struct(bridge).token
-
-    if invalid_credential?(token) do
-      raise "Missing Home Assistant token for bridge #{bridge.name} (#{bridge.host})"
-    end
-
-    IO.puts("Connecting to Home Assistant...")
-    {:ok, pid} = Client.connect(bridge.host, token)
-
-    IO.puts("Fetching entity registry...")
-    entity_registry = get_entity_registry(pid)
-
-    IO.puts("Fetching device registry...")
-    device_registry = get_device_registry(pid)
-
-    IO.puts("Fetching area registry...")
-    area_registry = get_area_registry(pid)
-
-    IO.puts("Fetching light states...")
-    states = get_states(pid)
-    zone_by_entity_id = zone_by_entity_id(states)
-    group_members_by_entity_id = group_members_by_entity_id(states)
-    temp_range_by_entity_id = temp_range_by_entity_id(states)
-    color_modes_by_entity_id = supported_color_modes_by_entity_id(states)
-    light_states = light_state_attributes_by_entity_id(states)
-    zha_groups = get_zha_groups(pid)
-
-    light_entities =
-      entity_registry
-      |> Enum.filter(fn entry ->
-        String.starts_with?(entry["entity_id"], "light.")
-      end)
-      |> merge_entity_registry(entity_registry)
-      |> merge_device_registry(device_registry)
-      |> merge_zone_ids(zone_by_entity_id)
-      |> merge_temp_ranges(temp_range_by_entity_id)
-      |> merge_color_modes(color_modes_by_entity_id)
-      |> merge_group_members(group_members_by_entity_id)
-      |> tag_entity_sources()
-      |> simplify_lights()
-
-    group_entities =
-      entity_registry
-      |> Enum.filter(fn entry ->
-        String.starts_with?(entry["entity_id"], "light.") and
-          entry["platform"] in ["group", "light_group"]
-      end)
-      |> simplify_groups(group_members_by_entity_id)
-
-    %{
-      host: bridge.host,
-      areas: area_registry,
-      device_registry: device_registry,
-      light_entities: light_entities,
-      group_entities: group_entities,
-      light_states: light_states,
-      zha_groups: zha_groups,
-      light_count: length(light_entities),
-      total_entity_count: length(entity_registry),
-      exported_at: DateTime.utc_now() |> DateTime.to_iso8601()
-    }
+    :ha
+    |> Common.load_enabled_bridge!()
+    |> fetch_snapshot(true)
+    |> Map.put(:exported_at, DateTime.utc_now() |> DateTime.to_iso8601())
   end
 
   def fetch_for_bridge(bridge) do
+    fetch_snapshot(bridge, false)
+  end
+
+
+  defp fetch_snapshot(bridge, log?) do
     token = Bridge.credentials_struct(bridge).token
 
-    if invalid_credential?(token) do
+    if Common.invalid_credential?(token) do
       raise "Missing Home Assistant token for bridge #{bridge.name} (#{bridge.host})"
+    end
+
+    if log? do
+      Logger.info("Connecting to Home Assistant...")
     end
 
     {:ok, pid} = Client.connect(bridge.host, token)
 
+    if log? do
+      Logger.info("Fetching entity registry...")
+    end
+
     entity_registry = get_entity_registry(pid)
+
+    if log? do
+      Logger.info("Fetching device registry...")
+    end
+
     device_registry = get_device_registry(pid)
+
+    if log? do
+      Logger.info("Fetching area registry...")
+    end
+
     area_registry = get_area_registry(pid)
+
+    if log? do
+      Logger.info("Fetching light states...")
+    end
+
     states = get_states(pid)
     zone_by_entity_id = zone_by_entity_id(states)
     group_members_by_entity_id = group_members_by_entity_id(states)
@@ -132,7 +102,7 @@ defmodule Hueworks.Import.Fetch.HomeAssistant do
   def fetch_scene_entities_for_bridge(bridge) do
     token = Bridge.credentials_struct(bridge).token
 
-    if invalid_credential?(token) do
+    if Common.invalid_credential?(token) do
       raise "Missing Home Assistant token for bridge #{bridge.name} (#{bridge.host})"
     end
 
@@ -453,20 +423,4 @@ defmodule Hueworks.Import.Fetch.HomeAssistant do
     end
   end
 
-  defp load_bridge(type) do
-    case Repo.all(from(b in Bridge, where: b.type == ^type and b.enabled == true)) do
-      [bridge] ->
-        bridge
-
-      [] ->
-        raise "No enabled #{type} bridge found. Seed bridges before fetching."
-
-      _ ->
-        raise "Multiple enabled #{type} bridges found. Only one is supported for now."
-    end
-  end
-
-  defp invalid_credential?(value) do
-    not is_binary(value) or value == "" or value == "CHANGE_ME"
-  end
 end

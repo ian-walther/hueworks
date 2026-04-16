@@ -194,23 +194,23 @@
           <div class="hw-preview-stats">
             <div class="hw-preview-stat">
               <span class="hw-preview-stat-label">Sunrise</span>
-              <span class="hw-preview-stat-value"><%= marker_summary(@circadian_preview, :sunrise) %></span>
+              <span class="hw-preview-stat-value"><%= Preview.marker_summary(@circadian_preview, :sunrise) %></span>
             </div>
             <div class="hw-preview-stat">
               <span class="hw-preview-stat-label">Noon</span>
-              <span class="hw-preview-stat-value"><%= marker_summary(@circadian_preview, :noon) %></span>
+              <span class="hw-preview-stat-value"><%= Preview.marker_summary(@circadian_preview, :noon) %></span>
             </div>
             <div class="hw-preview-stat">
               <span class="hw-preview-stat-label">Sunset</span>
-              <span class="hw-preview-stat-value"><%= marker_summary(@circadian_preview, :sunset) %></span>
+              <span class="hw-preview-stat-value"><%= Preview.marker_summary(@circadian_preview, :sunset) %></span>
             </div>
             <div class="hw-preview-stat">
               <span class="hw-preview-stat-label">Brightness</span>
-              <span class="hw-preview-stat-value"><%= preview_range_label(@circadian_preview, :brightness) %></span>
+              <span class="hw-preview-stat-value"><%= Preview.range_label(@circadian_preview, :brightness) %></span>
             </div>
             <div class="hw-preview-stat">
               <span class="hw-preview-stat-label">Temperature</span>
-              <span class="hw-preview-stat-value"><%= preview_range_label(@circadian_preview, :kelvin) %></span>
+              <span class="hw-preview-stat-value"><%= Preview.range_label(@circadian_preview, :kelvin) %></span>
             </div>
           </div>
 
@@ -237,7 +237,7 @@
                       class="hw-modal-input hw-compact-input"
                       name="sunrise_time"
                       step="1"
-                      value={time_input_value(circadian_time_field_value(assigns, :sunrise_time))}
+                      value={Preview.time_input_value(circadian_time_field_value(assigns, :sunrise_time))}
                     />
                   </div>
 
@@ -256,7 +256,7 @@
                           class="hw-modal-input hw-compact-input"
                           name="min_sunrise_time"
                           step="1"
-                          value={time_input_value(circadian_time_field_value(assigns, :min_sunrise_time))}
+                          value={Preview.time_input_value(circadian_time_field_value(assigns, :min_sunrise_time))}
                         />
                       </div>
                       <div class="hw-field-compact">
@@ -267,7 +267,7 @@
                           class="hw-modal-input hw-compact-input"
                           name="max_sunrise_time"
                           step="1"
-                          value={time_input_value(circadian_time_field_value(assigns, :max_sunrise_time))}
+                          value={Preview.time_input_value(circadian_time_field_value(assigns, :max_sunrise_time))}
                         />
                       </div>
                     </div>
@@ -305,7 +305,7 @@
                       class="hw-modal-input hw-compact-input"
                       name="sunset_time"
                       step="1"
-                      value={time_input_value(circadian_time_field_value(assigns, :sunset_time))}
+                      value={Preview.time_input_value(circadian_time_field_value(assigns, :sunset_time))}
                     />
                   </div>
 
@@ -324,7 +324,7 @@
                           class="hw-modal-input hw-compact-input"
                           name="min_sunset_time"
                           step="1"
-                          value={time_input_value(circadian_time_field_value(assigns, :min_sunset_time))}
+                          value={Preview.time_input_value(circadian_time_field_value(assigns, :min_sunset_time))}
                         />
                       </div>
                       <div class="hw-field-compact">
@@ -335,7 +335,7 @@
                           class="hw-modal-input hw-compact-input"
                           name="max_sunset_time"
                           step="1"
-                          value={time_input_value(circadian_time_field_value(assigns, :max_sunset_time))}
+                          value={Preview.time_input_value(circadian_time_field_value(assigns, :max_sunset_time))}
                         />
                       </div>
                     </div>
@@ -367,7 +367,7 @@
                 id="circadian-brightness-card"
                 class="hw-chart-card hw-chart-card-interactive hw-config-card"
                 phx-hook="CircadianChart"
-                data-points={chart_points_json(@circadian_preview, :brightness)}
+                data-points={Preview.chart_points_json(@circadian_preview, :brightness)}
               >
                 <div class="hw-row">
                   <div class="hw-row-title">Brightness Curve</div>
@@ -375,26 +375,26 @@
                 </div>
                 <div class="hw-chart-frame">
                   <%= if @circadian_preview do %>
-                    <svg class="hw-chart" viewBox={chart_view_box()} role="img" aria-label="Brightness curve preview">
-                      <%= for tick <- y_ticks(@circadian_preview, :brightness) do %>
+                    <svg class="hw-chart" viewBox={Preview.chart_view_box()} role="img" aria-label="Brightness curve preview">
+                      <%= for tick <- Preview.y_ticks(@circadian_preview, :brightness) do %>
                         <line
-                          x1={x_position(0)}
-                          y1={y_position(tick.value, chart_domain(@circadian_preview, :brightness))}
-                          x2={x_position(1440)}
-                          y2={y_position(tick.value, chart_domain(@circadian_preview, :brightness))}
+                          x1={Preview.x_position(0)}
+                          y1={Preview.y_position(tick.value, Preview.chart_domain(@circadian_preview, :brightness))}
+                          x2={Preview.x_position(1440)}
+                          y2={Preview.y_position(tick.value, Preview.chart_domain(@circadian_preview, :brightness))}
                           class="hw-chart-grid"
                         />
                         <text
-                          x={chart_left_padding() - 10}
-                          y={y_position(tick.value, chart_domain(@circadian_preview, :brightness)) + 4}
+                          x={Preview.chart_left_padding() - 10}
+                          y={Preview.y_position(tick.value, Preview.chart_domain(@circadian_preview, :brightness)) + 4}
                           class="hw-chart-y-label"
                         ><%= tick.label %></text>
                       <% end %>
 
-                      <%= for tick <- x_ticks() do %>
+                      <%= for tick <- Preview.x_ticks() do %>
                         <text
-                          x={x_position(tick.minute)}
-                          y={chart_x_label_y()}
+                          x={Preview.x_position(tick.minute)}
+                          y={Preview.chart_x_label_y()}
                           text-anchor="middle"
                           class="hw-chart-x-label"
                         ><%= tick.label %></text>
@@ -402,14 +402,14 @@
 
                       <%= for marker <- @circadian_preview.brightness_markers do %>
                         <line
-                          x1={marker_x_position(marker.minute)}
-                          y1={chart_top_padding()}
-                          x2={marker_x_position(marker.minute)}
-                          y2={chart_bottom_y()}
+                          x1={Preview.marker_x_position(marker.minute)}
+                          y1={Preview.chart_top_padding()}
+                          x2={Preview.marker_x_position(marker.minute)}
+                          y2={Preview.chart_bottom_y()}
                           class="hw-chart-marker"
                         />
                         <text
-                          x={marker_x_position(marker.minute)}
+                          x={Preview.marker_x_position(marker.minute)}
                           y={13}
                           text-anchor="middle"
                           class="hw-chart-marker-label"
@@ -417,22 +417,22 @@
                       <% end %>
 
                       <line
-                        x1={chart_left_padding()}
-                        y1={chart_top_padding()}
-                        x2={chart_left_padding()}
-                        y2={chart_bottom_y()}
+                        x1={Preview.chart_left_padding()}
+                        y1={Preview.chart_top_padding()}
+                        x2={Preview.chart_left_padding()}
+                        y2={Preview.chart_bottom_y()}
                         class="hw-chart-hover-line"
                         data-role="crosshair"
                       />
                       <circle
-                        cx={chart_left_padding()}
-                        cy={chart_bottom_y()}
+                        cx={Preview.chart_left_padding()}
+                        cy={Preview.chart_bottom_y()}
                         r="5"
                         class="hw-chart-focus-dot"
                         data-role="focus-dot"
                       />
 
-                      <path d={chart_path(@circadian_preview, :brightness)} class="hw-chart-line hw-chart-line-brightness" />
+                      <path d={Preview.chart_path(@circadian_preview, :brightness)} class="hw-chart-line hw-chart-line-brightness" />
                     </svg>
                     <div class="hw-chart-tooltip" data-role="tooltip"></div>
                   <% else %>
@@ -573,34 +573,34 @@
                 id="circadian-kelvin-card"
                 class="hw-chart-card hw-chart-card-interactive hw-config-card"
                 phx-hook="CircadianChart"
-                data-points={chart_points_json(@circadian_preview, :kelvin)}
+                data-points={Preview.chart_points_json(@circadian_preview, :kelvin)}
               >
                 <div class="hw-row">
                   <div class="hw-row-title">Temperature Curve</div>
-                  <div class="hw-muted"><%= preview_range_label(@circadian_preview, :kelvin) %></div>
+                  <div class="hw-muted"><%= Preview.range_label(@circadian_preview, :kelvin) %></div>
                 </div>
                 <div class="hw-chart-frame">
                   <%= if @circadian_preview do %>
-                    <svg class="hw-chart" viewBox={chart_view_box()} role="img" aria-label="Temperature curve preview">
-                      <%= for tick <- y_ticks(@circadian_preview, :kelvin) do %>
+                    <svg class="hw-chart" viewBox={Preview.chart_view_box()} role="img" aria-label="Temperature curve preview">
+                      <%= for tick <- Preview.y_ticks(@circadian_preview, :kelvin) do %>
                         <line
-                          x1={x_position(0)}
-                          y1={y_position(tick.value, chart_domain(@circadian_preview, :kelvin))}
-                          x2={x_position(1440)}
-                          y2={y_position(tick.value, chart_domain(@circadian_preview, :kelvin))}
+                          x1={Preview.x_position(0)}
+                          y1={Preview.y_position(tick.value, Preview.chart_domain(@circadian_preview, :kelvin))}
+                          x2={Preview.x_position(1440)}
+                          y2={Preview.y_position(tick.value, Preview.chart_domain(@circadian_preview, :kelvin))}
                           class="hw-chart-grid"
                         />
                         <text
-                          x={chart_left_padding() - 10}
-                          y={y_position(tick.value, chart_domain(@circadian_preview, :kelvin)) + 4}
+                          x={Preview.chart_left_padding() - 10}
+                          y={Preview.y_position(tick.value, Preview.chart_domain(@circadian_preview, :kelvin)) + 4}
                           class="hw-chart-y-label"
                         ><%= tick.label %></text>
                       <% end %>
 
-                      <%= for tick <- x_ticks() do %>
+                      <%= for tick <- Preview.x_ticks() do %>
                         <text
-                          x={x_position(tick.minute)}
-                          y={chart_x_label_y()}
+                          x={Preview.x_position(tick.minute)}
+                          y={Preview.chart_x_label_y()}
                           text-anchor="middle"
                           class="hw-chart-x-label"
                         ><%= tick.label %></text>
@@ -608,14 +608,14 @@
 
                       <%= for marker <- @circadian_preview.temperature_markers do %>
                         <line
-                          x1={marker_x_position(marker.minute)}
-                          y1={chart_top_padding()}
-                          x2={marker_x_position(marker.minute)}
-                          y2={chart_bottom_y()}
+                          x1={Preview.marker_x_position(marker.minute)}
+                          y1={Preview.chart_top_padding()}
+                          x2={Preview.marker_x_position(marker.minute)}
+                          y2={Preview.chart_bottom_y()}
                           class="hw-chart-marker"
                         />
                         <text
-                          x={marker_x_position(marker.minute)}
+                          x={Preview.marker_x_position(marker.minute)}
                           y={13}
                           text-anchor="middle"
                           class="hw-chart-marker-label"
@@ -623,22 +623,22 @@
                       <% end %>
 
                       <line
-                        x1={chart_left_padding()}
-                        y1={chart_top_padding()}
-                        x2={chart_left_padding()}
-                        y2={chart_bottom_y()}
+                        x1={Preview.chart_left_padding()}
+                        y1={Preview.chart_top_padding()}
+                        x2={Preview.chart_left_padding()}
+                        y2={Preview.chart_bottom_y()}
                         class="hw-chart-hover-line"
                         data-role="crosshair"
                       />
                       <circle
-                        cx={chart_left_padding()}
-                        cy={chart_bottom_y()}
+                        cx={Preview.chart_left_padding()}
+                        cy={Preview.chart_bottom_y()}
                         r="5"
                         class="hw-chart-focus-dot"
                         data-role="focus-dot"
                       />
 
-                      <path d={chart_path(@circadian_preview, :kelvin)} class="hw-chart-line hw-chart-line-kelvin" />
+                      <path d={Preview.chart_path(@circadian_preview, :kelvin)} class="hw-chart-line hw-chart-line-kelvin" />
                     </svg>
                     <div class="hw-chart-tooltip" data-role="tooltip"></div>
                   <% else %>

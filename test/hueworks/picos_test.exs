@@ -188,6 +188,79 @@ defmodule Hueworks.PicosTest do
     assert Enum.map(device.buttons, & &1.button_number) == [2, 3, 4, 5, 6]
   end
 
+  test "sync_bridge_picos removes stale devices and stale button mappings" do
+    bridge = insert_bridge(%{host: "10.0.0.54"})
+    room = Repo.insert!(%Room{name: "Kitchen"})
+
+    stale_device =
+      Repo.insert!(%PicoDevice{
+        bridge_id: bridge.id,
+        room_id: room.id,
+        source_id: "stale-device",
+        name: "Stale Pico",
+        hardware_profile: "2_button",
+        enabled: true
+      })
+
+    active_device =
+      Repo.insert!(%PicoDevice{
+        bridge_id: bridge.id,
+        room_id: room.id,
+        source_id: "device-1",
+        name: "Kitchen Pico",
+        hardware_profile: "5_button",
+        enabled: true
+      })
+
+    _stale_button =
+      insert_pico_button(%{
+        pico_device_id: active_device.id,
+        source_id: "stale-button",
+        button_number: 8,
+        slot_index: 5,
+        enabled: true
+      })
+
+    _active_button =
+      insert_pico_button(%{
+        pico_device_id: active_device.id,
+        source_id: "1",
+        button_number: 2,
+        slot_index: 0,
+        enabled: true
+      })
+
+    raw = %{
+      lights: [],
+      pico_buttons: [
+        %{
+          button_id: "1",
+          button_number: 2,
+          parent_device_id: "device-1",
+          device_name: "Kitchen Pico",
+          area_id: nil
+        },
+        %{
+          button_id: "2",
+          button_number: 4,
+          parent_device_id: "device-1",
+          device_name: "Kitchen Pico",
+          area_id: nil
+        }
+      ]
+    }
+
+    assert {:ok, [device]} = Picos.sync_bridge_picos(bridge, raw)
+    assert device.source_id == "device-1"
+    refute Repo.get(PicoDevice, stale_device.id)
+
+    button_source_ids =
+      Repo.all(from(pb in PicoButton, where: pb.pico_device_id == ^device.id, select: pb.source_id))
+      |> Enum.sort()
+
+    assert button_source_ids == ["1", "2"]
+  end
+
   test "control groups can be saved and buttons can target them" do
     bridge = insert_bridge(%{host: "10.0.0.51"})
     room = Repo.insert!(%Room{name: "Den"})

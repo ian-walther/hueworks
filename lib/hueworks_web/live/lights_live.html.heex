@@ -18,7 +18,7 @@
       <div class="hw-panel-header">
         <h2>Groups</h2>
         <span class="hw-count">
-          <%= length(filter_entities(@groups, @group_filter, @group_room_filter, @show_disabled_groups)) %>
+          <%= length(Filters.filter_entities(@groups, @group_filter, @group_room_filter, @show_disabled_groups)) %>
         </span>
       </div>
       <div class="hw-filter-row">
@@ -57,7 +57,7 @@
         </form>
       </div>
       <div class="hw-list">
-        <%= for group <- filter_entities(@groups, @group_filter, @group_room_filter, @show_disabled_groups) do %>
+        <%= for group <- Filters.filter_entities(@groups, @group_filter, @group_room_filter, @show_disabled_groups) do %>
           <div class="hw-card" id={"group-#{group.id}"}>
             <div class="hw-card-title">
               <div>
@@ -93,8 +93,8 @@
             </div>
 
             <div class="hw-controls">
-              <% group_power = get_state_value(@group_state, group.id, :power, :off) %>
-              <% manual_adjustment_locked = manual_adjustment_locked?(@active_scene_by_room, group.room_id) %>
+              <% group_power = Presentation.state_value(@group_state, group.id, :power, :off) %>
+              <% manual_adjustment_locked = Presentation.manual_adjustment_locked?(@active_scene_by_room, group.room_id) %>
               <button
                 class={"hw-button #{if group_power in [:on, "on", true], do: "hw-button-on", else: "hw-button-off"}"}
                 phx-click="toggle"
@@ -102,7 +102,7 @@
                 phx-value-id={group.id}
               >On/Off</button>
               <div class="hw-slider">
-                <% brightness = get_state_value(@group_state, group.id, :brightness, 75) %>
+                <% brightness = Presentation.state_value(@group_state, group.id, :brightness, 75) %>
                 <input
                   id={"group-level-#{group.id}"}
                   type="range"
@@ -123,7 +123,7 @@
               <%= if group.supports_temp do %>
                 <div class="hw-slider">
               <% {min_k, max_k} = Hueworks.Kelvin.derive_range(group) %>
-                  <% kelvin = get_state_value(@group_state, group.id, :kelvin, round((min_k + max_k) / 2)) %>
+                  <% kelvin = Presentation.state_value(@group_state, group.id, :kelvin, round((min_k + max_k) / 2)) %>
                   <input
                     id={"group-temp-#{group.id}"}
                     type="range"
@@ -143,10 +143,10 @@
                 </div>
               <% end %>
               <%= if group.supports_color do %>
-                <% color_preview = color_preview_values(@group_state, group.id) %>
+                <% color_preview = Presentation.color_preview(@group_state, group.id) %>
                 <div class="hw-color-preview">
-                  <span class="hw-color-swatch" style={color_preview_style(@group_state, group.id)}></span>
-                  <span class="hw-muted"><%= color_preview_label(@group_state, group.id) %></span>
+                  <span class="hw-color-swatch" style={Presentation.color_preview_style(@group_state, group.id)}></span>
+                  <span class="hw-muted"><%= Presentation.color_preview_label(@group_state, group.id) %></span>
                 </div>
                 <div class="hw-slider">
                   <input
@@ -191,7 +191,7 @@
                 </div>
                 <div
                   class="hw-color-scale"
-                  style={color_saturation_scale_style(@group_state, group.id)}
+                  style={Presentation.color_saturation_scale_style(@group_state, group.id)}
                   aria-hidden="true"
                 ></div>
               <% end %>
@@ -205,7 +205,7 @@
       <div class="hw-panel-header">
         <h2>Lights</h2>
         <span class="hw-count">
-          <%= length(filter_lights(@lights, @light_filter, @light_room_filter, @show_disabled_lights, @show_linked_lights)) %>
+          <%= length(Filters.filter_lights(@lights, @light_filter, @light_room_filter, @show_disabled_lights, @show_linked_lights)) %>
         </span>
       </div>
       <div class="hw-filter-row">
@@ -255,7 +255,7 @@
         </form>
       </div>
       <div class="hw-list">
-        <%= for light <- filter_lights(@lights, @light_filter, @light_room_filter, @show_disabled_lights, @show_linked_lights) do %>
+        <%= for light <- Filters.filter_lights(@lights, @light_filter, @light_room_filter, @show_disabled_lights, @show_linked_lights) do %>
           <div class="hw-card" id={"light-#{light.id}"}>
             <div class="hw-card-title">
               <div>
@@ -291,8 +291,8 @@
             </div>
 
             <div class="hw-controls">
-              <% light_power = get_state_value(@light_state, light.id, :power, :off) %>
-              <% manual_adjustment_locked = manual_adjustment_locked?(@active_scene_by_room, light.room_id) %>
+              <% light_power = Presentation.state_value(@light_state, light.id, :power, :off) %>
+              <% manual_adjustment_locked = Presentation.manual_adjustment_locked?(@active_scene_by_room, light.room_id) %>
               <button
                 class={"hw-button #{if light_power in [:on, "on", true], do: "hw-button-on", else: "hw-button-off"}"}
                 phx-click="toggle"
@@ -300,7 +300,7 @@
                 phx-value-id={light.id}
               >On/Off</button>
               <div class="hw-slider">
-                <% brightness = get_state_value(@light_state, light.id, :brightness, 75) %>
+                <% brightness = Presentation.state_value(@light_state, light.id, :brightness, 75) %>
                 <input
                   id={"light-level-#{light.id}"}
                   type="range"
@@ -321,7 +321,7 @@
               <%= if light.supports_temp do %>
                 <div class="hw-slider">
                   <% {min_k, max_k} = Hueworks.Kelvin.derive_range(light) %>
-                  <% kelvin = get_state_value(@light_state, light.id, :kelvin, round((min_k + max_k) / 2)) %>
+                  <% kelvin = Presentation.state_value(@light_state, light.id, :kelvin, round((min_k + max_k) / 2)) %>
                   <input
                     id={"light-temp-#{light.id}"}
                     type="range"
@@ -341,10 +341,10 @@
                 </div>
               <% end %>
               <%= if light.supports_color do %>
-                <% color_preview = color_preview_values(@light_state, light.id) %>
+                <% color_preview = Presentation.color_preview(@light_state, light.id) %>
                 <div class="hw-color-preview">
-                  <span class="hw-color-swatch" style={color_preview_style(@light_state, light.id)}></span>
-                  <span class="hw-muted"><%= color_preview_label(@light_state, light.id) %></span>
+                  <span class="hw-color-swatch" style={Presentation.color_preview_style(@light_state, light.id)}></span>
+                  <span class="hw-muted"><%= Presentation.color_preview_label(@light_state, light.id) %></span>
                 </div>
                 <div class="hw-slider">
                   <input
@@ -389,7 +389,7 @@
                 </div>
                 <div
                   class="hw-color-scale"
-                  style={color_saturation_scale_style(@light_state, light.id)}
+                  style={Presentation.color_saturation_scale_style(@light_state, light.id)}
                   aria-hidden="true"
                 ></div>
               <% end %>

@@ -33,6 +33,14 @@ defmodule Hueworks.DataCase do
     |> Repo.insert!()
   end
 
+  def restore_app_env(app, key, nil) do
+    Application.delete_env(app, key)
+  end
+
+  def restore_app_env(app, key, value) do
+    Application.put_env(app, key, value)
+  end
+
   defp clear_ets(table) do
     if :ets.whereis(table) != :undefined do
       :ets.delete_all_objects(table)
