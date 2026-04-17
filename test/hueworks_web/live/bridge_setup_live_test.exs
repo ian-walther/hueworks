@@ -8,14 +8,54 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
 
   setup do
     previous = Application.get_env(:hueworks, :import_pipeline)
+    previous_payload = Application.get_env(:hueworks, :import_pipeline_payload)
     Application.put_env(:hueworks, :import_pipeline, Hueworks.Import.PipelineStub)
 
     on_exit(fn ->
-      Application.put_env(:hueworks, :import_pipeline, previous)
-      Application.delete_env(:hueworks, :import_pipeline_payload)
+      restore_app_env(:hueworks, :import_pipeline, previous)
+      restore_app_env(:hueworks, :import_pipeline_payload, previous_payload)
     end)
 
     :ok
+  end
+
+  test "import errors are shown when the import pipeline fails", %{conn: conn} do
+    bridge =
+      %Bridge{}
+      |> Bridge.changeset(%{
+        type: :hue,
+        name: "Hue Bridge",
+        host: "10.0.0.209",
+        credentials: %{"api_key" => "key"},
+        import_complete: false,
+        enabled: true
+      })
+      |> Repo.insert!()
+
+    Application.delete_env(:hueworks, :import_pipeline_payload)
+
+    {:ok, view, html} = live(conn, "/config/bridge/#{bridge.id}/setup")
+    refute html =~ "Missing test import payload"
+
+    html = render(view)
+
+    assert html =~ "Missing test import payload"
+    assert get_assign(view, :import_status) == :error
+    assert get_assign(view, :import_error) == "Missing test import payload"
+  end
+
+  test "apply_materialization shows an error when the persisted bridge import is stale", %{conn: conn} do
+    {view, _bridge} = setup_import_view(conn, with_unassigned: false)
+    bridge_import = get_assign(view, :bridge_import)
+    Repo.delete!(bridge_import)
+
+    html =
+      view
+      |> element("button[phx-click='apply_materialization']")
+      |> render_click()
+
+    assert html =~ "stale"
+    assert get_assign(view, :import_status) == :error
   end
 
   test "skipping rooms in the UI plan updates the plan state", %{conn: conn} do

@@ -219,19 +219,19 @@ defmodule HueworksWeb.BridgeSetupLive do
   defp update_review_blob(bridge_import, plan) do
     bridge_import
     |> Hueworks.Schemas.BridgeImport.changeset(%{review_blob: plan, status: :reviewed})
-    |> Repo.update()
+    |> Repo.update(stale_error_field: :review_blob)
   end
 
   defp mark_applied(bridge_import) do
     bridge_import
     |> Hueworks.Schemas.BridgeImport.changeset(%{status: :applied})
-    |> Repo.update()
+    |> Repo.update(stale_error_field: :status)
   end
 
   defp mark_bridge_complete(bridge) do
     bridge
     |> Bridge.changeset(%{import_complete: true})
-    |> Repo.update()
+    |> Repo.update(stale_error_field: :import_complete)
   end
 
   defp maybe_delete_entities(%{assigns: %{reimport: true, bridge: bridge}} = socket, plan) do

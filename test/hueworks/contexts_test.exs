@@ -312,6 +312,26 @@ defmodule Hueworks.ContextsTest do
     assert Rooms.get_room(updated.id) == nil
   end
 
+  test "Rooms.list_rooms_with_children preloads room associations and occupancy helpers work" do
+    room = insert_room("Studio")
+    bridge = insert_bridge(%{host: "10.0.0.155"})
+    light = insert_light(bridge, %{source_id: "room-light", room_id: room.id})
+    group = insert_group(bridge, %{source_id: "room-group", room_id: room.id})
+    {:ok, scene} = Scenes.create_scene(%{name: "Evening", room_id: room.id})
+
+    [loaded_room] = Rooms.list_rooms_with_children()
+
+    assert loaded_room.id == room.id
+    assert Enum.map(loaded_room.lights, & &1.id) == [light.id]
+    assert Enum.map(loaded_room.groups, & &1.id) == [group.id]
+    assert Enum.map(loaded_room.scenes, & &1.id) == [scene.id]
+
+    assert Rooms.room_occupied?(room.id) == true
+    :ok = Rooms.set_occupied(room.id, false)
+    assert Rooms.room_occupied?(room.id) == false
+    assert Rooms.room_occupied?(999_999) == true
+  end
+
   test "Bridges.latest_import and list_imports_for_bridge return newest imports first" do
     bridge = insert_bridge(%{host: "10.0.0.16"})
 
@@ -333,6 +353,138 @@ defmodule Hueworks.ContextsTest do
 
     assert Bridges.list_imports_for_bridge(bridge, limit: 1)
            |> Enum.map(& &1.id) == [newest.id]
+  end
+
+  test "Bridges.delete_entities removes bridge-owned entities and resets import_complete" do
+    bridge =
+      insert_bridge(%{
+        type: :caseta,
+        host: "10.0.0.156",
+        credentials: %{"cert_path" => "a", "key_path" => "b", "cacert_path" => "c"},
+        import_complete: true
+      })
+
+    room = insert_room("Delete Entities Room")
+    light = insert_light(bridge, %{source: :caseta, source_id: "delete-light", room_id: room.id})
+    group = insert_group(bridge, %{source: :caseta, source_id: "delete-group", room_id: room.id})
+    Repo.insert!(%GroupLight{group_id: group.id, light_id: light.id})
+
+    {:ok, scene} = Scenes.create_scene(%{name: "Delete Scene", room_id: room.id})
+    {:ok, light_state} = Scenes.create_manual_light_state("Delete State", %{"brightness" => "40"})
+
+    {:ok, _} =
+      Scenes.replace_scene_components(scene, [%{light_ids: [light.id], light_state_id: light_state.id}])
+
+    Repo.insert!(%Hueworks.Schemas.PicoDevice{
+      bridge_id: bridge.id,
+      room_id: room.id,
+      source_id: "device-1",
+      name: "Pico",
+      hardware_profile: "5_button",
+      metadata: %{}
+    })
+
+    assert {:ok, :ok} = Bridges.delete_entities(bridge)
+
+    assert Repo.get!(Hueworks.Schemas.Bridge, bridge.id).import_complete == false
+    assert Repo.aggregate(Light, :count) == 0
+    assert Repo.aggregate(Group, :count) == 0
+    assert Repo.aggregate(Hueworks.Schemas.PicoDevice, :count) == 0
+    assert Repo.aggregate(GroupLight, :count) == 0
+    assert Repo.aggregate(Hueworks.Schemas.SceneComponentLight, :count) == 0
+
+    Process.sleep(50)
+  end
+
+  test "Bridges.delete_unchecked_entities only removes matching external ids and clears Caseta picos" do
+    bridge =
+      insert_bridge(%{
+        type: :caseta,
+        host: "10.0.0.157",
+        credentials: %{"cert_path" => "a", "key_path" => "b", "cacert_path" => "c"},
+        import_complete: true
+      })
+
+    room = insert_room("Selective Delete Room")
+
+    keep_light =
+      insert_light(bridge, %{
+        source: :caseta,
+        source_id: "keep-light",
+        external_id: "light.keep",
+        room_id: room.id
+      })
+
+    delete_light =
+      insert_light(bridge, %{
+        source: :caseta,
+        source_id: "delete-light",
+        external_id: "light.delete",
+        room_id: room.id
+      })
+
+    keep_group =
+      insert_group(bridge, %{
+        source: :caseta,
+        source_id: "keep-group",
+        external_id: "group.keep",
+        room_id: room.id
+      })
+
+    delete_group =
+      insert_group(bridge, %{
+        source: :caseta,
+        source_id: "delete-group",
+        external_id: "group.delete",
+        room_id: room.id
+      })
+
+    Repo.insert!(%GroupLight{group_id: keep_group.id, light_id: keep_light.id})
+    Repo.insert!(%GroupLight{group_id: delete_group.id, light_id: delete_light.id})
+
+    {:ok, scene} = Scenes.create_scene(%{name: "Selective Delete Scene", room_id: room.id})
+    {:ok, light_state} = Scenes.create_manual_light_state("Selective Delete State", %{"brightness" => "40"})
+
+    {:ok, _} =
+      Scenes.replace_scene_components(scene, [
+        %{light_ids: [delete_light.id], light_state_id: light_state.id}
+      ])
+
+    Repo.insert!(%Hueworks.Schemas.PicoDevice{
+      bridge_id: bridge.id,
+      room_id: room.id,
+      source_id: "device-1",
+      name: "Pico",
+      hardware_profile: "5_button",
+      metadata: %{}
+    })
+
+    assert {:ok, :ok} =
+             Bridges.delete_unchecked_entities(bridge, ["light.delete"], ["group.delete"])
+
+    assert Repo.get!(Light, keep_light.id)
+    assert Repo.get!(Group, keep_group.id)
+    refute Repo.get(Light, delete_light.id)
+    refute Repo.get(Group, delete_group.id)
+    assert Repo.aggregate(Hueworks.Schemas.PicoDevice, :count) == 0
+    assert Repo.aggregate(Hueworks.Schemas.SceneComponentLight, :count) == 0
+
+    Process.sleep(50)
+  end
+
+  test "Lights.update_link rejects non-root canonical targets and supports unlinking" do
+    bridge = insert_bridge(%{host: "10.0.0.158"})
+    root = insert_light(bridge, %{source_id: "root"})
+    child = insert_light(bridge, %{source_id: "child"})
+    linked_target = insert_light(bridge, %{source_id: "linked-target", canonical_light_id: root.id})
+
+    assert {:error, :invalid_canonical_light} = Lights.update_link(child, linked_target.id)
+
+    assert {:ok, linked} = Lights.update_link(child, root.id)
+    assert linked.canonical_light_id == root.id
+
+    assert {:ok, unlinked} = Lights.update_link(linked, nil)
+    assert unlinked.canonical_light_id == nil
   end
 
   test "Scenes context supports CRUD and list ordering" do

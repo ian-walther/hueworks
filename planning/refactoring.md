@@ -208,15 +208,18 @@ There are a few features whose complexity cost may eventually outweigh their val
 Candidate areas:
 - extended low-end kelvin support
 - manual-on/default-off semantics inside active scenes
+- manual control reliability when no scene is active
+  - observed behavior: direct manual control commands seem to fail intermittently when the room has no active scene
+  - keep this visible as a product/reliability investigation so it does not get lost before feature work resumes
 - timing-based scene-clear protection
 - manual power-latch survival across scene reapply
 
-### 6) Add dialyxir and begin @spec coverage
-`dialyxir` is not in `mix.exs` — no static type checking is configured. Only 3 `@spec` declarations exist across the codebase today.
+### 6) Work down the Dialyzer baseline and expand @spec coverage
+`dialyxir` is available now, but the codebase still has a large baseline of Dialyzer findings and only a small amount of useful `@spec` coverage.
 
 Preferred direction:
-- add `{:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false}` to mix.exs
-- start with @specs on the modules that matter most for correctness: `state.ex`, `desired_state.ex`, `light_state_semantics.ex`, `state_parser.ex`, `scenes.ex`
+- keep working down the current Dialyzer warning baseline in small, correctness-focused batches rather than trying to “make Dialyzer green” all at once
+- continue adding @specs on the modules that matter most for correctness: `state.ex`, `desired_state.ex`, `light_state_semantics.ex`, `state_parser.ex`, `scenes.ex`
 - pairs naturally with the struct/embedded schema work — specs become more useful once the data shapes are well-defined
 - do not try to spec everything at once; grow coverage incrementally as modules are touched
 
@@ -234,7 +237,7 @@ Suggested sequence:
 - add more direct tests for context/query modules that are currently mostly protected indirectly
 - add failure-path tests for import, bridge setup, external-scene mapping, and other admin/config flows
 - add property-style tests for calculation-heavy modules like `Circadian`, `Color`, and `Kelvin`
-- then add `dialyxir` and begin `@spec` work on the correctness-critical modules
+- then keep expanding `@spec` coverage and reducing the Dialyzer baseline on correctness-critical modules
 
 High-value coverage targets:
 - destructive UI actions

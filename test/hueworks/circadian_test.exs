@@ -222,6 +222,88 @@ defmodule Hueworks.CircadianTest do
     assert noon.kelvin == 4500
   end
 
+  test "returns invalid_args for non-map inputs" do
+    assert {:error, :invalid_args} =
+             Circadian.calculate(:bad_config, @solar_config, utc_dt("2026-03-08T12:00:00Z"))
+
+    assert {:error, :invalid_args} =
+             Circadian.day_events_for_date(:bad_config, @solar_config, ~D[2026-03-08])
+  end
+
+  test "returns a clear error when curve offsets produce an impossible sun-event order" do
+    config = %{
+      "sunrise_time" => "06:00:00",
+      "sunset_time" => "18:00:00",
+      "min_brightness" => 10,
+      "max_brightness" => 90,
+      "min_color_temp" => 2000,
+      "max_color_temp" => 5000,
+      "brightness_mode" => "linear",
+      "brightness_mode_time_dark" => 900,
+      "brightness_mode_time_light" => 3600,
+      "brightness_sunrise_offset" => 36_000,
+      "brightness_sunset_offset" => -36_000,
+      "temperature_sunrise_offset" => 0,
+      "temperature_sunset_offset" => 0
+    }
+
+    assert {:error, {:invalid_sun_event_order, order}} =
+             Circadian.calculate(config, @solar_config, utc_dt("2026-03-08T12:00:00Z"))
+
+    assert is_list(order)
+    assert Enum.sort(order) == [:midnight, :noon, :sunrise, :sunset]
+  end
+
+  test "day_events_for_date returns all sun events in chronological order" do
+    config = %{
+      "sunrise_time" => "06:00:00",
+      "sunset_time" => "18:00:00",
+      "brightness_sunrise_offset" => 0,
+      "brightness_sunset_offset" => 0,
+      "temperature_sunrise_offset" => 0,
+      "temperature_sunset_offset" => 0
+    }
+
+    assert {:ok, events} = Circadian.day_events_for_date(config, @solar_config, ~D[2026-03-08])
+
+    assert Keyword.keys(events) == [:sunrise, :sunset, :noon, :midnight]
+    assert DateTime.compare(events[:sunrise], events[:noon]) == :lt
+    assert DateTime.compare(events[:noon], events[:sunset]) == :lt
+
+    assert DateTime.compare(events[:midnight], events[:sunrise]) == :lt or
+             DateTime.compare(events[:sunset], events[:midnight]) == :lt
+  end
+
+  test "astronomical circadian results stay within configured bounds across representative times" do
+    config = %{
+      "min_brightness" => 5,
+      "max_brightness" => 85,
+      "min_color_temp" => 2200,
+      "max_color_temp" => 5000,
+      "brightness_sunrise_offset" => 0,
+      "brightness_sunset_offset" => 0,
+      "temperature_sunrise_offset" => 0,
+      "temperature_sunset_offset" => 0
+    }
+
+    Enum.each(
+      [
+        "2026-03-08T02:00:00Z",
+        "2026-03-08T08:00:00Z",
+        "2026-03-08T12:00:00Z",
+        "2026-03-08T18:00:00Z",
+        "2026-03-08T23:00:00Z"
+      ],
+      fn iso8601 ->
+        assert {:ok, result} = Circadian.calculate(config, @solar_config, utc_dt(iso8601))
+        assert result.brightness in 5..85
+        assert result.kelvin in 2200..5000
+        assert result.sun_position >= -1.0
+        assert result.sun_position <= 1.0
+      end
+    )
+  end
+
   defp utc_dt(iso8601) do
     {:ok, datetime, 0} = DateTime.from_iso8601(iso8601)
     datetime

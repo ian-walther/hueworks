@@ -13,9 +13,27 @@ defmodule Hueworks.Control.DesiredState do
 
   @table :hueworks_desired_state
 
+  @type entity_type :: atom()
+  @type entity_id :: term()
+  @type attrs_map :: map()
+  @type entity_key :: {entity_type(), entity_id()}
+  @type diff_map :: %{optional(entity_key()) => attrs_map()}
+  @type commit_result :: %{
+          intent_diff: diff_map(),
+          reconcile_diff: diff_map(),
+          updated: diff_map()
+        }
+
   defmodule Transaction do
     defstruct [:scene_id, :changes]
   end
+
+  @type transaction :: %Transaction{
+          scene_id: term(),
+          changes: %{optional(entity_key()) => attrs_map()}
+        }
+
+  @spec start_link(term()) :: GenServer.on_start()
 
   def start_link(_opts) do
     GenServer.start_link(__MODULE__, %{}, name: __MODULE__)
@@ -31,6 +49,7 @@ defmodule Hueworks.Control.DesiredState do
     {:ok, %{}}
   end
 
+  @spec get(entity_type(), entity_id()) :: attrs_map() | nil
   def get(type, id) do
     case :ets.lookup(@table, {type, id}) do
       [{_key, state}] -> state
@@ -38,14 +57,17 @@ defmodule Hueworks.Control.DesiredState do
     end
   end
 
+  @spec put(entity_type(), entity_id(), attrs_map()) :: attrs_map()
   def put(type, id, attrs) when is_map(attrs) do
     GenServer.call(__MODULE__, {:put, type, id, attrs})
   end
 
+  @spec begin(term()) :: transaction()
   def begin(scene_id) do
     %Transaction{scene_id: scene_id, changes: %{}}
   end
 
+  @spec apply(transaction(), entity_type(), entity_id(), attrs_map()) :: transaction()
   def apply(%Transaction{} = txn, type, id, attrs) when is_map(attrs) do
     key = {type, id}
     current = Map.get(txn.changes, key) || get(type, id) || %{}
@@ -58,6 +80,7 @@ defmodule Hueworks.Control.DesiredState do
     %{txn | changes: Map.put(txn.changes, key, desired)}
   end
 
+  @spec commit(transaction()) :: {:ok, commit_result()}
   def commit(%Transaction{} = txn) do
     {intent_diff, reconcile_diff, updated} =
       Enum.reduce(txn.changes, {%{}, %{}, %{}}, fn

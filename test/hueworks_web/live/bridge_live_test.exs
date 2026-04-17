@@ -73,4 +73,19 @@ defmodule HueworksWeb.BridgeLiveTest do
     assert bridge.import_complete == false
     assert bridge.enabled == true
   end
+
+  test "cannot proceed before running a successful connection test", %{conn: conn} do
+    {:ok, view, _html} = live(conn, "/config/bridge/new")
+
+    render_change(view, "update_bridge", %{
+      "type" => "ha",
+      "host" => "ha.local",
+      "ha_token" => "token"
+    })
+
+    html = render_click(view, "proceed_bridge", %{})
+
+    assert html =~ "Run Test before proceeding."
+    refute Repo.get_by(Bridge, host: "ha.local", type: :ha)
+  end
 end

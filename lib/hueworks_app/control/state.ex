@@ -13,6 +13,13 @@ defmodule Hueworks.Control.State do
   @table :hueworks_control_state
   @topic "control_state"
 
+  @type entity_type :: atom()
+  @type entity_id :: term()
+  @type state_map :: map()
+  @type put_opts :: keyword()
+
+  @spec start_link(term()) :: GenServer.on_start()
+
   def start_link(_opts) do
     GenServer.start_link(__MODULE__, %{}, name: __MODULE__)
   end
@@ -27,6 +34,7 @@ defmodule Hueworks.Control.State do
     {:ok, %{}, {:continue, :bootstrap}}
   end
 
+  @spec get(entity_type(), entity_id()) :: state_map() | nil
   def get(type, id) do
     case :ets.lookup(@table, {type, id}) do
       [{_key, state}] -> state
@@ -34,20 +42,25 @@ defmodule Hueworks.Control.State do
     end
   end
 
+  @spec ensure(entity_type(), entity_id(), state_map()) :: state_map()
   def ensure(type, id, defaults) when is_map(defaults) do
     GenServer.call(__MODULE__, {:ensure, type, id, defaults})
   end
 
+  @spec put(entity_type(), entity_id(), state_map(), put_opts()) :: state_map()
   def put(type, id, attrs, opts \\ []) when is_map(attrs) and is_list(opts) do
     GenServer.call(__MODULE__, {:put, type, id, attrs, self(), opts})
   end
 
+  @spec bootstrap() :: :ok
   def bootstrap do
     GenServer.cast(__MODULE__, :bootstrap)
   end
 
+  @spec suppress_scene_clear_for_refresh() :: :ok
   def suppress_scene_clear_for_refresh, do: :ok
 
+  @spec clear_scene_clear_suppression() :: :ok
   def clear_scene_clear_suppression, do: :ok
 
   @impl true

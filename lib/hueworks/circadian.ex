@@ -365,15 +365,23 @@ defmodule Hueworks.Circadian do
 
   defp solar_event(date, solar_config, :sunrise) do
     with {:ok, latitude, longitude} <- coordinates(solar_config),
-         {:ok, naive} <- Solarex.Sun.rise(date, latitude, longitude) do
-      {:ok, DateTime.from_naive!(naive, "Etc/UTC")}
+         {:ok, solar_noon_ms} <- solar_noon_timestamp_ms(date, latitude, longitude),
+         {:ok, rise_hour_angle} <- Solarex.Sun.rise_hour_angle(solar_noon_ms, latitude) do
+      solar_noon_ms
+      |> Kernel.+(round(rise_hour_angle * 4 * 1000 * 60))
+      |> DateTime.from_unix!(:millisecond)
+      |> then(&{:ok, &1})
     end
   end
 
   defp solar_event(date, solar_config, :sunset) do
     with {:ok, latitude, longitude} <- coordinates(solar_config),
-         {:ok, naive} <- Solarex.Sun.set(date, latitude, longitude) do
-      {:ok, DateTime.from_naive!(naive, "Etc/UTC")}
+         {:ok, solar_noon_ms} <- solar_noon_timestamp_ms(date, latitude, longitude),
+         {:ok, rise_hour_angle} <- Solarex.Sun.rise_hour_angle(solar_noon_ms, latitude) do
+      solar_noon_ms
+      |> Kernel.-(round(rise_hour_angle * 4 * 1000 * 60))
+      |> DateTime.from_unix!(:millisecond)
+      |> then(&{:ok, &1})
     end
   end
 
@@ -381,6 +389,13 @@ defmodule Hueworks.Circadian do
     with {:ok, latitude, longitude} <- coordinates(solar_config) do
       {:ok, Solarex.Sun.noon(date, latitude, longitude)}
     end
+  end
+
+  defp solar_noon_timestamp_ms(date, latitude, longitude) do
+    date
+    |> Solarex.Sun.noon(latitude, longitude)
+    |> DateTime.to_unix(:millisecond)
+    |> then(&{:ok, &1})
   end
 
   defp coordinates(solar_config) do

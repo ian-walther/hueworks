@@ -118,4 +118,50 @@ defmodule Hueworks.KelvinTest do
     assert Kelvin.equivalent_temperature?(3715, 3699, mired_tolerance: 1)
     refute Kelvin.equivalent_temperature?(3800, 3704, mired_tolerance: 1)
   end
+
+  test "range mapping round-trips representative control values within a small kelvin tolerance" do
+    entity = %{
+      actual_min_kelvin: 2700,
+      actual_max_kelvin: 6500,
+      reported_min_kelvin: 2000,
+      reported_max_kelvin: 6329
+    }
+
+    Enum.each([2700, 3000, 3900, 5000, 6500], fn kelvin ->
+      mapped = Kelvin.map_for_control(entity, kelvin)
+      round_tripped = Kelvin.map_from_event(entity, mapped)
+
+      assert_in_delta round_tripped, kelvin, 10
+    end)
+  end
+
+  test "extended_xy clamps values outside the supported low-end range to the endpoints" do
+    entity = %{
+      extended_kelvin_range: true,
+      extended_min_kelvin: 1800,
+      actual_min_kelvin: 3000
+    }
+
+    assert Kelvin.extended_xy(entity, 1500) == Kelvin.extended_xy(entity, 1800)
+    assert Kelvin.extended_xy(entity, 3300) == Kelvin.extended_xy(entity, 3000)
+  end
+
+  test "map_extended_reported_floor returns nil when the reported floor is outside the extended band" do
+    too_low = %{
+      extended_kelvin_range: true,
+      extended_min_kelvin: 1800,
+      actual_min_kelvin: 3000,
+      reported_min_kelvin: 1700
+    }
+
+    too_high = %{
+      extended_kelvin_range: true,
+      extended_min_kelvin: 1800,
+      actual_min_kelvin: 3000,
+      reported_min_kelvin: 3000
+    }
+
+    assert Kelvin.map_extended_reported_floor(too_low, 1700) == nil
+    assert Kelvin.map_extended_reported_floor(too_high, 3000) == nil
+  end
 end

@@ -4,6 +4,12 @@ defmodule Hueworks.Control.LightStateSemantics do
   alias Hueworks.Kelvin
   alias Hueworks.Util
 
+  @type state_map :: map()
+  @type comparison_opts :: keyword()
+  @type xy_value :: float() | nil
+
+  @spec diff_state(state_map(), state_map(), comparison_opts()) :: state_map()
+
   def diff_state(actual, desired, opts \\ [])
 
   def diff_state(actual, desired, opts) when is_map(actual) and is_map(desired) do
@@ -19,6 +25,7 @@ defmodule Hueworks.Control.LightStateSemantics do
 
   def diff_state(_actual, desired, _opts) when is_map(desired), do: desired
 
+  @spec diverging_keys(state_map(), state_map(), comparison_opts()) :: list(term())
   def diverging_keys(expected, actual, opts \\ [])
 
   def diverging_keys(expected, actual, opts) when is_map(expected) and is_map(actual) do
@@ -38,6 +45,7 @@ defmodule Hueworks.Control.LightStateSemantics do
     |> Map.keys()
   end
 
+  @spec value_or_alias(state_map(), term()) :: term() | nil
   def value_or_alias(state, key) when is_map(state) do
     key_aliases(key)
     |> Enum.find_value(fn alias_key ->
@@ -101,6 +109,7 @@ defmodule Hueworks.Control.LightStateSemantics do
 
   def values_equal?(_key, desired, actual, _opts), do: desired == actual
 
+  @spec effective_desired_for_light(state_map(), state_map()) :: state_map()
   def effective_desired_for_light(desired, light) when is_map(desired) do
     desired
     |> maybe_clamp_kelvin(light)
@@ -109,6 +118,7 @@ defmodule Hueworks.Control.LightStateSemantics do
 
   def effective_desired_for_light(desired, _light), do: desired
 
+  @spec x_value(state_map()) :: xy_value()
   def x_value(desired) when is_map(desired) do
     desired
     |> Enum.reduce_while(nil, fn
@@ -120,6 +130,7 @@ defmodule Hueworks.Control.LightStateSemantics do
 
   def x_value(_desired), do: nil
 
+  @spec y_value(state_map()) :: xy_value()
   def y_value(desired) when is_map(desired) do
     desired
     |> Enum.reduce_while(nil, fn
@@ -131,6 +142,7 @@ defmodule Hueworks.Control.LightStateSemantics do
 
   def y_value(_desired), do: nil
 
+  @spec kelvin_value(state_map()) :: integer() | nil
   def kelvin_value(desired) when is_map(desired) do
     desired
     |> Enum.find_value(fn
@@ -148,18 +160,21 @@ defmodule Hueworks.Control.LightStateSemantics do
 
   def kelvin_value(_desired), do: nil
 
+  @spec supports_temp?(state_map()) :: boolean()
   def supports_temp?(light) when is_map(light) do
     Map.get(light, :supports_temp) == true or Map.get(light, "supports_temp") == true
   end
 
   def supports_temp?(_light), do: false
 
+  @spec supports_color?(state_map()) :: boolean()
   def supports_color?(light) when is_map(light) do
     Map.get(light, :supports_color) == true or Map.get(light, "supports_color") == true
   end
 
   def supports_color?(_light), do: false
 
+  @spec drop_kelvin(state_map()) :: state_map()
   def drop_kelvin(desired) when is_map(desired) do
     desired
     |> Map.delete(:kelvin)
@@ -170,6 +185,7 @@ defmodule Hueworks.Control.LightStateSemantics do
 
   def drop_kelvin(desired), do: desired
 
+  @spec drop_xy(state_map()) :: state_map()
   def drop_xy(desired) when is_map(desired) do
     desired
     |> Map.delete(:x)
@@ -180,6 +196,7 @@ defmodule Hueworks.Control.LightStateSemantics do
 
   def drop_xy(desired), do: desired
 
+  @spec put_kelvin(state_map(), integer()) :: state_map()
   def put_kelvin(desired, clamped_kelvin) when is_map(desired) do
     keys =
       desired
@@ -201,6 +218,7 @@ defmodule Hueworks.Control.LightStateSemantics do
 
   def put_kelvin(desired, _clamped_kelvin), do: desired
 
+  @spec put_xy(state_map(), number(), number()) :: state_map()
   def put_xy(desired, x, y) when is_map(desired) do
     keys =
       desired

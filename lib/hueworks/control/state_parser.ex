@@ -5,6 +5,10 @@ defmodule Hueworks.Control.StateParser do
   alias Hueworks.Kelvin
   alias Hueworks.Util
 
+  @type state_map :: map()
+  @type entity_map :: map()
+
+  @spec home_assistant_state(state_map(), entity_map()) :: state_map()
   def home_assistant_state(state, entity) when is_map(state) do
     attrs = state["attributes"] || state[:attributes] || %{}
     raw_state = state["state"] || state[:state]
@@ -18,6 +22,7 @@ defmodule Hueworks.Control.StateParser do
 
   def home_assistant_state(_state, _entity), do: %{}
 
+  @spec hue_event_state(state_map()) :: state_map()
   def hue_event_state(event) when is_map(event) do
     %{}
     |> Map.merge(power_map(get_in(event, ["on", "on"])))
@@ -28,6 +33,7 @@ defmodule Hueworks.Control.StateParser do
 
   def hue_event_state(_event), do: %{}
 
+  @spec hue_v1_state(state_map(), atom() | String.t()) :: state_map()
   def hue_v1_state(resource, state_key) when is_map(resource) do
     attrs = resource[state_key] || resource[to_string(state_key)] || %{}
 
@@ -40,6 +46,7 @@ defmodule Hueworks.Control.StateParser do
 
   def hue_v1_state(_resource, _state_key), do: %{}
 
+  @spec z2m_state(state_map(), entity_map()) :: state_map()
   def z2m_state(payload, entity) when is_map(payload) do
     %{}
     |> Map.merge(
@@ -52,6 +59,7 @@ defmodule Hueworks.Control.StateParser do
 
   def z2m_state(_payload, _entity), do: %{}
 
+  @spec power_map(term()) :: state_map()
   def power_map(true), do: %{power: :on}
   def power_map(false), do: %{power: :off}
   def power_map("on"), do: %{power: :on}
@@ -60,12 +68,14 @@ defmodule Hueworks.Control.StateParser do
   def power_map("OFF"), do: %{power: :off}
   def power_map(_), do: %{}
 
+  @spec power_from_level(number() | term()) :: state_map()
   def power_from_level(level) when is_number(level) do
     %{power: if(level > 0, do: :on, else: :off)}
   end
 
   def power_from_level(_level), do: %{}
 
+  @spec brightness_from_0_255(number() | term()) :: state_map()
   def brightness_from_0_255(value) when is_number(value) do
     percent = round(value / 255 * 100)
     %{brightness: Util.normalize_percent(percent)}
@@ -73,12 +83,14 @@ defmodule Hueworks.Control.StateParser do
 
   def brightness_from_0_255(_value), do: %{}
 
+  @spec brightness_from_0_100(number() | term()) :: state_map()
   def brightness_from_0_100(value) when is_number(value) do
     %{brightness: Util.normalize_percent(value)}
   end
 
   def brightness_from_0_100(_value), do: %{}
 
+  @spec brightness_from_z2m(number() | term()) :: state_map()
   def brightness_from_z2m(value) when is_number(value) do
     percent =
       cond do
@@ -91,6 +103,7 @@ defmodule Hueworks.Control.StateParser do
 
   def brightness_from_z2m(_value), do: %{}
 
+  @spec brightness_from_z2m_attrs(state_map()) :: state_map()
   def brightness_from_z2m_attrs(attrs) when is_map(attrs) do
     cond do
       is_number(attrs["brightness_percent"]) ->
@@ -106,6 +119,7 @@ defmodule Hueworks.Control.StateParser do
 
   def brightness_from_z2m_attrs(_attrs), do: %{}
 
+  @spec color_from_ha_attrs(state_map()) :: state_map()
   def color_from_ha_attrs(attrs) when is_map(attrs) do
     xy = xy_from_attrs(attrs)
     color_mode = ha_color_mode(attrs)
@@ -127,6 +141,7 @@ defmodule Hueworks.Control.StateParser do
 
   def color_from_ha_attrs(_attrs), do: %{}
 
+  @spec color_from_z2m_attrs(state_map()) :: state_map()
   def color_from_z2m_attrs(attrs) when is_map(attrs) do
     xy = xy_from_attrs(attrs)
 
@@ -150,6 +165,7 @@ defmodule Hueworks.Control.StateParser do
 
   def color_from_z2m_attrs(_attrs), do: %{}
 
+  @spec color_from_hue_event(state_map()) :: state_map()
   def color_from_hue_event(event) when is_map(event) do
     case hue_xy_from_event(event) do
       {x, y} -> xy_map({x, y})
@@ -159,6 +175,7 @@ defmodule Hueworks.Control.StateParser do
 
   def color_from_hue_event(_event), do: %{}
 
+  @spec color_from_hue_v1_attrs(state_map()) :: state_map()
   def color_from_hue_v1_attrs(attrs) when is_map(attrs) do
     xy = hue_xy_from_v1_attrs(attrs)
     color_mode = attrs["colormode"] || attrs[:colormode]
@@ -177,12 +194,14 @@ defmodule Hueworks.Control.StateParser do
 
   def color_from_hue_v1_attrs(_attrs), do: %{}
 
+  @spec kelvin_from_mired(number() | term()) :: state_map()
   def kelvin_from_mired(mired) when is_number(mired) and mired > 0 do
     %{kelvin: round(1_000_000 / mired)}
   end
 
   def kelvin_from_mired(_mired), do: %{}
 
+  @spec kelvin_from_hue_event(state_map()) :: state_map()
   def kelvin_from_hue_event(event) when is_map(event) do
     mired =
       case event["color_temperature"] do
@@ -196,6 +215,7 @@ defmodule Hueworks.Control.StateParser do
 
   def kelvin_from_hue_event(_event), do: %{}
 
+  @spec kelvin_from_ha_attrs(state_map(), entity_map()) :: state_map()
   def kelvin_from_ha_attrs(attrs, entity) when is_map(attrs) do
     extended_xy_kelvin = extended_xy_kelvin(attrs, entity)
 
@@ -217,6 +237,7 @@ defmodule Hueworks.Control.StateParser do
 
   def kelvin_from_ha_attrs(_attrs, _entity), do: %{}
 
+  @spec kelvin_from_z2m_attrs(state_map(), entity_map()) :: state_map()
   def kelvin_from_z2m_attrs(attrs, entity) when is_map(attrs) do
     extended_xy_kelvin = raw_extended_xy_kelvin(attrs, entity)
     crossover_xy? = prefer_z2m_extended_xy_crossover?(attrs, entity, extended_xy_kelvin)
@@ -275,8 +296,6 @@ defmodule Hueworks.Control.StateParser do
     end
   end
 
-  defp parse_z2m_color_temp(_attrs, _entity), do: %{}
-
   defp parse_z2m_direct_kelvin(kelvin, attrs, entity) when is_number(kelvin) do
     case Kelvin.map_extended_reported_floor(entity, kelvin) do
       mapped when is_number(mapped) ->
@@ -293,14 +312,10 @@ defmodule Hueworks.Control.StateParser do
     end
   end
 
-  defp parse_z2m_direct_kelvin(_kelvin, _attrs, _entity), do: %{}
-
   defp preserve_z2m_direct_low_kelvin?(attrs, entity, kelvin) when is_number(kelvin) do
     Kelvin.extended_low_kelvin?(entity, kelvin) and
       (z2m_color_mode(attrs) == "color_temp" or is_tuple(xy_from_attrs(attrs)))
   end
-
-  defp preserve_z2m_direct_low_kelvin?(_attrs, _entity, _kelvin), do: false
 
   defp prefer_z2m_extended_xy_crossover?(attrs, entity, extended_xy_kelvin)
        when is_number(extended_xy_kelvin) do
@@ -363,8 +378,6 @@ defmodule Hueworks.Control.StateParser do
     end
   end
 
-  defp xy_from_attrs(_attrs), do: nil
-
   defp hue_xy_from_event(event) when is_map(event) do
     case event["color"] || event[:color] do
       %{"xy" => %{"x" => x, "y" => y}} when is_number(x) and is_number(y) -> {x, y}
@@ -375,16 +388,12 @@ defmodule Hueworks.Control.StateParser do
     end
   end
 
-  defp hue_xy_from_event(_event), do: nil
-
   defp hue_xy_from_v1_attrs(attrs) when is_map(attrs) do
     case attrs["xy"] || attrs[:xy] do
       [x, y] when is_number(x) and is_number(y) -> {x, y}
       _ -> nil
     end
   end
-
-  defp hue_xy_from_v1_attrs(_attrs), do: nil
 
   # Some integrations include xy color coordinates alongside ordinary
   # white-temperature reports. Only treat xy as the source of truth when the
@@ -408,16 +417,12 @@ defmodule Hueworks.Control.StateParser do
     end
   end
 
-  defp extended_xy_applicable?(_attrs, _entity), do: false
-
   defp parse_low_extended_kelvin(kelvin, entity) when is_number(kelvin) do
     case Kelvin.map_extended_reported_floor(entity, kelvin) do
       mapped when is_number(mapped) -> %{kelvin: mapped}
       nil -> %{kelvin: Kelvin.map_from_event(entity, kelvin)}
     end
   end
-
-  defp parse_low_extended_kelvin(_kelvin, _entity), do: %{}
 
   defp extended_kelvin_range_enabled?(entity) when is_map(entity) do
     Map.get(entity, :extended_kelvin_range) == true or
@@ -431,14 +436,10 @@ defmodule Hueworks.Control.StateParser do
     if is_binary(mode), do: mode, else: nil
   end
 
-  defp z2m_color_mode(_attrs), do: nil
-
   defp ha_color_mode(attrs) when is_map(attrs) do
     mode = attrs["color_mode"] || attrs[:color_mode]
     if is_binary(mode), do: mode, else: nil
   end
-
-  defp ha_color_mode(_attrs), do: nil
 
   defp z2m_direct_kelvin(attrs) when is_map(attrs) do
     cond do
@@ -456,14 +457,10 @@ defmodule Hueworks.Control.StateParser do
     end
   end
 
-  defp z2m_direct_kelvin(_attrs), do: nil
-
   defp has_any_temp_attrs?(attrs) when is_map(attrs) do
     is_number(attrs["color_temp"]) or is_number(attrs[:color_temp]) or
       is_number(attrs["color_temp_kelvin"]) or is_number(attrs[:color_temp_kelvin])
   end
-
-  defp has_any_temp_attrs?(_attrs), do: false
 
   defp xy_map({x, y}) do
     %{x: round_xy(x), y: round_xy(y)}

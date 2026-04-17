@@ -11,6 +11,10 @@ defmodule Hueworks.Groups.Topology do
   alias Hueworks.Schemas.Group
   alias Hueworks.Schemas.GroupLight
 
+  @type member_set_map :: %{optional(integer()) => MapSet.t(integer())}
+  @type subgroup_map :: %{optional(integer()) => list(integer())}
+
+  @spec member_sets() :: member_set_map()
   def member_sets do
     groups = Repo.all(from(g in Group, where: is_nil(g.canonical_group_id)))
 
@@ -29,6 +33,7 @@ defmodule Hueworks.Groups.Topology do
     |> add_memberships(memberships)
   end
 
+  @spec derive_subgroups(member_set_map()) :: subgroup_map()
   def derive_subgroups(member_sets) when is_map(member_sets) do
     ids = Map.keys(member_sets)
     identical = find_identical_memberships(member_sets)
@@ -54,6 +59,7 @@ defmodule Hueworks.Groups.Topology do
     end)
   end
 
+  @spec derive_supergroups(member_set_map()) :: subgroup_map()
   def derive_supergroups(member_sets) when is_map(member_sets) do
     subgroups = derive_subgroups(member_sets)
 
@@ -64,10 +70,12 @@ defmodule Hueworks.Groups.Topology do
     end)
   end
 
+  @spec all_subgroups(integer(), subgroup_map()) :: list(integer())
   def all_subgroups(group_id, subgroups_map) when is_integer(group_id) do
-    walk_subgroups([group_id], subgroups_map, MapSet.new())
-    |> MapSet.delete(group_id)
-    |> MapSet.to_list()
+    walk_subgroups([group_id], subgroups_map, [])
+    |> Enum.reverse()
+    |> Enum.uniq()
+    |> List.delete(group_id)
   end
 
   def all_subgroups(subgroups_map, group_id) when is_integer(group_id) do
@@ -77,11 +85,11 @@ defmodule Hueworks.Groups.Topology do
   defp walk_subgroups([], _map, visited), do: visited
 
   defp walk_subgroups([id | rest], map, visited) do
-    if MapSet.member?(visited, id) do
+    if id in visited do
       walk_subgroups(rest, map, visited)
     else
       children = Map.get(map, id, [])
-      walk_subgroups(children ++ rest, map, MapSet.put(visited, id))
+      walk_subgroups(children ++ rest, map, [id | visited])
     end
   end
 

@@ -4,43 +4,51 @@ defmodule Hueworks.Control.Apply do
   alias Hueworks.DebugLogging
   alias Hueworks.Control.{DesiredState, Executor, Planner}
 
+  @type plan_diff :: map()
+  @type commit_result :: %{
+          plan_diff: plan_diff(),
+          intent_diff: map(),
+          reconcile_diff: map(),
+          updated: map()
+        }
+  @type planner_result :: %{
+          plan: list(map()),
+          planner_ms: non_neg_integer()
+        }
+
+  @spec commit_transaction(DesiredState.transaction(), keyword()) ::
+          {:ok, commit_result()}
   def commit_transaction(%DesiredState.Transaction{} = txn, opts \\ []) do
     force_apply = Keyword.get(opts, :force_apply, false)
 
-    case DesiredState.commit(txn) do
-      {:ok, %{intent_diff: intent_diff, reconcile_diff: reconcile_diff, updated: updated}} ->
-        plan_diff =
-          if force_apply do
-            txn.changes
-          else
-            merge_plan_diff(intent_diff, reconcile_diff)
-          end
+    {:ok, %{intent_diff: intent_diff, reconcile_diff: reconcile_diff, updated: updated}} =
+      DesiredState.commit(txn)
 
-        {:ok,
-         %{
-           plan_diff: plan_diff,
-           intent_diff: intent_diff,
-           reconcile_diff: reconcile_diff,
-           updated: updated
-         }}
+    plan_diff =
+      if force_apply do
+        txn.changes
+      else
+        merge_plan_diff(intent_diff, reconcile_diff)
+      end
 
-      other ->
-        other
-    end
+    {:ok,
+     %{
+       plan_diff: plan_diff,
+       intent_diff: intent_diff,
+       reconcile_diff: reconcile_diff,
+       updated: updated
+     }}
   end
 
+  @spec commit_and_enqueue(DesiredState.transaction(), integer(), keyword()) ::
+          {:ok, map()} | {:error, {:invalid_room_id, integer()}}
   def commit_and_enqueue(%DesiredState.Transaction{} = txn, room_id, opts \\ []) do
     force_apply = Keyword.get(opts, :force_apply, false)
+    {:ok, %{plan_diff: plan_diff} = result} = commit_transaction(txn, force_apply: force_apply)
 
-    case commit_transaction(txn, force_apply: force_apply) do
-      {:ok, %{plan_diff: plan_diff} = result} ->
-        case plan_and_enqueue(room_id, plan_diff, opts) do
-          {:ok, %{plan: plan, planner_ms: planner_ms}} ->
-            {:ok, result |> Map.put(:plan, plan) |> Map.put(:planner_ms, planner_ms)}
-
-          other ->
-            other
-        end
+    case plan_and_enqueue(room_id, plan_diff, opts) do
+      {:ok, %{plan: plan, planner_ms: planner_ms}} ->
+        {:ok, result |> Map.put(:plan, plan) |> Map.put(:planner_ms, planner_ms)}
 
       other ->
         other
@@ -50,6 +58,7 @@ defmodule Hueworks.Control.Apply do
   def build_plan(room_id, diff, opts \\ [])
   def build_plan(_room_id, diff, _opts) when map_size(diff) == 0, do: []
 
+  @spec build_plan(integer(), map(), keyword()) :: list(map())
   def build_plan(room_id, diff, opts) when is_integer(room_id) and is_map(diff) do
     planner_opts =
       opts
@@ -63,6 +72,8 @@ defmodule Hueworks.Control.Apply do
   def plan_and_enqueue(_room_id, diff, _opts) when map_size(diff) == 0,
     do: {:ok, %{plan: [], planner_ms: 0}}
 
+  @spec plan_and_enqueue(integer(), map(), keyword()) ::
+          {:ok, planner_result()} | {:error, {:invalid_room_id, integer()}}
   def plan_and_enqueue(room_id, diff, opts) when is_integer(room_id) and is_map(diff) do
     trace = Keyword.get(opts, :trace)
     enqueue_mode = Keyword.get(opts, :enqueue_mode, :replace)
@@ -81,11 +92,13 @@ defmodule Hueworks.Control.Apply do
 
   def plan_and_enqueue(room_id, _diff, _opts), do: {:error, {:invalid_room_id, room_id}}
 
+  @spec enqueue_plan(list(map()), keyword()) :: :ok
   def enqueue_plan(plan, opts \\ []) when is_list(plan) and is_list(opts) do
     _ = Executor.enqueue(plan, opts)
     :ok
   end
 
+  @spec merge_plan_diff(map(), map()) :: map()
   def merge_plan_diff(left, right) when left == %{}, do: right
   def merge_plan_diff(left, right) when right == %{}, do: left
 
