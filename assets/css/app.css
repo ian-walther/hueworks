@@ -11,9 +11,9 @@
   --accent-2: #2a9d8f;
   --panel: rgba(255, 255, 255, 0.85);
   --border: rgba(38, 31, 18, 0.15);
-  --hw-field-1: 12rem;
-  --hw-field-2: 24rem;
-  --hw-field-4: 48rem;
+  --hw-field-1: 6rem;
+  --hw-field-2: 12rem;
+  --hw-field-4: 24rem;
 }
 
 body {
@@ -677,12 +677,14 @@ body {
 }
 
 .hw-inline-grow {
-  flex: 1 1 auto;
+  flex: 1 1 0;
+  width: 0;
   min-width: 0;
 }
 
 .hw-inline-field-stack .hw-modal-label {
   margin-bottom: 0.35rem;
+  white-space: nowrap;
 }
 
 .hw-inline-field-stack .hw-modal-input,
@@ -696,9 +698,30 @@ body {
 
 .hw-inline-action {
   display: flex;
+  flex: 0 0 auto;
   align-items: flex-end;
   justify-content: flex-start;
   align-self: flex-end;
+}
+
+.hw-inline-field-fit {
+  flex: 0 1 auto;
+  width: fit-content;
+  max-width: 100%;
+}
+
+.hw-inline-field-fit .hw-select,
+.hw-inline-field-fit .hw-modal-input {
+  width: auto;
+  max-width: 100%;
+}
+
+.hw-inline-actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem;
 }
 
 .hw-section-title-row {
@@ -717,7 +740,7 @@ body {
   line-height: 1.35;
 }
 
-.hw-pico-section + .hw-pico-section {
+.hw-section-block + .hw-section-block {
   margin-top: 1.5rem;
   padding-top: 1.4rem;
   border-top: 1px solid rgba(27, 27, 23, 0.08);
@@ -726,12 +749,18 @@ body {
 .hw-pico-section-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 1.5rem 2rem;
+  gap: 1rem 1.25rem;
 }
 
 .hw-pico-section-card {
   flex: 1 1 28rem;
   min-width: min(100%, 24rem);
+}
+
+.hw-pico-section-row > .hw-pico-section-card {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
 }
 
 .hw-pico-lockout {
@@ -770,7 +799,6 @@ body {
     width: 100%;
   }
 
-  .hw-inline-control,
   .hw-inline-fields,
   .hw-inline-action-row {
     flex-wrap: wrap;

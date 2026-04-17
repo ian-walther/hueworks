@@ -146,81 +146,94 @@
         <span class="hw-count"><%= length(@selected_pico.buttons) %> buttons</span>
       </div>
 
-      <%= if Enum.reject(@pico_devices, &(&1.id == @selected_pico.id)) != [] do %>
-        <div class="hw-form hw-pico-section">
-          <.section_heading
-            title="Clone From Another Pico"
-            help="Copy room scope, control groups, and button bindings from another Pico on this bridge."
-          />
+      <div class="hw-section-block">
+        <div class="hw-pico-section-row">
+        <form class="hw-form hw-pico-section hw-pico-section-card" phx-change="save_room_override">
+          <h3>Room Scope</h3>
 
-          <label class="hw-modal-label" for="pico-clone-source">Source Pico</label>
-
-          <form id="pico-clone-source-form" phx-change="select_clone_source" class="hw-inline-control hw-field-4">
+          <label class="hw-modal-label" for="pico-room-id">Room</label>
+          <div class="hw-inline-control hw-field-4">
             <div class="hw-inline-field-stack hw-inline-grow">
-              <select id="pico-clone-source" name="id" class="hw-select" aria-label="Source Pico">
-                <%= for pico <- Enum.reject(@pico_devices, &(&1.id == @selected_pico.id)) do %>
-                  <option value={pico.id} selected={@clone_source_pico_id == pico.id}>
-                    <%= display_name(pico) %>
+              <select
+                id="pico-room-id"
+                name="room_id"
+                class="hw-select"
+                disabled={pico_config_locked?(@selected_pico)}
+              >
+                <option
+                  value=""
+                  selected={!Hueworks.Picos.room_override?(@selected_pico)}
+                  disabled={no_auto_detected_room?(@selected_pico)}
+                >
+                  <%= auto_detected_room_option_label(@selected_pico, @all_rooms) %>
+                </option>
+                <%= for room <- @all_rooms do %>
+                  <option value={room.id} selected={@selected_pico.room_id == room.id and Hueworks.Picos.room_override?(@selected_pico)}>
+                    <%= room.display_name || room.name %>
                   </option>
                 <% end %>
               </select>
             </div>
 
             <div class="hw-inline-action">
-              <button id="pico-clone-config" type="button" class="hw-button" phx-click="clone_pico_config">
-                Copy
-              </button>
-            </div>
-          </form>
-        </div>
-      <% end %>
-
-      <form class="hw-form hw-pico-section" phx-change="save_room_override">
-        <h3>Room Scope</h3>
-        <p class="hw-meta">
-          <%= if Hueworks.Picos.room_override?(@selected_pico) do %>
-            Using manual room override.
-          <% else %>
-            Using auto-detected room from Caseta import data.
-          <% end %>
-        </p>
-
-        <label class="hw-modal-label" for="pico-room-id">Room</label>
-        <select
-          id="pico-room-id"
-          name="room_id"
-          class="hw-select"
-          disabled={pico_config_locked?(@selected_pico)}
-        >
-          <option value="" selected={!Hueworks.Picos.room_override?(@selected_pico)}>
-            Auto-detected
-          </option>
-          <%= for room <- @all_rooms do %>
-            <option value={room.id} selected={@selected_pico.room_id == room.id and Hueworks.Picos.room_override?(@selected_pico)}>
-              <%= room.display_name || room.name %>
-            </option>
-          <% end %>
-        </select>
-
-        <%= if pico_config_locked?(@selected_pico) do %>
-          <div class="hw-pico-lockout">
-            <p class="hw-meta">
-              This Pico has control groups or button bindings. Clear config before changing room.
-            </p>
-
-            <div class="hw-modal-actions hw-pico-actions">
-              <button type="button" class="hw-button hw-delete-button" phx-click="clear_pico_config">
-                Clear Pico Config
+              <button
+                id="pico-clear-room-scope"
+                type="button"
+                class="hw-button hw-delete-button"
+                phx-click="clear_pico_config"
+                disabled={room_scope_clear_disabled?(@selected_pico)}
+              >
+                Clear
               </button>
             </div>
           </div>
+
+          <%= if pico_config_locked?(@selected_pico) do %>
+            <div class="hw-pico-lockout">
+              <p class="hw-meta">
+                This Pico has control groups or button bindings. Clear config before changing room.
+              </p>
+            </div>
+          <% end %>
+        </form>
+
+        <%= if Enum.reject(@pico_devices, &(&1.id == @selected_pico.id)) != [] do %>
+          <div class="hw-form hw-pico-section hw-pico-section-card">
+            <.section_heading
+              title="Clone From Another Pico"
+              help="Copy room scope, control groups, and button bindings from another Pico on this bridge."
+            />
+
+            <label class="hw-modal-label" for="pico-clone-source">Source Pico</label>
+
+            <form id="pico-clone-source-form" phx-change="select_clone_source" class="hw-inline-control hw-field-4">
+              <div class="hw-inline-field-stack hw-inline-grow">
+                <select id="pico-clone-source" name="id" class="hw-select" aria-label="Source Pico">
+                  <%= for pico <- Enum.reject(@pico_devices, &(&1.id == @selected_pico.id)) do %>
+                    <option value={pico.id} selected={@clone_source_pico_id == pico.id}>
+                      <%= display_name(pico) %>
+                    </option>
+                  <% end %>
+                </select>
+              </div>
+
+              <div class="hw-inline-action">
+                <button id="pico-clone-config" type="button" class="hw-button" phx-click="clone_pico_config">
+                  Copy
+                </button>
+              </div>
+            </form>
+          </div>
         <% end %>
-      </form>
+        </div>
+      </div>
 
       <%= if is_nil(@selected_pico.room_id) do %>
-        <p class="hw-error">This Pico needs a room before control groups or button bindings can be configured.</p>
+        <p class="hw-error hw-section-block">
+          This Pico needs a room before control groups or button bindings can be configured.
+        </p>
       <% else %>
-        <div class="hw-form hw-pico-section">
+        <div class="hw-form hw-pico-section hw-section-block">
           <h3>Control Groups</h3>
           <p class="hw-meta">
             Define room-scoped target sets for this Pico. Buttons can act on one control group or the union of all control groups.
@@ -384,14 +397,14 @@
           <% end %>
         </div>
 
-        <div class="hw-form hw-pico-section">
+        <div class="hw-form hw-pico-section hw-section-block">
           <h3>Bind Button By Press</h3>
           <p class="hw-meta">
             Choose an action, then press a physical Pico button to bind that action to the discovered button.
           </p>
 
           <form id="pico-binding-editor-form" phx-change="update_binding_editor" class="hw-inline-fields">
-            <div class="hw-inline-field-stack hw-field-1">
+            <div class="hw-inline-field-stack hw-inline-field-fit">
               <label class="hw-modal-label" for="pico-binding-target-kind">Target scope</label>
               <select id="pico-binding-target-kind" class="hw-select" name="target_kind">
                 <option value="all_groups" selected={@binding_target_kind == "all_groups"}>
@@ -406,7 +419,7 @@
               </select>
             </div>
 
-            <div id="pico-binding-target-id-container" class="hw-inline-field-stack hw-field-2">
+            <div id="pico-binding-target-id-container" class="hw-inline-field-stack hw-inline-field-fit">
               <label class="hw-modal-label" for="pico-binding-target-id">Target</label>
               <select
                 id="pico-binding-target-id"
@@ -435,7 +448,7 @@
               </select>
             </div>
 
-            <div class="hw-inline-field-stack hw-field-2">
+            <div class="hw-inline-field-stack hw-inline-field-fit">
               <label class="hw-modal-label" for="pico-binding-action">Action</label>
               <select id="pico-binding-action" class="hw-select" name="action">
                 <%= if @binding_target_kind == "scene" do %>
@@ -449,21 +462,21 @@
                 <% end %>
               </select>
             </div>
-          </form>
 
-          <div class="hw-modal-actions hw-pico-actions">
-            <button id="pico-start-button-learning" type="button" phx-click="start_button_learning" class="hw-button hw-button-on">
-              <%= if @learning_binding, do: "Waiting For Press", else: "Assign By Press" %>
-            </button>
-            <%= if @learning_binding do %>
-              <button type="button" phx-click="cancel_button_learning" class="hw-button">
-                Cancel
+            <div class="hw-inline-actions">
+              <button id="pico-start-button-learning" type="button" phx-click="start_button_learning" class="hw-button hw-button-on">
+                <%= if @learning_binding, do: "Waiting For Press", else: "Assign By Press" %>
               </button>
-            <% end %>
-          </div>
+              <%= if @learning_binding do %>
+                <button type="button" phx-click="cancel_button_learning" class="hw-button">
+                  Cancel
+                </button>
+              <% end %>
+            </div>
+          </form>
         </div>
 
-        <div class="hw-form hw-pico-section">
+        <div class="hw-form hw-pico-section hw-section-block">
           <h3>Discovered Buttons</h3>
           <div class="hw-list">
             <%= for button <- @selected_pico.buttons do %>

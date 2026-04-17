@@ -185,11 +185,22 @@ defmodule HueworksWeb.PicoConfigLiveTest do
 
     render_click(element(view, "button[phx-click='sync_picos']"))
 
+    _other_device =
+      Repo.insert!(%PicoDevice{
+        bridge_id: bridge.id,
+        source_id: "device-2",
+        name: "Hallway Pico",
+        room_id: room.id,
+        metadata: %{},
+        hardware_profile: "5_button",
+        enabled: true
+      })
+
     html = render(view)
     assert html =~ "Main Floor Pico"
     refute html =~ "Control Groups"
 
-    device = Repo.one!(PicoDevice)
+    device = Repo.get_by!(PicoDevice, source_id: "device-1")
 
     render_click(element(view, "button[phx-click='select_pico']"))
 
@@ -198,7 +209,16 @@ defmodule HueworksWeb.PicoConfigLiveTest do
     html = render(view)
     assert html =~ "Configure Pico"
     assert html =~ "Control Groups"
-    assert html =~ "Using auto-detected room from Caseta import data."
+    assert html =~ "hw-section-block"
+    assert html =~ ~s(class="hw-pico-section-row")
+    assert String.contains?(html, "Room Scope")
+    assert String.contains?(html, "Clone From Another Pico")
+    assert match?({_, _}, :binary.match(html, "Room Scope"))
+    assert match?({_, _}, :binary.match(html, "Clone From Another Pico"))
+    assert :binary.match(html, "Room Scope") < :binary.match(html, "Clone From Another Pico")
+    assert html =~ "Main Floor (Auto-Detected)"
+    assert html =~ ~s(id="pico-clone-source-form")
+    refute html =~ "hw-inline-control-stack-mobile"
     refute html =~ "Pico room updated."
 
     view
@@ -208,7 +228,6 @@ defmodule HueworksWeb.PicoConfigLiveTest do
     |> render_change()
 
     assert render(view) =~ "Pico room updated."
-    assert render(view) =~ "Using manual room override."
 
     view
     |> form("#pico-new-control-group-form", %{"name" => "Overhead"})
@@ -228,7 +247,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
 
     assert render(view) =~ "Control group saved."
 
-    device = Repo.one!(PicoDevice)
+    device = Repo.get_by!(PicoDevice, source_id: "device-1")
     [control_group] = Picos.control_groups(device)
 
     view
@@ -260,7 +279,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
 
     assert device.room_id == override_room.id
 
-    assert Picos.control_groups(Repo.one!(PicoDevice)) == [
+    assert Picos.control_groups(Repo.get_by!(PicoDevice, source_id: "device-1")) == [
              %{
                "group_ids" => [override_group.id],
                "id" => control_group["id"],
@@ -431,7 +450,9 @@ defmodule HueworksWeb.PicoConfigLiveTest do
     assert light_select_html =~ "Hallway Ceiling 1-2"
   end
 
-  test "add group dropdown excludes groups that overlap already selected direct lights", %{conn: conn} do
+  test "add group dropdown excludes groups that overlap already selected direct lights", %{
+    conn: conn
+  } do
     room = Repo.insert!(%Room{name: "Kitchen"})
 
     bridge =
@@ -633,7 +654,46 @@ defmodule HueworksWeb.PicoConfigLiveTest do
     updated = Repo.get!(PicoDevice, device.id)
     assert updated.room_id == override_room.id
     assert render(view) =~ "Pico room updated."
-    assert render(view) =~ "Using manual room override."
+  end
+
+  test "room selector shows disabled dash when no room can be auto-detected", %{conn: conn} do
+    bridge =
+      insert_bridge!(%{
+        type: :caseta,
+        name: "Caseta",
+        host: "10.0.0.72",
+        credentials: %{"cert_path" => "a", "key_path" => "b", "cacert_path" => "c"},
+        enabled: true,
+        import_complete: true
+      })
+
+    _room = Repo.insert!(%Room{name: "Hallway"})
+
+    device =
+      Repo.insert!(%PicoDevice{
+        bridge_id: bridge.id,
+        source_id: "device-no-detected-room",
+        name: "No Room Pico",
+        room_id: nil,
+        metadata: %{"room_override" => false},
+        hardware_profile: "5_button",
+        enabled: true
+      })
+
+    {:ok, _view, html} = live(conn, "/config/bridge/#{bridge.id}/picos/#{device.id}")
+
+    assert html =~ ~s(<option value="" selected="selected" disabled="disabled">)
+    assert html =~ "<option value=\"\" selected=\"selected\" disabled=\"disabled\">"
+    assert html =~ "\n-\n"
+    assert html =~ ~s(id="pico-clear-room-scope")
+
+    assert html =~
+             ~s(id="pico-clear-room-scope" type="button" class="hw-button hw-delete-button" phx-click="clear_pico_config" disabled)
+
+    assert html =~
+             "This Pico needs a room before control groups or button bindings can be configured."
+
+    assert html =~ "Hallway"
   end
 
   test "room override is locked until existing pico config is cleared", %{conn: conn} do
@@ -680,18 +740,21 @@ defmodule HueworksWeb.PicoConfigLiveTest do
     {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/picos/#{device.id}")
 
     html = render(view)
-    assert html =~ "Clear Pico Config"
-    assert html =~ "disabled"
+    assert html =~ "pico-clear-room-scope"
+    assert html =~ "Clear"
+    assert html =~ ~s(id="pico-room-id")
+    assert html =~ ~s(id="pico-clear-room-scope")
 
     view
-    |> element("button[phx-click='clear_pico_config']")
+    |> element("#pico-clear-room-scope")
     |> render_click()
 
     updated = Repo.get!(PicoDevice, device.id)
     updated_button = Repo.get!(PicoButton, button.id)
 
     assert updated.room_id == auto_room.id
-    refute render(view) =~ "Clear Pico Config"
+    assert render(view) =~ "pico-clear-room-scope"
+    assert render(view) =~ "Clear"
     assert render(view) =~ "Pico config cleared."
     assert updated_button.action_type == nil
 
@@ -705,7 +768,9 @@ defmodule HueworksWeb.PicoConfigLiveTest do
     assert render(view) =~ "Pico room updated."
   end
 
-  test "detect pico mode redirects from the list page into the matching pico config", %{conn: conn} do
+  test "detect pico mode redirects from the list page into the matching pico config", %{
+    conn: conn
+  } do
     bridge =
       insert_bridge!(%{
         type: :caseta,
@@ -984,7 +1049,11 @@ defmodule HueworksWeb.PicoConfigLiveTest do
       Scenes.create_manual_light_state("Movie", %{"brightness" => "25", "temperature" => "2600"})
 
     {:ok, scene} = Scenes.create_scene(%{name: "Movie Night", room_id: room.id})
-    {:ok, _} = Scenes.replace_scene_components(scene, [%{light_state_id: to_string(state.id), light_ids: []}])
+
+    {:ok, _} =
+      Scenes.replace_scene_components(scene, [
+        %{light_state_id: to_string(state.id), light_ids: []}
+      ])
 
     {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/picos/#{device.id}")
 
@@ -1118,7 +1187,11 @@ defmodule HueworksWeb.PicoConfigLiveTest do
       Scenes.create_manual_light_state("Movie", %{"brightness" => "25", "temperature" => "2600"})
 
     {:ok, scene} = Scenes.create_scene(%{name: "Movie Night", room_id: room.id})
-    {:ok, _} = Scenes.replace_scene_components(scene, [%{light_state_id: to_string(state.id), light_ids: []}])
+
+    {:ok, _} =
+      Scenes.replace_scene_components(scene, [
+        %{light_state_id: to_string(state.id), light_ids: []}
+      ])
 
     {:ok, _button} =
       Picos.assign_button_binding(device, "b1", %{

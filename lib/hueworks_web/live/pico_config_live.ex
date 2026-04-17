@@ -213,7 +213,7 @@ defmodule HueworksWeb.PicoConfigLive do
     with %{} = destination <- socket.assigns.selected_pico,
          source_id when is_integer(source_id) <- socket.assigns.clone_source_pico_id,
          %{} = source <- Enum.find(socket.assigns.pico_devices, &(&1.id == source_id)),
-      {:ok, updated} <- Picos.clone_device_config(destination, source) do
+         {:ok, updated} <- Picos.clone_device_config(destination, source) do
       socket
       |> assign(save_status: "Pico config copied.", save_error: nil)
       |> reload_from_devices(Picos.list_devices_for_bridge(socket.assigns.bridge.id), updated.id)
@@ -231,7 +231,10 @@ defmodule HueworksWeb.PicoConfigLive do
 
       {:error, :missing_source_room} ->
         socket
-        |> assign(save_status: nil, save_error: "The source Pico needs a room before it can be copied.")
+        |> assign(
+          save_status: nil,
+          save_error: "The source Pico needs a room before it can be copied."
+        )
         |> reply_with_save_notice()
 
       {:error, reason} ->
@@ -516,33 +519,33 @@ defmodule HueworksWeb.PicoConfigLive do
 
         socket.assigns.selected_pico && socket.assigns.selected_pico.id == pico_device_id &&
             socket.assigns.learning_binding ->
-        case Picos.assign_button_binding(
-               socket.assigns.selected_pico,
-               button_source_id,
-               socket.assigns.learning_binding
-             ) do
-          {:ok, _button} ->
-            socket
-            |> assign(
-              learning_binding: nil,
-              save_status: "Assigned action to the pressed Pico button.",
-              save_error: nil
-            )
-            |> reload_from_devices(
-              Picos.list_devices_for_bridge(socket.assigns.bridge.id),
-              pico_device_id
-            )
-            |> reply_with_save_notice()
+          case Picos.assign_button_binding(
+                 socket.assigns.selected_pico,
+                 button_source_id,
+                 socket.assigns.learning_binding
+               ) do
+            {:ok, _button} ->
+              socket
+              |> assign(
+                learning_binding: nil,
+                save_status: "Assigned action to the pressed Pico button.",
+                save_error: nil
+              )
+              |> reload_from_devices(
+                Picos.list_devices_for_bridge(socket.assigns.bridge.id),
+                pico_device_id
+              )
+              |> reply_with_save_notice()
 
-          {:error, reason} ->
-            socket
-            |> assign(
-              learning_binding: nil,
-              save_status: nil,
-              save_error: "Failed to assign pressed button: #{inspect(reason)}"
-            )
-            |> reply_with_save_notice()
-        end
+            {:error, reason} ->
+              socket
+              |> assign(
+                learning_binding: nil,
+                save_status: nil,
+                save_error: "Failed to assign pressed button: #{inspect(reason)}"
+              )
+              |> reply_with_save_notice()
+          end
 
         socket.assigns.live_action == :show ->
           socket
@@ -562,6 +565,7 @@ defmodule HueworksWeb.PicoConfigLive do
 
   defp load_page(socket, bridge, pico_id) do
     devices = Picos.list_devices_for_bridge(bridge.id)
+
     selected_id =
       case socket.assigns.live_action do
         :show -> normalize_selected_pico_id(devices, pico_id)
@@ -609,7 +613,10 @@ defmodule HueworksWeb.PicoConfigLive do
       assign(socket,
         pico_devices: devices,
         detect_pico_mode:
-          if(socket.assigns.live_action == :index, do: socket.assigns[:detect_pico_mode] || false, else: false),
+          if(socket.assigns.live_action == :index,
+            do: socket.assigns[:detect_pico_mode] || false,
+            else: false
+          ),
         selected_pico: selected,
         room_groups: groups,
         room_lights: lights,
@@ -626,7 +633,8 @@ defmodule HueworksWeb.PicoConfigLive do
             binding_target_kind,
             socket.assigns[:binding_target_id]
           ),
-        binding_action: normalize_binding_action(binding_target_kind, socket.assigns[:binding_action])
+        binding_action:
+          normalize_binding_action(binding_target_kind, socket.assigns[:binding_action])
       )
 
     load_selected_control_group(socket)
@@ -702,8 +710,9 @@ defmodule HueworksWeb.PicoConfigLive do
     end
   end
 
-  defp normalize_binding_target_kind("scene", _control_groups, room_scenes) when room_scenes != [],
-    do: "scene"
+  defp normalize_binding_target_kind("scene", _control_groups, room_scenes)
+       when room_scenes != [],
+       do: "scene"
 
   defp normalize_binding_target_kind("control_group", control_groups, _room_scenes)
        when control_groups != [],
@@ -749,7 +758,8 @@ defmodule HueworksWeb.PicoConfigLive do
     Enum.reject(lights, &MapSet.member?(covered_light_ids, &1.id))
   end
 
-  defp available_control_group_lights(_device, lights, _group_ids, light_ids) when is_list(lights) do
+  defp available_control_group_lights(_device, lights, _group_ids, light_ids)
+       when is_list(lights) do
     Enum.reject(lights, &(&1.id in light_ids))
   end
 
@@ -764,7 +774,8 @@ defmodule HueworksWeb.PicoConfigLive do
     end)
   end
 
-  defp available_control_group_groups(_device, groups, group_ids, _light_ids) when is_list(groups) do
+  defp available_control_group_groups(_device, groups, group_ids, _light_ids)
+       when is_list(groups) do
     Enum.reject(groups, &(&1.id in group_ids))
   end
 
@@ -782,10 +793,35 @@ defmodule HueworksWeb.PicoConfigLive do
   end
 
   defp display_name(entity), do: Util.display_name(entity)
-  defp display_name_value(%{display_name: display_name}) when is_binary(display_name), do: display_name
+
+  defp display_name_value(%{display_name: display_name}) when is_binary(display_name),
+    do: display_name
+
   defp display_name_value(_entity), do: ""
   defp pico_config_locked?(%{} = device), do: Picos.configured?(device)
   defp pico_config_locked?(_device), do: false
+
+  defp auto_detected_room_option_label(device, rooms) do
+    case auto_detected_room(device, rooms) do
+      %{display_name: display_name} when is_binary(display_name) and display_name != "" ->
+        "#{display_name} (Auto-Detected)"
+
+      %{name: name} when is_binary(name) ->
+        "#{name} (Auto-Detected)"
+
+      nil ->
+        "-"
+    end
+  end
+
+  defp no_auto_detected_room?(device), do: is_nil(Picos.auto_detected_room_id(device))
+  defp room_scope_clear_disabled?(%{room_id: nil}), do: true
+  defp room_scope_clear_disabled?(_device), do: false
+
+  defp auto_detected_room(device, rooms) when is_list(rooms) do
+    detected_room_id = Picos.auto_detected_room_id(device)
+    Enum.find(rooms, &(&1.id == detected_room_id))
+  end
 
   attr(:label, :string, required: true)
   attr(:text, :string, required: true)
