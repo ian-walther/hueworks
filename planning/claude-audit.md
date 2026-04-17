@@ -1,304 +1,211 @@
-# Claude Architecture Audit
+# Claude Architecture Audit — Outstanding Items
 
 ## Purpose
-Independent code audit of the HueWorks codebase, performed by Claude as a second-opinion review alongside the existing `refactoring.md` priorities. Findings here are complementary — they focus on code-level patterns, duplication, error handling, naming, and structural issues rather than repeating the architectural direction already documented.
+Independent code-level audit of the HueWorks codebase, focused on concrete patterns, duplication, error handling, naming, and structural issues — complementary to the architectural direction in `refactoring.md`. Items addressed by subsequent refactoring passes have been removed; what remains is only what still needs attention.
 
-## Recent Progress (as of 2026-04-15)
-
-Major refactoring toward well-defined structs and embedded schemas. Key wins:
-
-- **Embedded schemas added:** `Bridge.Credentials`, `PicoButton.ActionConfig`, `LightState.Config`, `LightState.ManualConfig` — all with proper validation, normalization, and type-specific logic
-- **Planner decomposed:** `Planner.Action` struct (37 lines) and `Planner.Context` struct (96 lines) replace bare maps and the 8-parameter recursive call
-- **Scenes broken into submodules:** `Active` (131), `Components` (123), `LightStates` (165), `Persistence` (63) — parent `scenes.ex` is now a clean 228-line facade
-- **Picos.Config broken into submodules:** `Bindings` (223), `Clone` (97), `ControlGroups` (128) — parent `config.ex` is now 35 lines
-- **AppSettings decomposed:** `HaExportConfig` (183) and `SolarConfig` (168) extracted — parent down to 165 lines
-- **LiveView state extraction:** `LightStateEditorLive.FormState` (249), `LightsLive.Actions` (233), `SceneBuilderComponent.State` (337)
-- **Color/temperature harmonization consolidated** into `LightStateSemantics` (was duplicated across 3 modules)
-- **DesiredAttrs struct** added in `scenes/intent.ex` (first step toward typed light state in control pipeline)
+Last revised 2026-04-16 after a large struct/schema-direction refactoring pass.
 
 ---
 
-## Chunk 1 Findings
+## Priority Next Steps
 
-### 1. Systemic Duplication Patterns
+1. **Normalize keys at the `state_parser.ex` boundary** (1a + 13b) — the single highest-leverage remaining issue. Make `state_parser.ex` return atom-keyed maps (or a struct) so the dual-key problem doesn't propagate into ETS. The `DesiredAttrs` struct in `scenes/intent.ex` is a good model.
+2. **Generate trace IDs by default in `apply_scene`** (14d) — activates the already-built trace infrastructure with zero new plumbing.
+3. **Break the Rooms → HomeAssistantExport coupling** (6a) — the cycle moved from `scenes.ex` to `rooms.ex` but still exists. PubSub-based eventing is the right decoupling.
+4. **Add `@spec` coverage to the critical 5 control modules** (13a) — `state.ex`, `desired_state.ex`, `light_state_semantics.ex`, `state_parser.ex`, `scenes.ex`. Dialyxir is already present, so specs will be verified immediately.
+5. **Fix the N+1 in `picos/targets.ex`** (8b) — isolated performance win.
+6. **Log bare rescue stack traces** (2a) — small change, meaningful debuggability improvement.
+7. **Parameterize `materialize.ex` upserts** (1g) — ~44 lines eliminated, mechanical.
 
-These are the highest-value refactoring targets because they affect multiple modules and increase the cost of every future change.
+---
 
-#### 1a. String/Atom Dual-Key Handling (6+ modules)
+## 1. Systemic Duplication Patterns
 
-Data from MQTT and external sources arrives with string keys; the domain model uses atoms. The conversion is handled ad-hoc in at least 6 places with slightly different patterns:
+### 1a. String/Atom Dual-Key Handling (highest-leverage remaining)
 
-- `export/messages.ex`: 6 instances of checking both `:key` and `"key"`
-- `scenes/intent.ex`: `config_lookup/2` tries string then atom (lines 158-178), `manual_mode/1` checks both (180-186), `light_default_lookup/2` checks int and string keys (188-201), `parse_default_power/1` has 8 clause patterns for true/"true"/1/"1"/:on/"on"
-- `export/commands.ex`: `drop_kelvin/1` deletes 4 key variants, `drop_xy/1` deletes 4 key variants, `incoming_has_xy?/1` and `incoming_has_kelvin?/1` each check 4 variants
-- `control/light_state_semantics.ex`: `key_aliases/1` returns mixed lists
-- `control/state_parser.ex`: inline `Map.get(attrs, :kelvin) || Map.get(attrs, "kelvin")`
-- `control/executor.ex`: `Map.get(desired, :power) || Map.get(desired, "power")`
+Data from MQTT and external sources arrives with string keys; the domain model uses atoms. The conversion is still handled ad-hoc in 6+ places:
 
-**Recommendation:** Extract a shared `KeyNormalize` or similar utility with `get_any(map, atom_key)` that checks both forms, and `delete_any(map, keys)` / `has_any?(map, keys)` helpers. Then progressively adopt it. This would eliminate ~100 lines of duplicated guard logic.
+- `scenes/intent.ex:116-117`: `Map.get(component, :light_defaults) || Map.get(component, "light_defaults")`; `light_default_lookup/2:214-219` uses `cond` with `Map.has_key?` for both forms
+- `home_assistant/export/commands.ex:99-127`: `drop_kelvin/1`, `drop_xy/1` delete both atom/string variants; `incoming_has_xy?/1` and `incoming_has_kelvin?/1` check both
+- `control/light_state_semantics.ex:66-78`: `key_aliases/1` returns lists like `[:kelvin, "kelvin", :temperature, "temperature"]`
+- `control/state_parser.ex:13,18`: inline `state["attributes"] || state[:attributes]`, `attrs["brightness"] || attrs[:brightness]`
+- `hueworks_app/control/executor/commands.ex:10`, `desired_state.ex:144`, `planner.ex:321`, `apply.ex:177`, `home_assistant_payload.ex:17`, `z2m_payload.ex:15`, `hue_payload.ex:13`: all repeat `Map.get(desired, :power) || Map.get(desired, "power")`
 
-#### 1c. Event Stream Manager Duplication (4 files, ~250 lines)
+**Recommendation:** Extract a shared `KeyNormalize` utility with `get_any(map, atom_key)` and `delete_any(map, keys)` / `has_any?(map, keys)`. Better: normalize at `state_parser.ex` so atom-keyed maps (or a struct) enter the ETS layer — this eliminates the problem at the root rather than papering over it.
 
-The four event stream managers are structurally identical:
+### 1d. Fetch Module Duplication (partial)
 
-- `hueworks_app/subscription/hue_event_stream.ex` (85 lines)
-- `hueworks_app/subscription/home_assistant_event_stream.ex` (85 lines)
-- `hueworks_app/subscription/caseta_event_stream.ex` (85 lines)
-- `hueworks_app/subscription/z2m_event_stream.ex` (75 lines)
+`invalid_credential?/1` has been consolidated into `import/fetch/common.ex:26-28`. Remaining: `fetch/0` and `fetch_for_bridge/1` in each of `hue.ex`, `home_assistant.ex`, `caseta.ex`, `z2m.ex` are still 80-90% structurally identical — they differ only in the bridge type filter and credential extraction.
 
-They share: `@restart_delay_ms`, `@retry_delay_ms`, identical `start_link/init/handle_info` implementations, and the same `maybe_start_connections` pattern with only the `:type` filter varying.
+**Recommendation:** Extract shared `fetch_all(type, &fetch_fn/1)` and `fetch_one(bridge, &fetch_fn/1)` wrappers into `common.ex`.
 
-**Recommendation:** A single parametrized `GenericEventStream` module with bridge type as init arg would eliminate ~250 lines. Low risk since the structure is already identical.
+### 1f. Blank Component Definition (2 files)
 
-#### 1d. Fetch Module Duplication (3 modules, ~120 lines)
-
-`fetch/0` and `fetch_for_bridge/1` in each fetch module (Hue, HA, Caseta) are 80-90% identical — they differ only in the bridge type filter and credential extraction.
-
-**Recommendation:** Extract shared `fetch_all(type, &fetch_fn/1)` and `fetch_one(bridge, &fetch_fn/1)` wrappers. Also: `invalid_credential?/1` is repeated verbatim in 4+ files — extract to `Credentials` module.
-
-#### 1f. Blank Component Definition (2 files)
-
-`@blank_component` is still defined identically in `SceneEditorLive` and `SceneBuilderComponent.State` (was 3 files, `PicoConfigLive` no longer has it).
+`@blank_component` is still defined identically in `scene_editor_live.ex` and `scene_builder_component/state.ex`.
 
 **Recommendation:** Define once in a shared location (e.g., `Scenes.Builder` or `Scenes.Components`).
 
-#### 1g. Materialize upsert Duplication
+### 1g. Materialize upsert Duplication
 
-`upsert_lights/4` (lines 92-134) and `upsert_groups/4` (lines 137-179) in `materialize.ex` are structurally identical — 43 lines each with only schema and field names differing.
+`upsert_lights/4` (lines 92-135) and `upsert_groups/4` (lines 137-180) in `materialize.ex` are 44-line near-duplicates — same `attrs` map, same `Repo.get_by` + insert/update logic, differing only in schema and metadata helper calls.
 
 **Recommendation:** Extract parameterized `upsert_entities/5`.
 
 ---
 
-### 2. Error Handling Issues
+## 2. Error Handling Issues
 
-#### 2a. Bare Rescue Blocks
+### 2a. Bare Rescue Blocks
 
-- `import/pipeline.ex` lines 35-37 and 41-43: `rescue error -> {:error, Exception.message(error)}` — swallows stack trace, loses exception type
-- `subscription/readiness.ex` line 17: `rescue _error -> false` — silently converts any exception to false, making it impossible to distinguish "table not ready" from "database connection error"
+- `import/pipeline.ex:35-43`: `rescue error -> {:error, Exception.message(error)}` — swallows stack trace, loses exception type
+- `hueworks_app/subscription/readiness.ex:17`: `rescue _error -> false` — silently converts any exception to false, making it impossible to distinguish "table not ready" from "database connection error"
 
 **Recommendation:** Use `Logger.error` with `Exception.format(:error, error, __STACKTRACE__)` in rescue blocks. Return structured error tuples.
 
-#### 2b. Silent Error Swallowing
+### 2b. Silent Error Swallowing
 
-- `export/router.ex` `handle_light_command/5` (lines 88-119): `else` clause uses wildcard `_`, silently discarding all errors with no logging
-- `export/connection.ex` line 238: `_ = reason` ignores connection error
-- `import/fetch/home_assistant.ex` lines 152-185: all registry fetches silently return empty lists on error
-- `scenes/intent.ex` `Circadian.calculate/3` (line 78): catches errors, logs warning, returns empty map — callers can't distinguish "circadian disabled" from "calculation failed"
-- `executor.ex` line 281: bare `_ ->` treats ALL unknown dispatch results as success
+- `import/fetch/home_assistant.ex` lines 153, 160, 175, 190, 199, 275: all registry fetches silently return empty lists on error (`_ -> []`)
+- `scenes/intent.ex` `Circadian.calculate/3` catch (~line 78): catches errors, logs warning, returns empty map — callers can't distinguish "circadian disabled" from "calculation failed"
 
-**Recommendation:** Establish a pattern: errors at system boundaries get logged with context; errors in internal calls get propagated as tuples. The executor line 281 catch-all is the highest risk — unknown dispatch results should not be treated as success.
+**Recommendation:** Errors at system boundaries should be logged with context; errors in internal calls should be propagated as tuples.
 
-#### 2c. Inconsistent Error Return Styles
+### 2c. Inconsistent Error Return Styles
 
-- `import/fetch/hue.ex` `fetch_endpoint`: returns `%{error: "..."}` (map with error key)
-- Z2M fetch: returns `{:error, reason}` tuples
-- Caseta fetch: uses `IO.puts` on error instead of Logger
-- Materialize: `infer_group_rooms/1` performs DB updates as side effect with no return value
+- `import/fetch/hue.ex:56-72` still returns `%{error: "..."}` maps (lines 63, 67, 70) instead of `{:error, reason}` tuples
+- `import/fetch/caseta.ex:132` returns `%{error: inspect(reason), responses: acc}`
+- `materialize.ex` `infer_group_rooms/1` performs DB updates as side effect with no return value
 
-**Recommendation:** Standardize on `{:ok, result} | {:error, reason}` throughout. Replace `IO.puts` with Logger calls.
+**Recommendation:** Standardize on `{:ok, result} | {:error, reason}` throughout.
 
 ---
 
-### 3. Complexity Hotspots
+## 3. Complexity Hotspots
 
-These are the functions and modules where cognitive complexity is highest.
+### 3b. LightStateEditorLive (441 lines, down from 810 → 621)
 
-#### 3b. LightStateEditorLive (621 lines, down from 810)
+Continued improvement, but chart calculation functions are still tightly coupled to the LiveView, and `@chart_width 640`, `@chart_height 188`, `@chart_padding` are magic numbers for chart rendering.
 
-`FormState` (249 lines) was extracted, handling form value coercion and preview calculations. Remaining issues:
-- Chart calculation functions are still tightly coupled to the LiveView
-- `@chart_width 640`, `@chart_height 188`, `@chart_padding` — magic numbers for chart rendering
+**Recommendation:** Extract chart rendering logic to a dedicated `CircadianChart` module.
 
-**Recommendation:** Extract chart rendering logic to a dedicated `CircadianChart` module. Lower priority now that the file is more manageable.
+### 3d. HA Normalize Reducer
 
-#### 3d. HA Normalize Reducer (normalize/home_assistant.ex lines 19-149)
-
-Single 149-line reducer function with 4 levels of nesting and a `cond` block distinguishing groups, grouped lights, and standalone lights.
+`normalize/home_assistant.ex:19-149` is still a single 126-line reducer function with 4 levels of nesting and a `cond` block distinguishing groups, grouped lights, and standalone lights.
 
 **Recommendation:** Break into separate functions per entity type.
 
 ---
 
-### 4. Hard-Coded Values and Magic Numbers
+## 4. Hard-Coded Values and Magic Numbers
 
-#### 4a. Tolerance Constants (defined in 2+ places)
+### 4a. Tolerance Constants (still duplicated)
 
-- `@brightness_tolerance 2` — in both `planner.ex` (line 16) and `desired_state.ex` (line 11)
-- `@temperature_physical_mired_tolerance 1` — in `planner.ex` (line 17)
-- `@temperature_reconcile_mired_tolerance 1` — in `desired_state.ex` (line 12)
-- `@xy_tolerance 0.01` — in `planner.ex` (line 18)
+- `@brightness_tolerance 2` — in both `planner.ex:17` and `desired_state.ex:11`
+- `@temperature_physical_mired_tolerance 1` and `@xy_tolerance 0.01` — in `planner.ex:18-19`
+- `@temperature_reconcile_mired_tolerance 1` — in `desired_state.ex:12`
 
-**Recommendation:** Centralize tolerance constants in a single module (e.g., `LightStateSemantics` or a new `Control.Tolerances`).
+**Recommendation:** Centralize in a single module (e.g., `LightStateSemantics` or a new `Control.Tolerances`).
 
-#### 4b. Mired Conversion
+### 4b. Mired Conversion
 
-`1_000_000 / mired` appears 8+ times in `state_parser.ex` instead of using a helper function.
+`1_000_000 / mired` still appears 5 times in `state_parser.ex` (lines 199, 230, 288, 410, 450). `Kelvin` module exists but doesn't expose public `from_mired/1` / `to_mired/1` helpers.
 
-**Recommendation:** Extract to `Kelvin.from_mired/1` and `Kelvin.to_mired/1`.
+**Recommendation:** Extract `Kelvin.from_mired/1` and `Kelvin.to_mired/1` and use them.
 
-#### 4c. Rate Limits and Timeouts
+### 4d. Entity String Prefixes
 
-- `executor.ex` line 21: `@default_rates %{hue: 10, ha: 5, caseta: 5, z2m: 5}`
-- `executor.ex` lines 22-23: `@default_max_retries 3`, `@default_backoff_ms 250`
-- Event streams: `@restart_delay_ms 1_000`, `@retry_delay_ms 2_000` in 4 files
-- Caseta fetch: `@bridge_port 8081`, various `5000` timeouts
-- Z2M fetch: `@snapshot_timeout 8_000`
-- HA fetch: `10_000` timeout in receive block
+`"light."` still appears 7 times as a filtering prefix in `import/fetch/home_assistant.ex` (lines 70, 84, 160, 175, 190, 199, 275).
 
-These are all reasonable as module attributes, but the event stream ones are duplicated and the Caseta port is not configurable.
-
-#### 4d. Entity String Prefixes
-
-`"light."` appears 5+ times in `import/fetch/home_assistant.ex` as a filtering prefix. Should be a module constant.
+**Recommendation:** Promote to a module constant.
 
 ---
 
-### 5. Naming Inconsistencies
+## 5. Naming Inconsistencies
 
-#### 5a. Function Naming
+### 5a. Function Naming
 
-- `fetch/0` vs `fetch_for_bridge/1` — both exist in Hue, HA, Caseta modules but serve the same purpose (multi vs single)
+- `fetch/0` vs `fetch_for_bridge/1` — both exist in Hue, HA, Caseta modules serving the same purpose (multi vs single)
 - `normalize` vs `normalize_light` vs `normalize_group` — mixed granularity in Z2M normalize
 - `load_bridge` (singular, Caseta) vs `load_bridges` (implied plural, Hue)
-- `dispatch_action` vs `dispatch_toggle` in LightsLive — inconsistent
+- `dispatch_action` vs `dispatch_toggle` in LightsLive
 - `execute_button_action` vs `handle_button_press` in Picos — unclear distinction
-- `normalize_` vs `parse_` functions used interchangeably across modules
+- `normalize_` vs `parse_` used interchangeably across modules
 - `planner.ex` `desired_key/1` returns a LIST for grouping, not a single key
 - `state_parser.ex` `parse_*` functions do transformation, not just parsing
 
-#### 5b. Scenes Naming Confusion
+### 5b. Scenes Naming Confusion
 
 - `apply_scene` vs `apply_active_scene` — subtle distinction
 - `reapply_active_scene_lights` and `reapply_active_circadian_lights` are compatibility wrappers for `recompute_` variants — creates naming ambiguity
 
-#### 5c. Config Key Naming
+### 5c. Config Key Name Drift
 
-- `executor.ex` lines 578-588: convergence delay fallback to `manual_control_reconcile_delays_ms` — name mismatch suggests code evolution/technical debt
+`executor/convergence.ex:98` chains `Application.get_env` with fallback to a config key named `manual_control_reconcile_delays_ms` — the name doesn't match the current usage (convergence delay). Evidence of a rename that never happened.
 
 ---
 
-### 6. Architectural Observations
+## 6. Architectural Observations
 
-These go beyond what's in `refactoring.md` and represent structural patterns worth noting.
+### 6a. Circular Dependency: Rooms ↔ Export
 
-#### 6a. Circular Dependency: Scenes <-> Export
+The cycle migrated but was not broken. `scenes.ex` no longer calls `HomeAssistantExport.refresh_*`, but `rooms.ex:34,64-65` now calls `HomeAssistantExport.refresh_room()` and `HomeAssistantExport.remove_scene/1` directly. `HomeAssistantExport` still processes via `Router`, which still calls back into domain contexts.
 
-- `Scenes` (line 12) calls `HomeAssistantExport.refresh_*`
-- `HomeAssistantExport` processes scenes via `Router`
-- `Router` calls back into `Scenes`
+**Recommendation:** Break the cycle with PubSub — domain contexts broadcast events, Export subscribes. This aligns with the architecture-reset principle that upstream code decides semantics while downstream reacts.
 
-**Recommendation:** Break the cycle with PubSub — Scenes broadcasts events, Export subscribes. This aligns with the architecture-reset principle that upstream code decides semantics while downstream reacts.
+### 6b. Missing Bridge Adapter Abstraction
 
-#### 6b. Missing Bridge Adapter Abstraction
+All fetch, normalize, and event stream modules still independently handle credential validation, bridge loading, connection errors, and response parsing. No `@callback` definitions exist anywhere in `lib/`.
 
-All fetch, normalize, and event stream modules independently handle credential validation, bridge loading, connection errors, and response parsing. No shared behavior or protocol.
+**Recommendation:** Define a `@callback`-based behavior for fetch and normalize. The `GenericEventStream` consolidation has already done this for subscriptions — the same pattern can be applied here.
 
-**Recommendation:** Define a `@callback`-based behavior for fetch and normalize. This would enforce consistency and make adding new bridge types (or modifying shared patterns) safer.
-
-#### 6c. Connection Management Risks
+### 6c. Connection Management Risks
 
 - No exponential backoff on event stream reconnection — all use fixed 1-2 second delays. If a bridge is down, the system hammers it indefinitely.
 - Caseta LEAP raw socket: if `read_initial_zone_status` times out, socket may be left open
 - Hue SSE: no explicit cleanup of `HTTPoison.AsyncResponse` on GenServer crash
 - Z2M: tolerates `{:error, {:already_started, pid}}` silently — if handler crashes, connection persists orphaned
 
-**Recommendation:** Implement bounded exponential backoff for all event streams. Audit socket/connection cleanup in error paths.
+**Recommendation:** Implement bounded exponential backoff. Audit socket/connection cleanup in error paths. `GenericEventStream` consolidation makes this a single-site fix now.
 
-#### 6d. Snapshot vs. Streaming Race Condition
+### 6d. Snapshot vs. Streaming Race Condition
 
 The import pipeline operates as batch snapshots (fetch all, normalize, materialize) while event streams process incremental deltas. No synchronization mechanism exists if an import runs during event stream processing.
 
 **Recommendation:** Document this as a known constraint, or add a brief pause/drain during import.
 
-#### 6e. Planner Reuse in Convergence Recovery
+### 6e. Planner Reuse in Convergence Recovery
 
-`executor.ex` line 477 calls `Planner.plan_room` during convergence recovery. The Planner is designed for initial planning — it's unclear whether calling it during recovery can cascade into unexpected replanning behavior.
+`executor.ex` calls `Planner.plan_room` during convergence recovery. The Planner is designed for initial planning — it's unclear whether calling it during recovery can cascade into unexpected replanning behavior.
 
 **Recommendation:** Investigate whether this can cause feedback loops, especially during mixed-bridge recovery scenarios.
 
-#### 6f. Transaction Pattern Underutilized
+### 6f. Transaction Pattern Underutilized
 
 `DesiredState.Transaction` exists but is only used in `apply.ex`. No hooks for validation, rollback, or multi-entity consistency elsewhere.
 
 ---
 
-### 7. Positive Patterns Worth Preserving
+## 8. Schema and Ecto Query Analysis
 
-- `Circadian` and `Color` modules are well-designed mathematical implementations with clean interfaces
-- `LightsLive.DisplayState` and `Loader` effectively separate data loading from presentation
-- `Picos.Actions` has clear separation of concerns
-- Bridge dispatch in `Light` and `Group` modules uses clean pattern matching
-- `Export.Runtime` is a model of single-responsibility design (59 lines, all functions <15 lines)
-- `Export.Handler` is minimal and focused (42 lines)
-- Good use of `with` for error handling in most domain modules
-- `Builder.ex` (133 lines) is clean, functional-style code
+### 8b. N+1 Query Risks
 
----
-
----
-
-## Chunk 2 Findings
-
-### 8. Schema and Ecto Query Analysis
-
-#### 8a. Schema Design — Generally Solid
-
-16 schema modules were reviewed. Key observations:
-
-- **Validation is thorough**: `AppSetting` has multi-changeset pattern with conditional validation (`validate_ha_export_requirements/1`). `LightState` routes to type-specific validators. `Group` and `Light` have custom kelvin-source and self-reference validations.
-- **Associations are well-defined**: Join tables (`GroupLight`, `SceneComponentLight`) properly use composite unique constraints. Through-associations used where appropriate.
-- **Single changeset per schema** (except `AppSetting` which needs two) — clean pattern.
-
-#### 8b. N+1 Query Risks
-
-**`picos/targets.ex` lines 22-38 — `expand_room_targets/3`:**
-```
-group_ids |> Enum.flat_map(fn group_id ->
-  Repo.one(from(g in Group, where: g.id == ^group_id, select: g.room_id))
-  Groups.member_light_ids(group_id)  # ANOTHER QUERY INSIDE LOOP
-end)
-```
-One query per group_id + one query per group to get member lights = O(n) queries.
+**`picos/targets.ex:29-47` — `expand_room_targets/3`:**
+- `room_light_ids` (line 108): `Repo.all` per room_id
+- `room_group_light_ids` (lines 125-140): `Repo.all` for group validation, then `Repo.all` for light_ids
+- Three queries per call, pattern unresolved.
 
 **Recommendation:** Batch-load all group room_ids and member lights in a single query.
 
-**`picos/targets.ex` lines 96-103 — `scene_name_for_target/2`:**
-Loads ALL scenes for a room via `Scenes.list_scenes_for_room/1`, then finds one by ID in memory. Should query the specific scene directly.
+### 8c. Inefficient Preloading Pattern
 
-#### 8c. Inefficient Preloading Pattern (4 instances)
-
-`home_assistant/export/entities.ex` lines 97-138 loads records then preloads in a separate query:
-```
-Repo.all(from(l in Light, where: ...))
-|> Repo.preload(:room)  # SEPARATE QUERY
-```
-This pattern appears 4 times. Should use `preload: [:room]` in the initial query.
-
-Similarly, `rooms.ex` `list_rooms_with_children/0` does `Repo.all(...)` then `|> Repo.preload([:groups, :lights, :scenes])` — 3 additional queries.
-
-#### 8d. Transaction Usage — Sound
-
-All 5 transaction sites are correctly structured:
-- `scenes.ex` — atomic scene component replacement
-- `external_scenes.ex` — sync transaction
-- `bridges.ex` — cascade deletion
-- `picos/config.ex` — device config cloning
-- `import/pipeline.ex` — import creation
-
-#### 8e. Index Coverage
-
-Index coverage is generally good. All foreign keys have corresponding indexes in migrations. No missing critical indexes identified.
-
-One note: `fragment("lower(?)", r.name)` in `materialize.ex` line 65 is SQLite-specific for case-insensitive search — acceptable given the project targets SQLite, but worth noting if the database ever changes.
+Four instances of `Repo.all(...) |> Repo.preload(...)` instead of `preload: [...]` in the initial query:
+- `home_assistant/export/entities.ex` lines 105, 115, 127, 139
+- `rooms.ex` `list_rooms_with_children/0` — `Repo.all` then preloads `[:groups, :lights, :scenes]` (3 extra queries)
 
 ---
 
-### 9. Mix Tasks
+## 9. Mix Tasks
 
-8 mix tasks were reviewed. Key findings:
-
-#### 9a. Shared Boilerplate Duplication
+### 9a. Shared Boilerplate Duplication
 
 - **Timestamp generation**: duplicated in `backup_db`, `export_bridge_imports`, `normalize_bridge_imports`
 - **File operation helpers**: `rename_if_exists` duplicated between `backup_db` and `restore_db`
@@ -306,394 +213,203 @@ One note: `fragment("lower(?)", r.name)` in `materialize.ex` line 65 is SQLite-s
 
 **Recommendation:** Extract to a shared `Hueworks.TaskHelpers` module.
 
-#### 9b. `String.to_atom` on Untrusted Data
+### 9b. `String.to_atom` on Untrusted Data
 
-`materialize_bridge_imports.ex` line 64 and `normalize_bridge_imports.ex` line 64 both call `String.to_atom` on bridge type strings parsed from JSON files. This can cause atom table exhaustion if an attacker controls the input files.
+`materialize_bridge_imports.ex:64` and `normalize_bridge_imports.ex:64` both call `String.to_atom` on bridge type strings parsed from JSON files. This can cause atom table exhaustion if an attacker controls the input files.
 
 **Recommendation:** Validate against a whitelist (`:hue`, `:caseta`, `:ha`, `:z2m`) using `String.to_existing_atom` or explicit matching.
 
-#### 9c. Unsafe File Operations
+### 9c. Unsafe File Operations
 
-Multiple tasks use bang variants (`File.write!`, `File.read!`, `Jason.decode!`) without meaningful error context. When these raise, the error message lacks the file path and operation context.
+Multiple tasks use bang variants (`File.write!`, `File.read!`, `Jason.decode!`) without meaningful error context. When these raise, error messages lack file path and operation context.
 
-**Recommendation:** Wrap in `case File.read(path)` with descriptive error messages, or at minimum rescue with context.
+### 9d. Startup Strategy
 
-#### 9d. Startup Strategy
-
-6 of 8 tasks use `app.start` (full supervision tree). Only `backup_db` and `normalize_bridge_imports` correctly use `app.config` (lightweight, no daemons). Some tasks that only need database access may not need the full supervision tree.
+6 of 8 tasks use `app.start` (full supervision tree). Tasks that only need database access could use `app.config` (lightweight).
 
 ---
 
-### 10. Application Startup and Infrastructure
+## 10. Application Startup and Infrastructure
 
-#### 10a. Supervision Tree Structure
+### 10a. No Warmup/Health Check Before Endpoint
 
-```
-Supervisor (:one_for_one)
-  ├── Repo
-  ├── PubSub
-  ├── Cache.Store
-  ├── Control.State
-  ├── Control.DesiredState
-  ├── Control.Executor
-  ├── CircadianPoller (conditional)
-  ├── HueEventStream
-  ├── HomeAssistantEventStream
-  ├── CasetaEventStream
-  ├── Z2MEventStream
-  ├── HomeAssistant.Export (conditional)
-  └── Endpoint
-```
+No health check before Endpoint starts accepting HTTP requests. If subscriptions are still connecting when a user loads the UI, they'll see incomplete state.
 
-**Child ordering is correct:** Repo first, Endpoint last, state modules before executor, executor before subscriptions.
-
-**`:one_for_one` strategy is appropriate** — children are mostly independent. If Repo crashes, downstream services will fail on their next DB call and recover when Repo restarts.
-
-**Conditional startup** for CircadianPoller and HA Export uses clean `Enum.reject(&is_nil/1)` pattern.
-
-**Concern:** No warmup/health check before Endpoint starts accepting HTTP requests. If subscriptions are still connecting when a user loads the UI, they'll see incomplete state.
-
-#### 10b. Release.ex
+### 10b. Release.ex
 
 - Migrations run via `Ecto.Migrator.run(:up, all: true)` — no rollback capability, no reporting of which migrations ran
-- Seed handling is well-implemented with proper error tuples and file existence check
 - `start_repos/0` hardcodes the repo list — minor brittleness
 
-#### 10c. Router — No Authentication
+### 10c. Router — No Authentication
 
 All routes use the `:browser` pipeline with CSRF protection and secure headers, but there is **no authentication or authorization layer**. Every route is publicly accessible.
 
-This is likely intentional (local-network appliance), but worth documenting as a constraint. If the app is ever exposed beyond a trusted network, an auth pipeline would be needed.
+Likely intentional (local-network appliance), but worth documenting. If the app is ever exposed beyond a trusted network, an auth pipeline would be needed.
 
-#### 10d. Telemetry — Minimal
+### 10e. Utility Module Sprawl
 
-Only 2 metrics are collected:
-1. `phoenix.endpoint.stop.duration` — total request time
-2. `phoenix.router_dispatch.stop.duration` — router dispatch time
+`util.ex` (234 lines, up from 216) mixes generic parsing, bridge-specific logic, room logic, light control normalization, error formatting, and filter logic. Becoming a dumping ground.
 
-**Missing instrumentation for:**
-- Database query timing (no `ecto_sql` events)
-- Executor queue depth and dispatch latency
-- Subscription event processing time and connection health
-- LiveView mount/handle_event timing
-- VM memory and process count
-- Error rates
-
-`periodic_measurements()` returns an empty list — no gauge-style metrics.
-
-**Recommendation:** This is the biggest observability gap in the project. Adding Ecto telemetry events and executor/subscription metrics would significantly improve production debugging.
-
-#### 10e. Utility Module Sprawl
-
-`util.ex` (216 lines) mixes generic parsing, bridge-specific logic, room logic, light control normalization, error formatting, and filter logic. It's becoming a dumping ground.
-
-**Recommendation:** Split into focused submodules: `Util.Numeric`, `Util.Display`, `Util.Parsing`. This can be done incrementally.
-
-#### 10f. bridge_seeds.ex — Well Implemented
-
-Comprehensive validation, proper error tuples, transactional upserts with `on_conflict`. One of the better-implemented infrastructure modules.
+**Recommendation:** Split into focused submodules: `Util.Numeric`, `Util.Display`, `Util.Parsing`. Can be done incrementally.
 
 ---
 
-### 11. Test Suite Analysis
+## 11. Test Suite
 
-**443 tests across 71 test files. 153 source modules total.**
+Test surface has grown substantially in the recent refactor (71 → 89 test files). Source module count also grew (153 → 204). Structural observations below still apply; exact percentages should be re-measured.
 
-#### 11a. Coverage: 46% Module Coverage
+### 11a. Error Path Coverage Is Thin
 
-61 of 153 source modules have corresponding tests. The remaining 92 modules are untested.
+Most tests verify happy paths. Timeout scenarios, malformed subscription payloads, database constraint violations, concurrent state conflicts, and connection failures remain under-tested.
 
-**Critical untested modules:**
-- All bridge client modules (`HueBridge`, `Z2MBridge`, `HomeAssistantBridge`, `CasetaBridge`)
-- Context modules (`Bridges`, `Groups`, `Lights`, `Rooms`) — repository query logic untested
-- `ExternalScenes` and `ExternalSceneMapping`
-- LightsLive submodules (`DisplayState`, `Editor`, `Entities`, `Loader`)
-- All mix tasks
-- Cache module
+### 11b. No Property-Based Testing
 
-**Well-tested areas:**
-- Circadian calculations (900+ lines of tests with reference outputs)
-- Control planning and state parsing
-- Import pipeline (normalize, materialize, link)
-- Scene activation round-trips
-- Payload formatting (Hue, Z2M, HA)
+All tests are example-based. Calculation-intensive modules (`Circadian`, `Color`, `Kelvin`) would benefit from `stream_data` property tests.
 
-#### 11b. Error Path Coverage: ~3%
+### 11c. No Mox Framework
 
-Only ~14 of 443 tests verify error scenarios. This is the single biggest test quality gap.
+External dependencies are mocked via `Application.put_env` substitution and inline stub modules. Works, but lacks call count/order verification that Mox provides.
 
-**Covered:** Invalid JSON in seeds, circadian config validation, schema validation, missing light states.
+### 11d. Large Test Files
 
-**Not covered:** Timeout scenarios, malformed subscription payloads, database constraint violations, concurrent state conflicts, connection failures.
+- `circadian_integration_test.exs`: 1,427 lines
+- `control_planner_test.exs`: 979 lines
+- `home_assistant_export_test.exs`: 806 lines
 
-#### 11c. No Property-Based Testing
+Would benefit from splitting into focused test modules with `describe` blocks.
 
-All tests are example-based. Calculation-intensive modules like `Circadian`, `Color`, and `Kelvin` would benefit significantly from `stream_data` property tests to explore input spaces.
+### 11e. No Factory Pattern
 
-#### 11d. No Mox Framework
-
-External dependencies are mocked via Application.put_env substitution and inline stub modules. This works but lacks call count/order verification that Mox provides.
-
-#### 11e. Integration-Heavy Balance
-
-75% of tests are `async: false` (integration). This is appropriate for a hardware control system where state interactions matter, but it means the test suite runs sequentially and slowly.
-
-#### 11f. Test Infrastructure — Solid
-
-- Proper ETS table cleanup in setup blocks
-- `on_exit` cleanup for env substitution
-- DataCase sandbox with shared mode
-- Fresh DB rows per test (no brittle ID assumptions)
-- Test fixtures for realistic data-driven scenarios
-
-#### 11g. Large Test Files
-
-- `circadian_integration_test.exs`: 1,427 lines (19 tests)
-- `control_planner_test.exs`: 979 lines (20 tests)
-- `home_assistant_export_test.exs`: 806 lines (20 tests)
-
-These could benefit from splitting into focused test modules with `describe` blocks.
-
-#### 11h. No Factory Pattern
-
-Each test file defines its own helper functions for creating test data. A shared factory module would reduce duplication and ensure consistent test data across the suite.
+Each test file defines its own helper functions for creating test data. A shared factory module would reduce duplication and ensure consistent test data.
 
 ---
 
-### 12. Config/Environment Management
+## 12. Config/Environment Management
 
-#### 12a. Config Value Scattering
+### 12a. Config Value Scattering
 
 Settings are read from multiple sources with inconsistent patterns:
-- `Application.get_env` — used directly in ~30+ modules
+- `Application.get_env` — ~30+ modules
 - `AppSettings.get_global()` — database-backed settings with cache
-- `System.get_env` — used in release.ex and some tasks
-- Module attributes (`@default_rates`, `@brightness_tolerance`) — compile-time constants
+- `System.get_env` — `release.ex` and some tasks
+- Module attributes — compile-time constants
 
-There's no single inventory of all configuration knobs. Adding a new setting requires knowing which mechanism to use.
+No single inventory of all configuration knobs. Adding a new setting requires knowing which mechanism to use.
 
-#### 12b. Config Key Name Drift
+### 12b. Conditional Feature Flags
 
-`executor.ex` lines 578-588 chain `Application.get_env` with fallback to a config key named `manual_control_reconcile_delays_ms` — the name doesn't match the current usage (convergence delay). This suggests the config key name drifted as the feature evolved but was never renamed.
-
-#### 12c. Conditional Feature Flags
-
-Two features use conditional startup in application.ex:
+Two features use conditional startup in `application.ex`:
 - `:circadian_poll_enabled` (default: true)
 - `:ha_export_runtime_enabled` (default: true)
 
-Plus HA export has sub-toggles (`scenes_enabled?`, `lights_enabled?`, etc.) in AppSettings. The relationship between the startup flag and the runtime sub-toggles is not obvious.
+Plus HA export has sub-toggles (`scenes_enabled?`, `lights_enabled?`) in AppSettings. The relationship between the startup flag and runtime sub-toggles is not obvious.
 
 ---
 
----
+## 13. Type Safety & Specs
 
-## Chunk 3 Findings
+### 13a. @spec Coverage (partial progress — 3 → 83 specs; dialyxir added)
 
-Sub-area status:
-- [x] 13. Type safety & specs
-- [x] 14. Observability & logging
-- [x] 15. Dependencies & mix.exs
+`dialyxir` is present at `mix.exs:60`. Specs have grown to ~83 across 10 modules (from 3). Still zero `@callback` definitions anywhere.
 
----
+**Critical modules still without specs:** `state.ex`, `desired_state.ex`, most of the control pipeline, LiveViews, contexts.
 
-### 13. Type Safety & Specs
+**Recommendation:** Continue the momentum — next targets are the 5 control modules (`state.ex`, `desired_state.ex`, `light_state_semantics.ex`, `state_parser.ex`, `scenes.ex`). Since dialyxir is wired up, any specs added will be verified.
 
-#### 13a. @spec Coverage Is Effectively Zero
+### 13b. Light State Is Still a Bare Map in the Control Pipeline
 
-Only **3 `@spec` declarations exist across 153 modules** (~2% coverage):
-- `circadian.ex` — 1 @spec (for `calculate/3`)
-- `circadian_preview.ex` — 2 @specs
+`DesiredAttrs` struct exists in `scenes/intent.ex` (fields: power, brightness, kelvin, x, y) — but `to_map/1` is called at the pipeline boundary (`DesiredState.apply`), so the ETS layer still stores bare maps. `state_parser.ex` still returns bare maps; `state.ex` still works with `state_map()` type alias on bare maps.
 
-Every other module — including the critical state/control/planner/executor path — has zero type specifications.
+**Recommendation:** Make `state_parser.ex` return a struct (or at minimum atom-keyed maps) so that normalized data enters the ETS layer in a consistent shape. This eliminates 1a at its root.
 
-- **No `@callback` definitions** anywhere (no behaviors)
-- **Only 1 `@type` definition** (Circadian's `calc_result`)
-- **dialyxir is not in mix.exs** — no static type checking is configured at all
-- No `.dialyzer_ignore.exs` or PLT setup
-
-**Recommendation:** Adding `@spec` everywhere at once is impractical. Start with the 5 modules that matter most for correctness: `state.ex`, `desired_state.ex`, `light_state_semantics.ex`, `state_parser.ex`, `scenes.ex`. Then add dialyxir so future specs are verified. This pairs well with the light state struct recommendation below.
-
-#### 13b. Light State Is Still a Bare Map in the Control Pipeline
-
-**Progress:** A `DesiredAttrs` struct exists in `scenes/intent.ex` (fields: power, brightness, kelvin, x, y) and several non-Ecto structs now exist (`Planner.Action`, `Planner.Context`, `DesiredState.Transaction`). The codebase has moved significantly toward structs.
-
-**Remaining gap:** The ETS-backed control pipeline (`state.ex`, `desired_state.ex`, `state_parser.ex`) still operates entirely on bare maps with atom/string dual-key handling. `DesiredAttrs` is converted to a map via `to_map/1` before entering this layer.
-
-**Recommendation:** The natural next step is to make `state_parser.ex` return a struct (or at minimum atom-keyed maps) so that normalized data enters the ETS layer in a consistent shape. This would eliminate the dual-key problem (1a) at its root. The `DesiredAttrs` struct in intent.ex is a good model for what the control-layer struct should look like.
-
-#### 13c. Mixed Return Types Without Specs
+### 13c. Mixed Return Types Without Specs
 
 `scenes.ex` has several functions whose return shapes are only discoverable by reading the implementation:
-- `apply_scene/2` (line 302-352): returns `{:ok, map(), map()}` in success, other shapes on failure — the second map is undocumented
-- `recompute_active_scene_lights/3` (line 376-379): returns `{:ok, %{}, %{}}` or `{:error, :invalid_args}` — the two empty-map returns aren't the same kind of data
-- `list_editable_light_states_with_usage/0` (line 40-52): returns a list of ad-hoc maps `%{state: LightState, usage_count: int, usages: list}` — natural struct candidate
+- `apply_scene/2`: returns `{:ok, map(), map()}` in success, other shapes on failure
+- `recompute_active_scene_lights/3`: returns `{:ok, %{}, %{}}` or `{:error, :invalid_args}` — the two empty-map returns aren't the same kind of data
+- `list_editable_light_states_with_usage/0`: returns a list of ad-hoc maps `%{state: LightState, usage_count: int, usages: list}` — natural struct candidate
 
-#### 13d. Boundary Typing Is Uniformly Weak
+### 13d. Boundary Typing Is Uniformly Weak
 
 At every system boundary, data flows as untyped maps:
-- **MQTT/Z2M boundary**: `z2m_event_stream/connection.ex` normalizes bridge credentials into a typed-looking map but returns no `@type`. Parser side (`state_parser.ex` `z2m_state/2`) accepts raw MQTT payload as bare map.
-- **HA WebSocket boundary**: `home_assistant_event_stream/connection.ex` builds state as bare map, JSON decode produces bare maps, `StateParser.home_assistant_state` has no schema enforcement.
-- **LiveView ↔ domain**: `lights_live.ex` (613 lines, zero @specs) merges `Loader.mount_assigns()` (untyped) into socket assigns.
-- **Ecto ↔ domain**: Ecto schemas are typed, but when loaded into control state they're converted to bare maps (`state.ex` line 51: `get(type, id) || %{}`).
-
-**Recommendation:** If the `LightState` struct (13b) is introduced, the natural next step is to make it the canonical shape at each of these boundaries.
+- **MQTT/Z2M boundary**: bridge credentials normalized but no `@type`
+- **HA WebSocket boundary**: JSON decode → bare maps, no schema enforcement
+- **LiveView ↔ domain**: `lights_live.ex` merges `Loader.mount_assigns()` (untyped) into socket assigns
+- **Ecto ↔ domain**: Ecto schemas are typed, but loaded into control state as bare maps (`state.ex`: `get(type, id) || %{}`)
 
 ---
 
-### 14. Observability & Logging
+## 14. Observability & Logging
 
-#### 14a. Logger Usage Is Sparse and Inconsistent
+### 14a. Logger Usage Is Sparse and Inconsistent
 
-Only **41 Logger calls across 14 files** in the entire codebase (153 modules total). Most modules have no logging at all.
+Most modules have no logging. Mix of deprecated `Logger.warn` and current `Logger.warning`. No Logger calls use metadata (`Logger.info("...", key: value)`) — everything is raw string interpolation. No correlation IDs or request-scoped logging.
 
-Level breakdown:
-- `Logger.debug`: 1 call
-- `Logger.info`: 4 calls
-- `Logger.warning` / `Logger.warn`: 10 calls (mixed — deprecated `warn` and current `warning` both in use)
-- `Logger.error`: 1 call
+**Recommendation:** Standardize on `Logger.warning`. Start adding structured metadata at least in connection managers and the executor.
 
-No Logger calls use metadata (`Logger.info("...", key: value)`) — everything is raw string interpolation. No correlation IDs or request-scoped logging.
+### 14c. DebugLogging Module Is Underused
 
-**Recommendation:** Standardize on `Logger.warning` (remove deprecated `warn`). Start adding structured metadata at least in connection managers and the executor.
+`Hueworks.DebugLogging` exists to gate verbose control-pipeline logs behind `:advanced_debug_logging` config. Only 2 modules use it (`control/planner.ex`, `scenes.ex`). It directly wraps `Logger.info`; no module calls `DebugLogging.enabled?()` to gate additional logs.
 
-#### 14b. IO.puts in Production Code (12 instances)
+**Recommendation:** Either expand across the control pipeline (executor, state managers, subscriptions) or remove it in favor of standard Logger metadata.
 
-These should all be `Logger.info` or `Logger.warning`:
-- `import/fetch/caseta.ex` lines 19, 22, 25, 92, 134
-- `import/fetch/home_assistant.ex` lines 20, 23, 26, 29, 32
-- `import/fetch/hue.ex` line 22
-- `hardware_smoke.ex` line 512
+### 14d. Trace Propagation Is Partially Implemented
 
-In production (especially under Docker), these bypass the log formatter and log level filtering.
-
-#### 14c. DebugLogging Module Is Underused
-
-`Hueworks.DebugLogging` exists to gate verbose control-pipeline logs behind `:advanced_debug_logging` config. Only **2 modules import it**: `control/planner.ex` and `scenes.ex`. It directly wraps `Logger.info`, but no module actually calls `DebugLogging.enabled?()` to gate additional logs.
-
-**Recommendation:** Either expand its use across the control pipeline (executor, state managers, subscriptions) or remove it in favor of standard Logger metadata.
-
-#### 14d. Trace Propagation Is Partially Implemented
-
-Traces exist and are plumbed through part of the control pipeline via an optional `:trace` keyword option:
-
-- `Scenes.apply_scene/2` (line 302): accepts trace, enriches with `trace_room_id`, `trace_scene_id`, `trace_target_occupied`, passes to `ControlApply.commit_and_enqueue/3`
-- `Control.Apply.attach_trace/3` (lines 100-122): attaches trace fields to each action
-- `Planner.plan_snapshot/3` (lines 20-193): emits `planner_input`, `planner_partition`, `planner_group_pick`, `planner_light_decision`, `planner_output` events — **but only if `trace_id` is present**
-- `Executor.dispatch_tick/1` (lines 228-296): logs `dispatch_start`, `dispatch_end`, `convergence_ok`, `convergence_retry` — again **only if `action.trace_id` is set**
-- Latency is measured via `enqueued_at_ms` and `dispatch_started_ms`
+Trace infrastructure is plumbed through the control pipeline via an optional `:trace` keyword:
+- `Scenes.apply_scene/2` accepts trace, enriches with `trace_room_id`, `trace_scene_id`, `trace_target_occupied`
+- `Planner.plan_snapshot/3` emits `planner_input`, `planner_partition`, `planner_group_pick`, `planner_light_decision`, `planner_output` — **only if `trace_id` is present**
+- `Executor.dispatch_tick/1` logs `dispatch_start`, `dispatch_end`, `convergence_ok`, `convergence_retry` — **only if `action.trace_id` is set**
 
 **Gaps:**
 - No automatic trace ID generation — if a caller doesn't pass a trace, all downstream logging goes silent
-- Subscription event → scene apply path is **not traced at all** (no trace injected at event boundaries)
+- Subscription event → scene apply path is **not traced at all**
 - LiveView → domain calls don't propagate trace context
-- No correlation between an SSE event arriving and the eventual light state transition
 
-**Recommendation:** Generate a trace ID by default in `Scenes.apply_scene/2` when one isn't provided. This would make the existing trace infrastructure valuable without any new plumbing.
+**Recommendation:** Generate a trace ID by default in `Scenes.apply_scene/2` when one isn't provided. This activates all existing instrumentation for free.
 
-#### 14e. Retry Exhaustion Is Silent
+### 14f. Error Logging Quality Is Low
 
-`Executor.requeue_action/4` (`executor.ex` lines 393-406) drops actions from the queue silently when `action.attempts + 1 > state.max_retries`. **No log, no metric, no error.** Only the trace-gated `maybe_log_convergence_retry` path emits anything, and only if a trace_id was present.
-
-This is the single most dangerous observability gap: failed commands during a hardware outage will be invisible in logs.
-
-**Recommendation:** Always emit `Logger.warning` (ungated) on retry exhaustion with action details. This should happen before any metrics work.
-
-#### 14f. Error Logging Quality Is Low
-
-- Only 2 `rescue` blocks in the entire codebase (both in `import/pipeline.ex` lines 35-42) — they capture `Exception.message/1` only; stack traces are lost
-- The single `Logger.error` call (`import/fetch/home_assistant/client.ex` line 54) has no structured context beyond an inspect of the payload
+- Rescue blocks capture `Exception.message/1` only; stack traces are lost
 - Connection errors (Hue SSE, HA WebSocket, Caseta LEAP) log reasons but no retry count, no backoff state, no cumulative failure count
 
-#### 14g. Telemetry Is Nearly Absent
+### 14g. Telemetry Is Nearly Absent
 
-Confirming Chunk 2: only 2 telemetry metrics exist (`phoenix.endpoint.stop.duration`, `phoenix.router_dispatch.stop.duration`), `periodic_measurements` returns empty, and there are **zero custom `:telemetry.execute` calls** anywhere in the codebase.
+Only 2 telemetry metrics exist (`phoenix.endpoint.stop.duration`, `phoenix.router_dispatch.stop.duration`). `periodic_measurements` returns empty. **Zero custom `:telemetry.execute` calls** anywhere.
 
 Blind spots:
-- **Control pipeline**: no per-light latency, per-bridge throughput, or planner timing
+- **Control pipeline**: no per-light latency, per-bridge throughput, planner timing
 - **Subscription lag**: no measurement of event-received-to-state-applied latency
 - **Import pipeline**: no phase timing (fetch, normalize, materialize)
-- **Error rates**: failed actions dropped silently, no counters
+- **Error rates**: no counters
 
-**Recommendation:** The executor and subscription connections are the highest-value places to add custom telemetry events. `:telemetry.span` wrapping the dispatch loop and event handler would give latency histograms without rewriting logging.
+**Recommendation:** `:telemetry.span` wrapping the dispatch loop and event handler would give latency histograms without rewriting logging.
 
 ---
 
-### 15. Dependencies & mix.exs
+## 15. Dependencies & mix.exs
 
-#### 15a. Dependency Hygiene Is Good
+### 15b. Missing Dev Tooling (partial)
 
-- **20 direct dependencies** — lean for a Phoenix LiveView app with 4 bridge adapters
-- **No duplicate HTTP clients**: HTTPoison only (plus native `:ssl` for Caseta LEAP)
-- **No duplicate JSON libraries**: Jason everywhere
-- **Single MQTT client**: Tortoise
-- **Single WebSocket client**: WebSockex
-- **mix.lock is committed** and locks 58 total entries (direct + transitive)
-- Elixir `~> 1.19` (modern)
-
-Architecture of bridge integrations is clean:
-- REST APIs (Hue, HA) → HTTPoison
-- WebSocket subscriptions (HA) → WebSockex
-- Protocol-level (Caseta LEAP) → native `:ssl`
-- MQTT (Z2M, HA export) → Tortoise
-
-#### 15b. Missing Dev Tooling
+`dialyxir` is present. Still missing:
 
 | Tool | Status |
 |------|--------|
-| `.formatter.exs` | Present |
-| `.credo.exs` | Present (extensive config) |
-| `dialyxir` | **Missing** |
-| `ex_doc` | **Missing** |
-| `excoveralls` | **Missing** |
+| `dialyxir` | ✓ Present |
+| `ex_doc` | Missing |
+| `excoveralls` | Missing |
 
-**Recommendation:** Add `dialyxir` first (pairs with the @spec recommendation in 13a). Skip `ex_doc` unless you want to publish docs. `excoveralls` is optional — it's only valuable if you're going to act on coverage numbers.
+Skip `ex_doc` unless publishing docs. `excoveralls` is only valuable if you're going to act on coverage numbers.
 
-```elixir
-{:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false}
-```
+### 15c. Tortoise Maintenance Concern
 
-#### 15c. Tortoise Maintenance Concern
+`tortoise ~> 0.10` is locked at `0.10.0` — slow release cadence, effectively at its last major release. Still works, but for a critical path (Z2M subscription + HA export), this is a sustainability risk.
 
-`tortoise ~> 0.10` is locked at `0.10.0` — the library has a slow release cadence and Tortoise is effectively at its last major release. It still works, but for a critical path (Z2M subscription + HA export), this is a sustainability risk.
+**Options:** Monitor Tortoise repo; alternative is `emqtt` (from EMQX). Don't migrate preemptively — only worth acting on if you hit a bug.
 
-**Options:**
-- Monitor the Tortoise GitHub repo and be prepared to switch
-- Alternative: `emqtt` (from EMQX) is more actively maintained
-- Don't migrate preemptively — this is only worth acting on if you hit a bug
+### 15d. Phoenix LiveView Version
 
-#### 15d. Phoenix LiveView Version
+Phoenix 1.7.21, LiveView 0.20.17. LiveView 1.0 is released; `0.20.x` is still stable and compatible. Future project.
 
-- Phoenix 1.7.21, LiveView 0.20.17
-- LiveView 1.0 has been released as of 2025 — upgrading is eventually worth considering, but `0.20.x` is still stable and compatible
-- This is a future project, not a current issue
+### 15e. HTTPoison → hackney Chain
 
-#### 15e. HTTPoison → hackney Chain
-
-HTTPoison pulls in hackney, which pulls in an older SSL stack (`certifi`, `ssl_verify_fun`). This is not a security issue as long as system-level certificate management is in place (which the Docker setup handles), but it's the one dependency chain worth watching.
-
-An alternative would be `Req` (which uses `Finch` → `Mint` → native `:ssl`), but migrating the 8 files currently using HTTPoison is not a priority — the current stack works.
-
----
-
-## Audit Complete
-
-All three planned chunks are done. 15 finding sections covering:
-
-**Chunk 1** (1-7): duplication patterns, error handling, complexity hotspots, hard-coded values, naming, architecture, positive patterns
-**Chunk 2** (8-12): schemas & queries, mix tasks, application startup & infrastructure, test suite, config management
-**Chunk 3** (13-15): type safety, observability, dependencies
-
-### Recommended Next Steps
-
-Updated to reflect recent progress. The struct/schema and module decomposition work has been excellent — the remaining items are the ones that weren't part of that effort.
-
-1. **Normalize keys at `state_parser.ex` boundary** (1a + 13b) — the biggest remaining structural issue. Make `state_parser.ex` return atom-keyed maps (or a struct) so the dual-key problem doesn't propagate into ETS. The `DesiredAttrs` struct in intent.ex is a good model.
-2. **Log retry exhaustion in Executor** (14e) — small change, fixes a real operational blind spot
-3. **Replace IO.puts with Logger in fetch modules** (14b) — trivial cleanup
-4. **Add `dialyxir` + @specs on the critical 5 modules** (13a, 15b) — state.ex, desired_state.ex, light_state_semantics.ex, state_parser.ex, scenes.ex
-5. **Generate trace IDs by default in `apply_scene`** (14d) — activates already-built trace infrastructure
-6. **Consolidate event stream managers** (1c) — ~250 lines eliminated, low risk
-7. **Fix the N+1 in `picos/targets.ex`** (8b) — performance win
-
-The architectural direction laid out in `refactoring.md` and `architecture-reset.md` remains the governing priority; this audit is meant to surface specific code-level wins that can be taken on opportunistically as those larger refactors happen.
+HTTPoison pulls in hackney, which pulls in an older SSL stack. Not a security issue as long as system-level certificate management is in place. Alternative is `Req` (Finch → Mint → native `:ssl`), but migrating 8 files currently using HTTPoison is not a priority.
