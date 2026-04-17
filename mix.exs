@@ -6,6 +6,7 @@ defmodule Hueworks.MixProject do
       app: :hueworks,
       version: "0.1.0",
       elixir: "~> 1.19",
+      licenses: ["PolyForm-Noncommercial-1.0.0"],
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
