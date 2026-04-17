@@ -45,6 +45,7 @@ defmodule HueworksWeb.ExternalSceneConfigLiveTest do
     {:ok, view, html} = live(conn, "/config/bridge/#{bridge.id}/external-scenes")
     assert html =~ "External Scenes"
     assert html =~ "Movie Time"
+    refute html =~ "Mapping saved."
 
     external_scene = ExternalScenes.list_external_scenes_for_bridge(bridge.id) |> List.first()
 
@@ -74,6 +75,7 @@ defmodule HueworksWeb.ExternalSceneConfigLiveTest do
 
     {:ok, view, html} = live(conn, "/config/bridge/#{bridge.id}/external-scenes")
     assert html =~ "External Scenes"
+    refute html =~ "Missing Home Assistant token"
 
     html =
       view

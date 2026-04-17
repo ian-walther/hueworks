@@ -10,11 +10,13 @@ defmodule Hueworks.Picos.Devices do
   def list_for_bridge(bridge_id) when is_integer(bridge_id) do
     Repo.all(
       from(pd in PicoDevice,
-        where: pd.bridge_id == ^bridge_id,
-        order_by: [asc: pd.name]
+        where: pd.bridge_id == ^bridge_id
       )
     )
     |> Repo.preload([:room, buttons: from(pb in PicoButton, order_by: [asc: pb.button_number])])
+    |> Enum.sort_by(fn device ->
+      {Util.display_name(device) |> String.downcase(), device.id}
+    end)
   end
 
   def get(id) when is_integer(id) do
@@ -63,6 +65,24 @@ defmodule Hueworks.Picos.Devices do
       {:ok, updated} -> {:ok, get(updated.id)}
       other -> other
     end
+  end
+
+  def update_display_name(%PicoDevice{} = device, attrs) when is_map(attrs) do
+    attrs =
+      attrs
+      |> Map.update(:display_name, nil, &Util.normalize_display_name/1)
+
+    device
+    |> PicoDevice.changeset(attrs)
+    |> Repo.update()
+    |> case do
+      {:ok, updated} -> {:ok, get(updated.id)}
+      other -> other
+    end
+  end
+
+  def update_display_name(%PicoDevice{} = device, display_name) do
+    update_display_name(device, %{display_name: display_name})
   end
 
   def room_override?(%PicoDevice{} = device) do

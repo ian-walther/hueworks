@@ -33,6 +33,14 @@ defmodule Hueworks.Picos do
     Devices.set_room(device, room_id)
   end
 
+  def update_display_name(%PicoDevice{} = device, attrs) when is_map(attrs) do
+    Devices.update_display_name(device, attrs)
+  end
+
+  def update_display_name(%PicoDevice{} = device, display_name) do
+    Devices.update_display_name(device, display_name)
+  end
+
   def control_groups(%PicoDevice{} = device) do
     ControlGroups.list_for_device(device)
   end
@@ -56,6 +64,14 @@ defmodule Hueworks.Picos do
 
   def clear_button_binding(%PicoButton{} = button) do
     Config.clear_button_binding(button)
+  end
+
+  def clear_device_config(%PicoDevice{} = device) do
+    Config.clear_device_config(device)
+  end
+
+  def configured?(%PicoDevice{} = device) do
+    Config.configured?(device)
   end
 
   def save_five_button_preset(%PicoDevice{} = device, attrs) when is_map(attrs) do

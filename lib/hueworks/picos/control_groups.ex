@@ -94,7 +94,8 @@ defmodule Hueworks.Picos.ControlGroups do
 
       Enum.each(buttons, fn button ->
         button
-        |> PicoButton.changeset(%{action_type: nil, action_config: %{}, enabled: true})
+        |> Ecto.Changeset.change(%{action_type: nil, enabled: true})
+        |> Ecto.Changeset.put_embed(:action_config, nil)
         |> Repo.update!()
       end)
     end)

@@ -64,10 +64,10 @@ defmodule HueworksWeb.SceneEditorLive do
 
     cond do
       is_nil(socket.assigns.scene_builder) ->
-        {:noreply, assign(socket, scene_save_error: "Assign all lights once before saving.")}
+        {:noreply, put_scene_error(socket, "Assign all lights once before saving.")}
 
       socket.assigns.scene_builder.valid? == false ->
-        {:noreply, assign(socket, scene_save_error: "Assign all lights once before saving.")}
+        {:noreply, put_scene_error(socket, "Assign all lights once before saving.")}
 
       socket.assigns.scene_mode == :new ->
         save_new_scene(socket, name)
@@ -76,7 +76,7 @@ defmodule HueworksWeb.SceneEditorLive do
         save_existing_scene(socket, name)
 
       true ->
-        {:noreply, assign(socket, scene_save_error: "Unable to save scene.")}
+        {:noreply, put_scene_error(socket, "Unable to save scene.")}
     end
   end
 
@@ -154,28 +154,27 @@ defmodule HueworksWeb.SceneEditorLive do
             _ = Scenes.delete_scene(scene)
 
             {:noreply,
-             assign(
+             put_scene_error(
                socket,
-               scene_save_error:
-                 "Each component must use a saved manual or circadian light state before saving."
+               "Each component must use a saved manual or circadian light state before saving."
              )}
 
           {:error, :invalid_color_targets} ->
             _ = Scenes.delete_scene(scene)
 
             {:noreply,
-             assign(
+             put_scene_error(
                socket,
-               scene_save_error: "Manual color states can only target lights that support color."
+               "Manual color states can only target lights that support color."
              )}
 
           {:error, _} ->
             _ = Scenes.delete_scene(scene)
-            {:noreply, assign(socket, scene_save_error: "Unable to save scene components.")}
+            {:noreply, put_scene_error(socket, "Unable to save scene components.")}
         end
 
       {:error, _changeset} ->
-        {:noreply, assign(socket, scene_save_error: "Scene name is required.")}
+        {:noreply, put_scene_error(socket, "Scene name is required.")}
     end
   end
 
@@ -201,26 +200,24 @@ defmodule HueworksWeb.SceneEditorLive do
 
               {:error, :invalid_light_state} ->
                 {:noreply,
-                 assign(
+                 put_scene_error(
                    socket,
-                   scene_save_error:
-                     "Each component must use a saved manual or circadian light state before saving."
+                   "Each component must use a saved manual or circadian light state before saving."
                  )}
 
               {:error, :invalid_color_targets} ->
                 {:noreply,
-                 assign(
+                 put_scene_error(
                    socket,
-                   scene_save_error:
-                     "Manual color states can only target lights that support color."
+                   "Manual color states can only target lights that support color."
                  )}
 
               {:error, _} ->
-                {:noreply, assign(socket, scene_save_error: "Unable to save scene components.")}
+                {:noreply, put_scene_error(socket, "Unable to save scene components.")}
             end
 
           {:error, _changeset} ->
-            {:noreply, assign(socket, scene_save_error: "Scene name is required.")}
+            {:noreply, put_scene_error(socket, "Scene name is required.")}
         end
     end
   end
@@ -275,10 +272,18 @@ defmodule HueworksWeb.SceneEditorLive do
 
   defp maybe_clear_scene_save_error(socket) do
     if socket.assigns.scene_builder && socket.assigns.scene_builder.valid? do
-      assign(socket, scene_save_error: nil)
+      socket
+      |> assign(scene_save_error: nil)
+      |> clear_flash(:error)
     else
       socket
     end
+  end
+
+  defp put_scene_error(socket, message) do
+    socket
+    |> assign(scene_save_error: message)
+    |> put_flash(:error, message)
   end
 
   defp load_scene_components(scene) do

@@ -38,6 +38,7 @@ defmodule HueworksWeb.PicoConfigLive do
        binding_target_id: nil,
        binding_action: "toggle",
        learning_binding: nil,
+       editing_display_name: false,
        save_status: nil,
        save_error: nil
      )}
@@ -71,13 +72,15 @@ defmodule HueworksWeb.PicoConfigLive do
             _ -> nil
           end
 
-        {:noreply,
-         socket
-         |> assign(save_status: "Picos synced.", save_error: nil)
-         |> reload_from_devices(devices, selected_id)}
+        socket
+        |> assign(save_status: "Picos synced.", save_error: nil)
+        |> reload_from_devices(devices, selected_id)
+        |> reply_with_save_notice()
 
       {:error, reason} ->
-        {:noreply, assign(socket, save_status: nil, save_error: inspect(reason))}
+        socket
+        |> assign(save_status: nil, save_error: inspect(reason))
+        |> reply_with_save_notice()
     end
   end
 
@@ -87,42 +90,119 @@ defmodule HueworksWeb.PicoConfigLive do
   end
 
   def handle_event("start_detect_pico", _params, socket) do
-    {:noreply,
-     assign(socket,
-       detect_pico_mode: true,
-       save_status: "Detect mode active. Press a Pico button to open that Pico.",
-       save_error: nil
-     )}
+    socket
+    |> assign(
+      detect_pico_mode: true,
+      save_status: "Detect mode active. Press a Pico button to open that Pico.",
+      save_error: nil
+    )
+    |> reply_with_save_notice()
   end
 
   def handle_event("cancel_detect_pico", _params, socket) do
-    {:noreply,
-     assign(socket,
-       detect_pico_mode: false,
-       save_status: "Detect mode cancelled.",
-       save_error: nil
-     )}
+    socket
+    |> assign(
+      detect_pico_mode: false,
+      save_status: "Detect mode cancelled.",
+      save_error: nil
+    )
+    |> reply_with_save_notice()
   end
 
   def handle_event("save_room_override", %{"room_id" => room_id}, socket) do
     case socket.assigns.selected_pico do
       nil ->
-        {:noreply, assign(socket, save_status: nil, save_error: "Select a Pico first.")}
+        socket
+        |> assign(save_status: nil, save_error: "Select a Pico first.")
+        |> reply_with_save_notice()
 
       device ->
-        case Picos.set_device_room(device, room_id) do
+        case maybe_set_pico_room(device, room_id) do
           {:ok, updated} ->
             devices = Picos.list_devices_for_bridge(socket.assigns.bridge.id)
 
-            {:noreply,
-             socket
-             |> assign(save_status: "Pico room updated.", save_error: nil)
-             |> reload_from_devices(devices, updated.id)}
+            socket
+            |> assign(save_status: "Pico room updated.", save_error: nil)
+            |> reload_from_devices(devices, updated.id)
+            |> reply_with_save_notice()
 
           {:error, reason} ->
-            {:noreply, assign(socket, save_status: nil, save_error: inspect(reason))}
+            message =
+              case reason do
+                :config_present ->
+                  "Clear this Pico's control groups and button bindings before changing rooms."
+
+                _ ->
+                  inspect(reason)
+              end
+
+            socket
+            |> assign(save_status: nil, save_error: message)
+            |> reply_with_save_notice()
         end
     end
+  end
+
+  def handle_event("clear_pico_config", _params, socket) do
+    case socket.assigns.selected_pico do
+      nil ->
+        socket
+        |> assign(save_status: nil, save_error: "Select a Pico first.")
+        |> reply_with_save_notice()
+
+      device ->
+        case Picos.clear_device_config(device) do
+          {:ok, updated} ->
+            devices = Picos.list_devices_for_bridge(socket.assigns.bridge.id)
+
+            socket
+            |> assign(save_status: "Pico config cleared.", save_error: nil)
+            |> reload_from_devices(devices, updated.id)
+            |> reply_with_save_notice()
+
+          {:error, reason} ->
+            socket
+            |> assign(save_status: nil, save_error: inspect(reason))
+            |> reply_with_save_notice()
+        end
+    end
+  end
+
+  def handle_event("save_pico_display_name", %{"display_name" => display_name}, socket) do
+    case socket.assigns.selected_pico do
+      nil ->
+        socket
+        |> assign(save_status: nil, save_error: "Select a Pico first.")
+        |> reply_with_save_notice()
+
+      device ->
+        case Picos.update_display_name(device, %{display_name: display_name}) do
+          {:ok, updated} ->
+            devices = Picos.list_devices_for_bridge(socket.assigns.bridge.id)
+
+            socket
+            |> assign(
+              save_status: "Pico name updated.",
+              save_error: nil,
+              editing_display_name: false
+            )
+            |> reload_from_devices(devices, updated.id)
+            |> reply_with_save_notice()
+
+          {:error, reason} ->
+            socket
+            |> assign(save_status: nil, save_error: inspect(reason))
+            |> reply_with_save_notice()
+        end
+    end
+  end
+
+  def handle_event("edit_pico_display_name", _params, socket) do
+    {:noreply, assign(socket, editing_display_name: true)}
+  end
+
+  def handle_event("cancel_pico_display_name", _params, socket) do
+    {:noreply, assign(socket, editing_display_name: false)}
   end
 
   def handle_event("select_clone_source", %{"id" => id}, socket) do
@@ -133,23 +213,31 @@ defmodule HueworksWeb.PicoConfigLive do
     with %{} = destination <- socket.assigns.selected_pico,
          source_id when is_integer(source_id) <- socket.assigns.clone_source_pico_id,
          %{} = source <- Enum.find(socket.assigns.pico_devices, &(&1.id == source_id)),
-         {:ok, updated} <- Picos.clone_device_config(destination, source) do
-      {:noreply,
-       socket
-       |> assign(save_status: "Pico config copied.", save_error: nil)
-       |> reload_from_devices(Picos.list_devices_for_bridge(socket.assigns.bridge.id), updated.id)}
+      {:ok, updated} <- Picos.clone_device_config(destination, source) do
+      socket
+      |> assign(save_status: "Pico config copied.", save_error: nil)
+      |> reload_from_devices(Picos.list_devices_for_bridge(socket.assigns.bridge.id), updated.id)
+      |> reply_with_save_notice()
     else
       nil ->
-        {:noreply, assign(socket, save_status: nil, save_error: "Choose another Pico to copy from.")}
+        socket
+        |> assign(save_status: nil, save_error: "Choose another Pico to copy from.")
+        |> reply_with_save_notice()
 
       {:error, :same_device} ->
-        {:noreply, assign(socket, save_status: nil, save_error: "Choose a different Pico to copy from.")}
+        socket
+        |> assign(save_status: nil, save_error: "Choose a different Pico to copy from.")
+        |> reply_with_save_notice()
 
       {:error, :missing_source_room} ->
-        {:noreply, assign(socket, save_status: nil, save_error: "The source Pico needs a room before it can be copied.")}
+        socket
+        |> assign(save_status: nil, save_error: "The source Pico needs a room before it can be copied.")
+        |> reply_with_save_notice()
 
       {:error, reason} ->
-        {:noreply, assign(socket, save_status: nil, save_error: inspect(reason))}
+        socket
+        |> assign(save_status: nil, save_error: inspect(reason))
+        |> reply_with_save_notice()
     end
   end
 
@@ -160,7 +248,9 @@ defmodule HueworksWeb.PicoConfigLive do
   def handle_event("create_control_group", %{"name" => name}, socket) do
     case socket.assigns.selected_pico do
       nil ->
-        {:noreply, assign(socket, save_status: nil, save_error: "Select a Pico first.")}
+        socket
+        |> assign(save_status: nil, save_error: "Select a Pico first.")
+        |> reply_with_save_notice()
 
       device ->
         case Picos.save_control_group(device, %{
@@ -169,27 +259,32 @@ defmodule HueworksWeb.PicoConfigLive do
                "light_ids" => []
              }) do
           {:ok, updated} ->
-            {:noreply,
-             socket
-             |> assign(
-               save_status: "Control group created.",
-               save_error: nil,
-               new_control_group_name: ""
-             )
-             |> reload_from_devices(
-               Picos.list_devices_for_bridge(socket.assigns.bridge.id),
-               updated.id
-             )}
+            socket
+            |> assign(
+              save_status: "Control group created.",
+              save_error: nil,
+              new_control_group_name: ""
+            )
+            |> reload_from_devices(
+              Picos.list_devices_for_bridge(socket.assigns.bridge.id),
+              updated.id
+            )
+            |> reply_with_save_notice()
 
           {:error, :missing_room} ->
-            {:noreply, assign(socket, save_status: nil, save_error: "Set the Pico room first.")}
+            socket
+            |> assign(save_status: nil, save_error: "Set the Pico room first.")
+            |> reply_with_save_notice()
 
           {:error, :invalid_name} ->
-            {:noreply,
-             assign(socket, save_status: nil, save_error: "Control groups need a name.")}
+            socket
+            |> assign(save_status: nil, save_error: "Control groups need a name.")
+            |> reply_with_save_notice()
 
           {:error, reason} ->
-            {:noreply, assign(socket, save_status: nil, save_error: inspect(reason))}
+            socket
+            |> assign(save_status: nil, save_error: inspect(reason))
+            |> reply_with_save_notice()
         end
     end
   end
@@ -209,17 +304,13 @@ defmodule HueworksWeb.PicoConfigLive do
         "light" -> :selected_control_group_light_id
       end
 
-    {:noreply, assign(socket, key, Util.parse_optional_integer(id))}
-  end
-
-  def handle_event("add_control_group_entity", %{"entity" => entity}, socket) do
     {selection_key, list_key} =
       case entity do
         "group" -> {:selected_control_group_group_id, :control_group_group_ids}
         "light" -> {:selected_control_group_light_id, :control_group_light_ids}
       end
 
-    selected_id = socket.assigns[selection_key]
+    selected_id = Util.parse_optional_integer(id)
 
     socket =
       if is_integer(selected_id) do
@@ -227,7 +318,7 @@ defmodule HueworksWeb.PicoConfigLive do
         |> assign(list_key, Enum.uniq(socket.assigns[list_key] ++ [selected_id]))
         |> assign(selection_key, nil)
       else
-        socket
+        assign(socket, key, nil)
       end
 
     {:noreply, socket}
@@ -253,11 +344,14 @@ defmodule HueworksWeb.PicoConfigLive do
   def handle_event("save_control_group", _params, socket) do
     case {socket.assigns.selected_pico, socket.assigns.selected_control_group_id} do
       {nil, _} ->
-        {:noreply, assign(socket, save_status: nil, save_error: "Select a Pico first.")}
+        socket
+        |> assign(save_status: nil, save_error: "Select a Pico first.")
+        |> reply_with_save_notice()
 
       {_, nil} ->
-        {:noreply,
-         assign(socket, save_status: nil, save_error: "Select or create a control group first.")}
+        socket
+        |> assign(save_status: nil, save_error: "Select or create a control group first.")
+        |> reply_with_save_notice()
 
       {device, group_id} ->
         attrs = %{
@@ -269,28 +363,32 @@ defmodule HueworksWeb.PicoConfigLive do
 
         case Picos.save_control_group(device, attrs) do
           {:ok, updated} ->
-            {:noreply,
-             socket
-             |> assign(save_status: "Control group saved.", save_error: nil)
-             |> reload_from_devices(
-               Picos.list_devices_for_bridge(socket.assigns.bridge.id),
-               updated.id
-             )
-             |> select_control_group(group_id)}
+            socket
+            |> assign(save_status: "Control group saved.", save_error: nil)
+            |> reload_from_devices(
+              Picos.list_devices_for_bridge(socket.assigns.bridge.id),
+              updated.id
+            )
+            |> select_control_group(group_id)
+            |> reply_with_save_notice()
 
           {:error, :invalid_targets} ->
-            {:noreply,
-             assign(socket,
-               save_status: nil,
-               save_error: "Control group targets must stay in the Pico room."
-             )}
+            socket
+            |> assign(
+              save_status: nil,
+              save_error: "Control group targets must stay in the Pico room."
+            )
+            |> reply_with_save_notice()
 
           {:error, :invalid_name} ->
-            {:noreply,
-             assign(socket, save_status: nil, save_error: "Control groups need a name.")}
+            socket
+            |> assign(save_status: nil, save_error: "Control groups need a name.")
+            |> reply_with_save_notice()
 
           {:error, reason} ->
-            {:noreply, assign(socket, save_status: nil, save_error: inspect(reason))}
+            socket
+            |> assign(save_status: nil, save_error: inspect(reason))
+            |> reply_with_save_notice()
         end
     end
   end
@@ -300,18 +398,20 @@ defmodule HueworksWeb.PicoConfigLive do
 
     case socket.assigns.selected_pico do
       nil ->
-        {:noreply, assign(socket, save_status: nil, save_error: "Select a Pico first.")}
+        socket
+        |> assign(save_status: nil, save_error: "Select a Pico first.")
+        |> reply_with_save_notice()
 
       device ->
         {:ok, updated} = Picos.delete_control_group(device, group_id)
 
-        {:noreply,
-         socket
-         |> assign(save_status: "Control group deleted.", save_error: nil)
-         |> reload_from_devices(
-           Picos.list_devices_for_bridge(socket.assigns.bridge.id),
-           updated.id
-         )}
+        socket
+        |> assign(save_status: "Control group deleted.", save_error: nil)
+        |> reload_from_devices(
+          Picos.list_devices_for_bridge(socket.assigns.bridge.id),
+          updated.id
+        )
+        |> reply_with_save_notice()
     end
   end
 
@@ -342,32 +442,37 @@ defmodule HueworksWeb.PicoConfigLive do
              socket.assigns.control_groups,
              socket.assigns.room_scenes
            ) do
-      {:noreply,
-       assign(socket,
-         learning_binding: learning_binding,
-         save_status: "Press a button on this Pico to assign the selected action.",
-         save_error: nil
-       )}
+      socket
+      |> assign(
+        learning_binding: learning_binding,
+        save_status: "Press a button on this Pico to assign the selected action.",
+        save_error: nil
+      )
+      |> reply_with_save_notice()
     else
       nil ->
-        {:noreply, assign(socket, save_status: nil, save_error: "Select a Pico first.")}
+        socket
+        |> assign(save_status: nil, save_error: "Select a Pico first.")
+        |> reply_with_save_notice()
 
       false ->
-        {:noreply,
-         assign(socket,
-           save_status: nil,
-           save_error: "Choose an action and a target before starting button learning."
-         )}
+        socket
+        |> assign(
+          save_status: nil,
+          save_error: "Choose an action and a target before starting button learning."
+        )
+        |> reply_with_save_notice()
     end
   end
 
   def handle_event("cancel_button_learning", _params, socket) do
-    {:noreply,
-     assign(socket,
-       learning_binding: nil,
-       save_status: "Button learning cancelled.",
-       save_error: nil
-     )}
+    socket
+    |> assign(
+      learning_binding: nil,
+      save_status: "Button learning cancelled.",
+      save_error: nil
+    )
+    |> reply_with_save_notice()
   end
 
   def handle_event("clear_button_binding", %{"id" => id}, socket) do
@@ -380,16 +485,18 @@ defmodule HueworksWeb.PicoConfigLive do
       button ->
         case Picos.clear_button_binding(button) do
           {:ok, _updated} ->
-            {:noreply,
-             socket
-             |> assign(save_status: "Button binding cleared.", save_error: nil)
-             |> reload_from_devices(
-               Picos.list_devices_for_bridge(socket.assigns.bridge.id),
-               socket.assigns.selected_pico.id
-             )}
+            socket
+            |> assign(save_status: "Button binding cleared.", save_error: nil)
+            |> reload_from_devices(
+              Picos.list_devices_for_bridge(socket.assigns.bridge.id),
+              socket.assigns.selected_pico.id
+            )
+            |> reply_with_save_notice()
 
           {:error, reason} ->
-            {:noreply, assign(socket, save_status: nil, save_error: inspect(reason))}
+            socket
+            |> assign(save_status: nil, save_error: inspect(reason))
+            |> reply_with_save_notice()
         end
     end
   end
@@ -398,14 +505,14 @@ defmodule HueworksWeb.PicoConfigLive do
     if Enum.any?(socket.assigns.pico_devices, &(&1.id == pico_device_id)) do
       cond do
         socket.assigns.live_action == :index and socket.assigns.detect_pico_mode ->
-          {:noreply,
-           socket
-           |> assign(
-             detect_pico_mode: false,
-             save_status: "Pico detected. Opening configuration.",
-             save_error: nil
-           )
-           |> push_patch(to: pico_show_path(socket.assigns.bridge.id, pico_device_id))}
+          socket
+          |> assign(
+            detect_pico_mode: false,
+            save_status: "Pico detected. Opening configuration.",
+            save_error: nil
+          )
+          |> push_patch(to: pico_show_path(socket.assigns.bridge.id, pico_device_id))
+          |> reply_with_save_notice()
 
         socket.assigns.selected_pico && socket.assigns.selected_pico.id == pico_device_id &&
             socket.assigns.learning_binding ->
@@ -415,36 +522,38 @@ defmodule HueworksWeb.PicoConfigLive do
                socket.assigns.learning_binding
              ) do
           {:ok, _button} ->
-            {:noreply,
-             socket
-             |> assign(
-               learning_binding: nil,
-               save_status: "Assigned action to the pressed Pico button.",
-               save_error: nil
-             )
-             |> reload_from_devices(
-               Picos.list_devices_for_bridge(socket.assigns.bridge.id),
-               pico_device_id
-             )}
+            socket
+            |> assign(
+              learning_binding: nil,
+              save_status: "Assigned action to the pressed Pico button.",
+              save_error: nil
+            )
+            |> reload_from_devices(
+              Picos.list_devices_for_bridge(socket.assigns.bridge.id),
+              pico_device_id
+            )
+            |> reply_with_save_notice()
 
           {:error, reason} ->
-            {:noreply,
-             assign(
-               socket,
-               learning_binding: nil,
-               save_status: nil,
-               save_error: "Failed to assign pressed button: #{inspect(reason)}"
-             )}
+            socket
+            |> assign(
+              learning_binding: nil,
+              save_status: nil,
+              save_error: "Failed to assign pressed button: #{inspect(reason)}"
+            )
+            |> reply_with_save_notice()
         end
 
         socket.assigns.live_action == :show ->
-          {:noreply,
-           socket
-           |> push_patch(to: pico_show_path(socket.assigns.bridge.id, pico_device_id))
-           |> assign(save_status: "Detected Pico button press.", save_error: nil)}
+          socket
+          |> push_patch(to: pico_show_path(socket.assigns.bridge.id, pico_device_id))
+          |> assign(save_status: "Detected Pico button press.", save_error: nil)
+          |> reply_with_save_notice()
 
         true ->
-          {:noreply, assign(socket, save_status: "Detected Pico button press.", save_error: nil)}
+          socket
+          |> assign(save_status: "Detected Pico button press.", save_error: nil)
+          |> reply_with_save_notice()
       end
     else
       {:noreply, socket}
@@ -581,6 +690,18 @@ defmodule HueworksWeb.PicoConfigLive do
 
   defp normalize_clone_source_id(_devices, _selected, _source_id), do: nil
 
+  defp maybe_set_pico_room(device, room_id) do
+    requested_room_id = Util.parse_optional_integer(room_id)
+
+    cond do
+      Picos.configured?(device) and requested_room_id != device.room_id ->
+        {:error, :config_present}
+
+      true ->
+        Picos.set_device_room(device, room_id)
+    end
+  end
+
   defp normalize_binding_target_kind("scene", _control_groups, room_scenes) when room_scenes != [],
     do: "scene"
 
@@ -619,6 +740,84 @@ defmodule HueworksWeb.PicoConfigLive do
     Enum.reject(lights, fn light ->
       Map.get(light, :enabled) == false or Map.get(light, :canonical_light_id)
     end)
+  end
+
+  defp available_control_group_lights(%{room_id: room_id}, lights, group_ids, light_ids)
+       when is_integer(room_id) and is_list(lights) do
+    covered_light_ids = covered_control_group_light_ids(room_id, group_ids, light_ids)
+
+    Enum.reject(lights, &MapSet.member?(covered_light_ids, &1.id))
+  end
+
+  defp available_control_group_lights(_device, lights, _group_ids, light_ids) when is_list(lights) do
+    Enum.reject(lights, &(&1.id in light_ids))
+  end
+
+  defp available_control_group_groups(%{room_id: room_id}, groups, group_ids, light_ids)
+       when is_integer(room_id) and is_list(groups) do
+    covered_light_ids = covered_control_group_light_ids(room_id, group_ids, light_ids)
+    selected_group_ids = MapSet.new(group_ids)
+
+    Enum.reject(groups, fn group ->
+      group.id in selected_group_ids or
+        overlaps_control_group_targets?(room_id, group.id, covered_light_ids)
+    end)
+  end
+
+  defp available_control_group_groups(_device, groups, group_ids, _light_ids) when is_list(groups) do
+    Enum.reject(groups, &(&1.id in group_ids))
+  end
+
+  defp covered_control_group_light_ids(room_id, group_ids, light_ids) when is_integer(room_id) do
+    room_id
+    |> Hueworks.Picos.Targets.expand_room_targets(group_ids, light_ids)
+    |> MapSet.new()
+  end
+
+  defp overlaps_control_group_targets?(room_id, group_id, covered_light_ids)
+       when is_integer(room_id) and is_integer(group_id) do
+    room_id
+    |> Hueworks.Picos.Targets.expand_room_targets([group_id], [])
+    |> Enum.any?(&MapSet.member?(covered_light_ids, &1))
+  end
+
+  defp display_name(entity), do: Util.display_name(entity)
+  defp display_name_value(%{display_name: display_name}) when is_binary(display_name), do: display_name
+  defp display_name_value(_entity), do: ""
+  defp pico_config_locked?(%{} = device), do: Picos.configured?(device)
+  defp pico_config_locked?(_device), do: false
+
+  attr(:label, :string, required: true)
+  attr(:text, :string, required: true)
+
+  defp help_tooltip(assigns) do
+    ~H"""
+    <div class="hw-help-wrap">
+      <button
+        type="button"
+        class="hw-help-trigger"
+        aria-label={"Explain #{@label}"}
+        title={@text}
+      >
+        i
+      </button>
+      <div class="hw-help-bubble" role="tooltip">
+        <%= @text %>
+      </div>
+    </div>
+    """
+  end
+
+  attr(:title, :string, required: true)
+  attr(:help, :string, required: true)
+
+  defp section_heading(assigns) do
+    ~H"""
+    <div class="hw-section-title-row">
+      <h3><%= @title %></h3>
+      <.help_tooltip label={@title} text={@help} />
+    </div>
+    """
   end
 
   defp valid_learning_binding?(
@@ -661,4 +860,26 @@ defmodule HueworksWeb.PicoConfigLive do
   defp pico_show_path(bridge_id, _pico_id), do: pico_index_path(bridge_id)
 
   defp pico_index_path(bridge_id), do: "/config/bridge/#{bridge_id}/picos"
+
+  defp reply_with_save_notice(socket) do
+    socket =
+      case {socket.assigns[:save_status], socket.assigns[:save_error]} do
+        {message, _} when is_binary(message) ->
+          socket
+          |> assign(save_status: nil, save_error: nil)
+          |> clear_flash(:error)
+          |> put_flash(:info, message)
+
+        {_, message} when is_binary(message) ->
+          socket
+          |> assign(save_status: nil, save_error: nil)
+          |> clear_flash(:info)
+          |> put_flash(:error, message)
+
+        _ ->
+          socket
+      end
+
+    {:noreply, socket}
+  end
 end

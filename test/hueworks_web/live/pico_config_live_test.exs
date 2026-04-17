@@ -199,12 +199,13 @@ defmodule HueworksWeb.PicoConfigLiveTest do
     assert html =~ "Configure Pico"
     assert html =~ "Control Groups"
     assert html =~ "Using auto-detected room from Caseta import data."
+    refute html =~ "Pico room updated."
 
     view
-    |> form("form[phx-submit='save_room_override']", %{
+    |> form("form[phx-change='save_room_override']", %{
       "room_id" => Integer.to_string(override_room.id)
     })
-    |> render_submit()
+    |> render_change()
 
     assert render(view) =~ "Pico room updated."
     assert render(view) =~ "Using manual room override."
@@ -222,7 +223,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
     })
     |> render_change()
 
-    render_click(element(view, "#pico-add-control-group-group"))
+    assert render(view) =~ "Override Overhead Group"
     render_click(element(view, "#pico-save-control-group"))
 
     assert render(view) =~ "Control group saved."
@@ -277,6 +278,431 @@ defmodule HueworksWeb.PicoConfigLiveTest do
            } = PicoButton.action_config_struct(assigned)
 
     assert control_group_id == control_group["id"]
+  end
+
+  test "selecting control group lights adds them immediately", %{conn: conn} do
+    room = Repo.insert!(%Room{name: "Bedroom"})
+
+    bridge =
+      insert_bridge!(%{
+        type: :caseta,
+        name: "Caseta",
+        host: "10.0.0.69",
+        credentials: %{"cert_path" => "a", "key_path" => "b", "cacert_path" => "c"},
+        enabled: true,
+        import_complete: true
+      })
+
+    light =
+      Repo.insert!(%Light{
+        name: "Nightstand",
+        source: :caseta,
+        source_id: "69",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        enabled: true
+      })
+
+    device =
+      Repo.insert!(%PicoDevice{
+        bridge_id: bridge.id,
+        room_id: room.id,
+        source_id: "bedroom-pico",
+        name: "Bedroom Pico",
+        hardware_profile: "5_button",
+        metadata: %{
+          "room_override" => true,
+          "control_groups" => [
+            %{"id" => "group-a", "name" => "Bedroom", "group_ids" => [], "light_ids" => []}
+          ]
+        }
+      })
+
+    insert_pico_button(%{
+      pico_device_id: device.id,
+      source_id: "b1",
+      button_number: 2,
+      slot_index: 0,
+      enabled: true
+    })
+
+    {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/picos/#{device.id}")
+
+    view
+    |> form("#pico-control-group-light-form", %{
+      "entity" => "light",
+      "id" => Integer.to_string(light.id)
+    })
+    |> render_change()
+
+    assert render(view) =~ "Nightstand"
+
+    render_click(element(view, "#pico-save-control-group"))
+
+    assert [
+             %{
+               "name" => "Bedroom",
+               "group_ids" => [],
+               "light_ids" => light_ids
+             }
+           ] = Picos.control_groups(Picos.get_device(device.id))
+
+    assert light_ids == [light.id]
+  end
+
+  test "add light dropdown excludes lights already covered by selected groups", %{conn: conn} do
+    room = Repo.insert!(%Room{name: "Hallway"})
+
+    bridge =
+      insert_bridge!(%{
+        type: :caseta,
+        name: "Caseta",
+        host: "10.0.0.691",
+        credentials: %{"cert_path" => "a", "key_path" => "b", "cacert_path" => "c"},
+        enabled: true,
+        import_complete: true
+      })
+
+    light_a =
+      Repo.insert!(%Light{
+        name: "Hallway Ceiling 1-1",
+        source: :caseta,
+        source_id: "691",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        enabled: true
+      })
+
+    _light_b =
+      Repo.insert!(%Light{
+        name: "Hallway Ceiling 1-2",
+        source: :caseta,
+        source_id: "692",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        enabled: true
+      })
+
+    group =
+      Repo.insert!(%Group{
+        name: "Hallway",
+        source: :caseta,
+        source_id: "group-691",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        enabled: true
+      })
+
+    Repo.insert!(%GroupLight{group_id: group.id, light_id: light_a.id})
+
+    device =
+      Repo.insert!(%PicoDevice{
+        bridge_id: bridge.id,
+        room_id: room.id,
+        source_id: "hallway-pico",
+        name: "Hallway Pico",
+        hardware_profile: "5_button",
+        metadata: %{
+          "room_override" => true,
+          "control_groups" => [
+            %{
+              "id" => "group-a",
+              "name" => "Overhead",
+              "group_ids" => [group.id],
+              "light_ids" => []
+            }
+          ]
+        }
+      })
+
+    insert_pico_button(%{
+      pico_device_id: device.id,
+      source_id: "b1",
+      button_number: 2,
+      slot_index: 0,
+      enabled: true
+    })
+
+    {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/picos/#{device.id}")
+
+    light_select_html = render(view |> element("#pico-control-group-light-form"))
+
+    refute light_select_html =~ "Hallway Ceiling 1-1"
+    assert light_select_html =~ "Hallway Ceiling 1-2"
+  end
+
+  test "add group dropdown excludes groups that overlap already selected direct lights", %{conn: conn} do
+    room = Repo.insert!(%Room{name: "Kitchen"})
+
+    bridge =
+      insert_bridge!(%{
+        type: :caseta,
+        name: "Caseta",
+        host: "10.0.0.692",
+        credentials: %{"cert_path" => "a", "key_path" => "b", "cacert_path" => "c"},
+        enabled: true,
+        import_complete: true
+      })
+
+    light_a =
+      Repo.insert!(%Light{
+        name: "Kitchen Ceiling 1",
+        source: :caseta,
+        source_id: "693",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        enabled: true
+      })
+
+    light_b =
+      Repo.insert!(%Light{
+        name: "Kitchen Ceiling 2",
+        source: :caseta,
+        source_id: "694",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        enabled: true
+      })
+
+    overlap_group =
+      Repo.insert!(%Group{
+        name: "Kitchen Ceiling",
+        source: :caseta,
+        source_id: "group-692",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        enabled: true
+      })
+
+    isolated_group =
+      Repo.insert!(%Group{
+        name: "Kitchen Accent",
+        source: :caseta,
+        source_id: "group-693",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        enabled: true
+      })
+
+    Repo.insert!(%GroupLight{group_id: overlap_group.id, light_id: light_a.id})
+    Repo.insert!(%GroupLight{group_id: isolated_group.id, light_id: light_b.id})
+
+    device =
+      Repo.insert!(%PicoDevice{
+        bridge_id: bridge.id,
+        room_id: room.id,
+        source_id: "kitchen-pico",
+        name: "Kitchen Pico",
+        hardware_profile: "5_button",
+        metadata: %{
+          "room_override" => true,
+          "control_groups" => [
+            %{
+              "id" => "group-a",
+              "name" => "Custom",
+              "group_ids" => [],
+              "light_ids" => [light_a.id]
+            }
+          ]
+        }
+      })
+
+    insert_pico_button(%{
+      pico_device_id: device.id,
+      source_id: "b1",
+      button_number: 2,
+      slot_index: 0,
+      enabled: true
+    })
+
+    {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/picos/#{device.id}")
+
+    group_select_html = render(view |> element("#pico-control-group-group-form"))
+
+    refute group_select_html =~ "Kitchen Ceiling"
+    assert group_select_html =~ "Kitchen Accent"
+  end
+
+  test "pico config saves and displays Pico display_name with fallback to name", %{conn: conn} do
+    room = Repo.insert!(%Room{name: "Main Floor"})
+
+    bridge =
+      insert_bridge!(%{
+        type: :caseta,
+        name: "Caseta",
+        host: "10.0.0.621",
+        credentials: %{"cert_path" => "a", "key_path" => "b", "cacert_path" => "c"},
+        enabled: true,
+        import_complete: true
+      })
+
+    device =
+      Repo.insert!(%PicoDevice{
+        bridge_id: bridge.id,
+        room_id: room.id,
+        source_id: "rename-pico",
+        name: "Front Hall Pico",
+        hardware_profile: "5_button",
+        metadata: %{"room_override" => true}
+      })
+
+    insert_pico_button(%{
+      pico_device_id: device.id,
+      source_id: "b1",
+      button_number: 2,
+      slot_index: 0,
+      enabled: true
+    })
+
+    {:ok, view, html} = live(conn, "/config/bridge/#{bridge.id}/picos/#{device.id}")
+
+    assert html =~ "Front Hall Pico"
+    refute has_element?(view, "#pico-display-name-form")
+
+    render_click(element(view, "#pico-start-display-name-edit"))
+
+    assert has_element?(view, "#pico-display-name-form")
+    assert has_element?(view, "#pico-save-display-name")
+    assert has_element?(view, "#pico-cancel-display-name")
+
+    view
+    |> form("#pico-display-name-form", %{"display_name" => "Entry Pico"})
+    |> render_submit()
+
+    assert render(view) =~ "Pico name updated."
+    assert render(view) =~ "Entry Pico"
+    refute render(view) =~ "Front Hall Pico</h2>"
+    refute has_element?(view, "#pico-display-name-form")
+
+    reloaded = Repo.get!(PicoDevice, device.id)
+    assert reloaded.display_name == "Entry Pico"
+
+    {:ok, list_view, _html} = live(conn, "/config/bridge/#{bridge.id}/picos")
+    assert render(list_view) =~ "Entry Pico"
+
+    render_click(element(view, "#pico-start-display-name-edit"))
+
+    view
+    |> form("#pico-display-name-form", %{"display_name" => "   "})
+    |> render_submit()
+
+    assert Repo.get!(PicoDevice, device.id).display_name == nil
+    assert render(view) =~ "Front Hall Pico"
+  end
+
+  test "room override saves immediately on selection", %{conn: conn} do
+    room = Repo.insert!(%Room{name: "Main Floor"})
+    override_room = Repo.insert!(%Room{name: "Library"})
+
+    bridge =
+      insert_bridge!(%{
+        type: :caseta,
+        name: "Caseta",
+        host: "10.0.0.622",
+        credentials: %{"cert_path" => "a", "key_path" => "b", "cacert_path" => "c"},
+        enabled: true,
+        import_complete: true
+      })
+
+    device =
+      Repo.insert!(%PicoDevice{
+        bridge_id: bridge.id,
+        room_id: room.id,
+        source_id: "auto-save-room-pico",
+        name: "Auto Save Room Pico",
+        hardware_profile: "5_button",
+        metadata: %{"room_override" => false, "detected_room_id" => room.id}
+      })
+
+    insert_pico_button(%{
+      pico_device_id: device.id,
+      source_id: "b1",
+      button_number: 2,
+      slot_index: 0,
+      enabled: true
+    })
+
+    {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/picos/#{device.id}")
+
+    view
+    |> form("form[phx-change='save_room_override']", %{
+      "room_id" => Integer.to_string(override_room.id)
+    })
+    |> render_change()
+
+    updated = Repo.get!(PicoDevice, device.id)
+    assert updated.room_id == override_room.id
+    assert render(view) =~ "Pico room updated."
+    assert render(view) =~ "Using manual room override."
+  end
+
+  test "room override is locked until existing pico config is cleared", %{conn: conn} do
+    auto_room = Repo.insert!(%Room{name: "Auto Room"})
+    new_room = Repo.insert!(%Room{name: "New Room"})
+
+    bridge =
+      insert_bridge!(%{
+        type: :caseta,
+        name: "Caseta",
+        host: "10.0.0.623",
+        credentials: %{"cert_path" => "a", "key_path" => "b", "cacert_path" => "c"},
+        enabled: true,
+        import_complete: true
+      })
+
+    device =
+      Repo.insert!(%PicoDevice{
+        bridge_id: bridge.id,
+        room_id: new_room.id,
+        source_id: "locked-room-pico",
+        name: "Locked Room Pico",
+        hardware_profile: "5_button",
+        metadata: %{
+          "detected_room_id" => auto_room.id,
+          "room_override" => true,
+          "control_groups" => [
+            %{"id" => "group-a", "name" => "Accent", "group_ids" => [], "light_ids" => []}
+          ]
+        }
+      })
+
+    button =
+      insert_pico_button(%{
+        pico_device_id: device.id,
+        source_id: "b1",
+        button_number: 2,
+        slot_index: 0,
+        action_type: "toggle_any_on",
+        action_config: %{"target_kind" => "control_group", "target_id" => "group-a"},
+        enabled: true
+      })
+
+    {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/picos/#{device.id}")
+
+    html = render(view)
+    assert html =~ "Clear Pico Config"
+    assert html =~ "disabled"
+
+    view
+    |> element("button[phx-click='clear_pico_config']")
+    |> render_click()
+
+    updated = Repo.get!(PicoDevice, device.id)
+    updated_button = Repo.get!(PicoButton, button.id)
+
+    assert updated.room_id == auto_room.id
+    refute render(view) =~ "Clear Pico Config"
+    assert render(view) =~ "Pico config cleared."
+    assert updated_button.action_type == nil
+
+    view
+    |> form("form[phx-change='save_room_override']", %{
+      "room_id" => Integer.to_string(new_room.id)
+    })
+    |> render_change()
+
+    assert Repo.get!(PicoDevice, device.id).room_id == new_room.id
+    assert render(view) =~ "Pico room updated."
   end
 
   test "detect pico mode redirects from the list page into the matching pico config", %{conn: conn} do

@@ -26,17 +26,11 @@ defmodule HueworksWeb.ConfigLive do
        ha_export_room_selects_enabled: app_setting.ha_export_room_selects_enabled == true,
        ha_export_lights_enabled: app_setting.ha_export_lights_enabled == true,
        ha_export_mqtt_host: app_setting.ha_export_mqtt_host || "",
-       ha_export_mqtt_port: format_integer(app_setting.ha_export_mqtt_port || 1883),
-       ha_export_mqtt_username: app_setting.ha_export_mqtt_username || "",
-       ha_export_mqtt_password: "",
-       ha_export_discovery_prefix: app_setting.ha_export_discovery_prefix || "homeassistant",
-       settings_status: nil,
-       settings_error: nil,
-       ha_export_status: nil,
-       ha_export_error: nil,
-       light_state_status: nil,
-       light_state_error: nil
-     )}
+      ha_export_mqtt_port: format_integer(app_setting.ha_export_mqtt_port || 1883),
+      ha_export_mqtt_username: app_setting.ha_export_mqtt_username || "",
+      ha_export_mqtt_password: "",
+      ha_export_discovery_prefix: app_setting.ha_export_discovery_prefix || "homeassistant"
+    )}
   end
 
   def handle_event("noop", _params, socket) do
@@ -61,9 +55,7 @@ defmodule HueworksWeb.ConfigLive do
              socket.assigns.scale_transition_by_brightness
            )
          ),
-       timezones: timezone_options(timezone),
-       settings_status: nil,
-       settings_error: nil
+       timezones: timezone_options(timezone)
      )}
   end
 
@@ -94,10 +86,9 @@ defmodule HueworksWeb.ConfigLive do
            timezone: app_setting.timezone,
            default_transition_ms: format_integer(app_setting.default_transition_ms || 0),
            scale_transition_by_brightness: app_setting.scale_transition_by_brightness == true,
-           timezones: timezone_options(app_setting.timezone),
-           settings_status: "Global solar settings saved.",
-           settings_error: nil
-         )}
+           timezones: timezone_options(app_setting.timezone)
+         )
+         |> put_notice(:info, "Global solar settings saved.")}
 
       {:error, changeset} ->
         message =
@@ -105,7 +96,7 @@ defmodule HueworksWeb.ConfigLive do
           |> Enum.map(fn {field, {text, _opts}} -> "#{field} #{text}" end)
           |> Enum.join(", ")
 
-        {:noreply, assign(socket, settings_status: nil, settings_error: message)}
+        {:noreply, put_notice(socket, :error, message)}
     end
   end
 
@@ -145,9 +136,7 @@ defmodule HueworksWeb.ConfigLive do
            params,
            "ha_export_discovery_prefix",
            socket.assigns.ha_export_discovery_prefix
-         ),
-       ha_export_status: nil,
-       ha_export_error: nil
+         )
      )}
   end
 
@@ -203,10 +192,9 @@ defmodule HueworksWeb.ConfigLive do
            ha_export_mqtt_port: format_integer(app_setting.ha_export_mqtt_port || 1883),
            ha_export_mqtt_username: app_setting.ha_export_mqtt_username || "",
            ha_export_mqtt_password: "",
-           ha_export_discovery_prefix: app_setting.ha_export_discovery_prefix || "homeassistant",
-           ha_export_status: "Home Assistant MQTT export settings saved.",
-           ha_export_error: nil
-         )}
+           ha_export_discovery_prefix: app_setting.ha_export_discovery_prefix || "homeassistant"
+         )
+         |> put_notice(:info, "Home Assistant MQTT export settings saved.")}
 
       {:error, changeset} ->
         message =
@@ -214,18 +202,14 @@ defmodule HueworksWeb.ConfigLive do
           |> Enum.map(fn {field, {text, _opts}} -> "#{field} #{text}" end)
           |> Enum.join(", ")
 
-        {:noreply, assign(socket, ha_export_status: nil, ha_export_error: message)}
+        {:noreply, put_notice(socket, :error, message)}
     end
   end
 
   def handle_event("republish_ha_export_entities", _params, socket) do
     HomeAssistantExport.refresh_all_scenes()
 
-    {:noreply,
-     assign(socket,
-       ha_export_status: "Republished exported Home Assistant entities.",
-       ha_export_error: nil
-     )}
+    {:noreply, put_notice(socket, :info, "Republished exported Home Assistant entities.")}
   end
 
   def handle_event(
@@ -244,20 +228,20 @@ defmodule HueworksWeb.ConfigLive do
       end
 
     {:noreply,
-     assign(socket,
+     socket
+     |> assign(
        latitude: format_coord(latitude),
        longitude: format_coord(longitude),
        timezone: timezone,
        default_transition_ms: socket.assigns.default_transition_ms,
        scale_transition_by_brightness: socket.assigns.scale_transition_by_brightness,
-       timezones: timezone_options(timezone),
-       settings_status: "Location and timezone received from browser.",
-       settings_error: nil
-     )}
+       timezones: timezone_options(timezone)
+     )
+     |> put_notice(:info, "Location and timezone received from browser.")}
   end
 
   def handle_event("geolocation_error", %{"message" => message}, socket) do
-    {:noreply, assign(socket, settings_status: nil, settings_error: "Location error: #{message}")}
+    {:noreply, put_notice(socket, :error, "Location error: #{message}")}
   end
 
   def handle_event("delete_entities", %{"id" => id}, socket) do
@@ -287,19 +271,12 @@ defmodule HueworksWeb.ConfigLive do
       {:ok, state} ->
         {:noreply,
          socket
-         |> assign(
-           light_states: list_light_states(),
-           light_state_status: "Duplicated #{state.name}.",
-           light_state_error: nil
-         )
+         |> assign(light_states: list_light_states())
+         |> put_notice(:info, "Duplicated #{state.name}.")
          |> push_navigate(to: "/config/light-states/#{state.id}/edit")}
 
       {:error, _reason} ->
-        {:noreply,
-         assign(socket,
-           light_state_status: nil,
-           light_state_error: "Unable to duplicate light state."
-         )}
+        {:noreply, put_notice(socket, :error, "Unable to duplicate light state.")}
     end
   end
 
@@ -309,29 +286,19 @@ defmodule HueworksWeb.ConfigLive do
     case Scenes.delete_light_state(light_state_id) do
       {:ok, _state} ->
         {:noreply,
-         assign(socket,
-           light_states: list_light_states(),
-           light_state_status: "Light state deleted.",
-           light_state_error: nil
-         )}
+         socket
+         |> assign(light_states: list_light_states())
+         |> put_notice(:info, "Light state deleted.")}
 
       {:error, :in_use} ->
         usages =
           Scenes.light_state_usages(light_state_id)
           |> Enum.map_join(", ", fn usage -> "#{usage.room_name} / #{usage.scene_name}" end)
 
-        {:noreply,
-         assign(socket,
-           light_state_status: nil,
-           light_state_error: "Light state is in use by: #{usages}"
-         )}
+        {:noreply, put_notice(socket, :error, "Light state is in use by: #{usages}")}
 
       {:error, _reason} ->
-        {:noreply,
-         assign(socket,
-           light_state_status: nil,
-           light_state_error: "Unable to delete light state."
-         )}
+        {:noreply, put_notice(socket, :error, "Unable to delete light state.")}
     end
   end
 
@@ -358,6 +325,18 @@ defmodule HueworksWeb.ConfigLive do
 
   defp format_integer(value) when is_integer(value), do: Integer.to_string(value)
   defp format_integer(_value), do: "0"
+
+  defp put_notice(socket, :info, message) when is_binary(message) do
+    socket
+    |> clear_flash(:error)
+    |> put_flash(:info, message)
+  end
+
+  defp put_notice(socket, :error, message) when is_binary(message) do
+    socket
+    |> clear_flash(:info)
+    |> put_flash(:error, message)
+  end
 
   defp parse_boolean_param(value) when value in [true, false], do: value
   defp parse_boolean_param("true"), do: true

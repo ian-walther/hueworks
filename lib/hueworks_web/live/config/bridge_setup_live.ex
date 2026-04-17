@@ -109,7 +109,10 @@ defmodule HueworksWeb.BridgeSetupLive do
        |> push_navigate(to: "/config")}
     else
       {:error, reason} ->
-        {:noreply, assign(socket, import_status: :error, import_error: inspect(reason))}
+        {:noreply,
+         socket
+         |> assign(import_status: :error, import_error: inspect(reason))
+         |> put_notice(:error, inspect(reason))}
     end
   end
 
@@ -130,13 +133,16 @@ defmodule HueworksWeb.BridgeSetupLive do
             bridge_import: bridge_import,
             normalized_import: normalized
           )
+          |> put_notice(:info, import_flash_info(bridge_import))
 
         socket
         |> refresh_reimport_plan()
         |> assign_default_plan_if_needed(bridge_import)
 
       {:error, message} ->
-        assign(socket, import_status: :error, import_error: message)
+        socket
+        |> assign(import_status: :error, import_error: message)
+        |> put_notice(:error, message)
     end
   end
 
@@ -572,6 +578,24 @@ defmodule HueworksWeb.BridgeSetupLive do
 
   defp selection_map(map) when is_map(map), do: map
   defp selection_map(_value), do: %{"selected" => true}
+
+  defp import_flash_info(%{status: status, imported_at: imported_at}) do
+    "Configuration loaded into memory. Import status: #{status}. Imported at: #{imported_at}."
+  end
+
+  defp import_flash_info(_bridge_import), do: "Configuration loaded into memory."
+
+  defp put_notice(socket, :info, message) when is_binary(message) do
+    socket
+    |> clear_flash(:error)
+    |> put_flash(:info, message)
+  end
+
+  defp put_notice(socket, :error, message) when is_binary(message) do
+    socket
+    |> clear_flash(:info)
+    |> put_flash(:error, message)
+  end
 
   defp blank_to_nil(""), do: nil
   defp blank_to_nil(value), do: value

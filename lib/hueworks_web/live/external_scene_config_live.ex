@@ -33,14 +33,19 @@ defmodule HueworksWeb.ExternalSceneConfigLive do
     case ExternalScenes.sync_home_assistant_scenes(socket.assigns.bridge) do
       {:ok, external_scenes} ->
         {:noreply,
-         assign(socket,
+         socket
+         |> assign(
            external_scenes: external_scenes,
-           save_status: "Home Assistant scenes synced.",
+           save_status: nil,
            save_error: nil
-         )}
+         )
+         |> put_notice(:info, "Home Assistant scenes synced.")}
 
       {:error, reason} ->
-        {:noreply, assign(socket, save_status: nil, save_error: inspect(reason))}
+        {:noreply,
+         socket
+         |> assign(save_status: nil, save_error: nil)
+         |> put_notice(:error, inspect(reason))}
     end
   end
 
@@ -49,7 +54,10 @@ defmodule HueworksWeb.ExternalSceneConfigLive do
 
     case ExternalScenes.get_external_scene(external_scene_id) do
       nil ->
-        {:noreply, assign(socket, save_status: nil, save_error: "External scene not found.")}
+        {:noreply,
+         socket
+         |> assign(save_status: nil, save_error: nil)
+         |> put_notice(:error, "External scene not found.")}
 
       external_scene ->
         case ExternalScenes.update_mapping(external_scene, params) do
@@ -58,9 +66,10 @@ defmodule HueworksWeb.ExternalSceneConfigLive do
              socket
              |> assign(
                external_scenes: ExternalScenes.list_external_scenes_for_bridge(socket.assigns.bridge.id),
-               save_status: "Mapping saved.",
+               save_status: nil,
                save_error: nil
-             )}
+             )
+             |> put_notice(:info, "Mapping saved.")}
 
           {:error, changeset} ->
             message =
@@ -68,7 +77,10 @@ defmodule HueworksWeb.ExternalSceneConfigLive do
               |> Enum.map(fn {field, {text, _opts}} -> "#{field} #{text}" end)
               |> Enum.join(", ")
 
-            {:noreply, assign(socket, save_status: nil, save_error: message)}
+            {:noreply,
+             socket
+             |> assign(save_status: nil, save_error: nil)
+             |> put_notice(:error, message)}
         end
     end
   end
@@ -81,5 +93,17 @@ defmodule HueworksWeb.ExternalSceneConfigLive do
       save_status: nil,
       save_error: nil
     )
+  end
+
+  defp put_notice(socket, :info, message) when is_binary(message) do
+    socket
+    |> clear_flash(:error)
+    |> put_flash(:info, message)
+  end
+
+  defp put_notice(socket, :error, message) when is_binary(message) do
+    socket
+    |> clear_flash(:info)
+    |> put_flash(:error, message)
   end
 end

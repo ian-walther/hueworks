@@ -32,7 +32,6 @@ defmodule HueworksWeb.LightStateEditorLive do
        original_preview_timezone: preview_timezone,
        circadian_preview: nil,
        circadian_preview_error: nil,
-       save_error: nil,
        dirty: false
      )}
   end
@@ -69,9 +68,9 @@ defmodule HueworksWeb.LightStateEditorLive do
       |> assign(
         light_state_name: name,
         light_state_config: config,
-        save_error: nil,
         dirty: true
       )
+      |> clear_flash(:error)
       |> assign(preview_assigns)
       |> refresh_circadian_preview()
 
@@ -100,7 +99,7 @@ defmodule HueworksWeb.LightStateEditorLive do
         {:noreply, updated_socket}
 
       {:error, message} ->
-        {:noreply, assign(socket, save_error: message)}
+        {:noreply, put_flash(socket, :error, message)}
     end
   end
 
@@ -115,9 +114,9 @@ defmodule HueworksWeb.LightStateEditorLive do
         preview_longitude: socket.assigns.original_preview_longitude,
         preview_timezone: socket.assigns.original_preview_timezone,
         preview_timezones: FormState.timezone_options(socket.assigns.original_preview_timezone),
-        save_error: nil,
         dirty: false
       )
+      |> clear_flash(:error)
       |> refresh_circadian_preview()
 
     {:noreply, socket}
@@ -191,9 +190,9 @@ defmodule HueworksWeb.LightStateEditorLive do
           )
           |> assign(
             light_state_usages: Scenes.light_state_usages(state.id),
-            save_error: nil,
             dirty: false
           )
+          |> clear_flash(:error)
           |> refresh_circadian_preview()
           |> put_flash(:info, "Light state saved.")
 
@@ -221,7 +220,6 @@ defmodule HueworksWeb.LightStateEditorLive do
       light_state_name: "",
       light_state_config: config,
       light_state_usages: [],
-      save_error: nil,
       dirty: false
     )
     |> remember_original_state("", config)
@@ -243,7 +241,6 @@ defmodule HueworksWeb.LightStateEditorLive do
           light_state_name: state.name,
           light_state_config: config,
           light_state_usages: Scenes.light_state_usages(state.id),
-          save_error: nil,
           dirty: false
         )
         |> remember_original_state(state.name, config)

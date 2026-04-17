@@ -222,6 +222,18 @@ Hooks.GeoLocate = {
   }
 }
 
+Hooks.AutoClearFlash = {
+  mounted() {
+    this.timer = window.setTimeout(() => {
+      this.pushEvent("lv:clear-flash", { key: this.el.dataset.key })
+    }, 2800)
+  },
+
+  destroyed() {
+    clearTimeout(this.timer)
+  }
+}
+
 Hooks.CircadianChart = {
   mounted() {
     this.svg = null

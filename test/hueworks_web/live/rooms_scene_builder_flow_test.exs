@@ -738,7 +738,7 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
 
     assert has_element?(
              view,
-             ".hw-error",
+             ".hw-flash-bar-error",
              "Each component must use a saved manual or circadian light state before saving."
            )
 
@@ -761,7 +761,7 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
     |> element("button[phx-click='save_scene']")
     |> render_click()
 
-    assert has_element?(view, ".hw-error", "Assign all lights once before saving.")
+    assert has_element?(view, ".hw-flash-bar-error", "Assign all lights once before saving.")
   end
 
   test "disabled room lights are excluded from scene builder options and unassigned counts",

@@ -79,10 +79,13 @@ defmodule Hueworks.LightsLivePipelineTest do
     clear_light_states(light.id)
 
     {:ok, view, _html} = live(conn, "/lights")
+    refute render(view) =~ "ON light Desk Lamp"
 
     view
     |> element("button[phx-click='toggle'][phx-value-type='light'][phx-value-id='#{light.id}']")
     |> render_click()
+
+    assert render(view) =~ "ON light Desk Lamp"
 
     drain_executor(executor_server)
 

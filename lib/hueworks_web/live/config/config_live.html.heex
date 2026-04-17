@@ -6,19 +6,12 @@
     </div>
   </div>
 
+  <HueworksWeb.Layouts.app_flash_group flash={@flash} class="hw-flash-stack-inline" />
+
   <section class="hw-panel">
     <div class="hw-panel-header">
       <h2>Global Solar Settings</h2>
     </div>
-
-    <%= if @settings_status do %>
-      <p class="hw-muted"><%= @settings_status %></p>
-    <% end %>
-
-    <%= if @settings_error do %>
-      <p class="hw-error"><%= @settings_error %></p>
-    <% end %>
-
     <form class="hw-form" phx-change="update_global_solar" phx-submit="save_global_solar">
       <label class="hw-modal-label" for="global_timezone">Timezone</label>
       <select id="global_timezone" name="timezone" class="hw-select">
@@ -101,14 +94,6 @@
     <p class="hw-muted">
       Publish HueWorks scenes, room scene selectors, and opt-in lights/groups into Home Assistant via MQTT discovery.
     </p>
-
-    <%= if @ha_export_status do %>
-      <p class="hw-muted"><%= @ha_export_status %></p>
-    <% end %>
-
-    <%= if @ha_export_error do %>
-      <p class="hw-error"><%= @ha_export_error %></p>
-    <% end %>
 
     <form class="hw-form" phx-change="update_ha_export" phx-submit="save_ha_export">
       <label class="hw-modal-label" for="ha_export_scenes_enabled">Export Scenes</label>
@@ -237,14 +222,6 @@
       <a class="hw-button" href="/config/light-states/new/manual">New Manual</a>
       <a class="hw-button" href="/config/light-states/new/circadian">New Circadian</a>
     </div>
-
-    <%= if @light_state_status do %>
-      <p class="hw-muted"><%= @light_state_status %></p>
-    <% end %>
-
-    <%= if @light_state_error do %>
-      <p class="hw-error"><%= @light_state_error %></p>
-    <% end %>
 
     <div class="hw-list">
       <%= for entry <- @light_states do %>

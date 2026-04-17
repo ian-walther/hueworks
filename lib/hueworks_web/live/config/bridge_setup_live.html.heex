@@ -8,19 +8,7 @@
     </div>
   </div>
 
-  <%= if @import_status == :ok do %>
-    <p class="hw-muted">Configuration loaded into memory.</p>
-    <%= if @bridge_import do %>
-      <p class="hw-muted">
-        Import status: <%= @bridge_import.status %> •
-        Imported at: <%= @bridge_import.imported_at %>
-      </p>
-    <% end %>
-  <% end %>
-
-  <%= if @import_status == :error do %>
-    <p class="hw-error"><%= @import_error %></p>
-  <% end %>
+  <HueworksWeb.Layouts.app_flash_group flash={@flash} class="hw-flash-stack-inline" />
 
   <%= if @normalized do %>
     <section class="hw-panel">

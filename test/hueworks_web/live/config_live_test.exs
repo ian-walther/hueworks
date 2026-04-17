@@ -67,6 +67,7 @@ defmodule HueworksWeb.ConfigLiveTest do
     assert html =~ "Save Global Settings"
     assert html =~ "Default Transition (ms)"
     assert html =~ "Scale Transition By Brightness Delta"
+    refute html =~ "Global solar settings saved."
 
     view
     |> form("form[phx-submit='save_global_solar']", %{

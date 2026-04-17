@@ -42,11 +42,11 @@ defmodule Hueworks.Picos.Bindings do
 
   def clear_button_binding(%PicoButton{} = button) do
     button
-    |> PicoButton.changeset(%{
+    |> Ecto.Changeset.change(%{
       action_type: nil,
-      action_config: %{},
       enabled: true
     })
+    |> Ecto.Changeset.put_embed(:action_config, nil)
     |> Repo.update()
   end
 

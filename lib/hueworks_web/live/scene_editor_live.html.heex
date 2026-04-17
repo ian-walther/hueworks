@@ -9,11 +9,9 @@
     </div>
   </div>
 
-  <section class="hw-panel">
-    <%= if @scene_save_error do %>
-      <p class="hw-error"><%= @scene_save_error %></p>
-    <% end %>
+  <HueworksWeb.Layouts.app_flash_group flash={@flash} class="hw-flash-stack-inline" />
 
+  <section class="hw-panel">
     <form phx-change="update_scene">
       <label class="hw-modal-label" for="scene_name">Name</label>
       <input

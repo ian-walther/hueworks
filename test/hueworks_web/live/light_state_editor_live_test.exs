@@ -250,7 +250,8 @@ defmodule HueworksWeb.LightStateEditorLiveTest do
   test "circadian editor rejects a temperature ceiling below the minimum color temperature", %{
     conn: conn
   } do
-    {:ok, view, _html} = live(conn, "/config/light-states/new/circadian")
+    {:ok, view, html} = live(conn, "/config/light-states/new/circadian")
+    refute html =~ "must be greater than or equal to min_color_temp"
 
     html =
       render_submit(view, "save", %{

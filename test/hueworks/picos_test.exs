@@ -261,6 +261,67 @@ defmodule Hueworks.PicosTest do
     assert button_source_ids == ["1", "2"]
   end
 
+  test "update_display_name normalizes blanks and sync preserves custom display_name" do
+    bridge = insert_bridge(%{host: "10.0.0.541"})
+
+    device =
+      Repo.insert!(%PicoDevice{
+        bridge_id: bridge.id,
+        source_id: "device-1",
+        name: "Kitchen Pico",
+        hardware_profile: "5_button",
+        enabled: true
+      })
+
+    assert {:ok, updated} = Picos.update_display_name(device, %{display_name: "  Accent Pico  "})
+    assert updated.display_name == "Accent Pico"
+
+    raw = %{
+      lights: [],
+      pico_buttons: [
+        %{
+          button_id: "1",
+          button_number: 2,
+          parent_device_id: "device-1",
+          device_name: "Kitchen Pico Renamed Upstream",
+          area_id: nil
+        }
+      ]
+    }
+
+    assert {:ok, [synced]} = Picos.sync_bridge_picos(bridge, raw)
+    assert synced.name == "Kitchen Pico Renamed Upstream"
+    assert synced.display_name == "Accent Pico"
+
+    assert {:ok, cleared} = Picos.update_display_name(synced, %{display_name: "   "})
+    assert cleared.display_name == nil
+  end
+
+  test "list_devices_for_bridge sorts by display name when present" do
+    bridge = insert_bridge(%{host: "10.0.0.542"})
+
+    Repo.insert!(%PicoDevice{
+      bridge_id: bridge.id,
+      source_id: "device-1",
+      name: "Zulu Pico",
+      display_name: "Alpha Pico",
+      hardware_profile: "5_button",
+      enabled: true
+    })
+
+    Repo.insert!(%PicoDevice{
+      bridge_id: bridge.id,
+      source_id: "device-2",
+      name: "Bravo Pico",
+      hardware_profile: "5_button",
+      enabled: true
+    })
+
+    assert ["Alpha Pico", "Bravo Pico"] =
+             Picos.list_devices_for_bridge(bridge.id)
+             |> Enum.map(&Hueworks.Util.display_name/1)
+  end
+
   test "control groups can be saved and buttons can target them" do
     bridge = insert_bridge(%{host: "10.0.0.51"})
     room = Repo.insert!(%Room{name: "Den"})
@@ -933,6 +994,56 @@ defmodule Hueworks.PicosTest do
     assert {:ok, reset} = Picos.set_device_room(synced, nil)
     assert reset.room_id == auto_room.id
     refute Picos.room_override?(reset)
+  end
+
+  test "clear_device_config removes control groups and bindings and resets room override" do
+    bridge = insert_bridge(%{host: "10.0.0.543"})
+    auto_room = Repo.insert!(%Room{name: "Auto Room"})
+    manual_room = Repo.insert!(%Room{name: "Manual Room"})
+
+    device =
+      Repo.insert!(%PicoDevice{
+        bridge_id: bridge.id,
+        room_id: manual_room.id,
+        source_id: "device-clear-config",
+        name: "Kitchen Pico",
+        hardware_profile: "5_button",
+        metadata: %{
+          "detected_room_id" => auto_room.id,
+          "room_override" => true,
+          "control_groups" => [
+            %{"id" => "accent", "name" => "Accent", "group_ids" => [], "light_ids" => []}
+          ],
+          "preset" => "overhead_lamps_all_toggle",
+          "primary" => %{"group_ids" => [], "light_ids" => []},
+          "secondary" => %{"group_ids" => [], "light_ids" => []}
+        }
+      })
+
+    button =
+      insert_pico_button(%{
+        pico_device_id: device.id,
+        source_id: "1",
+        button_number: 2,
+        slot_index: 0,
+        action_type: "toggle_any_on",
+        action_config: %{"target_kind" => "control_group", "target_id" => "accent"},
+        enabled: true,
+        metadata: %{"preset" => "overhead_lamps_all_toggle"}
+      })
+
+    assert {:ok, cleared} = Picos.clear_device_config(device)
+    assert cleared.room_id == auto_room.id
+    refute Picos.room_override?(cleared)
+    assert Picos.control_groups(cleared) == []
+    refute Map.has_key?(cleared.metadata || %{}, "preset")
+    refute Map.has_key?(cleared.metadata || %{}, "primary")
+    refute Map.has_key?(cleared.metadata || %{}, "secondary")
+
+    reloaded_button = Repo.get!(PicoButton, button.id)
+    assert reloaded_button.action_type == nil
+    assert PicoButton.action_config_struct(reloaded_button).target_kind == nil
+    refute Map.has_key?(reloaded_button.metadata || %{}, "preset")
   end
 
   test "unbound button presses still broadcast for learning" do

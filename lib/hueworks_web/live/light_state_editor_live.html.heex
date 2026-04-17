@@ -11,11 +11,9 @@
     </div>
   </div>
 
-  <section class="hw-panel">
-    <%= if @save_error do %>
-      <p class="hw-error"><%= @save_error %></p>
-    <% end %>
+  <HueworksWeb.Layouts.app_flash_group flash={@flash} class="hw-flash-stack-inline" />
 
+  <section class="hw-panel">
     <%= if @light_state_id && @light_state_usages != [] do %>
       <div class="hw-row">
         <p class="hw-muted">

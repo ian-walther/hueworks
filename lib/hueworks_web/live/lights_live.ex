@@ -42,7 +42,7 @@ defmodule HueworksWeb.LightsLive do
 
   @impl true
   def handle_event("refresh", _params, socket) do
-    {:noreply, assign(socket, MessageFlow.refresh(socket.assigns))}
+    {:noreply, socket |> assign(MessageFlow.refresh(socket.assigns)) |> maybe_put_status_flash()}
   end
 
   def handle_event(event, params, socket)
@@ -76,15 +76,15 @@ defmodule HueworksWeb.LightsLive do
              "save_edit_fields"
            ] do
     case EditFlow.run(event, params, socket.assigns, &Loader.reload_assigns/1) do
-      {:ok, updates} -> {:noreply, assign(socket, updates)}
-      {:error, status} -> {:noreply, assign(socket, status: status)}
+      {:ok, updates} -> {:noreply, socket |> assign(updates) |> maybe_put_status_flash()}
+      {:error, status} -> {:noreply, put_notice(socket, :error, status)}
     end
   end
 
   def handle_event(event, params, socket) when event in @action_events do
     case ActionFlow.run(event, params, socket.assigns) do
-      {:ok, updates} -> {:noreply, assign(socket, updates)}
-      {:error, status} -> {:noreply, assign(socket, status: status)}
+      {:ok, updates} -> {:noreply, socket |> assign(updates) |> maybe_put_status_flash()}
+      {:error, status} -> {:noreply, put_notice(socket, :error, status)}
     end
   end
 
@@ -94,5 +94,29 @@ defmodule HueworksWeb.LightsLive do
       {:ok, updates} -> {:noreply, assign(socket, updates)}
       :ignore -> {:noreply, socket}
     end
+  end
+
+  defp maybe_put_status_flash(socket) do
+    case socket.assigns[:status] do
+      status when is_binary(status) ->
+        socket
+        |> assign(:status, nil)
+        |> put_notice(:info, status)
+
+      _ ->
+        socket
+    end
+  end
+
+  defp put_notice(socket, :info, message) when is_binary(message) do
+    socket
+    |> clear_flash(:error)
+    |> put_flash(:info, message)
+  end
+
+  defp put_notice(socket, :error, message) when is_binary(message) do
+    socket
+    |> clear_flash(:info)
+    |> put_flash(:error, message)
   end
 end
