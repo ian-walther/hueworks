@@ -4,6 +4,7 @@ defmodule Hueworks.Control.State do
   """
 
   use GenServer
+  require Logger
 
   alias Hueworks.Control.Bootstrap.HomeAssistant
   alias Hueworks.Control.Bootstrap.Hue
@@ -54,7 +55,7 @@ defmodule Hueworks.Control.State do
 
   @spec bootstrap() :: :ok
   def bootstrap do
-    GenServer.cast(__MODULE__, :bootstrap)
+    GenServer.call(__MODULE__, :bootstrap, :infinity)
   end
 
   @spec suppress_scene_clear_for_refresh() :: :ok
@@ -94,17 +95,42 @@ defmodule Hueworks.Control.State do
   end
 
   @impl true
-  def handle_cast(:bootstrap, state) do
+  def handle_call(:bootstrap, _from, state) do
     do_bootstrap()
-    {:noreply, state}
+    {:reply, :ok, state}
   end
 
   defp do_bootstrap do
-    Task.start(fn ->
-      Hue.run()
-      HomeAssistant.run()
-      Z2M.run()
-    end)
+    bootstrap_modules()
+    |> Enum.each(&run_bootstrap_module/1)
+  end
+
+  defp bootstrap_modules do
+    Application.get_env(
+      :hueworks,
+      :control_state_bootstrap_modules,
+      [Hue, HomeAssistant, Z2M]
+    )
+  end
+
+  defp run_bootstrap_module(module) when is_atom(module) do
+    module.run()
+  rescue
+    error ->
+      Logger.error("""
+      Control state bootstrap failed in #{inspect(module)}: #{Exception.message(error)}
+      #{Exception.format_stacktrace(__STACKTRACE__)}
+      """)
+  end
+
+  defp run_bootstrap_module({module, arg}) when is_atom(module) do
+    module.run(arg)
+  rescue
+    error ->
+      Logger.error("""
+      Control state bootstrap failed in #{inspect({module, arg})}: #{Exception.message(error)}
+      #{Exception.format_stacktrace(__STACKTRACE__)}
+      """)
   end
 
   defp merge_and_store(key, attrs) do
