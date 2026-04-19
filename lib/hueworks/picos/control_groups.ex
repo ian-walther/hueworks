@@ -137,8 +137,8 @@ defmodule Hueworks.Picos.ControlGroups do
     Repo.all(from(pb in PicoButton, where: pb.pico_device_id == ^device_id))
     |> Enum.filter(fn button ->
       case PicoButton.action_config_struct(button) do
-        %StoredActionConfig{target_kind: :control_group} = config ->
-          StoredActionConfig.target_id(config) == group_id
+        %StoredActionConfig{target_kind: :control_groups, target_ids: target_ids} ->
+          group_id in target_ids
 
         _ ->
           false

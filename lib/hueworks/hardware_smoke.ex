@@ -144,11 +144,12 @@ defmodule Hueworks.HardwareSmoke do
       },
       all_light_ids: all_light_ids,
       buttons: %{
-        overhead_on: find_control_group_button!(device, "turn_on", overhead_group["id"]),
-        overhead_off: find_control_group_button!(device, "turn_off", overhead_group["id"]),
-        lower_on: find_control_group_button!(device, "turn_on", lower_group["id"]),
-        lower_off: find_control_group_button!(device, "turn_off", lower_group["id"]),
-        all_toggle: find_all_groups_button!(device, "toggle_any_on")
+        overhead_on: find_single_control_group_button!(device, "turn_on", overhead_group["id"]),
+        overhead_off:
+          find_single_control_group_button!(device, "turn_off", overhead_group["id"]),
+        lower_on: find_single_control_group_button!(device, "turn_on", lower_group["id"]),
+        lower_off: find_single_control_group_button!(device, "turn_off", lower_group["id"]),
+        all_toggle: find_all_control_groups_button!(device, "toggle_any_on")
       },
       lights: load_lights_by_id(all_light_ids)
     }
@@ -432,23 +433,30 @@ defmodule Hueworks.HardwareSmoke do
 
   defp expand_control_group_light_ids(_room_id, _group), do: []
 
-  defp find_control_group_button!(device, action_type, group_id) do
+  defp find_single_control_group_button!(device, action_type, group_id) do
     Enum.find(device.buttons, fn button ->
       config = Hueworks.Schemas.PicoButton.action_config_struct(button)
 
       button.enabled and button.action_type == action_type and
-        config.target_kind == :control_group and
-        config.target_id == group_id
+        config.target_kind == :control_groups and
+        config.target_ids == [group_id]
     end) || raise "missing #{action_type} button for control group #{inspect(group_id)}"
   end
 
-  defp find_all_groups_button!(device, action_type) do
+  defp find_all_control_groups_button!(device, action_type) do
+    all_group_ids =
+      device
+      |> Picos.control_groups()
+      |> Enum.map(& &1["id"])
+      |> Enum.sort()
+
     Enum.find(device.buttons, fn button ->
       config = Hueworks.Schemas.PicoButton.action_config_struct(button)
 
       button.enabled and button.action_type == action_type and
-        config.target_kind == :all_groups
-    end) || raise "missing #{action_type} button for all_groups"
+        config.target_kind == :control_groups and
+        Enum.sort(config.target_ids) == all_group_ids
+    end) || raise "missing #{action_type} button for all control groups"
   end
 
   defp load_lights_by_id(light_ids) do

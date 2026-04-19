@@ -19,7 +19,7 @@ defmodule Hueworks.Picos.Actions do
     @moduledoc false
 
     @enforce_keys [:target_kind]
-    defstruct target_kind: :none, target_id: nil, light_ids: [], room_id: nil
+    defstruct target_kind: :none, target_id: nil, target_ids: [], light_ids: [], room_id: nil
 
     def from_map(config) when is_map(config) do
       stored = StoredActionConfig.load(config)
@@ -27,6 +27,7 @@ defmodule Hueworks.Picos.Actions do
       %__MODULE__{
         target_kind: normalize_target_kind(stored.target_kind),
         target_id: StoredActionConfig.target_id(stored),
+        target_ids: StoredActionConfig.target_ids(stored),
         light_ids: Targets.normalize_integer_ids(stored.light_ids),
         room_id: stored.room_id
       }
@@ -34,7 +35,7 @@ defmodule Hueworks.Picos.Actions do
 
     def from_map(_config), do: %__MODULE__{target_kind: :none}
 
-    defp normalize_target_kind(kind) when kind in [:scene, :all_groups, :control_group], do: kind
+    defp normalize_target_kind(kind) when kind in [:scene, :control_groups], do: kind
     defp normalize_target_kind(_kind), do: :none
   end
 
@@ -189,22 +190,15 @@ defmodule Hueworks.Picos.Actions do
     Targets.normalize_integer_ids(light_ids)
   end
 
-  defp action_light_ids(%ActionConfig{target_kind: :all_groups}, device) do
+  defp action_light_ids(%ActionConfig{target_kind: :control_groups, target_ids: target_ids}, device)
+       when is_list(target_ids) do
+    selected_group_ids = MapSet.new(target_ids)
+
     device
     |> Picos.control_groups()
+    |> Enum.filter(&MapSet.member?(selected_group_ids, Map.get(&1, "id")))
     |> Enum.flat_map(&Targets.control_group_light_ids(device.room_id, &1))
     |> Enum.uniq()
-  end
-
-  defp action_light_ids(%ActionConfig{target_kind: :control_group, target_id: target_id}, device)
-       when is_binary(target_id) do
-    device
-    |> Picos.control_groups()
-    |> Enum.find(&(Map.get(&1, "id") == target_id))
-    |> case do
-      nil -> []
-      group -> Targets.control_group_light_ids(device.room_id, group)
-    end
   end
 
   defp action_light_ids(_config, _device), do: []

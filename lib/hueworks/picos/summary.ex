@@ -13,18 +13,11 @@ defmodule Hueworks.Picos.Summary do
       {nil, _config} ->
         "Not assigned"
 
-      {action_type, %StoredActionConfig{target_kind: :all_groups}} ->
-        "#{binding_action_label(action_type)} All Control Groups"
-
-      {action_type, %StoredActionConfig{target_kind: :control_group} = config} ->
-        target_id = StoredActionConfig.target_id(config)
-
+      {action_type, %StoredActionConfig{target_kind: :control_groups, target_ids: target_ids}} ->
         target_name =
           device
           |> control_groups()
-          |> Enum.find_value("Unknown Group", fn group ->
-            if group["id"] == target_id, do: group["name"], else: nil
-          end)
+          |> multi_group_binding_label(target_ids)
 
         "#{binding_action_label(action_type)} #{target_name}"
 
@@ -45,6 +38,24 @@ defmodule Hueworks.Picos.Summary do
     |> Map.get(:metadata, %{})
     |> Map.get("control_groups", [])
     |> ControlGroups.normalize()
+  end
+
+  defp multi_group_binding_label(control_groups, target_ids) when is_list(target_ids) do
+    names =
+      target_ids
+      |> Enum.map(fn target_id ->
+        Enum.find_value(control_groups, fn group ->
+          if group["id"] == target_id, do: group["name"], else: nil
+        end)
+      end)
+      |> Enum.reject(&is_nil/1)
+
+    case names do
+      [] -> "Unknown Groups"
+      [name] -> name
+      [first, second] -> "#{first} + #{second}"
+      [first | rest] -> "#{first} + #{length(rest)} more"
+    end
   end
 
   defp binding_action_label("turn_on"), do: "Turn On"

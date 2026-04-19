@@ -239,159 +239,252 @@
             Define room-scoped target sets for this Pico. Buttons can act on one control group or the union of all control groups.
           </p>
 
-          <form
-            id="pico-new-control-group-form"
-            phx-change="update_new_control_group"
-            phx-submit="create_control_group"
-            class="hw-inline-action-row"
-          >
-            <div class="hw-inline-field-stack hw-field-2">
-              <label class="hw-modal-label" for="pico-new-control-group-name">New control group</label>
-              <input
-                id="pico-new-control-group-name"
-                class="hw-modal-input"
-                type="text"
-                name="name"
-                value={@new_control_group_name}
-                placeholder="Overhead"
-              />
-            </div>
-
-            <div class="hw-inline-action">
-              <button type="submit" class="hw-button">Create</button>
-            </div>
-          </form>
+          <div class="hw-inline-action-row">
+            <button
+              id="pico-create-control-group"
+              type="button"
+              class="hw-button"
+              phx-click="create_control_group"
+            >
+              Add Control Group
+            </button>
+          </div>
 
           <%= if @control_groups != [] do %>
             <div class="hw-list">
               <%= for group <- @control_groups do %>
+                <% editing_group? = @selected_control_group_id == group["id"] %>
                 <div class="hw-card hw-pico-group-card" id={"pico-control-group-#{group["id"]}"}>
                   <div class="hw-card-title">
-                    <div class="hw-title-row">
-                      <h3><%= group["name"] %></h3>
+                    <div>
+                      <%= if editing_group? and @editing_control_group_name do %>
+                        <form
+                          id="pico-edit-control-group-name-form"
+                          class="hw-title-row hw-title-row-form"
+                          phx-submit="save_control_group_name"
+                          phx-change="update_control_group_name_draft"
+                        >
+                          <div class="hw-title-inline-form">
+                            <div class="hw-title-inline-field">
+                              <input
+                                id="pico-edit-control-group-name"
+                                name="name"
+                                type="text"
+                                value={@control_group_name_draft}
+                                class="hw-modal-input hw-title-inline-input"
+                                placeholder="Control Group"
+                                autocomplete="off"
+                              />
+                            </div>
+
+                            <div class="hw-title-inline-actions">
+                              <button
+                                id="pico-save-control-group-name"
+                                type="submit"
+                                class="hw-edit-button"
+                                aria-label="Save control group name"
+                              >
+                                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                  <path d="M5 12.5l4.2 4.2L19 7"></path>
+                                </svg>
+                              </button>
+
+                              <button
+                                id="pico-cancel-control-group-name"
+                                type="button"
+                                class="hw-edit-button"
+                                phx-click="cancel_control_group_name_edit"
+                                aria-label="Cancel control group name edit"
+                              >
+                                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                  <path d="M6 6l12 12"></path>
+                                  <path d="M18 6L6 18"></path>
+                                </svg>
+                              </button>
+                            </div>
+                          </div>
+                        </form>
+                      <% else %>
+                        <div class="hw-title-row">
+                          <h3><%= group["name"] %></h3>
+                          <%= if editing_group? do %>
+                            <button
+                              id="pico-start-control-group-name-edit"
+                              type="button"
+                              class="hw-edit-button"
+                              phx-click="start_control_group_name_edit"
+                              aria-label="Edit control group name"
+                            >
+                              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3l-10 10L6 17l.5-3.5 10-10z"></path>
+                              </svg>
+                            </button>
+                          <% end %>
+                        </div>
+                      <% end %>
+
+                      <p class="hw-meta">
+                        groups: <%= length(group["group_ids"]) %>, lights: <%= length(group["light_ids"]) %>
+                      </p>
                     </div>
-                    <p class="hw-meta">
-                      groups: <%= length(group["group_ids"]) %>, lights: <%= length(group["light_ids"]) %>
-                    </p>
                     <div class="hw-actions">
-                      <button type="button" class="hw-button" phx-click="select_control_group" phx-value-id={group["id"]}>
-                        <%= if @selected_control_group_id == group["id"], do: "Editing", else: "Edit" %>
+                      <button
+                        id={"pico-edit-control-group-#{group["id"]}"}
+                        type="button"
+                        class="hw-button"
+                        phx-click="select_control_group"
+                        phx-value-id={group["id"]}
+                      >
+                        <%= if editing_group?, do: "Editing", else: "Edit" %>
                       </button>
-                      <button type="button" class="hw-button hw-delete-button" phx-click="delete_control_group" phx-value-id={group["id"]}>
+                      <button
+                        type="button"
+                        class="hw-button hw-delete-button"
+                        phx-click="delete_control_group"
+                        phx-value-id={group["id"]}
+                      >
                         Delete
                       </button>
                     </div>
                   </div>
+                  <%= if editing_group? do %>
+                    <% available_groups =
+                      available_control_group_groups(
+                        @selected_pico,
+                        @selectable_room_groups,
+                        @control_group_group_ids,
+                        @control_group_light_ids
+                      ) %>
+                    <% available_lights =
+                      available_control_group_lights(
+                        @selected_pico,
+                        @selectable_room_lights,
+                        @control_group_group_ids,
+                        @control_group_light_ids
+                      ) %>
+                    <div class="hw-pico-group-editor">
+                      <%= if available_groups != [] do %>
+                        <div id="pico-control-group-group-form">
+                          <form
+                            id={control_group_picker_dom_id("group", available_groups)}
+                            class="hw-inline-fields"
+                            phx-change="select_control_group_entity"
+                          >
+                            <div class="hw-inline-field-stack hw-field-4">
+                              <label
+                                class="hw-modal-label"
+                                for={control_group_picker_select_id("group", available_groups)}
+                              >
+                                Add group
+                              </label>
+                              <input type="hidden" name="entity" value="group" />
+                              <select
+                                id={control_group_picker_select_id("group", available_groups)}
+                                class="hw-select"
+                                name="id"
+                              >
+                                <option value="">Select group</option>
+                                <%= for room_group <- available_groups do %>
+                                  <option
+                                    value={room_group.id}
+                                    selected={@selected_control_group_group_id == room_group.id}
+                                  >
+                                    <%= room_group.display_name || room_group.name %>
+                                  </option>
+                                <% end %>
+                              </select>
+                              <p class="hw-meta hw-pico-inline-hint">
+                                Selecting a group adds it immediately.
+                              </p>
+                            </div>
+                          </form>
+                        </div>
+                      <% end %>
+
+                      <%= if available_lights != [] do %>
+                        <div id="pico-control-group-light-form">
+                          <form
+                            id={control_group_picker_dom_id("light", available_lights)}
+                            class="hw-inline-fields"
+                            phx-change="select_control_group_entity"
+                          >
+                            <div class="hw-inline-field-stack hw-field-4">
+                              <label
+                                class="hw-modal-label"
+                                for={control_group_picker_select_id("light", available_lights)}
+                              >
+                                Add light
+                              </label>
+                              <input type="hidden" name="entity" value="light" />
+                              <select
+                                id={control_group_picker_select_id("light", available_lights)}
+                                class="hw-select"
+                                name="id"
+                              >
+                                <option value="">Select light</option>
+                                <%= for light <- available_lights do %>
+                                  <option
+                                    value={light.id}
+                                    selected={@selected_control_group_light_id == light.id}
+                                  >
+                                    <%= light.display_name || light.name %>
+                                  </option>
+                                <% end %>
+                              </select>
+                              <p class="hw-meta hw-pico-inline-hint">
+                                Selecting a light adds it immediately.
+                              </p>
+                            </div>
+                          </form>
+                        </div>
+                      <% end %>
+
+                      <div class="hw-room-list">
+                        <%= for group_id <- @control_group_group_ids do %>
+                          <% selected_group = Enum.find(@room_groups, &(&1.id == group_id)) %>
+                          <span class="hw-room-item hw-room-item-row">
+                            <span>
+                              <%= if selected_group,
+                                do: selected_group.display_name || selected_group.name,
+                                else: "Unknown group" %>
+                            </span>
+                            <button
+                              type="button"
+                              class="hw-button hw-delete-button"
+                              phx-click="remove_control_group_entity"
+                              phx-value-entity="group"
+                              phx-value-id={group_id}
+                            >
+                              Remove
+                            </button>
+                          </span>
+                        <% end %>
+
+                        <%= for light_id <- @control_group_light_ids do %>
+                          <% selected_light = Enum.find(@room_lights, &(&1.id == light_id)) %>
+                          <span class="hw-room-item hw-room-item-row">
+                            <span>
+                              <%= if selected_light,
+                                do: selected_light.display_name || selected_light.name,
+                                else: "Unknown light" %>
+                            </span>
+                            <button
+                              type="button"
+                              class="hw-button hw-delete-button"
+                              phx-click="remove_control_group_entity"
+                              phx-value-entity="light"
+                              phx-value-id={light_id}
+                            >
+                              Remove
+                            </button>
+                          </span>
+                        <% end %>
+                      </div>
+                    </div>
+                  <% end %>
                 </div>
               <% end %>
             </div>
-
-            <%= if @selected_control_group_id do %>
-              <div class="hw-form hw-pico-editor-card">
-                <h3>Edit Control Group</h3>
-
-                <form
-                  id="pico-edit-control-group-name-form"
-                  phx-change="edit_control_group_name"
-                  class="hw-inline-fields"
-                >
-                  <div class="hw-inline-field-stack hw-field-2">
-                    <label class="hw-modal-label" for="pico-edit-control-group-name">Name</label>
-                    <input
-                      id="pico-edit-control-group-name"
-                      class="hw-modal-input"
-                      type="text"
-                      name="name"
-                      value={@control_group_name}
-                    />
-                  </div>
-                </form>
-
-                <%= if available_control_group_groups(@selected_pico, @selectable_room_groups, @control_group_group_ids, @control_group_light_ids) != [] do %>
-                  <form
-                    id="pico-control-group-group-form"
-                    class="hw-inline-fields"
-                    phx-change="select_control_group_entity"
-                  >
-                    <div class="hw-inline-field-stack hw-field-4">
-                      <label class="hw-modal-label" for="pico-control-group-group-select">Add group</label>
-                        <input type="hidden" name="entity" value="group" />
-                        <select id="pico-control-group-group-select" class="hw-select" name="id">
-                          <option value="">Select group</option>
-                          <%= for group <- available_control_group_groups(@selected_pico, @selectable_room_groups, @control_group_group_ids, @control_group_light_ids) do %>
-                            <option value={group.id} selected={@selected_control_group_group_id == group.id}>
-                              <%= group.display_name || group.name %>
-                            </option>
-                          <% end %>
-                        </select>
-                      <p class="hw-meta hw-pico-inline-hint">Selecting a group adds it immediately.</p>
-                    </div>
-                  </form>
-                <% end %>
-
-                <%= if available_control_group_lights(@selected_pico, @selectable_room_lights, @control_group_group_ids, @control_group_light_ids) != [] do %>
-                  <form
-                    id="pico-control-group-light-form"
-                    class="hw-inline-fields"
-                    phx-change="select_control_group_entity"
-                  >
-                    <div class="hw-inline-field-stack hw-field-4">
-                      <label class="hw-modal-label" for="pico-control-group-light-select">Add light</label>
-                        <input type="hidden" name="entity" value="light" />
-                        <select id="pico-control-group-light-select" class="hw-select" name="id">
-                          <option value="">Select light</option>
-                          <%= for light <- available_control_group_lights(@selected_pico, @selectable_room_lights, @control_group_group_ids, @control_group_light_ids) do %>
-                            <option value={light.id} selected={@selected_control_group_light_id == light.id}>
-                              <%= light.display_name || light.name %>
-                            </option>
-                          <% end %>
-                        </select>
-                      <p class="hw-meta hw-pico-inline-hint">Selecting a light adds it immediately.</p>
-                    </div>
-                  </form>
-                <% end %>
-
-                <div class="hw-room-list">
-                  <%= for group_id <- @control_group_group_ids do %>
-                    <% group = Enum.find(@room_groups, &(&1.id == group_id)) %>
-                    <span class="hw-room-item hw-room-item-row">
-                      <span><%= if group, do: group.display_name || group.name, else: "Unknown group" %></span>
-                      <button
-                        type="button"
-                        class="hw-button hw-delete-button"
-                        phx-click="remove_control_group_entity"
-                        phx-value-entity="group"
-                        phx-value-id={group_id}
-                      >
-                        Remove
-                      </button>
-                    </span>
-                  <% end %>
-
-                  <%= for light_id <- @control_group_light_ids do %>
-                    <% light = Enum.find(@room_lights, &(&1.id == light_id)) %>
-                    <span class="hw-room-item hw-room-item-row">
-                      <span><%= if light, do: light.display_name || light.name, else: "Unknown light" %></span>
-                      <button
-                        type="button"
-                        class="hw-button hw-delete-button"
-                        phx-click="remove_control_group_entity"
-                        phx-value-entity="light"
-                        phx-value-id={light_id}
-                      >
-                        Remove
-                      </button>
-                    </span>
-                  <% end %>
-                </div>
-
-                <div class="hw-modal-actions hw-pico-actions">
-                  <button id="pico-save-control-group" type="button" phx-click="save_control_group" class="hw-button hw-button-on">
-                    Save Control Group
-                  </button>
-                </div>
-              </div>
-            <% end %>
           <% else %>
             <p class="hw-muted">Create at least one control group to start binding buttons.</p>
           <% end %>
@@ -405,63 +498,49 @@
 
           <form id="pico-binding-editor-form" phx-change="update_binding_editor" class="hw-inline-fields">
             <div class="hw-inline-field-stack hw-inline-field-fit">
-              <label class="hw-modal-label" for="pico-binding-target-kind">Target scope</label>
-              <select id="pico-binding-target-kind" class="hw-select" name="target_kind">
-                <option value="all_groups" selected={@binding_target_kind == "all_groups"}>
-                  All Control Groups
-                </option>
-                <option value="control_group" selected={@binding_target_kind == "control_group"}>
-                  One Control Group
-                </option>
-                <option value="scene" selected={@binding_target_kind == "scene"}>
-                  Scene
-                </option>
-              </select>
-            </div>
-
-            <div id="pico-binding-target-id-container" class="hw-inline-field-stack hw-inline-field-fit">
-              <label class="hw-modal-label" for="pico-binding-target-id">Target</label>
-              <select
-                id="pico-binding-target-id"
-                class="hw-select"
-                name="target_id"
-                disabled={@binding_target_kind not in ["control_group", "scene"]}
-              >
-                <%= cond do %>
-                  <% @binding_target_kind == "control_group" -> %>
-                    <option value="">Select control group</option>
-                    <%= for group <- @control_groups do %>
-                      <option value={group["id"]} selected={@binding_target_id == group["id"]}>
-                        <%= group["name"] %>
-                      </option>
-                    <% end %>
-                  <% @binding_target_kind == "scene" -> %>
-                    <option value="">Select scene</option>
-                    <%= for scene <- @room_scenes do %>
-                      <option value={scene.id} selected={@binding_target_id == scene.id}>
-                        <%= scene.name %>
-                      </option>
-                    <% end %>
-                  <% true -> %>
-                  <option value="">All Control Groups</option>
-                <% end %>
-              </select>
-            </div>
-
-            <div class="hw-inline-field-stack hw-inline-field-fit">
               <label class="hw-modal-label" for="pico-binding-action">Action</label>
               <select id="pico-binding-action" class="hw-select" name="action">
-                <%= if @binding_target_kind == "scene" do %>
+                <option value="on" selected={@binding_action == "on"}>Turn On</option>
+                <option value="off" selected={@binding_action == "off"}>Turn Off</option>
+                <option value="toggle" selected={@binding_action == "toggle"}>Toggle</option>
+                <%= if @room_scenes != [] do %>
                   <option value="activate_scene" selected={@binding_action == "activate_scene"}>
                     Activate Scene
                   </option>
-                <% else %>
-                  <option value="on" selected={@binding_action == "on"}>Turn On</option>
-                  <option value="off" selected={@binding_action == "off"}>Turn Off</option>
-                  <option value="toggle" selected={@binding_action == "toggle"}>Toggle</option>
                 <% end %>
               </select>
             </div>
+
+            <%= if @binding_target_kind == "scene" do %>
+              <div id="pico-binding-scene-container" class="hw-inline-field-stack hw-inline-field-fit">
+                <label class="hw-modal-label" for="pico-binding-target-id">Scene</label>
+                <select id="pico-binding-target-id" class="hw-select" name="target_id">
+                  <option value="">Select scene</option>
+                  <%= for scene <- @room_scenes do %>
+                    <option value={scene.id} selected={@binding_target_id == scene.id}>
+                      <%= scene.name %>
+                    </option>
+                  <% end %>
+                </select>
+              </div>
+            <% else %>
+              <fieldset id="pico-binding-target-groups" class="hw-inline-field-stack hw-field-4">
+                <legend class="hw-modal-label">Control groups</legend>
+                <div class="hw-checkbox-list">
+                  <%= for group <- @control_groups do %>
+                    <label class="hw-checkbox-row">
+                      <input
+                        type="checkbox"
+                        name="target_ids[]"
+                        value={group["id"]}
+                        checked={group["id"] in @binding_target_group_ids}
+                      />
+                      <span><%= group["name"] %></span>
+                    </label>
+                  <% end %>
+                </div>
+              </fieldset>
+            <% end %>
 
             <div class="hw-inline-actions">
               <button id="pico-start-button-learning" type="button" phx-click="start_button_learning" class="hw-button hw-button-on">

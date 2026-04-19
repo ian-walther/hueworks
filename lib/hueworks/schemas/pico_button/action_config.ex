@@ -7,14 +7,14 @@ defmodule Hueworks.Schemas.PicoButton.ActionConfig do
 
   @primary_key false
   embedded_schema do
-    field(:target_kind, Ecto.Enum, values: [:scene, :all_groups, :control_group])
+    field(:target_kind, Ecto.Enum, values: [:scene, :control_groups])
     field(:scene_id, :integer)
-    field(:control_group_id, :string)
+    field(:target_ids, {:array, :string}, default: [])
     field(:light_ids, {:array, :integer}, default: [])
     field(:room_id, :integer)
   end
 
-  @fields [:target_kind, :scene_id, :control_group_id, :light_ids, :room_id]
+  @fields [:target_kind, :scene_id, :target_ids, :light_ids, :room_id]
 
   def load(%__MODULE__{} = config), do: config
 
@@ -44,10 +44,11 @@ defmodule Hueworks.Schemas.PicoButton.ActionConfig do
 
   def target_id(%__MODULE__{target_kind: :scene, scene_id: scene_id}), do: scene_id
 
-  def target_id(%__MODULE__{target_kind: :control_group, control_group_id: group_id}),
-    do: group_id
-
   def target_id(_config), do: nil
+
+  def target_ids(%__MODULE__{target_kind: :control_groups, target_ids: target_ids}), do: target_ids
+
+  def target_ids(_config), do: []
 
   def changeset(attrs), do: changeset(%__MODULE__{}, attrs)
 
@@ -65,6 +66,7 @@ defmodule Hueworks.Schemas.PicoButton.ActionConfig do
     %{}
     |> maybe_put("target_kind", dump_target_kind(config.target_kind))
     |> maybe_put("target_id", target_id(config))
+    |> maybe_put_if("target_ids", target_ids(config), fn ids -> ids != [] end)
     |> maybe_put_if("light_ids", config.light_ids, fn ids -> ids != [] end)
     |> maybe_put("room_id", config.room_id)
   end
@@ -74,10 +76,11 @@ defmodule Hueworks.Schemas.PicoButton.ActionConfig do
       normalized_target_kind(Map.get(attrs, :target_kind) || Map.get(attrs, "target_kind"))
 
     target_id = Map.get(attrs, :target_id) || Map.get(attrs, "target_id")
+    target_ids = Map.get(attrs, :target_ids) || Map.get(attrs, "target_ids")
 
     %{}
     |> maybe_put("target_kind", target_kind)
-    |> maybe_put_target_id(target_kind, target_id)
+    |> maybe_put_target_id(target_kind, target_id, target_ids)
     |> maybe_put_if(
       "light_ids",
       Targets.normalize_integer_ids(
@@ -91,52 +94,59 @@ defmodule Hueworks.Schemas.PicoButton.ActionConfig do
     )
   end
 
-  defp normalized_target_kind(kind) when kind in [:scene, :all_groups, :control_group], do: kind
+  defp normalized_target_kind(kind) when kind in [:scene, :control_groups], do: kind
   defp normalized_target_kind("scene"), do: :scene
-  defp normalized_target_kind("all_groups"), do: :all_groups
-  defp normalized_target_kind("control_group"), do: :control_group
+  defp normalized_target_kind("control_groups"), do: :control_groups
   defp normalized_target_kind(_kind), do: nil
 
-  defp maybe_put_target_id(attrs, :scene, target_id) do
+  defp maybe_put_target_id(attrs, :scene, target_id, _target_ids) do
     maybe_put(attrs, "scene_id", Util.parse_optional_integer(target_id))
   end
 
-  defp maybe_put_target_id(attrs, :control_group, target_id) do
-    target_id
-    |> normalize_control_group_id()
-    |> then(&maybe_put(attrs, "control_group_id", &1))
+  defp maybe_put_target_id(attrs, :control_groups, target_id, target_ids) do
+    target_ids =
+      target_ids
+      |> normalize_target_ids()
+      |> case do
+        [] -> normalize_target_ids(List.wrap(target_id))
+        ids -> ids
+      end
+
+    maybe_put_if(attrs, "target_ids", target_ids, fn ids -> ids != [] end)
   end
 
-  defp maybe_put_target_id(attrs, _target_kind, _target_id), do: attrs
+  defp maybe_put_target_id(attrs, _target_kind, _target_id, _target_ids), do: attrs
 
-  defp normalize_control_group_id(target_id) when is_binary(target_id) do
+  defp normalize_target_id(target_id) when is_binary(target_id) do
     case String.trim(target_id) do
       "" -> nil
       trimmed -> trimmed
     end
   end
 
-  defp normalize_control_group_id(target_id) when is_atom(target_id),
-    do: Atom.to_string(target_id)
+  defp normalize_target_id(target_id) when is_atom(target_id), do: Atom.to_string(target_id)
 
-  defp normalize_control_group_id(_target_id), do: nil
+  defp normalize_target_id(_target_id), do: nil
+
+  defp normalize_target_ids(target_ids) do
+    target_ids
+    |> List.wrap()
+    |> Enum.map(&normalize_target_id/1)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq()
+  end
 
   defp validate_target_fields(changeset) do
     case get_field(changeset, :target_kind) do
       :scene ->
         changeset
         |> validate_required([:scene_id])
-        |> put_change(:control_group_id, nil)
+        |> put_change(:target_ids, [])
 
-      :control_group ->
+      :control_groups ->
         changeset
-        |> validate_required([:control_group_id])
+        |> validate_length(:target_ids, min: 1)
         |> put_change(:scene_id, nil)
-
-      :all_groups ->
-        changeset
-        |> put_change(:scene_id, nil)
-        |> put_change(:control_group_id, nil)
 
       nil ->
         changeset
@@ -158,7 +168,7 @@ defmodule Hueworks.Schemas.PicoButton.ActionConfig do
   end
 
   defp error_field(:scene_id), do: "target_id"
-  defp error_field(:control_group_id), do: "target_id"
+  defp error_field(:target_ids), do: "target_ids"
   defp error_field(field), do: Atom.to_string(field)
 
   defp format_opt_value(value) when is_binary(value), do: value

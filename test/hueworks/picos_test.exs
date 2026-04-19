@@ -4,7 +4,6 @@ defmodule Hueworks.PicosTest do
   alias Hueworks.ActiveScenes
   alias Hueworks.Picos
   alias Hueworks.Picos.Actions.ActionConfig
-  alias Hueworks.Picos.LegacyActionConfigBackfill
   alias Phoenix.PubSub
   alias Hueworks.Scenes
   alias Hueworks.Control.{DesiredState, State}
@@ -35,31 +34,6 @@ defmodule Hueworks.PicosTest do
     |> Repo.insert!()
   end
 
-  defp insert_legacy_pico_button!(attrs) when is_map(attrs) do
-    now = NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
-
-    sql = """
-    INSERT INTO pico_buttons
-      (pico_device_id, source_id, button_number, slot_index, action_type, action_config, enabled, inserted_at, updated_at)
-    VALUES
-      (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """
-
-    params = [
-      attrs.pico_device_id,
-      attrs.source_id,
-      attrs.button_number,
-      attrs.slot_index,
-      attrs.action_type,
-      Jason.encode!(attrs.action_config),
-      if(Map.get(attrs, :enabled, true), do: 1, else: 0),
-      NaiveDateTime.to_iso8601(now),
-      NaiveDateTime.to_iso8601(now)
-    ]
-
-    Ecto.Adapters.SQL.query!(Repo, sql, params)
-  end
-
   test "button action config returns a typed runtime struct" do
     assert %ActionConfig{
              target_kind: :scene,
@@ -74,15 +48,28 @@ defmodule Hueworks.PicosTest do
              })
 
     assert %ActionConfig{
-             target_kind: :control_group,
-             target_id: "group-9",
+             target_kind: :control_groups,
+             target_id: nil,
+             target_ids: ["group-9"],
              light_ids: [1, 2],
              room_id: nil
            } =
              ActionConfig.from_map(%{
-               target_kind: :control_group,
-               target_id: "group-9",
+               target_kind: :control_groups,
+               target_ids: ["group-9"],
                light_ids: ["1", 2, "bad"]
+             })
+
+    assert %ActionConfig{
+             target_kind: :control_groups,
+             target_id: nil,
+             target_ids: ["group-1", "group-2"],
+             light_ids: [],
+             room_id: nil
+           } =
+             ActionConfig.from_map(%{
+               target_kind: :control_groups,
+               target_ids: ["group-1", "group-2", "group-1"]
              })
   end
 
@@ -99,6 +86,16 @@ defmodule Hueworks.PicosTest do
                target_id: "12",
                light_ids: ["1", 2, "bad"],
                room_id: "5"
+             })
+
+    assert {:ok,
+            %{
+              "target_kind" => "control_groups",
+              "target_ids" => ["group-1", "group-2"]
+            }} =
+             StoredActionConfig.normalize(%{
+               target_kind: :control_groups,
+               target_ids: ["group-1", "group-2", "group-1"]
              })
   end
 
@@ -447,8 +444,8 @@ defmodule Hueworks.PicosTest do
     assert {:ok, _button} =
              Picos.assign_button_binding(updated, "1", %{
                "action" => "toggle",
-               "target_kind" => "control_group",
-               "target_id" => control_group["id"]
+               "target_kind" => "control_groups",
+               "target_ids" => [control_group["id"]]
              })
 
     button =
@@ -458,16 +455,124 @@ defmodule Hueworks.PicosTest do
 
     assert button.action_type == "toggle_any_on"
     assert %StoredActionConfig{
-             target_kind: :control_group,
-             control_group_id: control_group_id
+             target_kind: :control_groups,
+             target_ids: control_group_ids
            } = PicoButton.action_config_struct(button)
 
-    assert control_group_id == control_group["id"]
+    assert control_group_ids == [control_group["id"]]
 
     # The control group should expand only to room-local lights.
     assert Picos.button_binding_summary(button, Picos.get_device(updated.id)) == "Toggle Overhead"
 
     refute Enum.member?(control_group["group_ids"], other_group.id)
+  end
+
+  test "buttons can target multiple control groups" do
+    bridge = insert_bridge(%{host: "10.0.0.519"})
+    room = Repo.insert!(%Room{name: "Den"})
+
+    overhead =
+      Repo.insert!(%Light{
+        name: "Overhead",
+        source: :caseta,
+        source_id: "91",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        enabled: true
+      })
+
+    lamp =
+      Repo.insert!(%Light{
+        name: "Lamp",
+        source: :caseta,
+        source_id: "92",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        enabled: true
+      })
+
+    overhead_group =
+      Repo.insert!(%Group{
+        name: "Overhead Group",
+        source: :caseta,
+        source_id: "group-91",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        enabled: true
+      })
+
+    lamp_group =
+      Repo.insert!(%Group{
+        name: "Lamp Group",
+        source: :caseta,
+        source_id: "group-92",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        enabled: true
+      })
+
+    Repo.insert!(%GroupLight{group_id: overhead_group.id, light_id: overhead.id})
+    Repo.insert!(%GroupLight{group_id: lamp_group.id, light_id: lamp.id})
+
+    device =
+      Repo.insert!(%PicoDevice{
+        bridge_id: bridge.id,
+        room_id: room.id,
+        source_id: "device-multi-group",
+        name: "Den Pico",
+        hardware_profile: "5_button",
+        metadata: %{"room_override" => true}
+      })
+
+    insert_pico_button(%{
+      pico_device_id: device.id,
+      source_id: "1",
+      button_number: 2,
+      slot_index: 0,
+      enabled: true
+    })
+
+    assert {:ok, device} =
+             Picos.save_control_group(device, %{
+               "id" => "group-a",
+               "name" => "Overhead",
+               "group_ids" => [overhead_group.id],
+               "light_ids" => []
+             })
+
+    assert {:ok, device} =
+             Picos.save_control_group(device, %{
+               "id" => "group-b",
+               "name" => "Lamps",
+               "group_ids" => [lamp_group.id],
+               "light_ids" => []
+             })
+
+    assert {:ok, _button} =
+             Picos.assign_button_binding(device, "1", %{
+               "action" => "toggle",
+               "target_kind" => "control_groups",
+               "target_ids" => ["group-a", "group-b"]
+             })
+
+    button =
+      Repo.one!(
+        from(pb in PicoButton, where: pb.pico_device_id == ^device.id and pb.source_id == "1")
+      )
+
+    assert %StoredActionConfig{
+             target_kind: :control_groups,
+             target_ids: ["group-a", "group-b"]
+           } = PicoButton.action_config_struct(button)
+
+    assert Picos.button_binding_summary(button, Picos.get_device(device.id)) == "Toggle Overhead + Lamps"
+
+    State.put(:light, overhead.id, %{power: :off})
+    State.put(:light, lamp.id, %{power: :off})
+
+    assert :handled = Picos.handle_button_press(bridge.id, "1")
+    assert DesiredState.get(:light, overhead.id)[:power] == :on
+    assert DesiredState.get(:light, lamp.id)[:power] == :on
   end
 
   test "scene bindings can be saved and button presses activate the selected scene" do
@@ -604,8 +709,8 @@ defmodule Hueworks.PicosTest do
     assert {:ok, _button} =
              Picos.assign_button_binding(device, "1", %{
                "action" => "toggle",
-               "target_kind" => "control_group",
-               "target_id" => control_group["id"]
+               "target_kind" => "control_groups",
+               "target_ids" => [control_group["id"]]
              })
 
     State.put(:light, overhead.id, %{power: :off})
@@ -616,7 +721,7 @@ defmodule Hueworks.PicosTest do
     assert DesiredState.get(:light, lamp.id)[:power] == :on
   end
 
-  test "legacy persisted control-group bindings with target_id still execute on button press" do
+  test "persisted control-group bindings execute on button press" do
     bridge = insert_bridge(%{host: "10.0.0.5161"})
     room = Repo.insert!(%Room{name: "Kitchen"})
 
@@ -672,17 +777,15 @@ defmodule Hueworks.PicosTest do
         }
       })
 
-    insert_legacy_pico_button!(%{
+    insert_pico_button(%{
       pico_device_id: device.id,
       source_id: "1",
       button_number: 2,
       slot_index: 0,
       action_type: "toggle_any_on",
-      action_config: %{"target_kind" => "control_group", "target_id" => "legacy-group"},
+      action_config: %{"target_kind" => "control_groups", "target_ids" => ["legacy-group"]},
       enabled: true
     })
-
-    :ok = LegacyActionConfigBackfill.run(Repo)
 
     button =
       Repo.one!(
@@ -690,8 +793,8 @@ defmodule Hueworks.PicosTest do
       )
 
     assert %StoredActionConfig{
-             target_kind: :control_group,
-             control_group_id: "legacy-group"
+             target_kind: :control_groups,
+             target_ids: ["legacy-group"]
            } = PicoButton.action_config_struct(button)
 
     State.put(:light, overhead.id, %{power: :off})
@@ -792,19 +895,29 @@ defmodule Hueworks.PicosTest do
                "light_ids" => [lamp.id]
              })
 
-    [control_group] = Picos.control_groups(source)
+    assert {:ok, source} =
+             Picos.save_control_group(source, %{
+               "name" => "Lamps",
+               "group_ids" => [],
+               "light_ids" => [lamp.id]
+             })
+
+    source_groups = Picos.control_groups(source)
+    overhead_group = Enum.find(source_groups, &(&1["name"] == "Overhead"))
+    lamps_group = Enum.find(source_groups, &(&1["name"] == "Lamps"))
 
     assert {:ok, _button} =
              Picos.assign_button_binding(source, "s1", %{
                "action" => "toggle",
-               "target_kind" => "control_group",
-               "target_id" => control_group["id"]
+               "target_kind" => "control_groups",
+               "target_ids" => [overhead_group["id"]]
              })
 
     assert {:ok, _button} =
              Picos.assign_button_binding(source, "s2", %{
                "action" => "off",
-               "target_kind" => "all_groups"
+               "target_kind" => "control_groups",
+               "target_ids" => [overhead_group["id"], lamps_group["id"]]
              })
 
     assert {:ok, _button} =
@@ -819,35 +932,48 @@ defmodule Hueworks.PicosTest do
     assert cloned.room_id == room.id
     assert Picos.room_override?(cloned)
 
-    [cloned_group] = Picos.control_groups(cloned)
-    assert cloned_group["name"] == "Overhead"
-    assert cloned_group["group_ids"] == [group.id]
-    assert cloned_group["light_ids"] == [lamp.id]
-    refute cloned_group["id"] == control_group["id"]
+    cloned_groups = Picos.control_groups(cloned)
+    assert Enum.map(cloned_groups, & &1["name"]) == ["Lamps", "Overhead"]
+
+    cloned_overhead_group = Enum.find(cloned_groups, &(&1["name"] == "Overhead"))
+    cloned_lamps_group = Enum.find(cloned_groups, &(&1["name"] == "Lamps"))
+
+    assert cloned_overhead_group["group_ids"] == [group.id]
+    assert cloned_overhead_group["light_ids"] == [lamp.id]
+    assert cloned_lamps_group["group_ids"] == []
+    assert cloned_lamps_group["light_ids"] == [lamp.id]
+    refute cloned_overhead_group["id"] == overhead_group["id"]
+    refute cloned_lamps_group["id"] == lamps_group["id"]
 
     cloned_buttons =
       Repo.all(from(pb in PicoButton, where: pb.pico_device_id == ^cloned.id))
       |> Enum.sort_by(& &1.button_number)
 
     toggle_button = Enum.find(cloned_buttons, &(&1.button_number == 2))
-    all_groups_button = Enum.find(cloned_buttons, &(&1.button_number == 3))
+    multi_group_button = Enum.find(cloned_buttons, &(&1.button_number == 3))
     scene_button = Enum.find(cloned_buttons, &(&1.button_number == 4))
 
     assert toggle_button.action_type == "toggle_any_on"
     assert %StoredActionConfig{
-             target_kind: :control_group,
-             control_group_id: toggle_group_id,
+             target_kind: :control_groups,
+             target_ids: toggle_group_ids,
              room_id: toggle_room_id
            } = PicoButton.action_config_struct(toggle_button)
 
-    assert toggle_group_id == cloned_group["id"]
+    assert toggle_group_ids == [cloned_overhead_group["id"]]
     assert toggle_room_id == room.id
 
-    assert all_groups_button.action_type == "turn_off"
-    assert %StoredActionConfig{target_kind: :all_groups, room_id: all_groups_room_id} =
-             PicoButton.action_config_struct(all_groups_button)
+    assert multi_group_button.action_type == "turn_off"
+    assert %StoredActionConfig{
+             target_kind: :control_groups,
+             target_ids: multi_group_ids,
+             room_id: multi_group_room_id
+           } = PicoButton.action_config_struct(multi_group_button)
 
-    assert all_groups_room_id == room.id
+    assert Enum.sort(multi_group_ids) ==
+             Enum.sort([cloned_overhead_group["id"], cloned_lamps_group["id"]])
+
+    assert multi_group_room_id == room.id
 
     assert scene_button.action_type == "activate_scene"
     assert %StoredActionConfig{
@@ -860,7 +986,7 @@ defmodule Hueworks.PicosTest do
     assert scene_button_room_id == room.id
   end
 
-  test "legacy persisted scene bindings with target_id still activate the selected scene" do
+  test "persisted scene bindings activate the selected scene" do
     bridge = insert_bridge(%{host: "10.0.0.5151"})
     room = Repo.insert!(%Room{name: "Living Room"})
 
@@ -894,7 +1020,7 @@ defmodule Hueworks.PicosTest do
         %{name: "Lamps", light_ids: [light.id], light_state_id: to_string(state.id)}
       ])
 
-    insert_legacy_pico_button!(%{
+    insert_pico_button(%{
       pico_device_id: device.id,
       source_id: "1",
       button_number: 2,
@@ -903,8 +1029,6 @@ defmodule Hueworks.PicosTest do
       action_config: %{"target_kind" => "scene", "target_id" => scene.id},
       enabled: true
     })
-
-    :ok = LegacyActionConfigBackfill.run(Repo)
 
     button =
       Repo.one!(
@@ -1027,7 +1151,7 @@ defmodule Hueworks.PicosTest do
         button_number: 2,
         slot_index: 0,
         action_type: "toggle_any_on",
-        action_config: %{"target_kind" => "control_group", "target_id" => "accent"},
+        action_config: %{"target_kind" => "control_groups", "target_ids" => ["accent"]},
         enabled: true,
         metadata: %{"preset" => "overhead_lamps_all_toggle"}
       })
@@ -1123,7 +1247,11 @@ defmodule Hueworks.PicosTest do
         button_number: 2,
         slot_index: 0,
         action_type: "toggle_any_on",
-        action_config: %{"target_kind" => "all_groups", "room_id" => room.id},
+        action_config: %{
+          "target_kind" => "control_groups",
+          "target_ids" => ["accent"],
+          "room_id" => room.id
+        },
         enabled: true
       })
 

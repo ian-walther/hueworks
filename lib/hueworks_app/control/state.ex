@@ -32,7 +32,7 @@ defmodule Hueworks.Control.State do
     end
 
     :ets.new(@table, [:named_table, :public, read_concurrency: true, write_concurrency: true])
-    {:ok, %{}, {:continue, :bootstrap}}
+    {:ok, %{bootstrap_ref: nil, bootstrap_pid: nil, bootstrap_waiters: []}, {:continue, :bootstrap}}
   end
 
   @spec get(entity_type(), entity_id()) :: state_map() | nil
@@ -66,8 +66,7 @@ defmodule Hueworks.Control.State do
 
   @impl true
   def handle_continue(:bootstrap, state) do
-    do_bootstrap()
-    {:noreply, state}
+    {:noreply, start_bootstrap(state)}
   end
 
   @impl true
@@ -95,14 +94,57 @@ defmodule Hueworks.Control.State do
   end
 
   @impl true
-  def handle_call(:bootstrap, _from, state) do
-    do_bootstrap()
-    {:reply, :ok, state}
+  def handle_call(:bootstrap, from, state) do
+    state =
+      state
+      |> start_bootstrap()
+      |> enqueue_bootstrap_waiter(from)
+
+    {:noreply, state}
+  end
+
+  @impl true
+  def handle_info({:DOWN, ref, :process, _pid, reason}, %{bootstrap_ref: ref} = state) do
+    result = if(reason == :normal, do: :ok, else: {:error, reason})
+
+    state.bootstrap_waiters
+    |> Enum.reverse()
+    |> Enum.each(&GenServer.reply(&1, result))
+
+    {:noreply, %{state | bootstrap_ref: nil, bootstrap_pid: nil, bootstrap_waiters: []}}
+  end
+
+  def handle_info({:DOWN, _ref, :process, _pid, _reason}, state), do: {:noreply, state}
+
+  @impl true
+  def terminate(_reason, state) do
+    if is_pid(state.bootstrap_pid) and Process.alive?(state.bootstrap_pid) do
+      Process.exit(state.bootstrap_pid, :shutdown)
+    end
+
+    :ok
   end
 
   defp do_bootstrap do
     bootstrap_modules()
     |> Enum.each(&run_bootstrap_module/1)
+
+    :ok
+  end
+
+  defp start_bootstrap(%{bootstrap_ref: ref} = state) when not is_nil(ref), do: state
+
+  defp start_bootstrap(state) do
+    {pid, ref} =
+      spawn_monitor(fn ->
+        _ = do_bootstrap()
+      end)
+
+    %{state | bootstrap_pid: pid, bootstrap_ref: ref}
+  end
+
+  defp enqueue_bootstrap_waiter(state, from) do
+    %{state | bootstrap_waiters: [from | state.bootstrap_waiters]}
   end
 
   defp bootstrap_modules do

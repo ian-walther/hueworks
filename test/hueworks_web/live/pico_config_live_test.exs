@@ -229,39 +229,29 @@ defmodule HueworksWeb.PicoConfigLiveTest do
 
     assert render(view) =~ "Pico room updated."
 
-    view
-    |> form("#pico-new-control-group-form", %{"name" => "Overhead"})
-    |> render_submit()
+    render_click(element(view, "#pico-create-control-group"))
 
     assert render(view) =~ "Control group created."
+    assert render(view) =~ "Control Group 1"
+    assert has_element?(view, "#pico-control-group-group-form")
 
     view
-    |> form("#pico-control-group-group-form", %{
+    |> form("#pico-control-group-group-form form", %{
       "entity" => "group",
       "id" => Integer.to_string(override_group.id)
     })
     |> render_change()
 
     assert render(view) =~ "Override Overhead Group"
-    render_click(element(view, "#pico-save-control-group"))
-
-    assert render(view) =~ "Control group saved."
+    refute render(view) =~ "Save Control Group"
 
     device = Repo.get_by!(PicoDevice, source_id: "device-1")
     [control_group] = Picos.control_groups(device)
 
     view
     |> form("#pico-binding-editor-form", %{
-      "target_kind" => "control_group",
-      "action" => "toggle"
-    })
-    |> render_change()
-
-    view
-    |> form("#pico-binding-editor-form", %{
-      "target_kind" => "control_group",
-      "target_id" => control_group["id"],
-      "action" => "toggle"
+      "action" => "toggle",
+      "target_ids" => [control_group["id"]]
     })
     |> render_change()
 
@@ -284,7 +274,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
                "group_ids" => [override_group.id],
                "id" => control_group["id"],
                "light_ids" => [],
-               "name" => "Overhead"
+               "name" => "Control Group 1"
              }
            ]
 
@@ -292,11 +282,11 @@ defmodule HueworksWeb.PicoConfigLiveTest do
     assert assigned.action_type == "toggle_any_on"
 
     assert %StoredActionConfig{
-             target_kind: :control_group,
-             control_group_id: control_group_id
+             target_kind: :control_groups,
+             target_ids: control_group_ids
            } = PicoButton.action_config_struct(assigned)
 
-    assert control_group_id == control_group["id"]
+    assert control_group_ids == [control_group["id"]]
   end
 
   test "selecting control group lights adds them immediately", %{conn: conn} do
@@ -347,16 +337,16 @@ defmodule HueworksWeb.PicoConfigLiveTest do
 
     {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/picos/#{device.id}")
 
+    render_click(element(view, "#pico-edit-control-group-group-a"))
+
     view
-    |> form("#pico-control-group-light-form", %{
+    |> form("#pico-control-group-light-form form", %{
       "entity" => "light",
       "id" => Integer.to_string(light.id)
     })
     |> render_change()
 
     assert render(view) =~ "Nightstand"
-
-    render_click(element(view, "#pico-save-control-group"))
 
     assert [
              %{
@@ -367,6 +357,123 @@ defmodule HueworksWeb.PicoConfigLiveTest do
            ] = Picos.control_groups(Picos.get_device(device.id))
 
     assert light_ids == [light.id]
+  end
+
+  test "control group names can be edited inline", %{conn: conn} do
+    room = Repo.insert!(%Room{name: "Office"})
+
+    bridge =
+      insert_bridge!(%{
+        type: :caseta,
+        name: "Caseta",
+        host: "10.0.0.694",
+        credentials: %{"cert_path" => "a", "key_path" => "b", "cacert_path" => "c"},
+        enabled: true,
+        import_complete: true
+      })
+
+    device =
+      Repo.insert!(%PicoDevice{
+        bridge_id: bridge.id,
+        room_id: room.id,
+        source_id: "office-pico",
+        name: "Office Pico",
+        hardware_profile: "5_button",
+        metadata: %{
+          "room_override" => true,
+          "control_groups" => [
+            %{"id" => "group-a", "name" => "Overhead", "group_ids" => [], "light_ids" => []}
+          ]
+        }
+      })
+
+    insert_pico_button(%{
+      pico_device_id: device.id,
+      source_id: "b1",
+      button_number: 2,
+      slot_index: 0,
+      enabled: true
+    })
+
+    {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/picos/#{device.id}")
+
+    refute has_element?(view, "#pico-edit-control-group-name-form")
+    refute has_element?(view, "#pico-start-control-group-name-edit")
+    assert render(view) =~ "Overhead"
+
+    render_click(element(view, "#pico-edit-control-group-group-a"))
+
+    render_click(element(view, "#pico-start-control-group-name-edit"))
+
+    assert has_element?(view, "#pico-edit-control-group-name-form")
+
+    view
+    |> form("#pico-edit-control-group-name-form", %{"name" => "Accent"})
+    |> render_submit()
+
+    assert [
+             %{
+               "group_ids" => [],
+               "id" => "group-a",
+               "light_ids" => [],
+               "name" => "Accent"
+             }
+           ] = Picos.control_groups(Picos.get_device(device.id))
+
+    assert render(view) =~ "Control group name updated."
+    refute has_element?(view, "#pico-edit-control-group-name-form")
+    assert render(view) =~ "Accent"
+  end
+
+  test "creating control groups auto-generates the next available name", %{conn: conn} do
+    room = Repo.insert!(%Room{name: "Den"})
+
+    bridge =
+      insert_bridge!(%{
+        type: :caseta,
+        name: "Caseta",
+        host: "10.0.0.695",
+        credentials: %{"cert_path" => "a", "key_path" => "b", "cacert_path" => "c"},
+        enabled: true,
+        import_complete: true
+      })
+
+    device =
+      Repo.insert!(%PicoDevice{
+        bridge_id: bridge.id,
+        room_id: room.id,
+        source_id: "den-pico",
+        name: "Den Pico",
+        hardware_profile: "5_button",
+        metadata: %{
+          "room_override" => true,
+          "control_groups" => [
+            %{"id" => "group-a", "name" => "Control Group 1", "group_ids" => [], "light_ids" => []},
+            %{"id" => "group-b", "name" => "Reading", "group_ids" => [], "light_ids" => []}
+          ]
+        }
+      })
+
+    insert_pico_button(%{
+      pico_device_id: device.id,
+      source_id: "b1",
+      button_number: 2,
+      slot_index: 0,
+      enabled: true
+    })
+
+    {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/picos/#{device.id}")
+
+    render_click(element(view, "#pico-create-control-group"))
+
+    assert render(view) =~ "Control group created."
+    assert render(view) =~ "Control Group 2"
+    assert render(view) =~ "Editing"
+
+    assert Enum.any?(
+             Picos.control_groups(Picos.get_device(device.id)),
+             &(&1["name"] == "Control Group 2")
+           )
   end
 
   test "add light dropdown excludes lights already covered by selected groups", %{conn: conn} do
@@ -443,6 +550,8 @@ defmodule HueworksWeb.PicoConfigLiveTest do
     })
 
     {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/picos/#{device.id}")
+
+    render_click(element(view, "#pico-edit-control-group-group-a"))
 
     light_select_html = render(view |> element("#pico-control-group-light-form"))
 
@@ -538,10 +647,153 @@ defmodule HueworksWeb.PicoConfigLiveTest do
 
     {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/picos/#{device.id}")
 
+    render_click(element(view, "#pico-edit-control-group-group-a"))
+
     group_select_html = render(view |> element("#pico-control-group-group-form"))
 
     refute group_select_html =~ "Kitchen Ceiling"
     assert group_select_html =~ "Kitchen Accent"
+  end
+
+  test "add group dropdown hides after selecting the last group with uncovered lights", %{
+    conn: conn
+  } do
+    room = Repo.insert!(%Room{name: "Living Room"})
+
+    bridge =
+      insert_bridge!(%{
+        type: :caseta,
+        name: "Caseta",
+        host: "10.0.0.693",
+        credentials: %{"cert_path" => "a", "key_path" => "b", "cacert_path" => "c"},
+        enabled: true,
+        import_complete: true
+      })
+
+    light =
+      Repo.insert!(%Light{
+        name: "Lamp",
+        source: :caseta,
+        source_id: "695",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        enabled: true
+      })
+
+    useful_group =
+      Repo.insert!(%Group{
+        name: "Lamp Group",
+        source: :caseta,
+        source_id: "group-694",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        enabled: true
+      })
+
+    Repo.insert!(%GroupLight{group_id: useful_group.id, light_id: light.id})
+
+    Repo.insert!(%Group{
+      name: "Empty Group",
+      source: :caseta,
+      source_id: "group-695",
+      bridge_id: bridge.id,
+      room_id: room.id,
+      enabled: true
+    })
+
+    device =
+      Repo.insert!(%PicoDevice{
+        bridge_id: bridge.id,
+        room_id: room.id,
+        source_id: "living-room-pico",
+        name: "Living Room Pico",
+        hardware_profile: "5_button",
+        metadata: %{
+          "room_override" => true,
+          "control_groups" => [
+            %{"id" => "group-a", "name" => "Custom", "group_ids" => [], "light_ids" => []}
+          ]
+        }
+      })
+
+    insert_pico_button(%{
+      pico_device_id: device.id,
+      source_id: "b1",
+      button_number: 2,
+      slot_index: 0,
+      enabled: true
+    })
+
+    {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/picos/#{device.id}")
+
+    render_click(element(view, "#pico-edit-control-group-group-a"))
+
+    assert has_element?(view, "#pico-control-group-group-form")
+
+    view
+    |> form("#pico-control-group-group-form form", %{
+      "entity" => "group",
+      "id" => Integer.to_string(useful_group.id)
+    })
+    |> render_change()
+
+    html = render(view)
+
+    refute has_element?(view, "#pico-control-group-group-form")
+    refute html =~ "Add group"
+    refute html =~ "Select group"
+  end
+
+  test "control group inputs only show inside the card being edited", %{conn: conn} do
+    room = Repo.insert!(%Room{name: "Family Room"})
+
+    bridge =
+      insert_bridge!(%{
+        type: :caseta,
+        name: "Caseta",
+        host: "10.0.0.696",
+        credentials: %{"cert_path" => "a", "key_path" => "b", "cacert_path" => "c"},
+        enabled: true,
+        import_complete: true
+      })
+
+    device =
+      Repo.insert!(%PicoDevice{
+        bridge_id: bridge.id,
+        room_id: room.id,
+        source_id: "family-room-pico",
+        name: "Family Room Pico",
+        hardware_profile: "5_button",
+        metadata: %{
+          "room_override" => true,
+          "control_groups" => [
+            %{"id" => "group-a", "name" => "Overhead", "group_ids" => [], "light_ids" => []},
+            %{"id" => "group-b", "name" => "Lamps", "group_ids" => [], "light_ids" => []}
+          ]
+        }
+      })
+
+    insert_pico_button(%{
+      pico_device_id: device.id,
+      source_id: "b1",
+      button_number: 2,
+      slot_index: 0,
+      enabled: true
+    })
+
+    {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/picos/#{device.id}")
+
+    refute has_element?(view, "#pico-control-group-group-form")
+    refute render(view) =~ "Editing"
+
+    render_click(element(view, "#pico-edit-control-group-group-b"))
+
+    html = render(view)
+
+    assert html =~ ~s(id="pico-control-group-group-b")
+    assert html =~ ~s(id="pico-start-control-group-name-edit")
+    assert html =~ "Editing"
+    refute html =~ ~s(id="pico-edit-control-group-group-a">Editing)
   end
 
   test "pico config saves and displays Pico display_name with fallback to name", %{conn: conn} do
@@ -733,7 +985,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
         button_number: 2,
         slot_index: 0,
         action_type: "toggle_any_on",
-        action_config: %{"target_kind" => "control_group", "target_id" => "group-a"},
+        action_config: %{"target_kind" => "control_groups", "target_ids" => ["group-a"]},
         enabled: true
       })
 
@@ -885,8 +1137,8 @@ defmodule HueworksWeb.PicoConfigLiveTest do
     {:ok, _button} =
       Picos.assign_button_binding(source, "s1", %{
         "action" => "toggle",
-        "target_kind" => "control_group",
-        "target_id" => control_group["id"]
+        "target_kind" => "control_groups",
+        "target_ids" => [control_group["id"]]
       })
 
     {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/picos/#{destination.id}")
@@ -960,7 +1212,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
         canonical_light_id: root_light.id
       })
 
-    _enabled_group =
+    enabled_group =
       Repo.insert!(%Group{
         name: "Desk Group",
         source: :caseta,
@@ -979,6 +1231,8 @@ defmodule HueworksWeb.PicoConfigLiveTest do
         room_id: room.id,
         enabled: false
       })
+
+    Repo.insert!(%GroupLight{group_id: enabled_group.id, light_id: root_light.id})
 
     device =
       Repo.insert!(%PicoDevice{
@@ -1004,6 +1258,8 @@ defmodule HueworksWeb.PicoConfigLiveTest do
     })
 
     {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/picos/#{device.id}")
+
+    render_click(element(view, "#pico-edit-control-group-group-a"))
 
     html = render(view)
 
@@ -1058,13 +1314,13 @@ defmodule HueworksWeb.PicoConfigLiveTest do
     {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/picos/#{device.id}")
 
     view
-    |> form("#pico-binding-editor-form", %{"target_kind" => "scene"})
+    |> form("#pico-binding-editor-form", %{"action" => "activate_scene"})
     |> render_change()
 
     html =
       view
       |> form("#pico-binding-editor-form", %{
-        "target_kind" => "scene",
+        "action" => "activate_scene",
         "target_id" => Integer.to_string(scene.id)
       })
       |> render_change()
@@ -1090,6 +1346,70 @@ defmodule HueworksWeb.PicoConfigLiveTest do
              PicoButton.action_config_struct(button)
 
     assert scene_id == scene.id
+  end
+
+  test "bind button by press uses control-group checkboxes", %{conn: conn} do
+    room = Repo.insert!(%Room{name: "Office"})
+
+    bridge =
+      insert_bridge!(%{
+        type: :caseta,
+        name: "Caseta",
+        host: "10.0.0.661",
+        credentials: %{"cert_path" => "a", "key_path" => "b", "cacert_path" => "c"},
+        enabled: true,
+        import_complete: true
+      })
+
+    device =
+      Repo.insert!(%PicoDevice{
+        bridge_id: bridge.id,
+        room_id: room.id,
+        source_id: "checkbox-pico",
+        name: "Checkbox Pico",
+        hardware_profile: "5_button",
+        metadata: %{
+          "room_override" => true,
+          "control_groups" => [
+            %{"id" => "group-a", "name" => "Overhead", "group_ids" => [], "light_ids" => []},
+            %{"id" => "group-b", "name" => "Lamps", "group_ids" => [], "light_ids" => []}
+          ]
+        }
+      })
+
+    insert_pico_button(%{
+      pico_device_id: device.id,
+      source_id: "b1",
+      button_number: 2,
+      slot_index: 0,
+      enabled: true
+    })
+
+    {:ok, view, html} = live(conn, "/config/bridge/#{bridge.id}/picos/#{device.id}")
+
+    assert html =~ ~s(id="pico-binding-target-groups")
+    assert html =~ ~s(name="target_ids[]")
+    refute html =~ "Target scope"
+    refute html =~ "One Control Group"
+    refute html =~ "All Control Groups"
+
+    view
+    |> form("#pico-binding-editor-form", %{
+      "action" => "toggle",
+      "target_ids" => ["group-a", "group-b"]
+    })
+    |> render_change()
+
+    render_click(element(view, "#pico-start-button-learning"))
+
+    Phoenix.PubSub.broadcast(
+      Hueworks.PubSub,
+      Picos.topic(),
+      {:pico_button_press, device.id, "b1"}
+    )
+
+    assert render(view) =~ "Assigned action to the pressed Pico button."
+    assert render(view) =~ "Toggle Overhead + Lamps"
   end
 
   test "pico config can delete a control group", %{conn: conn} do
@@ -1131,8 +1451,8 @@ defmodule HueworksWeb.PicoConfigLiveTest do
     {:ok, _button} =
       Picos.assign_button_binding(device, "b1", %{
         "action" => "toggle",
-        "target_kind" => "control_group",
-        "target_id" => "group-a"
+        "target_kind" => "control_groups",
+        "target_ids" => ["group-a"]
       })
 
     {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/picos/#{device.id}")

@@ -124,22 +124,16 @@ defmodule Hueworks.Picos.Bindings do
   def save_five_button_preset(_device, _attrs), do: {:error, :invalid_device}
 
   def clone_action_config(
-        %StoredActionConfig{target_kind: :control_group} = config,
+        %StoredActionConfig{target_kind: :control_groups, target_ids: target_ids},
         group_id_map,
         room_id
       ) do
-    target_id = StoredActionConfig.target_id(config)
-
     %{
-      "target_kind" => "control_group",
-      "target_id" => Map.get(group_id_map, target_id),
-      "room_id" => room_id
-    }
-  end
-
-  def clone_action_config(%StoredActionConfig{target_kind: :all_groups}, _group_id_map, room_id) do
-    %{
-      "target_kind" => "all_groups",
+      "target_kind" => "control_groups",
+      "target_ids" =>
+        target_ids
+        |> Enum.map(&Map.get(group_id_map, &1))
+        |> Enum.reject(&is_nil/1),
       "room_id" => room_id
     }
   end
@@ -174,17 +168,17 @@ defmodule Hueworks.Picos.Bindings do
   defp binding_action_type("activate_scene"), do: {:ok, "activate_scene"}
   defp binding_action_type(_), do: {:error, :invalid_action}
 
-  defp binding_action_config(device, %{"target_kind" => "all_groups"}) do
-    if Picos.control_groups(device) == [] do
-      {:error, :missing_target}
-    else
-      StoredActionConfig.normalize(%{"target_kind" => "all_groups"})
-    end
-  end
+  defp binding_action_config(device, %{"target_kind" => "control_groups", "target_ids" => target_ids}) do
+    group_ids =
+      target_ids
+      |> List.wrap()
+      |> Enum.filter(&is_binary/1)
+      |> Enum.uniq()
 
-  defp binding_action_config(device, %{"target_kind" => "control_group", "target_id" => target_id}) do
-    if Enum.any?(Picos.control_groups(device), &(&1["id"] == target_id)) do
-      StoredActionConfig.normalize(%{"target_kind" => "control_group", "target_id" => target_id})
+    available_group_ids = MapSet.new(Enum.map(Picos.control_groups(device), & &1["id"]))
+
+    if group_ids != [] and Enum.all?(group_ids, &MapSet.member?(available_group_ids, &1)) do
+      StoredActionConfig.normalize(%{"target_kind" => "control_groups", "target_ids" => group_ids})
     else
       {:error, :missing_target}
     end

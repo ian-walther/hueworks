@@ -27,15 +27,17 @@ defmodule HueworksWeb.PicoConfigLive do
        selectable_room_lights: [],
        control_groups: [],
        clone_source_pico_id: nil,
-       new_control_group_name: "",
        selected_control_group_id: nil,
+       editing_control_group_name: false,
        control_group_name: "",
+       control_group_name_draft: "",
        control_group_group_ids: [],
        control_group_light_ids: [],
        selected_control_group_group_id: nil,
        selected_control_group_light_id: nil,
-       binding_target_kind: "all_groups",
+       binding_target_kind: "control_groups",
        binding_target_id: nil,
+       binding_target_group_ids: [],
        binding_action: "toggle",
        learning_binding: nil,
        editing_display_name: false,
@@ -244,11 +246,7 @@ defmodule HueworksWeb.PicoConfigLive do
     end
   end
 
-  def handle_event("update_new_control_group", %{"name" => name}, socket) do
-    {:noreply, assign(socket, new_control_group_name: name)}
-  end
-
-  def handle_event("create_control_group", %{"name" => name}, socket) do
+  def handle_event("create_control_group", _params, socket) do
     case socket.assigns.selected_pico do
       nil ->
         socket
@@ -256,8 +254,11 @@ defmodule HueworksWeb.PicoConfigLive do
         |> reply_with_save_notice()
 
       device ->
+        group_id = Ecto.UUID.generate()
+
         case Picos.save_control_group(device, %{
-               "name" => name,
+               "id" => group_id,
+               "name" => next_control_group_name(socket.assigns.control_groups),
                "group_ids" => [],
                "light_ids" => []
              }) do
@@ -265,23 +266,18 @@ defmodule HueworksWeb.PicoConfigLive do
             socket
             |> assign(
               save_status: "Control group created.",
-              save_error: nil,
-              new_control_group_name: ""
+              save_error: nil
             )
             |> reload_from_devices(
               Picos.list_devices_for_bridge(socket.assigns.bridge.id),
               updated.id
             )
+            |> select_control_group(group_id)
             |> reply_with_save_notice()
 
           {:error, :missing_room} ->
             socket
             |> assign(save_status: nil, save_error: "Set the Pico room first.")
-            |> reply_with_save_notice()
-
-          {:error, :invalid_name} ->
-            socket
-            |> assign(save_status: nil, save_error: "Control groups need a name.")
             |> reply_with_save_notice()
 
           {:error, reason} ->
@@ -296,8 +292,31 @@ defmodule HueworksWeb.PicoConfigLive do
     {:noreply, select_control_group(socket, id)}
   end
 
-  def handle_event("edit_control_group_name", %{"name" => name}, socket) do
-    {:noreply, assign(socket, control_group_name: name)}
+  def handle_event("start_control_group_name_edit", _params, socket) do
+    {:noreply,
+     assign(socket,
+       editing_control_group_name: true,
+       control_group_name_draft: socket.assigns.control_group_name
+     )}
+  end
+
+  def handle_event("update_control_group_name_draft", %{"name" => name}, socket) do
+    {:noreply, assign(socket, control_group_name_draft: name)}
+  end
+
+  def handle_event("cancel_control_group_name_edit", _params, socket) do
+    {:noreply,
+     assign(socket,
+       editing_control_group_name: false,
+       control_group_name_draft: socket.assigns.control_group_name
+     )}
+  end
+
+  def handle_event("save_control_group_name", %{"name" => name}, socket) do
+    socket
+    |> assign(control_group_name_draft: name)
+    |> persist_selected_control_group_name()
+    |> reply_with_save_notice()
   end
 
   def handle_event("select_control_group_entity", %{"entity" => entity, "id" => id}, socket) do
@@ -320,6 +339,7 @@ defmodule HueworksWeb.PicoConfigLive do
         socket
         |> assign(list_key, Enum.uniq(socket.assigns[list_key] ++ [selected_id]))
         |> assign(selection_key, nil)
+        |> persist_selected_control_group()
       else
         assign(socket, key, nil)
       end
@@ -338,7 +358,9 @@ defmodule HueworksWeb.PicoConfigLive do
 
     {:noreply,
      if is_integer(entity_id) do
-       assign(socket, list_key, Enum.reject(socket.assigns[list_key], &(&1 == entity_id)))
+       socket
+       |> assign(list_key, Enum.reject(socket.assigns[list_key], &(&1 == entity_id)))
+       |> persist_selected_control_group()
      else
        socket
      end}
@@ -419,15 +441,23 @@ defmodule HueworksWeb.PicoConfigLive do
   end
 
   def handle_event("update_binding_editor", params, socket) do
-    target_kind = params["target_kind"] || socket.assigns.binding_target_kind
-    target_id = params["target_id"] || socket.assigns.binding_target_id
     action = params["action"] || socket.assigns.binding_action
+    binding_target_kind = normalize_binding_target_kind(action)
 
     {:noreply,
      assign(socket,
-       binding_target_kind: target_kind,
-       binding_target_id: normalize_binding_target_id(target_kind, target_id),
-       binding_action: normalize_binding_action(target_kind, action)
+       binding_target_kind: binding_target_kind,
+       binding_target_id:
+         normalize_binding_target_id(
+           binding_target_kind,
+           params["target_id"] || socket.assigns.binding_target_id
+         ),
+       binding_target_group_ids:
+         normalize_binding_target_group_ids(
+           socket.assigns.control_groups,
+           params["target_ids"] || socket.assigns.binding_target_group_ids
+         ),
+       binding_action: normalize_binding_action(action)
      )}
   end
 
@@ -435,7 +465,8 @@ defmodule HueworksWeb.PicoConfigLive do
     learning_binding = %{
       "action" => socket.assigns.binding_action,
       "target_kind" => socket.assigns.binding_target_kind,
-      "target_id" => socket.assigns.binding_target_id
+      "target_id" => socket.assigns.binding_target_id,
+      "target_ids" => socket.assigns.binding_target_group_ids
     }
 
     with %{} <- socket.assigns.selected_pico,
@@ -595,13 +626,7 @@ defmodule HueworksWeb.PicoConfigLive do
       end
 
     control_groups = if selected, do: Picos.control_groups(selected), else: []
-
-    binding_target_kind =
-      normalize_binding_target_kind(
-        socket.assigns[:binding_target_kind],
-        control_groups,
-        room_scenes
-      )
+    binding_target_kind = normalize_binding_target_kind(socket.assigns[:binding_action])
 
     selected_control_group_id =
       normalize_selected_control_group_id(
@@ -633,8 +658,13 @@ defmodule HueworksWeb.PicoConfigLive do
             binding_target_kind,
             socket.assigns[:binding_target_id]
           ),
+        binding_target_group_ids:
+          normalize_binding_target_group_ids(
+            control_groups,
+            socket.assigns[:binding_target_group_ids]
+          ),
         binding_action:
-          normalize_binding_action(binding_target_kind, socket.assigns[:binding_action])
+          normalize_binding_action(socket.assigns[:binding_action])
       )
 
     load_selected_control_group(socket)
@@ -648,7 +678,9 @@ defmodule HueworksWeb.PicoConfigLive do
       )
 
     assign(socket,
+      editing_control_group_name: false,
       control_group_name: (selected_group && selected_group["name"]) || "",
+      control_group_name_draft: (selected_group && selected_group["name"]) || "",
       control_group_group_ids: (selected_group && selected_group["group_ids"]) || [],
       control_group_light_ids: (selected_group && selected_group["light_ids"]) || [],
       selected_control_group_group_id: nil,
@@ -671,12 +703,12 @@ defmodule HueworksWeb.PicoConfigLive do
     if Enum.any?(control_groups, &(&1["id"] == selected_id)) do
       selected_id
     else
-      normalize_selected_control_group_id(control_groups, nil)
+      nil
     end
   end
 
-  defp normalize_selected_control_group_id([first | _], _selected_id), do: first["id"]
   defp normalize_selected_control_group_id([], _selected_id), do: nil
+  defp normalize_selected_control_group_id(_control_groups, _selected_id), do: nil
 
   defp normalize_clone_source_id(devices, %{} = selected, source_id) when is_integer(source_id) do
     if Enum.any?(devices, &(&1.id == source_id and &1.id != selected.id)) do
@@ -710,34 +742,32 @@ defmodule HueworksWeb.PicoConfigLive do
     end
   end
 
-  defp normalize_binding_target_kind("scene", _control_groups, room_scenes)
-       when room_scenes != [],
-       do: "scene"
-
-  defp normalize_binding_target_kind("control_group", control_groups, _room_scenes)
-       when control_groups != [],
-       do: "control_group"
-
-  defp normalize_binding_target_kind(_kind, _control_groups, _room_scenes), do: "all_groups"
-
-  defp normalize_binding_target_id("control_group", target_id) when is_binary(target_id),
-    do: target_id
+  defp normalize_binding_target_kind("activate_scene"), do: "scene"
+  defp normalize_binding_target_kind(_action), do: "control_groups"
 
   defp normalize_binding_target_id("scene", target_id) do
     Util.parse_optional_integer(target_id)
   end
 
-  defp normalize_binding_target_id("control_group", _target_id), do: nil
+  defp normalize_binding_target_id("control_groups", _target_id), do: nil
   defp normalize_binding_target_id(_kind, _target_id), do: nil
 
-  defp normalize_binding_action("scene", "activate_scene"), do: "activate_scene"
-  defp normalize_binding_action("scene", _action), do: "activate_scene"
-
-  defp normalize_binding_action(_target_kind, action)
+  defp normalize_binding_action("activate_scene"), do: "activate_scene"
+  defp normalize_binding_action(action)
        when action in ["on", "off", "toggle"],
        do: action
 
-  defp normalize_binding_action(_target_kind, _action), do: "toggle"
+  defp normalize_binding_action(_action), do: "toggle"
+
+  defp normalize_binding_target_group_ids(control_groups, target_ids) when is_list(control_groups) do
+    valid_group_ids = MapSet.new(Enum.map(control_groups, & &1["id"]))
+
+    target_ids
+    |> List.wrap()
+    |> Enum.filter(&is_binary/1)
+    |> Enum.uniq()
+    |> Enum.filter(&MapSet.member?(valid_group_ids, &1))
+  end
 
   defp selectable_groups(groups) do
     Enum.reject(groups, fn group ->
@@ -770,7 +800,7 @@ defmodule HueworksWeb.PicoConfigLive do
 
     Enum.reject(groups, fn group ->
       group.id in selected_group_ids or
-        overlaps_control_group_targets?(room_id, group.id, covered_light_ids)
+        available_control_group_group_light_ids(room_id, group.id, covered_light_ids) == []
     end)
   end
 
@@ -785,11 +815,123 @@ defmodule HueworksWeb.PicoConfigLive do
     |> MapSet.new()
   end
 
-  defp overlaps_control_group_targets?(room_id, group_id, covered_light_ids)
+  defp available_control_group_group_light_ids(room_id, group_id, covered_light_ids)
        when is_integer(room_id) and is_integer(group_id) do
     room_id
     |> Hueworks.Picos.Targets.expand_room_targets([group_id], [])
-    |> Enum.any?(&MapSet.member?(covered_light_ids, &1))
+    |> Enum.reject(&MapSet.member?(covered_light_ids, &1))
+  end
+
+  defp control_group_picker_dom_id(kind, entities) when kind in ["group", "light"] do
+    "pico-control-group-#{kind}-picker-#{control_group_picker_dom_suffix(entities)}"
+  end
+
+  defp control_group_picker_select_id(kind, entities) when kind in ["group", "light"] do
+    "pico-control-group-#{kind}-select-#{control_group_picker_dom_suffix(entities)}"
+  end
+
+  defp control_group_picker_dom_suffix(entities) when is_list(entities) do
+    entities
+    |> Enum.map_join("-", &Integer.to_string(&1.id))
+    |> case do
+      "" -> "empty"
+      suffix -> suffix
+    end
+  end
+
+  defp persist_selected_control_group(socket) do
+    case {socket.assigns.selected_pico, socket.assigns.selected_control_group_id} do
+      {%{} = device, group_id} when is_binary(group_id) ->
+        attrs = %{
+          "id" => group_id,
+          "name" => socket.assigns.control_group_name,
+          "group_ids" => socket.assigns.control_group_group_ids,
+          "light_ids" => socket.assigns.control_group_light_ids
+        }
+
+        case Picos.save_control_group(device, attrs) do
+          {:ok, updated} ->
+            socket
+            |> assign(save_status: nil, save_error: nil)
+            |> reload_from_devices(Picos.list_devices_for_bridge(socket.assigns.bridge.id), updated.id)
+            |> select_control_group(group_id)
+
+          {:error, :invalid_targets} ->
+            assign(
+              socket,
+              save_status: nil,
+              save_error: "Control group targets must stay in the Pico room."
+            )
+
+          {:error, :invalid_name} ->
+            assign(socket, save_status: nil, save_error: "Control groups need a name.")
+
+          {:error, reason} ->
+            assign(socket, save_status: nil, save_error: inspect(reason))
+        end
+
+      _ ->
+        socket
+    end
+  end
+
+  defp persist_selected_control_group_name(socket) do
+    trimmed_name = String.trim(socket.assigns.control_group_name_draft || "")
+
+    case {socket.assigns.selected_pico, socket.assigns.selected_control_group_id, trimmed_name} do
+      {%{} = device, group_id, name} when is_binary(group_id) and name != "" ->
+        attrs = %{
+          "id" => group_id,
+          "name" => name,
+          "group_ids" => socket.assigns.control_group_group_ids,
+          "light_ids" => socket.assigns.control_group_light_ids
+        }
+
+        case Picos.save_control_group(device, attrs) do
+          {:ok, updated} ->
+            socket
+            |> assign(
+              save_status: "Control group name updated.",
+              save_error: nil,
+              editing_control_group_name: false
+            )
+            |> reload_from_devices(Picos.list_devices_for_bridge(socket.assigns.bridge.id), updated.id)
+            |> select_control_group(group_id)
+
+          {:error, :invalid_targets} ->
+            assign(
+              socket,
+              save_status: nil,
+              save_error: "Control group targets must stay in the Pico room."
+            )
+
+          {:error, :invalid_name} ->
+            assign(socket, save_status: nil, save_error: "Control groups need a name.")
+
+          {:error, reason} ->
+            assign(socket, save_status: nil, save_error: inspect(reason))
+        end
+
+      {_, _, ""} ->
+        assign(socket, save_status: nil, save_error: "Control groups need a name.")
+
+      _ ->
+        socket
+    end
+  end
+
+  defp next_control_group_name(control_groups) when is_list(control_groups) do
+    existing_names =
+      control_groups
+      |> Enum.map(&Map.get(&1, "name"))
+      |> MapSet.new()
+
+    Stream.iterate(1, &(&1 + 1))
+    |> Enum.find_value(fn number ->
+      name = "Control Group #{number}"
+
+      if MapSet.member?(existing_names, name), do: nil, else: name
+    end)
   end
 
   defp display_name(entity), do: Util.display_name(entity)
@@ -857,20 +999,13 @@ defmodule HueworksWeb.PicoConfigLive do
   end
 
   defp valid_learning_binding?(
-         %{"action" => action, "target_kind" => "all_groups"},
+         %{"action" => action, "target_kind" => "control_groups", "target_ids" => target_ids},
          control_groups,
          _room_scenes
        )
-       when action in ["on", "off", "toggle"],
-       do: control_groups != []
-
-  defp valid_learning_binding?(
-         %{"action" => action, "target_kind" => "control_group", "target_id" => target_id},
-         control_groups,
-         _room_scenes
-       )
-       when action in ["on", "off", "toggle"] and is_binary(target_id) do
-    Enum.any?(control_groups, &(&1["id"] == target_id))
+       when action in ["on", "off", "toggle"] and is_list(target_ids) do
+    available_group_ids = MapSet.new(Enum.map(control_groups, & &1["id"]))
+    target_ids != [] and Enum.all?(target_ids, &MapSet.member?(available_group_ids, &1))
   end
 
   defp valid_learning_binding?(

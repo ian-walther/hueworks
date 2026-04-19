@@ -716,6 +716,25 @@ body {
   max-width: 100%;
 }
 
+.hw-checkbox-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 0.2rem 0 0.1rem;
+}
+
+.hw-checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  color: var(--ink);
+}
+
+.hw-checkbox-row input {
+  width: 1rem;
+  height: 1rem;
+}
+
 .hw-inline-actions {
   display: flex;
   flex: 0 0 auto;
@@ -778,6 +797,12 @@ body {
 
 .hw-pico-group-card .hw-card-title {
   align-items: center;
+}
+
+.hw-pico-group-editor {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(27, 27, 23, 0.08);
 }
 
 .hw-pico-editor-card {

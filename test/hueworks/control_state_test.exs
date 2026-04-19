@@ -59,6 +59,31 @@ defmodule Hueworks.Control.StateTest do
     assert_receive {:bootstrap_finished, ^ref}, 100
   end
 
+  test "put does not block while automatic bootstrap is running" do
+    ref = make_ref()
+
+    Application.put_env(
+      :hueworks,
+      :control_state_bootstrap_modules,
+      [{__MODULE__.BlockingBootstrapStub, {self(), ref}}]
+    )
+
+    old_pid = Process.whereis(State)
+    Process.exit(old_pid, :kill)
+
+    assert_receive {:bootstrap_started, ^ref, bootstrap_pid}, 500
+
+    task =
+      Task.async(fn ->
+        State.put(:light, 10_003, %{power: :off, brightness: 1})
+      end)
+
+    assert %{power: :off, brightness: 1} == Task.await(task, 100)
+
+    send(bootstrap_pid, {:finish_bootstrap, ref})
+    assert_receive {:bootstrap_finished, ^ref}, 500
+  end
+
   defmodule BlockingBootstrapStub do
     def run({sink, ref}) do
       send(sink, {:bootstrap_started, ref, self()})
