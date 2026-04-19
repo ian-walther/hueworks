@@ -289,7 +289,12 @@ defmodule HueworksWeb.PicoConfigLive do
   end
 
   def handle_event("select_control_group", %{"id" => id}, socket) do
-    {:noreply, select_control_group(socket, id)}
+    {:noreply,
+     if socket.assigns.selected_control_group_id == to_string(id) do
+       deselect_control_group(socket)
+     else
+       select_control_group(socket, id)
+     end}
   end
 
   def handle_event("start_control_group_name_edit", _params, socket) do
@@ -462,12 +467,7 @@ defmodule HueworksWeb.PicoConfigLive do
   end
 
   def handle_event("start_button_learning", _params, socket) do
-    learning_binding = %{
-      "action" => socket.assigns.binding_action,
-      "target_kind" => socket.assigns.binding_target_kind,
-      "target_id" => socket.assigns.binding_target_id,
-      "target_ids" => socket.assigns.binding_target_group_ids
-    }
+    learning_binding = current_binding(socket)
 
     with %{} <- socket.assigns.selected_pico,
          true <-
@@ -494,6 +494,52 @@ defmodule HueworksWeb.PicoConfigLive do
         |> assign(
           save_status: nil,
           save_error: "Choose an action and a target before starting button learning."
+        )
+        |> reply_with_save_notice()
+    end
+  end
+
+  def handle_event("assign_button_manually", %{"id" => id}, socket) do
+    button_id = Util.parse_id(id)
+    binding = current_binding(socket)
+
+    with %{} = device <- socket.assigns.selected_pico,
+         %{} = button <- Enum.find(device.buttons, &(&1.id == button_id)),
+         true <-
+           valid_learning_binding?(
+             binding,
+             socket.assigns.control_groups,
+             socket.assigns.room_scenes
+           ),
+         {:ok, _updated} <- Picos.assign_button_binding(device, button.source_id, binding) do
+      socket
+      |> assign(
+        learning_binding: nil,
+        save_status: "Assigned action to the selected Pico button.",
+        save_error: nil
+      )
+      |> reload_from_devices(Picos.list_devices_for_bridge(socket.assigns.bridge.id), device.id)
+      |> reply_with_save_notice()
+    else
+      nil ->
+        socket
+        |> assign(save_status: nil, save_error: "Select a Pico first.")
+        |> reply_with_save_notice()
+
+      false ->
+        socket
+        |> assign(
+          save_status: nil,
+          save_error: "Choose an action and a target before assigning the button."
+        )
+        |> reply_with_save_notice()
+
+      {:error, reason} ->
+        socket
+        |> assign(
+          learning_binding: nil,
+          save_status: nil,
+          save_error: "Failed to assign selected button: #{inspect(reason)}"
         )
         |> reply_with_save_notice()
     end
@@ -1019,9 +1065,24 @@ defmodule HueworksWeb.PicoConfigLive do
 
   defp valid_learning_binding?(_binding, _control_groups, _room_scenes), do: false
 
+  defp current_binding(socket) do
+    %{
+      "action" => socket.assigns.binding_action,
+      "target_kind" => socket.assigns.binding_target_kind,
+      "target_id" => socket.assigns.binding_target_id,
+      "target_ids" => socket.assigns.binding_target_group_ids
+    }
+  end
+
   defp select_control_group(socket, id) do
     socket
     |> assign(selected_control_group_id: to_string(id))
+    |> load_selected_control_group()
+  end
+
+  defp deselect_control_group(socket) do
+    socket
+    |> assign(selected_control_group_id: nil)
     |> load_selected_control_group()
   end
 

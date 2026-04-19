@@ -468,7 +468,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
 
     assert render(view) =~ "Control group created."
     assert render(view) =~ "Control Group 2"
-    assert render(view) =~ "Editing"
+    assert render(view) =~ "Done"
 
     assert Enum.any?(
              Picos.control_groups(Picos.get_device(device.id)),
@@ -784,16 +784,20 @@ defmodule HueworksWeb.PicoConfigLiveTest do
     {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/picos/#{device.id}")
 
     refute has_element?(view, "#pico-control-group-group-form")
-    refute render(view) =~ "Editing"
+    assert has_element?(view, "#pico-edit-control-group-group-b", "Edit")
+    refute has_element?(view, "#pico-start-control-group-name-edit")
 
     render_click(element(view, "#pico-edit-control-group-group-b"))
 
-    html = render(view)
+    assert has_element?(view, "#pico-edit-control-group-group-b", "Done")
+    refute has_element?(view, "#pico-edit-control-group-group-a", "Done")
+    assert has_element?(view, "#pico-start-control-group-name-edit")
 
-    assert html =~ ~s(id="pico-control-group-group-b")
-    assert html =~ ~s(id="pico-start-control-group-name-edit")
-    assert html =~ "Editing"
-    refute html =~ ~s(id="pico-edit-control-group-group-a">Editing)
+    render_click(element(view, "#pico-edit-control-group-group-b"))
+
+    assert has_element?(view, "#pico-edit-control-group-group-b", "Edit")
+    refute has_element?(view, "#pico-start-control-group-name-edit")
+    refute has_element?(view, "#pico-edit-control-group-group-b", "Done")
   end
 
   test "pico config saves and displays Pico display_name with fallback to name", %{conn: conn} do
@@ -1410,6 +1414,71 @@ defmodule HueworksWeb.PicoConfigLiveTest do
 
     assert render(view) =~ "Assigned action to the pressed Pico button."
     assert render(view) =~ "Toggle Overhead + Lamps"
+  end
+
+  test "discovered buttons can be assigned manually from the current binding editor state", %{
+    conn: conn
+  } do
+    room = Repo.insert!(%Room{name: "Office"})
+
+    bridge =
+      insert_bridge!(%{
+        type: :caseta,
+        name: "Caseta",
+        host: "10.0.0.662",
+        credentials: %{"cert_path" => "a", "key_path" => "b", "cacert_path" => "c"},
+        enabled: true,
+        import_complete: true
+      })
+
+    device =
+      Repo.insert!(%PicoDevice{
+        bridge_id: bridge.id,
+        room_id: room.id,
+        source_id: "manual-assign-pico",
+        name: "Manual Assign Pico",
+        hardware_profile: "5_button",
+        metadata: %{
+          "room_override" => true,
+          "control_groups" => [
+            %{"id" => "group-a", "name" => "Overhead", "group_ids" => [], "light_ids" => []},
+            %{"id" => "group-b", "name" => "Lamps", "group_ids" => [], "light_ids" => []}
+          ]
+        }
+      })
+
+    button =
+      insert_pico_button(%{
+        pico_device_id: device.id,
+        source_id: "b1",
+        button_number: 2,
+        slot_index: 0,
+        enabled: true
+      })
+
+    {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/picos/#{device.id}")
+
+    view
+    |> form("#pico-binding-editor-form", %{
+      "action" => "toggle",
+      "target_ids" => ["group-a", "group-b"]
+    })
+    |> render_change()
+
+    view
+    |> element("#pico-manual-assign-button-#{button.id}")
+    |> render_click()
+
+    assert render(view) =~ "Assigned action to the selected Pico button."
+    assert render(view) =~ "Toggle Overhead + Lamps"
+
+    updated = Repo.get!(PicoButton, button.id)
+    assert updated.action_type == "toggle_any_on"
+
+    assert %StoredActionConfig{target_kind: :control_groups, target_ids: target_ids} =
+             PicoButton.action_config_struct(updated)
+
+    assert target_ids == ["group-a", "group-b"]
   end
 
   test "pico config can delete a control group", %{conn: conn} do

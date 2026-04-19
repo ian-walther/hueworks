@@ -75,7 +75,7 @@ defmodule Hueworks.Repo.Migrations.MigratePicoButtonBindingsToMultiGroupTargets 
 
   defp migrate_action_config(_action_config, _metadata), do: :noop
 
-  defp migrate_group_target(action_config, []), do: :clear_binding
+  defp migrate_group_target(_action_config, []), do: :clear_binding
 
   defp migrate_group_target(action_config, target_ids) do
     {:ok,
