@@ -196,8 +196,8 @@ defmodule Hueworks.Import.Normalize do
     types = List.wrap(type_or_types)
 
     Enum.find_value(identifiers, fn
-      [value_type, value] -> if value_type in types, do: value
-      {value_type, value} -> if value_type in types, do: value
+      [value_type, value] -> if value_type in types, do: normalize_source_id(value)
+      {value_type, value} -> if value_type in types, do: normalize_source_id(value)
       _ -> nil
     end)
   end

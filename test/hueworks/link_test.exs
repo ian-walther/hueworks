@@ -118,6 +118,59 @@ defmodule Hueworks.Import.LinkTest do
     assert ha_light.canonical_light_id == caseta_light.id
   end
 
+  test "links HA Caseta lights when lutron_caseta identifiers are numeric" do
+    caseta_bridge = insert_bridge(:caseta, "10.0.0.23")
+    ha_bridge = insert_bridge(:ha, "10.0.0.24")
+
+    caseta_raw = %{
+      "lights" => [
+        %{
+          "name" => "Hallway / Sconce",
+          "serial" => 87654321,
+          "type" => "WallDimmer",
+          "device_id" => "11",
+          "zone_id" => "2",
+          "model" => "PD-6WCL-XX",
+          "area_id" => "area_2"
+        }
+      ],
+      "groups" => []
+    }
+
+    ha_raw = %{
+      "areas" => [],
+      "device_registry" => [],
+      "light_entities" => [
+        %{
+          "entity_id" => "light.hallway_sconce",
+          "platform" => "lutron_caseta",
+          "source" => "lutron",
+          "device_id" => "device-2",
+          "name" => "Hallway Sconce",
+          "supported_color_modes" => ["brightness"],
+          "device" => %{
+            "id" => "device-2",
+            "name" => "Hallway Sconce",
+            "identifiers" => [["lutron_caseta", 87_654_321]],
+            "connections" => []
+          }
+        }
+      ],
+      "group_entities" => [],
+      "light_states" => %{},
+      "zha_groups" => []
+    }
+
+    :ok = Materialize.materialize(caseta_bridge, Normalize.normalize(caseta_bridge, caseta_raw))
+    :ok = Materialize.materialize(ha_bridge, Normalize.normalize(ha_bridge, ha_raw))
+    :ok = Link.apply()
+
+    caseta_light = Repo.get_by!(Light, bridge_id: caseta_bridge.id, source_id: "2")
+    ha_light = Repo.get_by!(Light, bridge_id: ha_bridge.id, source_id: "light.hallway_sconce")
+
+    assert ha_light.canonical_light_id == caseta_light.id
+  end
+
   test "does not arbitrarily link HA lights when multiple non-HA candidates share an identifier" do
     caseta_bridge = insert_bridge(:caseta, "10.0.0.31")
     ha_bridge = insert_bridge(:ha, "10.0.0.32")
