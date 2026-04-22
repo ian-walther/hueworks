@@ -258,11 +258,11 @@ defmodule Hueworks.SchemasTest do
     assert errors[:room_id] == ["can't be blank"]
   end
 
-  test "scene_component requires scene_id and light_state_id" do
+  test "scene_component requires scene_id and a light state source" do
     changeset = SceneComponent.changeset(%SceneComponent{}, %{})
     errors = errors_on(changeset)
     assert errors[:scene_id] == ["can't be blank"]
-    assert errors[:light_state_id] == ["can't be blank"]
+    assert errors[:light_state_id] == ["or embedded manual config must be present"]
   end
 
   test "light_state requires name and type" do

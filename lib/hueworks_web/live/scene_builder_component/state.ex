@@ -3,6 +3,7 @@ defmodule HueworksWeb.SceneBuilderComponent.State do
 
   alias Hueworks.Scenes.Builder
   alias Hueworks.Schemas.LightState
+  alias HueworksWeb.LightStateEditorLive.FormState
   alias Hueworks.Util
 
   @blank_component %{
@@ -11,6 +12,7 @@ defmodule HueworksWeb.SceneBuilderComponent.State do
     light_ids: [],
     group_ids: [],
     light_state_id: nil,
+    embedded_manual_config: nil,
     light_defaults: %{}
   }
 
@@ -43,11 +45,39 @@ defmodule HueworksWeb.SceneBuilderComponent.State do
       |> MapSet.new()
 
     component_id = parse_id(component_id)
-    normalized_state_id = normalize_light_state_id(state_id, valid_ids)
 
     Enum.map(components, fn component ->
       if component.id == component_id do
-        %{component | light_state_id: normalized_state_id}
+        normalize_component_light_state_selection(component, state_id, valid_ids)
+      else
+        component
+      end
+    end)
+  end
+
+  def update_embedded_manual_config(components, component_id, params) when is_map(params) do
+    component_id = parse_id(component_id)
+
+    Enum.map(components, fn component ->
+      if component.id == component_id do
+        mode =
+          case Map.get(params, "mode") do
+            "color" -> :color
+            _ -> :temperature
+          end
+
+        current_config =
+          component
+          |> Map.get(:embedded_manual_config)
+          |> default_custom_config(mode)
+
+        {_name, config} = FormState.merge_form_params(:manual, "", current_config, params)
+
+        %{
+          component
+          | light_state_id: nil,
+            embedded_manual_config: default_custom_config(config, mode)
+        }
       else
         component
       end
@@ -195,7 +225,14 @@ defmodule HueworksWeb.SceneBuilderComponent.State do
       |> Map.put(:light_defaults, defaults)
       |> Map.put(
         :light_state_id,
-        normalize_light_state_id(Map.get(component, :light_state_id), valid_ids)
+        normalize_saved_light_state_id(Map.get(component, :light_state_id), valid_ids)
+      )
+      |> Map.put(
+        :embedded_manual_config,
+        normalize_embedded_manual_config(
+          Map.get(component, :embedded_manual_config),
+          Map.get(component, :light_state_id)
+        )
       )
     end)
   end
@@ -250,6 +287,45 @@ defmodule HueworksWeb.SceneBuilderComponent.State do
   def selected_state_id(%{light_state_id: light_state_id}), do: parse_id(light_state_id)
   def selected_state_id(_component), do: nil
 
+  def selected_state_value(component) when is_map(component) do
+    cond do
+      state_id = Map.get(component, :light_state_id) ->
+        to_string(state_id)
+
+      custom_color?(component) ->
+        "custom_color"
+
+      custom_manual?(component) ->
+        "custom"
+
+      true ->
+        nil
+    end
+  end
+
+  def custom_manual?(component) when is_map(component) do
+    embedded_manual_config?(component) and LightState.manual_mode(component.embedded_manual_config) != :color
+  end
+
+  def custom_manual?(_component), do: false
+
+  def custom_color?(component) when is_map(component) do
+    embedded_manual_config?(component) and LightState.manual_mode(component.embedded_manual_config) == :color
+  end
+
+  def custom_color?(_component), do: false
+
+  def custom_field_value(component, key) when is_map(component) do
+    component
+    |> Map.get(:embedded_manual_config)
+    |> default_custom_config(if(custom_color?(component), do: :color, else: :temperature))
+    |> FormState.manual_field_value(key)
+  end
+
+  def custom_color_preview_style(component), do: component |> custom_config(:color) |> FormState.manual_color_preview_style()
+  def custom_color_preview_label(component), do: component |> custom_config(:color) |> FormState.manual_color_preview_label()
+  def custom_saturation_scale_style(component), do: component |> custom_config(:color) |> FormState.manual_saturation_scale_style()
+
   def state_option_label(%{type: :circadian, name: name}), do: "#{name} (circadian)"
 
   def state_option_label(%{type: :manual, name: name, config: config}) do
@@ -275,13 +351,13 @@ defmodule HueworksWeb.SceneBuilderComponent.State do
     end
   end
 
-  defp normalize_light_state_id(nil, _valid_ids), do: nil
-  defp normalize_light_state_id("", _valid_ids), do: nil
+  defp normalize_saved_light_state_id(nil, _valid_ids), do: nil
+  defp normalize_saved_light_state_id("", _valid_ids), do: nil
 
-  defp normalize_light_state_id(state_id, valid_ids) do
+  defp normalize_saved_light_state_id(state_id, valid_ids) do
     state_id = to_string(state_id)
 
-    if MapSet.member?(valid_ids, state_id), do: state_id, else: nil
+    if MapSet.size(valid_ids) == 0 or MapSet.member?(valid_ids, state_id), do: state_id, else: nil
   end
 
   defp parse_id(value), do: Util.parse_id(value)
@@ -334,4 +410,68 @@ defmodule HueworksWeb.SceneBuilderComponent.State do
   defp next_power_policy(:follow_occupancy), do: :force_on
   defp next_power_policy(:mixed), do: :force_on
   defp next_power_policy(_policy), do: :force_on
+
+  defp normalize_component_light_state_selection(component, state_id, valid_ids) do
+    case state_id do
+      "custom" ->
+        %{component | light_state_id: nil, embedded_manual_config: custom_config(component, :temperature)}
+
+      "custom_color" ->
+        %{component | light_state_id: nil, embedded_manual_config: custom_config(component, :color)}
+
+      _ ->
+        %{
+          component
+          | light_state_id: normalize_saved_light_state_id(state_id, valid_ids),
+            embedded_manual_config: nil
+        }
+    end
+  end
+
+  defp normalize_embedded_manual_config(embedded_manual_config, light_state_id) do
+    if normalize_saved_light_state_id(light_state_id, MapSet.new()) do
+      nil
+    else
+      case embedded_manual_config do
+        config when is_map(config) and map_size(config) > 0 ->
+          config
+          |> default_custom_config(LightState.manual_mode(config))
+
+        _ ->
+          nil
+      end
+    end
+  end
+
+  defp embedded_manual_config?(component) do
+    component
+    |> Map.get(:embedded_manual_config)
+    |> case do
+      config when is_map(config) -> map_size(config) > 0
+      _ -> false
+    end
+  end
+
+  defp custom_config(component, mode) do
+    component
+    |> Map.get(:embedded_manual_config)
+    |> default_custom_config(mode)
+  end
+
+  defp default_custom_config(config, :color) do
+    config
+    |> FormState.manual_default_edits()
+    |> Map.put("mode", "color")
+    |> Map.put_new("brightness", "100")
+    |> Map.put_new("hue", "0")
+    |> Map.put_new("saturation", "100")
+  end
+
+  defp default_custom_config(config, _mode) do
+    config
+    |> FormState.manual_default_edits()
+    |> Map.put("mode", "temperature")
+    |> Map.put_new("brightness", "100")
+    |> Map.put_new("temperature", "3000")
+  end
 end

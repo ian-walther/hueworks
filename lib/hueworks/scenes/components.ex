@@ -5,6 +5,7 @@ defmodule Hueworks.Scenes.Components do
 
   alias Hueworks.Repo
   alias Hueworks.Scenes.Intent
+  alias Hueworks.Schemas.LightState.ManualConfig
   alias Hueworks.Schemas.{Light, LightState, Scene, SceneComponent, SceneComponentLight}
 
   def replace(%Scene{} = scene, components) when is_list(components) do
@@ -19,13 +20,13 @@ defmodule Hueworks.Scenes.Components do
           {:error, reason} ->
             Repo.rollback(reason)
 
-          {:ok, light_state} ->
+          {:ok, resolved_light_state} ->
             component
-            |> validate_component_targets(light_state)
+            |> validate_component_targets(resolved_light_state.light_state)
             |> case do
               :ok ->
                 component
-                |> insert_scene_component(scene, light_state)
+                |> insert_scene_component(scene, resolved_light_state)
                 |> insert_scene_component_lights(component)
 
                 {:cont, :ok}
@@ -38,12 +39,13 @@ defmodule Hueworks.Scenes.Components do
     end)
   end
 
-  defp insert_scene_component(component, scene, light_state) do
+  defp insert_scene_component(component, scene, resolved_light_state) do
     %SceneComponent{}
     |> SceneComponent.changeset(%{
       name: Map.get(component, :name),
       scene_id: scene.id,
-      light_state_id: light_state.id,
+      light_state_id: resolved_light_state.light_state_id,
+      embedded_manual_config: resolved_light_state.embedded_manual_config,
       metadata: %{}
     })
     |> Repo.insert!()
@@ -65,27 +67,73 @@ defmodule Hueworks.Scenes.Components do
     scene_component
   end
 
-  defp resolve_component_light_state(component) do
+  def effective_light_state(component) when is_map(component) do
     component
-    |> Map.get(:light_state_id)
+    |> resolve_component_light_state()
     |> case do
-      state_id when state_id in [nil, "new", "new_manual", "new_circadian"] ->
-        {:error, :invalid_light_state}
+      {:ok, resolved_light_state} -> resolved_light_state.light_state
+      _ -> nil
+    end
+  end
 
-      state_id ->
-        state_id
-        |> Hueworks.Util.parse_id()
+  defp resolve_component_light_state(component) do
+    case component_embedded_manual_config(component) do
+      nil ->
+        resolve_saved_component_light_state(component)
+
+      config ->
+        case ManualConfig.normalize(config) do
+          {:ok, normalized} ->
+            {:ok,
+             %{
+               light_state_id: nil,
+               embedded_manual_config: normalized,
+               light_state: %LightState{type: :manual, config: normalized}
+             }}
+
+          {:error, _errors} ->
+            {:error, :invalid_light_state}
+        end
+    end
+  end
+
+  defp resolve_saved_component_light_state(component) do
+    case Map.get(component, :light_state) do
+      %LightState{type: type} = state when type in [:manual, :circadian] ->
+        {:ok,
+         %{
+           light_state_id: state.id,
+           embedded_manual_config: nil,
+           light_state: state
+         }}
+
+      _ ->
+        component
+        |> Map.get(:light_state_id)
         |> case do
-          nil ->
+          state_id when state_id in [nil, "new", "new_manual", "new_circadian"] ->
             {:error, :invalid_light_state}
 
-          id ->
-            case Repo.get(LightState, id) do
-              %LightState{type: type} = state when type in [:manual, :circadian] ->
-                {:ok, state}
-
-              _ ->
+          state_id ->
+            state_id
+            |> Hueworks.Util.parse_id()
+            |> case do
+              nil ->
                 {:error, :invalid_light_state}
+
+              id ->
+                case Repo.get(LightState, id) do
+                  %LightState{type: type} = state when type in [:manual, :circadian] ->
+                    {:ok,
+                     %{
+                       light_state_id: state.id,
+                       embedded_manual_config: nil,
+                       light_state: state
+                     }}
+
+                  _ ->
+                    {:error, :invalid_light_state}
+                end
             end
         end
     end
@@ -120,4 +168,13 @@ defmodule Hueworks.Scenes.Components do
   end
 
   defp manual_color_mode?(_config), do: false
+
+  defp component_embedded_manual_config(component) do
+    component
+    |> Map.get(:embedded_manual_config, Map.get(component, "embedded_manual_config"))
+    |> case do
+      config when is_map(config) and map_size(config) > 0 -> config
+      _ -> nil
+    end
+  end
 end

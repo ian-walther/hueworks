@@ -83,6 +83,37 @@ defmodule Hueworks.ScenesComponentsTest do
              ])
   end
 
+  test "replace_scene_components persists embedded manual light state configs" do
+    room = insert_room()
+    bridge = insert_bridge()
+    light = insert_light(room, bridge, %{name: "Lamp"})
+
+    {:ok, scene} = Scenes.create_scene(%{name: "Chill", room_id: room.id})
+
+    {:ok, _} =
+      Scenes.replace_scene_components(scene, [
+        %{
+          name: "Component 1",
+          light_ids: [light.id],
+          embedded_manual_config: %{"mode" => "temperature", "brightness" => "45", "temperature" => "2800"}
+        }
+      ])
+
+    scene_component =
+      Repo.one(
+        from(sc in SceneComponent, where: sc.scene_id == ^scene.id, preload: [:light_state])
+      )
+
+    assert scene_component.light_state_id == nil
+    assert scene_component.embedded_manual_config == %{
+             "brightness" => 45,
+             "mode" => "temperature",
+             "temperature" => 2800
+           }
+
+    assert scene_component.light_state == nil
+  end
+
   test "replace_scene_components rejects manual color states for non-color lights" do
     room = insert_room()
     bridge = insert_bridge()
@@ -121,6 +152,28 @@ defmodule Hueworks.ScenesComponentsTest do
     assert {:error, :invalid_color_targets} =
              Scenes.replace_scene_components(scene, [
                %{name: "Component 1", light_ids: [light.id], light_state_id: to_string(state.id)}
+             ])
+  end
+
+  test "replace_scene_components rejects embedded custom color states for non-color lights" do
+    room = insert_room()
+    bridge = insert_bridge()
+    light = insert_light(room, bridge, %{name: "Lamp", supports_color: false})
+
+    {:ok, scene} = Scenes.create_scene(%{name: "Chill", room_id: room.id})
+
+    assert {:error, :invalid_color_targets} =
+             Scenes.replace_scene_components(scene, [
+               %{
+                 name: "Component 1",
+                 light_ids: [light.id],
+                 embedded_manual_config: %{
+                   "mode" => "color",
+                   "brightness" => "70",
+                   "hue" => "210",
+                   "saturation" => "60"
+                 }
+               }
              ])
   end
 

@@ -3,6 +3,7 @@ defmodule HueworksWeb.SceneEditorLive do
 
   import Ecto.Query, only: [from: 2]
 
+  alias Hueworks.ActiveScenes
   alias Hueworks.Repo
   alias Hueworks.Rooms
   alias Hueworks.Scenes
@@ -15,10 +16,15 @@ defmodule HueworksWeb.SceneEditorLive do
     light_ids: [],
     group_ids: [],
     light_state_id: nil,
+    embedded_manual_config: nil,
     light_defaults: %{}
   }
 
   def mount(_params, _session, socket) do
+    if connected?(socket) do
+      Phoenix.PubSub.subscribe(Hueworks.PubSub, ActiveScenes.topic())
+    end
+
     {:ok,
      assign(socket,
        room_id: nil,
@@ -31,6 +37,7 @@ defmodule HueworksWeb.SceneEditorLive do
        scene_room_lights: [],
        scene_room_groups: [],
        scene_light_states: [],
+       active_scene_id: nil,
        scene_save_error: nil
      )}
   end
@@ -80,6 +87,38 @@ defmodule HueworksWeb.SceneEditorLive do
     end
   end
 
+  def handle_event("toggle_scene_activation", _params, %{assigns: %{scene_id: nil}} = socket) do
+    {:noreply, put_scene_error(socket, "Save the scene before activating it.")}
+  end
+
+  def handle_event("toggle_scene_activation", _params, socket) do
+    case Scenes.get_scene(socket.assigns.scene_id) do
+      nil ->
+        {:noreply, push_navigate(socket, to: "/rooms")}
+
+      scene ->
+        if socket.assigns.active_scene_id == scene.id do
+          :ok = ActiveScenes.clear_for_room(scene.room_id)
+
+          {:noreply,
+           socket
+           |> assign(active_scene_id: nil)
+           |> put_flash(:info, "Scene deactivated.")}
+        else
+          with {:ok, _active} <- ActiveScenes.set_active(scene),
+               {:ok, _diff, _updated} <- Scenes.activate_scene(scene.id) do
+            {:noreply,
+             socket
+             |> assign(active_scene_id: scene.id)
+             |> put_flash(:info, "Scene activated.")}
+          else
+            _ ->
+              {:noreply, put_scene_error(socket, "Unable to activate scene.")}
+          end
+        end
+    end
+  end
+
   def handle_info({:scene_builder_updated, components, builder}, socket) do
     socket =
       socket
@@ -87,6 +126,15 @@ defmodule HueworksWeb.SceneEditorLive do
       |> maybe_clear_scene_save_error()
 
     {:noreply, socket}
+  end
+
+  def handle_info({:active_scene_updated, room_id, scene_id}, socket) do
+    {:noreply,
+     if socket.assigns.room_id == room_id do
+       assign(socket, active_scene_id: scene_id)
+     else
+       socket
+     end}
   end
 
   defp load_new_scene(socket, room_id, clone_scene_id) do
@@ -123,6 +171,7 @@ defmodule HueworksWeb.SceneEditorLive do
           light_states = Scenes.list_editable_light_states()
           components = load_scene_components(scene)
           builder = Builder.build(room_lights, room_groups, components)
+          active_scene_id = active_scene_id_for_room(room_id)
 
           assign(socket,
             room_id: room_id,
@@ -135,6 +184,7 @@ defmodule HueworksWeb.SceneEditorLive do
             scene_room_lights: room_lights,
             scene_room_groups: room_groups,
             scene_light_states: light_states,
+            active_scene_id: active_scene_id,
             scene_save_error: nil
           )
         end
@@ -148,7 +198,10 @@ defmodule HueworksWeb.SceneEditorLive do
       {:ok, scene} ->
         case Scenes.replace_scene_components(scene, socket.assigns.scene_components) do
           {:ok, _} ->
-            {:noreply, push_navigate(socket, to: "/rooms")}
+            {:noreply,
+             socket
+             |> put_flash(:info, "Scene saved.")
+             |> push_patch(to: "/rooms/#{scene.room_id}/scenes/#{scene.id}/edit")}
 
           {:error, :invalid_light_state} ->
             _ = Scenes.delete_scene(scene)
@@ -156,7 +209,7 @@ defmodule HueworksWeb.SceneEditorLive do
             {:noreply,
              put_scene_error(
                socket,
-               "Each component must use a saved manual or circadian light state before saving."
+               "Each component must use a saved light state or custom manual state before saving."
              )}
 
           {:error, :invalid_color_targets} ->
@@ -196,13 +249,17 @@ defmodule HueworksWeb.SceneEditorLive do
             case Scenes.replace_scene_components(updated, socket.assigns.scene_components) do
               {:ok, _} ->
                 _ = Scenes.refresh_active_scene(updated.id)
-                {:noreply, push_navigate(socket, to: "/rooms")}
+
+                {:noreply,
+                 socket
+                 |> assign(active_scene_id: active_scene_id_for_room(updated.room_id))
+                 |> put_flash(:info, "Scene saved.")}
 
               {:error, :invalid_light_state} ->
                 {:noreply,
                  put_scene_error(
                    socket,
-                   "Each component must use a saved manual or circadian light state before saving."
+                   "Each component must use a saved light state or custom manual state before saving."
                  )}
 
               {:error, :invalid_color_targets} ->
@@ -239,6 +296,7 @@ defmodule HueworksWeb.SceneEditorLive do
       scene_room_lights: room_lights,
       scene_room_groups: room_groups,
       scene_light_states: light_states,
+      active_scene_id: active_scene_id_for_room(room_id),
       scene_save_error: nil
     )
   end
@@ -304,7 +362,8 @@ defmodule HueworksWeb.SceneEditorLive do
           name: component.name || "Component",
           light_ids: Enum.map(component.lights, & &1.id),
           group_ids: [],
-          light_state_id: to_string(component.light_state_id),
+          light_state_id: if(component.light_state_id, do: to_string(component.light_state_id)),
+          embedded_manual_config: component.embedded_manual_config,
           light_defaults: light_defaults
         }
       end)
@@ -346,6 +405,15 @@ defmodule HueworksWeb.SceneEditorLive do
         {room.lights, groups_with_lights}
     end
   end
+
+  defp active_scene_id_for_room(room_id) when is_integer(room_id) do
+    case ActiveScenes.get_for_room(room_id) do
+      %{scene_id: scene_id} -> scene_id
+      _ -> nil
+    end
+  end
+
+  defp active_scene_id_for_room(_room_id), do: nil
 
   defp parse_id(value), do: Hueworks.Util.parse_id(value)
 end

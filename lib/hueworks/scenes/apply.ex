@@ -6,6 +6,7 @@ defmodule Hueworks.Scenes.Apply do
   alias Hueworks.DebugLogging
   alias Hueworks.Repo
   alias Hueworks.Rooms
+  alias Hueworks.Scenes.Components
   alias Hueworks.Scenes.Intent
   alias Hueworks.Scenes.Intent.BuildOptions
   alias Hueworks.Schemas.Scene
@@ -32,6 +33,7 @@ defmodule Hueworks.Scenes.Apply do
     scene =
       scene
       |> Repo.preload(scene_components: [:lights, :light_state, :scene_component_lights])
+      |> attach_effective_light_states()
 
     occupied = Keyword.get_lazy(opts, :occupied, fn -> Rooms.room_occupied?(scene.room_id) end)
 
@@ -130,4 +132,13 @@ defmodule Hueworks.Scenes.Apply do
   end
 
   defp ensure_trace(trace, _scene, _occupied), do: trace
+
+  defp attach_effective_light_states(%Scene{} = scene) do
+    scene_components =
+      Enum.map(scene.scene_components, fn component ->
+        Map.put(component, :light_state, Components.effective_light_state(component))
+      end)
+
+    %{scene | scene_components: scene_components}
+  end
 end

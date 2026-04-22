@@ -282,7 +282,7 @@ defmodule Hueworks.SceneBuilderComponentTest do
     assert html =~ "option value=\"10\">All</option>"
   end
 
-  test "dropdown only shows saved states and a blank option", %{conn: conn} do
+  test "dropdown shows saved states plus custom options", %{conn: conn} do
     {:ok, state} = Scenes.create_manual_light_state("Soft", %{"brightness" => "40"})
 
     {:ok, view, _html} = live_isolated(conn, TestLive)
@@ -295,7 +295,8 @@ defmodule Hueworks.SceneBuilderComponentTest do
            )
 
     assert html =~ ~s(option value="#{state.id}")
-    refute html =~ ~s(option value="new")
+    assert html =~ ~s(option value="custom")
+    assert html =~ ~s(option value="custom_color")
     refute html =~ "Light state name"
     refute html =~ "Edit"
     refute html =~ "Duplicate"
@@ -331,14 +332,56 @@ defmodule Hueworks.SceneBuilderComponentTest do
            )
   end
 
+  test "selecting a custom light state shows inline manual controls", %{conn: conn} do
+    {:ok, view, _html} = live_isolated(conn, TestLive)
+
+    view
+    |> form("form[phx-change='select_light_state'][data-component-id='1']", %{
+      "component_id" => "1",
+      "light_state_id" => "custom"
+    })
+    |> render_change()
+
+    assert has_element?(
+             view,
+             "select[name='light_state_id'] option[value='custom'][selected]",
+             "Custom"
+           )
+
+    assert has_element?(view, "input[name='brightness']")
+    assert has_element?(view, "input[name='temperature']")
+    refute has_element?(view, "input[name='hue']")
+  end
+
+  test "selecting a custom color light state shows inline color controls", %{conn: conn} do
+    {:ok, view, _html} = live_isolated(conn, TestLive)
+
+    view
+    |> form("form[phx-change='select_light_state'][data-component-id='1']", %{
+      "component_id" => "1",
+      "light_state_id" => "custom_color"
+    })
+    |> render_change()
+
+    assert has_element?(
+             view,
+             "select[name='light_state_id'] option[value='custom_color'][selected]",
+             "Custom Color"
+           )
+
+    assert has_element?(view, "input[name='brightness']")
+    assert has_element?(view, "input[name='hue']")
+    assert has_element?(view, "input[name='saturation']")
+    refute has_element?(view, "input[name='temperature']")
+  end
+
   test "missing light state defaults to a blank selection", %{conn: conn} do
     {:ok, view, _html} =
       live_isolated(conn, ComponentStateLive, session: %{"state_id" => "123"})
 
-    assert has_element?(
-             view,
-             "select[name='light_state_id'] option[value=''][selected]",
-             "Select light state"
-           )
+    html = render(view)
+
+    assert html =~ "Select light state"
+    refute html =~ ~s(option value="123" selected)
   end
 end

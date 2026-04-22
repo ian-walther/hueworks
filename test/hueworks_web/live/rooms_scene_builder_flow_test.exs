@@ -332,13 +332,14 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
     |> form("form[phx-change='update_scene']", %{"name" => "Chill"})
     |> render_change()
 
-    assert {:error, {:live_redirect, %{to: "/rooms"}}} =
-             view
-             |> element("button[phx-click='save_scene']")
-             |> render_click()
+    view
+    |> element("button[phx-click='save_scene']")
+    |> render_click()
 
     scene =
       Repo.one(from(s in Scene, where: s.room_id == ^room.id and s.name == "Chill"))
+
+    assert_patch(view, "/rooms/#{room.id}/scenes/#{scene.id}/edit")
 
     assert scene
 
@@ -434,10 +435,9 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
     |> form("form[phx-change='update_scene']", %{"name" => "Chill Updated"})
     |> render_change()
 
-    assert {:error, {:live_redirect, %{to: "/rooms"}}} =
-             view
-             |> element("button[phx-click='save_scene']")
-             |> render_click()
+    view
+    |> element("button[phx-click='save_scene']")
+    |> render_click()
 
     updated =
       Repo.one(
@@ -459,6 +459,114 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
 
     assert scene_component.light_state_id == bright.id
     assert scene_component.light_state.name == "Bright"
+  end
+
+  test "creates a scene with an embedded custom manual light state via the UI", %{conn: conn} do
+    room = insert_room()
+    bridge = insert_bridge()
+    light = insert_light(room, bridge, %{name: "Lamp"})
+
+    {:ok, view, _html} = live(conn, "/rooms/#{room.id}/scenes/new")
+
+    view
+    |> form("form[phx-change='select_light'][data-component-id='1']", %{
+      "light_id" => Integer.to_string(light.id)
+    })
+    |> render_change()
+
+    view
+    |> element("button[phx-click='add_light'][phx-value-component_id='1']")
+    |> render_click()
+
+    view
+    |> form("form[phx-change='select_light_state'][data-component-id='1']", %{
+      "component_id" => "1",
+      "light_state_id" => "custom"
+    })
+    |> render_change()
+
+    view
+    |> form("form[phx-change='update_embedded_manual_config'][data-component-id='1']", %{
+      "component_id" => "1",
+      "mode" => "temperature",
+      "brightness" => "42",
+      "temperature" => "2800"
+    })
+    |> render_change()
+
+    view
+    |> form("form[phx-change='update_scene']", %{"name" => "Custom Scene"})
+    |> render_change()
+
+    view
+    |> element("button[phx-click='save_scene']")
+    |> render_click()
+
+    scene =
+      Repo.one(from(s in Scene, where: s.room_id == ^room.id and s.name == "Custom Scene"))
+
+    component = Repo.one(from(sc in SceneComponent, where: sc.scene_id == ^scene.id))
+
+    assert_patch(view, "/rooms/#{room.id}/scenes/#{scene.id}/edit")
+    assert component.light_state_id == nil
+    assert component.embedded_manual_config == %{
+             "brightness" => 42,
+             "mode" => "temperature",
+             "temperature" => 2800
+           }
+  end
+
+  test "saved scenes can be activated from the editor and active scene edits refresh desired state",
+       %{conn: conn} do
+    room = insert_room()
+    bridge = insert_bridge()
+    light = insert_light(room, bridge, %{name: "Lamp", supports_temp: true})
+
+    {:ok, scene} = Hueworks.Scenes.create_scene(%{name: "Custom Scene", room_id: room.id})
+
+    {:ok, _} =
+      Hueworks.Scenes.replace_scene_components(scene, [
+        %{
+          name: "Component 1",
+          light_ids: [light.id],
+          embedded_manual_config: %{"mode" => "temperature", "brightness" => "35", "temperature" => "2700"}
+        }
+      ])
+
+    {:ok, view, _html} = live(conn, "/rooms/#{room.id}/scenes/#{scene.id}/edit")
+
+    assert has_element?(view, "#scene-toggle-activation", "Activate")
+
+    view
+    |> element("#scene-toggle-activation")
+    |> render_click()
+
+    assert has_element?(view, "#scene-toggle-activation", "Deactivate")
+    assert Hueworks.ActiveScenes.get_for_room(room.id).scene_id == scene.id
+    assert DesiredState.get(:light, light.id) == %{power: :on, brightness: 35, kelvin: 2700}
+
+    view
+    |> form("form[phx-change='select_light_state'][data-component-id='1']", %{
+      "component_id" => "1",
+      "light_state_id" => "custom"
+    })
+    |> render_change()
+
+    view
+    |> form("form[phx-change='update_embedded_manual_config'][data-component-id='1']", %{
+      "component_id" => "1",
+      "mode" => "temperature",
+      "brightness" => "60",
+      "temperature" => "3100"
+    })
+    |> render_change()
+
+    view
+    |> element("button[phx-click='save_scene']")
+    |> render_click()
+
+    assert DesiredState.get(:light, light.id) == %{power: :on, brightness: 60, kelvin: 3100}
+    assert has_element?(view, "#scene-toggle-activation", "Deactivate")
   end
 
   test "editing an active scene can move a light from a circadian component into a manual color component",
@@ -538,10 +646,9 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
     })
     |> render_change()
 
-    assert {:error, {:live_redirect, %{to: "/rooms"}}} =
-             view
-             |> element("button[phx-click='save_scene']")
-             |> render_click()
+    view
+    |> element("button[phx-click='save_scene']")
+    |> render_click()
 
     updated_scene = Repo.get!(Scene, scene.id)
     assert {:ok, _diff, _updated} = Hueworks.Scenes.refresh_active_scene(updated_scene.id)
@@ -621,10 +728,9 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
     assert html =~ "Warm"
     assert html =~ "Blue"
 
-    assert {:error, {:live_redirect, %{to: "/rooms"}}} =
-             view
-             |> element("button[phx-click='save_scene']")
-             |> render_click()
+    view
+    |> element("button[phx-click='save_scene']")
+    |> render_click()
 
     clones =
       Repo.all(from(s in Scene, where: s.room_id == ^room.id, order_by: [asc: s.id]))
@@ -634,6 +740,7 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
     cloned_scene = List.last(clones)
     refute cloned_scene.id == scene.id
     assert cloned_scene.name == "Original Copy"
+    assert_patch(view, "/rooms/#{room.id}/scenes/#{cloned_scene.id}/edit")
 
     assert scene_component_fingerprint(cloned_scene.id) == scene_component_fingerprint(scene.id)
   end
@@ -689,10 +796,9 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
     |> form("form[phx-change='update_scene']", %{"name" => "Circadian Scene"})
     |> render_change()
 
-    assert {:error, {:live_redirect, %{to: "/rooms"}}} =
-             view
-             |> element("button[phx-click='save_scene']")
-             |> render_click()
+    view
+    |> element("button[phx-click='save_scene']")
+    |> render_click()
 
     scene =
       Repo.one(from(s in Scene, where: s.room_id == ^room.id and s.name == "Circadian Scene"))
@@ -702,6 +808,7 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
         from(sc in SceneComponent, where: sc.scene_id == ^scene.id, preload: [:light_state])
       )
 
+    assert_patch(view, "/rooms/#{room.id}/scenes/#{scene.id}/edit")
     assert component.light_state_id == state.id
     assert component.light_state.type == :circadian
     assert component.light_state.name == "Circadian Day"
@@ -739,7 +846,7 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
     assert has_element?(
              view,
              ".hw-flash-bar-error",
-             "Each component must use a saved manual or circadian light state before saving."
+             "Each component must use a saved light state or custom manual state before saving."
            )
 
     refute Repo.one(from(s in Scene, where: s.room_id == ^room.id and s.name == "Off Scene"))

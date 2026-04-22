@@ -34,6 +34,12 @@ defmodule HueworksWeb.SceneBuilderComponent.Flow do
     |> component_change(assigns)
   end
 
+  def update_embedded_manual_config(assigns, component_id, params) do
+    assigns.components
+    |> State.update_embedded_manual_config(component_id, params)
+    |> component_change(assigns)
+  end
+
   def add_light(assigns, component_id) do
     component_key = Util.parse_id(component_id)
     light_id = Map.get(assigns[:selections] || %{}, {:light, component_key})

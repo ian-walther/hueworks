@@ -55,9 +55,13 @@ defmodule HueworksWeb.SceneBuilderComponent do
             <form phx-change="select_light_state" phx-target={@myself} data-component-id={component.id}>
               <input type="hidden" name="component_id" value={component.id} />
               <select class="hw-select" name="light_state_id">
-                <option value="" selected={is_nil(selected_state_id(component))}>Select light state</option>
+                <option value="" selected={is_nil(selected_state_value(component))}>Select light state</option>
+                <option value="custom" selected={selected_state_value(component) == "custom"}>Custom</option>
+                <option value="custom_color" selected={selected_state_value(component) == "custom_color"}>
+                  Custom Color
+                </option>
                 <%= for state <- @light_states do %>
-                  <option value={state.id} selected={to_string(state.id) == to_string(component.light_state_id)}>
+                  <option value={state.id} selected={to_string(state.id) == selected_state_value(component)}>
                     <%= state_option_label(state) %>
                   </option>
                 <% end %>
@@ -67,6 +71,92 @@ defmodule HueworksWeb.SceneBuilderComponent do
               <p class="hw-muted">Create light states from Config before saving this scene.</p>
             <% end %>
           </div>
+
+          <%= if custom_manual?(component) do %>
+            <form phx-change="update_embedded_manual_config" phx-target={@myself} data-component-id={component.id}>
+              <input type="hidden" name="component_id" value={component.id} />
+              <input type="hidden" name="mode" value="temperature" />
+
+              <div class="hw-row">
+                <label class="hw-modal-label">Brightness</label>
+                <span class="hw-slider-value"><%= custom_field_value(component, :brightness) %>%</span>
+              </div>
+              <input
+                type="range"
+                name="brightness"
+                class="hw-modal-input"
+                min="1"
+                max="100"
+                value={custom_field_value(component, :brightness)}
+              />
+
+              <div class="hw-row">
+                <label class="hw-modal-label">Temperature</label>
+                <span class="hw-slider-value"><%= custom_field_value(component, :kelvin) %>K</span>
+              </div>
+              <input
+                type="range"
+                name="temperature"
+                class="hw-modal-input"
+                min="1000"
+                max="10000"
+                value={custom_field_value(component, :kelvin)}
+              />
+            </form>
+          <% end %>
+
+          <%= if custom_color?(component) do %>
+            <form phx-change="update_embedded_manual_config" phx-target={@myself} data-component-id={component.id}>
+              <input type="hidden" name="component_id" value={component.id} />
+              <input type="hidden" name="mode" value="color" />
+
+              <div class="hw-row">
+                <label class="hw-modal-label">Brightness</label>
+                <span class="hw-slider-value"><%= custom_field_value(component, :brightness) %>%</span>
+              </div>
+              <input
+                type="range"
+                name="brightness"
+                class="hw-modal-input"
+                min="1"
+                max="100"
+                value={custom_field_value(component, :brightness)}
+              />
+
+              <div class="hw-color-preview">
+                <span class="hw-color-swatch" style={custom_color_preview_style(component)}></span>
+                <span class="hw-muted"><%= custom_color_preview_label(component) %></span>
+              </div>
+
+              <div class="hw-row">
+                <label class="hw-modal-label">Hue</label>
+                <span class="hw-slider-value"><%= custom_field_value(component, :hue) %>°</span>
+              </div>
+              <input
+                type="range"
+                name="hue"
+                class="hw-modal-input"
+                min="0"
+                max="360"
+                value={custom_field_value(component, :hue)}
+              />
+              <div class="hw-color-scale hw-hue-scale" aria-hidden="true"></div>
+
+              <div class="hw-row">
+                <label class="hw-modal-label">Saturation</label>
+                <span class="hw-slider-value"><%= custom_field_value(component, :saturation) %>%</span>
+              </div>
+              <input
+                type="range"
+                name="saturation"
+                class="hw-modal-input"
+                min="0"
+                max="100"
+                value={custom_field_value(component, :saturation)}
+              />
+              <div class="hw-color-scale" style={custom_saturation_scale_style(component)} aria-hidden="true"></div>
+            </form>
+          <% end %>
 
           <%= if @builder.available_lights != [] do %>
             <div class="hw-row">
@@ -226,6 +316,15 @@ defmodule HueworksWeb.SceneBuilderComponent do
     {:noreply, socket}
   end
 
+  def handle_event("update_embedded_manual_config", %{"component_id" => id} = params, socket) do
+    socket =
+      socket.assigns
+      |> Flow.update_embedded_manual_config(id, params)
+      |> apply_component_change(socket)
+
+    {:noreply, socket}
+  end
+
   def handle_event("add_light", %{"component_id" => id}, socket) do
     socket =
       socket.assigns
@@ -317,7 +416,13 @@ defmodule HueworksWeb.SceneBuilderComponent do
 
   defp display_name(entity), do: State.display_name(entity)
 
-  defp selected_state_id(component), do: State.selected_state_id(component)
+  defp selected_state_value(component), do: State.selected_state_value(component)
+  defp custom_manual?(component), do: State.custom_manual?(component)
+  defp custom_color?(component), do: State.custom_color?(component)
+  defp custom_field_value(component, key), do: State.custom_field_value(component, key)
+  defp custom_color_preview_style(component), do: State.custom_color_preview_style(component)
+  defp custom_color_preview_label(component), do: State.custom_color_preview_label(component)
+  defp custom_saturation_scale_style(component), do: State.custom_saturation_scale_style(component)
 
   defp state_option_label(state), do: State.state_option_label(state)
 
