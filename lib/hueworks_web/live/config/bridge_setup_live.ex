@@ -120,6 +120,10 @@ defmodule HueworksWeb.BridgeSetupLive do
     {:noreply, start_import(socket)}
   end
 
+  def handle_info(_message, socket) do
+    {:noreply, socket}
+  end
+
   defp start_import(socket) do
     case pipeline_module().create_import(socket.assigns.bridge) do
       {:ok, bridge_import} ->

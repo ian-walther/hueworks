@@ -94,6 +94,56 @@ defmodule Hueworks.Import.NormalizeTest do
     refute Enum.any?(normalized.groups, &(&1.source_id == "light.zha_group_missing"))
   end
 
+  test "normalizes Home Assistant raw data without HueWorks-managed exported lights" do
+    raw = %{
+      "areas" => [],
+      "device_registry" => [],
+      "light_entities" => [
+        %{
+          "entity_id" => "light.hueworks_light_12_light",
+          "platform" => "mqtt",
+          "device_id" => "device-1",
+          "name" => "HueWorks Kitchen Task",
+          "supported_color_modes" => ["brightness"],
+          "device" => %{
+            "id" => "device-1",
+            "name" => "HueWorks Kitchen",
+            "identifiers" => [["mqtt", "hueworks_light_12_light"]],
+            "connections" => []
+          }
+        },
+        %{
+          "entity_id" => "light.real_kitchen_light",
+          "platform" => "mqtt",
+          "device_id" => "device-2",
+          "name" => "Real Kitchen Light",
+          "supported_color_modes" => ["brightness"],
+          "device" => %{
+            "id" => "device-2",
+            "name" => "Real Kitchen Light",
+            "identifiers" => [["mqtt", "real-kitchen-light"]],
+            "connections" => []
+          }
+        }
+      ],
+      "group_entities" => [],
+      "light_states" => %{
+        "light.hueworks_light_12_light" => %{
+          "hueworks_managed" => true,
+          "hueworks_entity_kind" => "light",
+          "hueworks_entity_id" => 12
+        },
+        "light.real_kitchen_light" => %{}
+      },
+      "zha_groups" => []
+    }
+
+    bridge = %Bridge{id: 5, type: :ha, name: "HA", host: "10.0.0.5"}
+    normalized = Normalize.normalize(bridge, raw)
+
+    assert Enum.map(normalized.lights, & &1.source_id) == ["light.real_kitchen_light"]
+  end
+
   test "normalizes Caseta raw data into rooms and lights" do
     raw = load_fixture("caseta_raw.json")
 

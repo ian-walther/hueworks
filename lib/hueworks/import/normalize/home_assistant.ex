@@ -19,9 +19,15 @@ defmodule Hueworks.Import.Normalize.HomeAssistant do
   def normalize(bridge, raw, _opts \\ %{}) do
     areas = Normalize.fetch(raw, :areas) |> Normalize.normalize_list()
     device_registry = Normalize.fetch(raw, :device_registry) |> Normalize.normalize_list()
-    lights_raw = Normalize.fetch(raw, :light_entities) |> Normalize.normalize_list()
-    groups_raw = Normalize.fetch(raw, :group_entities) |> Normalize.normalize_list()
     light_states = Normalize.fetch(raw, :light_states) || %{}
+
+    lights_raw =
+      raw
+      |> Normalize.fetch(:light_entities)
+      |> Normalize.normalize_list()
+      |> Enum.reject(&hueworks_managed_light_entity?(&1, light_states))
+
+    groups_raw = Normalize.fetch(raw, :group_entities) |> Normalize.normalize_list()
     zha_groups = Normalize.fetch(raw, :zha_groups) |> Normalize.normalize_list()
     state_members_by_entity_id = state_members_by_entity_id(light_states)
     zha_members_by_entity_id = zha_members_by_entity_id(zha_groups, lights_raw)
@@ -252,6 +258,22 @@ defmodule Hueworks.Import.Normalize.HomeAssistant do
   defp ha_light_classification("template"), do: "template"
   defp ha_light_classification("zha"), do: "zha_light"
   defp ha_light_classification(_platform), do: "light"
+
+  defp hueworks_managed_light_entity?(light, light_states) when is_map(light) do
+    entity_id = Normalize.fetch(light, :entity_id)
+
+    attrs =
+      if is_binary(entity_id) and is_map(light_states) do
+        Map.get(light_states, entity_id, %{})
+      else
+        %{}
+      end
+
+    attrs["hueworks_managed"] == true or
+      Normalize.fetch(light, :hueworks_managed) == true
+  end
+
+  defp hueworks_managed_light_entity?(_light, _light_states), do: false
 
   defp state_members_by_entity_id(light_states) when is_map(light_states) do
     Enum.reduce(light_states, %{}, fn {entity_id, attrs}, acc ->

@@ -368,6 +368,17 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
     refute html =~ ">Studio</option>"
   end
 
+  test "ignores late z2m snapshot messages without crashing", %{conn: conn} do
+    {view, _bridge} = setup_import_view(conn, with_unassigned: false)
+    ref = Process.monitor(view.pid)
+
+    send(view.pid, {:z2m_message, "zigbee2mqtt/bridge/info", ~s({"version":"1.0.0"})})
+    send(view.pid, {:z2m_connection, :down})
+
+    assert render(view) =~ "Configuration loaded into memory"
+    refute_received {:DOWN, ^ref, :process, _pid, _reason}
+  end
+
   test "light and group checkboxes toggle plan selections", %{conn: conn} do
     {view, _bridge} = setup_import_view(conn, with_unassigned: true)
 
