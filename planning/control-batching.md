@@ -21,15 +21,6 @@ That means:
 - Major planner redesign.
 - Circuit-breaker architecture and advanced resilience policy.
 
-## Files to Touch (Likely)
-- `lib/hueworks/control/executor.ex`
-- `lib/hueworks/control/planner.ex`
-- `lib/hueworks/control/group.ex`
-- `lib/hueworks/scenes.ex`
-- `lib/hueworks_web/live/lights_live.ex`
-- `test/hueworks/control_executor_queue_test.exs`
-- `test/hueworks_web/live/scene_activation_round_trip_test.exs`
-
 ## Acceptance Criteria
 - Cross-bridge scene apply behavior has a documented timing contract and tests.
 - Executor returns a structured result that distinguishes full success vs partial failure.

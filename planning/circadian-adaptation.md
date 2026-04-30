@@ -58,55 +58,21 @@ Circadian behavior still needs continued validation around:
 - A smoothing or interpolation engine
 - Migration or backfill tooling
 
-## Likely Implementation Areas
-- `lib/hueworks/circadian.ex`
-- `lib/hueworks/circadian/config.ex`
-- `lib/hueworks/scenes.ex`
-- `lib/hueworks/active_scenes.ex`
-- `lib/hueworks/rooms.ex`
-- `lib/hueworks/app_settings.ex`
-- `lib/hueworks_app/control/circadian_poller.ex`
-- `lib/hueworks_app/control/state.ex`
-- `lib/hueworks_app/control/desired_state.ex`
-- `lib/hueworks/control/planner.ex`
-- `lib/hueworks_web/live/rooms_live.ex`
-- `lib/hueworks_web/live/lights_live.ex`
-- `lib/hueworks_web/live/scene_editor_live.ex`
-- `lib/hueworks_web/live/scene_builder_component.ex`
-
 ## Testing Follow-Up
-- Continue real-world validation of:
-  - scene activation from manual -> circadian and circadian -> manual
+- Prioritize real-world validation of:
+  - manual -> circadian and circadian -> manual transitions
   - manual off/on semantics while a circadian scene is active
-  - default-off component behavior when manually toggled on
   - active-scene survival during refresh/bootstrap activity
-  - circadian behavior in rooms with mixed temp ranges
-  - planner/group behavior in rooms with intentionally overlapping groups
-- Maintain a growing circadian integration suite instead of relying only on smaller math/planner/unit tests.
-- Continue adding integration coverage for scenarios that have proven failure-prone in practice, especially:
-  - brightness tolerance sweeps around active-scene clear thresholds
-  - kelvin sweeps around the Hue `2203K` clamp and Z2M `2700K` crossover
-  - brightness-only adaptation windows before kelvin starts warming
-  - compressed-day scenarios that move quickly from brightness-only adaptation into warming kelvin
-  - DST spring-forward and fall-back transitions
-  - refresh/bootstrap plus echoed state updates while a scene remains active
-  - mixed group/member update ordering
-  - mixed manual + circadian scene components in the same scene
-  - default-off / manual-on / manual-off behavior inside mixed-source circadian scenes
+  - mixed temp-range rooms and intentionally overlapping groups
+- Keep expanding circadian integration coverage where behavior has proven failure-prone:
+  - scene-clear thresholds
+  - kelvin clamp/crossover edges
+  - compressed-day adaptation windows
+  - DST transitions
+  - mixed manual + circadian scene components
   - scene edits while active during an ongoing circadian ramp
-- Prefer integration tests that assert together:
-  - desired-state changes
-  - planner output
-  - source-specific event round trips
-  - in-memory physical group/member state
-  - values rendered by the `/lights` LiveView
 
-## Observability Follow-Up
-- Keep `ADVANCED_DEBUG_LOGGING=true` as the opt-in path for planner/control trace debugging.
-- Prefer targeted traceability around apply, planner, and scene-clear behavior over adding another broad runtime state layer.
-- Add telemetry or counters only if log-based debugging stops being sufficient for real deployment use.
-
-## Open Questions
+## Remaining Decisions
 - Is log-based observability enough for ongoing production use, or do circadian apply attempts and scene clears need first-class telemetry?
 - Does the product actually need a room-coherent circadian mode, or is careful grouping the better long-term answer?
 - Once HA-driven occupancy exists, do `Default Off` and `Follow Occupancy` still feel like the right mental model for scene component power policy?

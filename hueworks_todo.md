@@ -4,19 +4,22 @@ Forward-looking backlog only. Completed work has been removed.
 
 ## Now (Critical Path)
 
-### 1) Pico support
-- [ ] Replace Caseta Pico stub event logging with real event handling + mapping entrypoint.
-- [ ] Define Pico button mapping UX for HueWorks scene/control actions.
-- [ ] Add end-to-end tests for Pico event ingestion, mapping resolution, and runtime activation.
+### 1) HomeKit bridge integration
+Reference: `planning/homekit-bridge.md`
+- [ ] Add a HomeKit bridge endpoint using the `hap` dependency as-is.
+- [ ] Expose HueWorks-controlled lights as HomeKit accessories for second-device testing.
+- [ ] Expose HueWorks scenes as virtual HomeKit switches with per-room active-scene exclusivity.
+- [ ] Map HomeKit writes to HueWorks desired-state -> planner/executor flow.
+- [ ] Mirror physical-state and active-scene updates back to HomeKit.
+- [ ] Add stable bridge identity/pairing persistence and HAP-child restart handling for topology changes.
+- [ ] Add integration and manual verification coverage for pairing, light control, and scene-switch behavior.
 
-### 2) Home Assistant scenes (Home Assistant -> HueWorks)
-Reference: `planning/external-scenes.md`
-- [ ] Add generic external scene model (`external_scenes`) with source-scoped identity.
-- [ ] Add scene mapping model linking external scenes to HueWorks scenes.
-- [ ] Extend HA import/resync to include `scene.*` entities.
-- [ ] Add UI to review/sync external scenes and manage mappings.
-- [ ] Subscribe to HA scene activation events and trigger mapped HueWorks scenes.
-- [ ] Add tests for sync, mapping resolution, and activation event flow.
+### 2) Reimport and idempotency polish
+Reference: `planning/import-resync.md`
+- [ ] Guarantee that a reimport with unchanged upstream data and unchanged operator selections is a true no-op.
+- [ ] Finalize and document deletion semantics (disabled vs removed) during reimport.
+- [ ] Persist/import history queries for operator-facing visibility.
+- [ ] Add stronger tests around preserving user edits during reimport.
 
 ### 3) Circadian validation and polish
 Reference: `planning/circadian-adaptation.md`
@@ -45,66 +48,43 @@ Reference: `planning/control-batching.md`
 - [ ] Re-test credentials from UI after edit and gate save on validation.
 - [ ] Add migration-safe credential update flow for Caseta cert/key paths.
 
-### 7) Reimport and idempotency polish
-Reference: `planning/import-resync.md`
-- [ ] Finalize and document deletion semantics (disabled vs removed) during reimport.
-- [ ] Persist/import history queries for operator-facing visibility.
-- [ ] Add stronger tests around preserving user edits during reimport.
-
-### 8) DB integrity and query health follow-up
+### 7) DB integrity and query health follow-up
 Reference: `planning/db-integrity.md`
 - [ ] Audit FK behavior vs manual cleanup code for consistency.
 
 ## Later
 
-### 9) Room assignment intelligence
+### 8) Room assignment intelligence
 - [ ] Extract room derivation into a dedicated module.
 - [ ] Add confidence scoring and suggested assignment review.
 - [ ] Improve unassigned/cross-bridge room handling UX.
 
-### 10) Scene UX improvements
+### 9) Scene UX improvements
 - [ ] Scene preview/dry-run mode before apply.
 - [ ] Scene activation history and error summaries in UI.
 - [ ] Bulk scene operations per room.
+- [ ] Add configurable on/off transition-time support and expose it as scene-level configuration.
 
-### 11) Security and operations
+### 10) Security and operations
 - [ ] Add security hardening planning doc once scope is finalized.
 - [ ] Encrypt bridge credentials at rest.
 - [ ] Harden file permissions and backup handling for secrets/material.
 
-### 12) Product expansion
+### 11) Product expansion
 - [ ] Additional bridge integrations beyond Zigbee2MQTT.
 - [ ] Public API surface (WebSocket/REST) for external control.
 - [ ] Multi-user/auth model for non-single-operator deployments.
 
-### 13) HomeKit bridge integration
-Reference: `planning/homekit-bridge.md`
-- [ ] Add a HomeKit bridge endpoint that exposes HueWorks-controlled lights.
-- [ ] Map HomeKit characteristic writes to HueWorks desired-state -> planner/executor flow.
-- [ ] Mirror physical-state updates back to HomeKit characteristics for state coherence.
-- [ ] Add pairing/persistence, room/accessory metadata mapping, and regression tests.
-
-### 14) Home Assistant reverse integration (HueWorks -> HA)
+### 12) Home Assistant reverse integration (HueWorks -> HA)
 Reference: `planning/home-assistant-reverse-integration.md`
-- [ ] Expose HueWorks-controlled lights into Home Assistant as entities.
-- [ ] Map HA service calls/state writes to HueWorks desired-state -> planner/executor flow.
-- [ ] Publish HueWorks physical state updates back into HA entity state.
-- [ ] Add config/discovery lifecycle, metadata mapping, and regression tests.
+- [ ] Tighten exported-entity parity for daily-control paths across lights, scenes, and room selectors.
+- [ ] Finalize capability-policy decisions so exported entities stay predictable in HA dashboards and automations.
+- [ ] Improve republish/recovery behavior and operator visibility around MQTT export state.
 - [ ] Define and enforce HA parity quality bar (state coherence, interaction latency, reliability) for daily control paths.
 
-### 15) Assisted-user functionality polish
+### 13) Assisted-user functionality polish
 Reference: `planning/assisted-user-functionality.md`
 - [ ] Add high-impact guardrails for scene/control conflict predictability.
 - [ ] Improve active-scene clarity (state + deactivation reasons) in room UX.
 - [ ] Add plain-language runtime status to increase day-to-day user confidence.
 - [ ] Prioritize outcome-focused scene usability improvements over setup automation.
-
-## Quality Gates
-- [ ] Keep TODO and planning docs synchronized when priorities change.
-- [ ] Keep tests green on every merge (`mix test`).
-- [ ] Keep static checks clean (`mix credo`).
-- [ ] Require migration verification for schema changes.
-- [ ] Keep docs in sync with implementation each sprint.
-
-## Additional Tasks
-- [ ] Add configurable on/off transition-time support and expose it as scene-level configuration.
