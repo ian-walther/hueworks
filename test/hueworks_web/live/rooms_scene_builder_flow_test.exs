@@ -319,10 +319,6 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
     |> render_change()
 
     view
-    |> element("button[phx-click='add_group'][phx-value-component_id='1']")
-    |> render_click()
-
-    view
     |> element(
       "button[phx-click='toggle_light_default_power'][phx-value-component_id='1'][phx-value-light_id='#{light1.id}']"
     )
@@ -421,10 +417,6 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
     |> render_change()
 
     view
-    |> element("button[phx-click='add_light'][phx-value-component_id='1']")
-    |> render_click()
-
-    view
     |> form("form[phx-change='select_light_state'][data-component-id='1']", %{
       "component_id" => "1",
       "light_state_id" => Integer.to_string(bright.id)
@@ -473,10 +465,6 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
       "light_id" => Integer.to_string(light.id)
     })
     |> render_change()
-
-    view
-    |> element("button[phx-click='add_light'][phx-value-component_id='1']")
-    |> render_click()
 
     view
     |> form("form[phx-change='select_light_state'][data-component-id='1']", %{
@@ -636,10 +624,6 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
     |> render_change()
 
     view
-    |> element("button[phx-click='add_light'][phx-value-component_id='2']")
-    |> render_click()
-
-    view
     |> form("form[phx-change='select_light_state'][data-component-id='2']", %{
       "component_id" => "2",
       "light_state_id" => Integer.to_string(blue.id)
@@ -782,10 +766,6 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
     |> render_change()
 
     view
-    |> element("button[phx-click='add_group'][phx-value-component_id='1']")
-    |> render_click()
-
-    view
     |> form("form[phx-change='select_light_state'][data-component-id='1']", %{
       "component_id" => "1",
       "light_state_id" => Integer.to_string(state.id)
@@ -830,10 +810,6 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
       "group_id" => Integer.to_string(group.id)
     })
     |> render_change()
-
-    view
-    |> element("button[phx-click='add_group'][phx-value-component_id='1']")
-    |> render_click()
 
     view
     |> form("form[phx-change='update_scene']", %{"name" => "Off Scene"})

@@ -21,11 +21,17 @@ defmodule HueworksWeb.SceneBuilderComponent.Flow do
   end
 
   def select_light(assigns, component_id, light_id) do
-    %{selections: State.select_light(assigns[:selections], component_id, light_id)}
+    assigns.components
+    |> State.add_light(component_id, Util.parse_id(light_id))
+    |> component_change(assigns)
   end
 
   def select_group(assigns, component_id, group_id) do
-    %{selections: State.select_group(assigns[:selections], component_id, group_id)}
+    group = Enum.find(assigns.groups, &(&1.id == Util.parse_id(group_id)))
+
+    assigns.components
+    |> State.add_group(component_id, group, assigns.builder.room_light_ids)
+    |> component_change(assigns)
   end
 
   def select_light_state(assigns, component_id, state_id) do
@@ -40,28 +46,17 @@ defmodule HueworksWeb.SceneBuilderComponent.Flow do
     |> component_change(assigns)
   end
 
-  def add_light(assigns, component_id) do
-    component_key = Util.parse_id(component_id)
-    light_id = Map.get(assigns[:selections] || %{}, {:light, component_key})
-
-    assigns.components
-    |> State.add_light(component_id, light_id)
-    |> component_change(assigns)
-  end
-
-  def add_group(assigns, component_id) do
-    component_key = Util.parse_id(component_id)
-    group_id = Map.get(assigns[:selections] || %{}, {:group, component_key})
-    group = Enum.find(assigns.groups, &(&1.id == group_id))
-
-    assigns.components
-    |> State.add_group(component_id, group, assigns.builder.room_light_ids)
-    |> component_change(assigns)
-  end
-
   def remove_light(assigns, component_id, light_id) do
     assigns.components
     |> State.remove_light(component_id, light_id)
+    |> component_change(assigns)
+  end
+
+  def remove_group(assigns, component_id, group_id) do
+    group = Enum.find(assigns.groups, &(&1.id == Util.parse_id(group_id)))
+
+    assigns.components
+    |> State.remove_group(component_id, group, assigns.builder.room_light_ids)
     |> component_change(assigns)
   end
 

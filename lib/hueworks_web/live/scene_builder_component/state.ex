@@ -29,14 +29,6 @@ defmodule HueworksWeb.SceneBuilderComponent.State do
       [Map.put(@blank_component, :id, next_id) |> Map.put(:name, "Component #{next_id}")]
   end
 
-  def select_light(selections, component_id, light_id) do
-    Map.put(selections || %{}, {:light, parse_id(component_id)}, parse_id(light_id))
-  end
-
-  def select_group(selections, component_id, group_id) do
-    Map.put(selections || %{}, {:group, parse_id(component_id)}, parse_id(group_id))
-  end
-
   def select_light_state(components, component_id, state_id, light_states) do
     valid_ids =
       light_states
@@ -145,6 +137,34 @@ defmodule HueworksWeb.SceneBuilderComponent.State do
           component
           | light_ids: List.delete(component.light_ids, light_id),
             light_defaults: defaults
+        }
+      else
+        component
+      end
+    end)
+  end
+
+  def remove_group(components, component_id, group, room_light_ids) do
+    component_id = parse_id(component_id)
+
+    Enum.map(components, fn component ->
+      if component.id == component_id and group do
+        group_light_ids = Builder.group_room_light_ids(group, room_light_ids)
+        light_ids = Map.get(component, :light_ids, [])
+
+        remaining_light_ids =
+          Enum.reject(light_ids, fn light_id -> light_id in group_light_ids end)
+
+        remaining_defaults =
+          component
+          |> Map.get(:light_defaults, %{})
+          |> Map.drop(group_light_ids)
+
+        %{
+          component
+          | light_ids: remaining_light_ids,
+            group_ids: List.delete(Map.get(component, :group_ids, []), group.id),
+            light_defaults: remaining_defaults
         }
       else
         component

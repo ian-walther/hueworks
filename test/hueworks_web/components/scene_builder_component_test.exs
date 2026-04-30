@@ -74,37 +74,50 @@ defmodule Hueworks.SceneBuilderComponentTest do
     end
   end
 
-  test "selecting and adding a light updates available options", %{conn: conn} do
+  test "selecting a light auto-adds it and updates available options", %{conn: conn} do
     {:ok, view, _html} = live_isolated(conn, TestLive)
 
     view
     |> form("form[phx-change='select_light'][data-component-id='1']", %{"light_id" => "1"})
     |> render_change()
 
-    view
-    |> element("button[phx-click='add_light'][phx-value-component_id='1']")
-    |> render_click()
-
     html = render(view)
     assert html =~ "Lamp"
     refute html =~ "option value=\"1\">Lamp</option>"
   end
 
-  test "adding a group assigns its lights and removes the group from options", %{conn: conn} do
+  test "selecting a group auto-adds its lights and removes the group from options", %{conn: conn} do
     {:ok, view, _html} = live_isolated(conn, TestLive)
 
     view
     |> form("form[phx-change='select_group'][data-component-id='1']", %{"group_id" => "10"})
     |> render_change()
 
-    view
-    |> element("button[phx-click='add_group'][phx-value-component_id='1']")
-    |> render_click()
-
     html = render(view)
     assert html =~ "Lamp"
     assert html =~ "Ceiling"
     refute html =~ "option value=\"10\">All</option>"
+  end
+
+  test "assigned groups can be removed as a shortcut for removing all group lights", %{conn: conn} do
+    {:ok, view, _html} = live_isolated(conn, TestLive)
+
+    view
+    |> form("form[phx-change='select_group'][data-component-id='1']", %{"group_id" => "10"})
+    |> render_change()
+
+    assert render(view) =~ "Lamp"
+    assert render(view) =~ "Ceiling"
+
+    view
+    |> element(
+      "button[phx-click='remove_group'][phx-value-component_id='1'][phx-value-group_id='10']"
+    )
+    |> render_click()
+
+    html = render(view)
+    assert html =~ "No lights assigned"
+    assert html =~ "option value=\"10\">All</option>"
   end
 
   test "removing a component returns lights to the available pool", %{conn: conn} do
@@ -113,10 +126,6 @@ defmodule Hueworks.SceneBuilderComponentTest do
     view
     |> form("form[phx-change='select_light'][data-component-id='1']", %{"light_id" => "1"})
     |> render_change()
-
-    view
-    |> element("button[phx-click='add_light'][phx-value-component_id='1']")
-    |> render_click()
 
     refute render(view) =~ "option value=\"1\">Lamp</option>"
 
@@ -136,19 +145,11 @@ defmodule Hueworks.SceneBuilderComponentTest do
     |> form("form[phx-change='select_light'][data-component-id='1']", %{"light_id" => "1"})
     |> render_change()
 
-    view
-    |> element("button[phx-click='add_light'][phx-value-component_id='1']")
-    |> render_click()
-
     assert render(view) =~ "Unassigned lights: 1"
 
     view
     |> form("form[phx-change='select_light'][data-component-id='1']", %{"light_id" => "2"})
     |> render_change()
-
-    view
-    |> element("button[phx-click='add_light'][phx-value-component_id='1']")
-    |> render_click()
 
     assert render(view) =~ "All lights assigned."
   end
@@ -159,10 +160,6 @@ defmodule Hueworks.SceneBuilderComponentTest do
     view
     |> form("form[phx-change='select_light'][data-component-id='1']", %{"light_id" => "1"})
     |> render_change()
-
-    view
-    |> element("button[phx-click='add_light'][phx-value-component_id='1']")
-    |> render_click()
 
     assert has_element?(
              view,

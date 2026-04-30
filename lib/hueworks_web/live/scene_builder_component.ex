@@ -12,8 +12,7 @@ defmodule HueworksWeb.SceneBuilderComponent do
        groups: [],
        light_states: [],
        scene_id: nil,
-       builder: nil,
-       selections: %{}
+       builder: nil
      )}
   end
 
@@ -170,15 +169,6 @@ defmodule HueworksWeb.SceneBuilderComponent do
                   <% end %>
                 </select>
               </form>
-              <button
-                type="button"
-                class="hw-button"
-                phx-click="add_light"
-                phx-target={@myself}
-                phx-value-component_id={component.id}
-              >
-                Add
-              </button>
             </div>
           <% end %>
 
@@ -194,15 +184,6 @@ defmodule HueworksWeb.SceneBuilderComponent do
                   <% end %>
                 </select>
               </form>
-              <button
-                type="button"
-                class="hw-button"
-                phx-click="add_group"
-                phx-target={@myself}
-                phx-value-component_id={component.id}
-              >
-                Add
-              </button>
             </div>
           <% end %>
 
@@ -226,6 +207,16 @@ defmodule HueworksWeb.SceneBuilderComponent do
                     phx-value-group_id={group.id}
                   >
                     <%= "Power policy: #{power_policy_label(group_default_power(component, group, @builder.room_light_ids))}" %>
+                  </button>
+                  <button
+                    type="button"
+                    class="hw-edit-button hw-delete-button"
+                    phx-click="remove_group"
+                    phx-target={@myself}
+                    phx-value-component_id={component.id}
+                    phx-value-group_id={group.id}
+                  >
+                    ×
                   </button>
                 </span>
               <% end %>
@@ -296,11 +287,21 @@ defmodule HueworksWeb.SceneBuilderComponent do
   end
 
   def handle_event("select_light", %{"component_id" => id, "light_id" => light_id}, socket) do
-    {:noreply, socket |> assign(Flow.select_light(socket.assigns, id, light_id))}
+    socket =
+      socket.assigns
+      |> Flow.select_light(id, light_id)
+      |> apply_component_change(socket)
+
+    {:noreply, socket}
   end
 
   def handle_event("select_group", %{"component_id" => id, "group_id" => group_id}, socket) do
-    {:noreply, socket |> assign(Flow.select_group(socket.assigns, id, group_id))}
+    socket =
+      socket.assigns
+      |> Flow.select_group(id, group_id)
+      |> apply_component_change(socket)
+
+    {:noreply, socket}
   end
 
   def handle_event(
@@ -325,28 +326,19 @@ defmodule HueworksWeb.SceneBuilderComponent do
     {:noreply, socket}
   end
 
-  def handle_event("add_light", %{"component_id" => id}, socket) do
-    socket =
-      socket.assigns
-      |> Flow.add_light(id)
-      |> apply_component_change(socket)
-
-    {:noreply, socket}
-  end
-
-  def handle_event("add_group", %{"component_id" => id}, socket) do
-    socket =
-      socket.assigns
-      |> Flow.add_group(id)
-      |> apply_component_change(socket)
-
-    {:noreply, socket}
-  end
-
   def handle_event("remove_light", %{"component_id" => id, "light_id" => light_id}, socket) do
     socket =
       socket.assigns
       |> Flow.remove_light(id, light_id)
+      |> apply_component_change(socket)
+
+    {:noreply, socket}
+  end
+
+  def handle_event("remove_group", %{"component_id" => id, "group_id" => group_id}, socket) do
+    socket =
+      socket.assigns
+      |> Flow.remove_group(id, group_id)
       |> apply_component_change(socket)
 
     {:noreply, socket}
