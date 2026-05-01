@@ -640,13 +640,23 @@ defmodule HueworksWeb.ControlLive do
     Enum.map(rooms, fn room ->
       room_groups = Enum.filter(groups, &(&1.room_id == room.id))
       room_lights = Enum.filter(lights, &(&1.room_id == room.id))
+      visible_light_ids = MapSet.new(Enum.map(room_lights, & &1.id))
+
+      topology_light_ids =
+        room_groups
+        |> Enum.flat_map(& &1.light_ids)
+        |> Kernel.++(MapSet.to_list(visible_light_ids))
+        |> Enum.uniq()
 
       %{
         room: room,
         scenes: Enum.sort_by(room.scenes, &String.downcase(display_name(&1))),
         groups: room_groups,
         lights: room_lights,
-        topology: Topology.presentation_tree(room_groups, Enum.map(room_lights, & &1.id))
+        topology:
+          room_groups
+          |> Topology.presentation_tree(topology_light_ids)
+          |> filter_topology_lights(visible_light_ids)
       }
     end)
   end
@@ -674,6 +684,27 @@ defmodule HueworksWeb.ControlLive do
     |> Enum.group_by(fn {group_id, _light_id} -> group_id end, fn {_group_id, light_id} ->
       light_id
     end)
+  end
+
+  defp filter_topology_lights(topology, visible_light_ids) do
+    %{
+      topology
+      | nodes: Enum.map(topology.nodes, &filter_topology_node(&1, visible_light_ids)),
+        ungrouped_light_ids:
+          filter_visible_light_ids(topology.ungrouped_light_ids, visible_light_ids)
+    }
+  end
+
+  defp filter_topology_node(node, visible_light_ids) do
+    %{
+      node
+      | children: Enum.map(node.children, &filter_topology_node(&1, visible_light_ids)),
+        light_ids: filter_visible_light_ids(node.light_ids, visible_light_ids)
+    }
+  end
+
+  defp filter_visible_light_ids(light_ids, visible_light_ids) do
+    Enum.filter(light_ids, &MapSet.member?(visible_light_ids, &1))
   end
 
   defp update_room_control_state(assigns, room_model, attrs) do

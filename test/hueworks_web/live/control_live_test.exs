@@ -272,4 +272,34 @@ defmodule HueworksWeb.ControlLiveTest do
                )
            end)
   end
+
+  test "control page shows enabled groups even when every member light is disabled", %{
+    conn: conn
+  } do
+    room = insert_room()
+    bridge = insert_bridge()
+    disabled_light = insert_light(room, bridge, %{name: "Hidden Lamp", enabled: false})
+    group = insert_group(room, bridge, %{name: "Hidden Lamp Group"})
+    insert_group_light(group, disabled_light)
+
+    {:ok, view, _html} = live(conn, "/control")
+
+    assert has_element?(view, "#control-room-#{room.id}-group-#{group.id}", "Hidden Lamp Group")
+
+    view
+    |> element(
+      "button[phx-click='toggle_group_expanded'][phx-value-room_id='#{room.id}'][phx-value-group_id='#{group.id}']"
+    )
+    |> render_click()
+
+    refute has_element?(
+             view,
+             "#control-room-#{room.id}-group-#{group.id}-light-#{disabled_light.id}"
+           )
+
+    refute has_element?(
+             view,
+             "button[phx-click='toggle'][phx-value-type='light'][phx-value-id='#{disabled_light.id}']"
+           )
+  end
 end
