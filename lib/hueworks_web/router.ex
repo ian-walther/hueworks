@@ -16,6 +16,7 @@ defmodule HueworksWeb.Router do
     pipe_through(:browser)
 
     get("/", RedirectController, :home)
+    live("/control", ControlLive, :index)
     live("/lights", LightsLive, :index)
     live("/rooms", RoomsLive, :index)
     live("/rooms/:room_id/scenes/new", SceneEditorLive, :new)

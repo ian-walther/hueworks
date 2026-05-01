@@ -18,6 +18,7 @@ defmodule HueworksWeb.Layouts do
           <div class="hw-nav-inner">
             <div class="hw-nav-title">HueWorks</div>
             <div class="hw-nav-links">
+              <a href="/control">Control</a>
               <a href="/lights">Lights</a>
               <a href="/rooms">Rooms</a>
               <a href="/config">Config</a>
@@ -30,8 +31,8 @@ defmodule HueworksWeb.Layouts do
     """
   end
 
-  attr :flash, :map, default: nil
-  attr :class, :string, default: nil
+  attr(:flash, :map, default: nil)
+  attr(:class, :string, default: nil)
 
   def app_flash_group(assigns) do
     ~H"""
@@ -63,10 +64,10 @@ defmodule HueworksWeb.Layouts do
     """
   end
 
-  attr :flash, :map, default: nil
-  attr :info, :string, default: nil
-  attr :error, :string, default: nil
-  attr :class, :string, default: nil
+  attr(:flash, :map, default: nil)
+  attr(:info, :string, default: nil)
+  attr(:error, :string, default: nil)
+  attr(:class, :string, default: nil)
 
   def floating_flash_group(assigns) do
     info = assigns.info || (assigns.flash && Phoenix.Flash.get(assigns.flash, :info))
