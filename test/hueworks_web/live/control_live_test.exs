@@ -5,6 +5,7 @@ defmodule HueworksWeb.ControlLiveTest do
 
   alias Hueworks.Repo
   alias Hueworks.Control.DesiredState
+  alias Hueworks.Control.State
   alias Hueworks.Schemas.{ActiveScene, Group, GroupLight, Light, Room}
   alias Hueworks.Scenes
 
@@ -286,11 +287,10 @@ defmodule HueworksWeb.ControlLiveTest do
 
     assert has_element?(view, "#control-room-#{room.id}-group-#{group.id}", "Hidden Lamp Group")
 
-    view
-    |> element(
-      "button[phx-click='toggle_group_expanded'][phx-value-room_id='#{room.id}'][phx-value-group_id='#{group.id}']"
-    )
-    |> render_click()
+    refute has_element?(
+             view,
+             "button[phx-click='toggle_group_expanded'][phx-value-room_id='#{room.id}'][phx-value-group_id='#{group.id}']"
+           )
 
     refute has_element?(
              view,
@@ -300,6 +300,28 @@ defmodule HueworksWeb.ControlLiveTest do
     refute has_element?(
              view,
              "button[phx-click='toggle'][phx-value-type='light'][phx-value-id='#{disabled_light.id}']"
+           )
+  end
+
+  test "control group power label shows ambiguity from member light state", %{conn: conn} do
+    room = insert_room()
+    bridge = insert_bridge()
+    light_a = insert_light(room, bridge, %{name: "Lamp A"})
+    light_b = insert_light(room, bridge, %{name: "Lamp B"})
+    group = insert_group(room, bridge, %{name: "Lamps"})
+    insert_group_light(group, light_a)
+    insert_group_light(group, light_b)
+
+    State.put(:light, light_a.id, %{power: :on})
+    State.put(:light, light_b.id, %{power: :off})
+    State.put(:group, group.id, %{power: :on})
+
+    {:ok, view, _html} = live(conn, "/control")
+
+    assert has_element?(
+             view,
+             "#control-room-#{room.id}-group-#{group.id} button[phx-click='toggle'][phx-value-type='group'][phx-value-id='#{group.id}'].hw-button-on",
+             "..."
            )
   end
 end

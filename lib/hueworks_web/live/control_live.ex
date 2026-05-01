@@ -362,24 +362,32 @@ defmodule HueworksWeb.ControlLive do
           not Presentation.manual_adjustment_locked?(
             assigns.active_scene_by_room,
             assigns.node.group.room_id
-          )
+          ),
+        expandable?: group_node_expandable?(assigns.node)
       )
 
     ~H"""
     <div class="hw-group-node" id={"control-room-#{@room.id}-group-#{@node.group_id}"}>
       <span class="hw-room-item hw-room-item-row hw-group-node-row">
-        <button
-          type="button"
-          class="hw-group-toggle"
-          phx-click="toggle_group_expanded"
-          phx-value-room_id={@room.id}
-          phx-value-group_id={@node.group_id}
-          aria-expanded={@expanded?}
-        >
-          <%= if @expanded?, do: "-", else: "+" %>
-          <%= display_name(@node.group) %>
-          <span class="hw-muted">(<%= Enum.count(@node.total_light_ids) %> lights)</span>
-        </button>
+        <%= if @expandable? do %>
+          <button
+            type="button"
+            class="hw-group-toggle"
+            phx-click="toggle_group_expanded"
+            phx-value-room_id={@room.id}
+            phx-value-group_id={@node.group_id}
+            aria-expanded={@expanded?}
+          >
+            <%= if @expanded?, do: "-", else: "+" %>
+            <%= display_name(@node.group) %>
+            <span class="hw-muted">(<%= Enum.count(@node.total_light_ids) %> lights)</span>
+          </button>
+        <% else %>
+          <span>
+            <%= display_name(@node.group) %>
+            <span class="hw-muted">(<%= Enum.count(@node.total_light_ids) %> lights)</span>
+          </span>
+        <% end %>
         <span class="hw-room-item-actions">
           <button
             type="button"
@@ -388,7 +396,7 @@ defmodule HueworksWeb.ControlLive do
             phx-value-type="group"
             phx-value-id={@node.group_id}
           >
-            On/Off
+            <%= group_power_label(@node, @light_state) %>
           </button>
           <button
             :if={@control_available?}
@@ -402,7 +410,7 @@ defmodule HueworksWeb.ControlLive do
         </span>
       </span>
 
-      <div :if={@expanded?} class="hw-group-node-body">
+      <div :if={@expanded? and @expandable?} class="hw-group-node-body">
         <.group_node
           :for={child <- @node.children}
           node={child}
@@ -852,6 +860,20 @@ defmodule HueworksWeb.ControlLive do
     if powered_on?(state_map, id), do: "hw-button hw-button-on", else: "hw-button hw-button-off"
   end
 
+  defp group_power_label(node, light_state) do
+    node.total_light_ids
+    |> Enum.map(&Map.get(light_state, &1, %{}))
+    |> Enum.map(&Map.get(&1, :power))
+    |> Enum.filter(&known_power?/1)
+    |> Enum.uniq()
+    |> case do
+      powers when length(powers) > 1 -> "..."
+      _ -> "On/Off"
+    end
+  end
+
+  defp known_power?(power), do: power in [:on, :off, "on", "off", true, false]
+
   defp powered_on?(state_map, id) do
     case Map.get(state_map, id, %{}) do
       %{power: power} when power in [:on, "on", true] -> true
@@ -865,6 +887,10 @@ defmodule HueworksWeb.ControlLive do
   end
 
   defp group_expanded_key(room_id, group_id), do: "#{room_id}:#{group_id}"
+
+  defp group_node_expandable?(node) do
+    node.children != [] or node.light_ids != []
+  end
 
   defp display_name(entity), do: Util.display_name(entity)
 
