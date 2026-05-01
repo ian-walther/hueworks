@@ -13,6 +13,17 @@ defmodule Hueworks.Groups.Topology do
 
   @type member_set_map :: %{optional(integer()) => MapSet.t(integer())}
   @type subgroup_map :: %{optional(integer()) => list(integer())}
+  @type presentation_node :: %{
+          group: map(),
+          group_id: integer(),
+          total_light_ids: list(integer()),
+          light_ids: list(integer()),
+          children: list(presentation_node())
+        }
+  @type presentation_tree :: %{
+          nodes: list(presentation_node()),
+          ungrouped_light_ids: list(integer())
+        }
 
   @spec member_sets() :: member_set_map()
   def member_sets do
@@ -82,6 +93,20 @@ defmodule Hueworks.Groups.Topology do
     all_subgroups(group_id, subgroups_map)
   end
 
+  @spec presentation_tree(list(map()), list(integer())) :: presentation_tree()
+  def presentation_tree(groups, selected_light_ids) when is_list(groups) do
+    selected_light_ids =
+      selected_light_ids
+      |> normalize_light_ids()
+      |> MapSet.new()
+
+    groups
+    |> complete_group_entries(selected_light_ids)
+    |> decompose_scope(selected_light_ids, nil)
+  end
+
+  def presentation_tree(_groups, _selected_light_ids), do: %{nodes: [], ungrouped_light_ids: []}
+
   defp walk_subgroups([], _map, visited), do: visited
 
   defp walk_subgroups([id | rest], map, visited) do
@@ -91,6 +116,104 @@ defmodule Hueworks.Groups.Topology do
       children = Map.get(map, id, [])
       walk_subgroups(children ++ rest, map, [id | visited])
     end
+  end
+
+  defp complete_group_entries(groups, selected_light_ids) do
+    groups
+    |> Enum.flat_map(fn group ->
+      id = group_id(group)
+      light_ids = group |> group_light_ids() |> Enum.sort()
+      light_set = MapSet.new(light_ids)
+
+      if is_integer(id) and light_ids != [] and MapSet.subset?(light_set, selected_light_ids) do
+        [%{id: id, group: group, light_ids: light_ids, light_set: light_set}]
+      else
+        []
+      end
+    end)
+  end
+
+  defp strict_superset?(possible_parent, child) do
+    MapSet.size(possible_parent) > MapSet.size(child) and MapSet.subset?(child, possible_parent)
+  end
+
+  defp decompose_scope(group_entries, scope_light_set, parent_entry) do
+    selected_entries =
+      group_entries
+      |> candidate_entries(scope_light_set, parent_entry)
+      |> maximal_entries()
+      |> sort_entries()
+
+    covered_light_ids =
+      selected_entries
+      |> Enum.flat_map(&MapSet.to_list(&1.light_set))
+      |> MapSet.new()
+
+    %{
+      nodes:
+        Enum.map(selected_entries, fn entry ->
+          child_scope = decompose_scope(group_entries, entry.light_set, entry)
+
+          %{
+            group: entry.group,
+            group_id: entry.id,
+            total_light_ids: entry.light_ids,
+            light_ids: child_scope.ungrouped_light_ids,
+            children: child_scope.nodes
+          }
+        end),
+      ungrouped_light_ids:
+        scope_light_set
+        |> MapSet.difference(covered_light_ids)
+        |> MapSet.to_list()
+        |> Enum.sort()
+    }
+  end
+
+  defp candidate_entries(group_entries, scope_light_set, nil) do
+    Enum.filter(group_entries, &MapSet.subset?(&1.light_set, scope_light_set))
+  end
+
+  defp candidate_entries(group_entries, scope_light_set, parent_entry) do
+    group_entries
+    |> Enum.reject(&(&1.id == parent_entry.id))
+    |> Enum.filter(fn entry ->
+      MapSet.size(entry.light_set) < MapSet.size(scope_light_set) and
+        MapSet.subset?(entry.light_set, scope_light_set)
+    end)
+  end
+
+  defp maximal_entries(entries) do
+    Enum.reject(entries, fn entry ->
+      Enum.any?(entries, fn other ->
+        other.id != entry.id and strict_superset?(other.light_set, entry.light_set)
+      end)
+    end)
+  end
+
+  defp sort_entries(entries) do
+    Enum.sort_by(entries, fn entry ->
+      {-MapSet.size(entry.light_set), entry |> entry_name() |> String.downcase(), entry.id}
+    end)
+  end
+
+  defp entry_name(%{group: group}) do
+    Hueworks.Util.display_name(group)
+  end
+
+  defp group_id(%{id: id}) when is_integer(id), do: id
+  defp group_id(%{"id" => id}) when is_integer(id), do: id
+  defp group_id(_group), do: nil
+
+  defp group_light_ids(%{light_ids: light_ids}), do: normalize_light_ids(light_ids)
+  defp group_light_ids(%{"light_ids" => light_ids}), do: normalize_light_ids(light_ids)
+  defp group_light_ids(_group), do: []
+
+  defp normalize_light_ids(light_ids) do
+    light_ids
+    |> List.wrap()
+    |> Enum.filter(&is_integer/1)
+    |> Enum.uniq()
   end
 
   defp add_memberships(base, memberships) do

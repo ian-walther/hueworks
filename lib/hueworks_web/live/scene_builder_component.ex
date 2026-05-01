@@ -12,7 +12,8 @@ defmodule HueworksWeb.SceneBuilderComponent do
        groups: [],
        light_states: [],
        scene_id: nil,
-       builder: nil
+       builder: nil,
+       expanded_group_keys: MapSet.new()
      )}
   end
 
@@ -187,67 +188,29 @@ defmodule HueworksWeb.SceneBuilderComponent do
             </div>
           <% end %>
 
-          <% active_groups = component_groups(component, @groups, @builder.room_light_ids) %>
-          <%= if active_groups != [] do %>
-            <div class="hw-room-list">
-              <%= for group <- active_groups do %>
-                <span class="hw-room-item hw-room-item-row">
-                  <span>
-                    <%= display_name(group) %>
-                    <span class="hw-muted">
-                      (<%= Enum.count(component_group_light_ids(component, group, @builder.room_light_ids)) %> lights)
-                    </span>
-                  </span>
-                  <button
-                    type="button"
-                    class="hw-button"
-                    phx-click="toggle_group_default_power"
-                    phx-target={@myself}
-                    phx-value-component_id={component.id}
-                    phx-value-group_id={group.id}
-                  >
-                    <%= "Power policy: #{power_policy_label(group_default_power(component, group, @builder.room_light_ids))}" %>
-                  </button>
-                  <button
-                    type="button"
-                    class="hw-edit-button hw-delete-button"
-                    phx-click="remove_group"
-                    phx-target={@myself}
-                    phx-value-component_id={component.id}
-                    phx-value-group_id={group.id}
-                  >
-                    ×
-                  </button>
-                </span>
-              <% end %>
+          <% group_topology = component_group_topology(component, @groups, @builder.room_light_ids) %>
+          <%= if group_topology.nodes != [] do %>
+            <div class="hw-room-list hw-group-tree">
+              <.group_node
+                :for={node <- group_topology.nodes}
+                node={node}
+                component={component}
+                room_lights={@room_lights}
+                room_light_ids={@builder.room_light_ids}
+                expanded_group_keys={@expanded_group_keys}
+                target={@myself}
+              />
             </div>
           <% end %>
 
           <div class="hw-room-list">
-            <%= for light_id <- component.light_ids do %>
-              <span class="hw-room-item hw-room-item-row">
-                <span><%= light_name(@room_lights, light_id) %></span>
-                <button
-                  type="button"
-                  class="hw-button"
-                  phx-click="toggle_light_default_power"
-                  phx-target={@myself}
-                  phx-value-component_id={component.id}
-                  phx-value-light_id={light_id}
-                >
-                  <%= "Power policy: #{power_policy_label(light_default_power(component, light_id))}" %>
-                </button>
-                <button
-                  type="button"
-                  class="hw-edit-button hw-delete-button"
-                  phx-click="remove_light"
-                  phx-target={@myself}
-                  phx-value-component_id={component.id}
-                  phx-value-light_id={light_id}
-                >
-                  ×
-                </button>
-              </span>
+            <%= for light_id <- group_topology.ungrouped_light_ids do %>
+              <.light_row
+                component={component}
+                light_id={light_id}
+                room_lights={@room_lights}
+                target={@myself}
+              />
             <% end %>
             <%= if component.light_ids == [] do %>
               <span class="hw-room-item hw-room-empty">No lights assigned</span>
@@ -379,8 +342,135 @@ defmodule HueworksWeb.SceneBuilderComponent do
     {:noreply, socket}
   end
 
+  def handle_event(
+        "toggle_group_expanded",
+        %{"component_id" => component_id, "group_id" => group_id},
+        socket
+      ) do
+    key = group_expanded_key(component_id, group_id)
+    expanded_group_keys = Map.get(socket.assigns, :expanded_group_keys, MapSet.new())
+
+    expanded_group_keys =
+      if MapSet.member?(expanded_group_keys, key) do
+        MapSet.delete(expanded_group_keys, key)
+      else
+        MapSet.put(expanded_group_keys, key)
+      end
+
+    {:noreply, assign(socket, expanded_group_keys: expanded_group_keys)}
+  end
+
   defp notify_parent(socket) do
     send(self(), {:scene_builder_updated, socket.assigns.components, socket.assigns.builder})
+  end
+
+  defp group_node(assigns) do
+    assigns =
+      assign(assigns,
+        expanded?:
+          group_expanded?(
+            assigns.expanded_group_keys,
+            assigns.component.id,
+            assigns.node.group_id
+          )
+      )
+
+    ~H"""
+    <div class="hw-group-node" id={"scene-component-#{@component.id}-group-#{@node.group_id}"}>
+      <span class="hw-room-item hw-room-item-row hw-group-node-row">
+        <button
+          type="button"
+          class="hw-group-toggle"
+          phx-click="toggle_group_expanded"
+          phx-target={@target}
+          phx-value-component_id={@component.id}
+          phx-value-group_id={@node.group_id}
+          aria-expanded={@expanded?}
+        >
+          <%= if @expanded?, do: "-", else: "+" %>
+          <%= display_name(@node.group) %>
+          <span class="hw-muted">(<%= Enum.count(@node.total_light_ids) %> lights)</span>
+        </button>
+        <button
+          type="button"
+          class="hw-button"
+          phx-click="toggle_group_default_power"
+          phx-target={@target}
+          phx-value-component_id={@component.id}
+          phx-value-group_id={@node.group_id}
+        >
+          <%= "Power policy: #{power_policy_label(group_default_power(@component, @node.group, @room_light_ids))}" %>
+        </button>
+        <button
+          type="button"
+          class="hw-edit-button hw-delete-button"
+          phx-click="remove_group"
+          phx-target={@target}
+          phx-value-component_id={@component.id}
+          phx-value-group_id={@node.group_id}
+        >
+          ×
+        </button>
+      </span>
+
+      <div :if={@expanded?} class="hw-group-node-body">
+        <.group_node
+          :for={child <- @node.children}
+          node={child}
+          component={@component}
+          room_lights={@room_lights}
+          room_light_ids={@room_light_ids}
+          expanded_group_keys={@expanded_group_keys}
+          target={@target}
+        />
+
+        <div class="hw-group-node-lights">
+          <.light_row
+            :for={light_id <- @node.light_ids}
+            id={"scene-component-#{@component.id}-group-#{@node.group_id}-light-#{light_id}"}
+            class="hw-group-light"
+            component={@component}
+            light_id={light_id}
+            room_lights={@room_lights}
+            target={@target}
+          />
+        </div>
+      </div>
+    </div>
+    """
+  end
+
+  defp light_row(assigns) do
+    assigns =
+      assigns
+      |> assign_new(:id, fn -> nil end)
+      |> assign_new(:class, fn -> nil end)
+
+    ~H"""
+    <span id={@id} class={["hw-room-item hw-room-item-row", @class]}>
+      <span><%= light_name(@room_lights, @light_id) %></span>
+      <button
+        type="button"
+        class="hw-button"
+        phx-click="toggle_light_default_power"
+        phx-target={@target}
+        phx-value-component_id={@component.id}
+        phx-value-light_id={@light_id}
+      >
+        <%= "Power policy: #{power_policy_label(light_default_power(@component, @light_id))}" %>
+      </button>
+      <button
+        type="button"
+        class="hw-edit-button hw-delete-button"
+        phx-click="remove_light"
+        phx-target={@target}
+        phx-value-component_id={@component.id}
+        phx-value-light_id={@light_id}
+      >
+        ×
+      </button>
+    </span>
+    """
   end
 
   defp apply_component_change(changes, socket) do
@@ -397,14 +487,18 @@ defmodule HueworksWeb.SceneBuilderComponent do
   defp light_default_power(component, light_id),
     do: State.light_default_power(component, light_id)
 
-  defp component_groups(component, groups, room_light_ids),
-    do: State.component_groups(component, groups, room_light_ids)
-
-  defp component_group_light_ids(component, group, room_light_ids),
-    do: State.component_group_light_ids(component, group, room_light_ids)
+  defp component_group_topology(component, groups, room_light_ids),
+    do: State.component_group_topology(component, groups, room_light_ids)
 
   defp group_default_power(component, group, room_light_ids),
     do: State.group_default_power(component, group, room_light_ids)
+
+  defp group_expanded?(expanded_group_keys, component_id, group_id) do
+    expanded_group_keys
+    |> MapSet.member?(group_expanded_key(component_id, group_id))
+  end
+
+  defp group_expanded_key(component_id, group_id), do: "#{component_id}:#{group_id}"
 
   defp display_name(entity), do: State.display_name(entity)
 
@@ -414,7 +508,9 @@ defmodule HueworksWeb.SceneBuilderComponent do
   defp custom_field_value(component, key), do: State.custom_field_value(component, key)
   defp custom_color_preview_style(component), do: State.custom_color_preview_style(component)
   defp custom_color_preview_label(component), do: State.custom_color_preview_label(component)
-  defp custom_saturation_scale_style(component), do: State.custom_saturation_scale_style(component)
+
+  defp custom_saturation_scale_style(component),
+    do: State.custom_saturation_scale_style(component)
 
   defp state_option_label(state), do: State.state_option_label(state)
 

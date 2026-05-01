@@ -419,6 +419,55 @@ body {
   gap: 0.4rem;
 }
 
+.hw-group-tree {
+  gap: 0.55rem;
+}
+
+.hw-group-node {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.hw-group-node-row {
+  border-radius: 0.55rem;
+  background: rgba(42, 157, 143, 0.08);
+}
+
+.hw-group-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+}
+
+.hw-group-node-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-left: 1rem;
+  padding-left: 0.75rem;
+  border-left: 1px solid rgba(42, 157, 143, 0.22);
+}
+
+.hw-group-node-lights {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
+}
+
+.hw-group-light {
+  color: rgba(27, 27, 23, 0.7);
+  background: rgba(27, 27, 23, 0.025);
+}
+
 .hw-room-item {
   display: inline-flex;
   align-items: center;

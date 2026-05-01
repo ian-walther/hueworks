@@ -93,6 +93,12 @@ defmodule Hueworks.SceneBuilderComponentTest do
     |> form("form[phx-change='select_group'][data-component-id='1']", %{"group_id" => "10"})
     |> render_change()
 
+    view
+    |> element(
+      "button[phx-click='toggle_group_expanded'][phx-value-component_id='1'][phx-value-group_id='10']"
+    )
+    |> render_click()
+
     html = render(view)
     assert html =~ "Lamp"
     assert html =~ "Ceiling"
@@ -106,6 +112,12 @@ defmodule Hueworks.SceneBuilderComponentTest do
     |> form("form[phx-change='select_group'][data-component-id='1']", %{"group_id" => "10"})
     |> render_change()
 
+    view
+    |> element(
+      "button[phx-click='toggle_group_expanded'][phx-value-component_id='1'][phx-value-group_id='10']"
+    )
+    |> render_click()
+
     assert render(view) =~ "Lamp"
     assert render(view) =~ "Ceiling"
 
@@ -118,6 +130,101 @@ defmodule Hueworks.SceneBuilderComponentTest do
     html = render(view)
     assert html =~ "No lights assigned"
     assert html =~ "option value=\"10\">All</option>"
+  end
+
+  test "assigned strict subset groups render collapsed by default and expand with grouped lights",
+       %{conn: conn} do
+    defmodule NestedGroupLive do
+      use Phoenix.LiveView
+
+      def mount(_params, _session, socket) do
+        {:ok,
+         assign(socket,
+           room_lights: [
+             %{id: 1, name: "Upper Left"},
+             %{id: 2, name: "Upper Right"},
+             %{id: 3, name: "Lower Left"},
+             %{id: 4, name: "Loose Lamp"}
+           ],
+           groups: [
+             %{id: 10, name: "All Cabinet", light_ids: [1, 2, 3]},
+             %{id: 11, name: "Upper Cabinet", light_ids: [1, 2]},
+             %{id: 12, name: "Left Cabinet", light_ids: [1, 3]}
+           ],
+           components: [
+             %{
+               id: 1,
+               name: "Component 1",
+               light_ids: [1, 2, 3, 4],
+               group_ids: [],
+               light_state_id: nil,
+               light_defaults: %{}
+             }
+           ],
+           light_states: []
+         )}
+      end
+
+      def render(assigns) do
+        ~H"""
+        <.live_component
+          module={HueworksWeb.SceneBuilderComponent}
+          id="scene-builder"
+          room_lights={@room_lights}
+          groups={@groups}
+          components={@components}
+          light_states={@light_states}
+        />
+        """
+      end
+    end
+
+    {:ok, view, _html} = live_isolated(conn, NestedGroupLive)
+
+    assert has_element?(view, "#scene-component-1-group-10")
+    refute has_element?(view, "#scene-component-1-group-10 #scene-component-1-group-11")
+    refute has_element?(view, "#scene-component-1-group-10-light-1")
+
+    view
+    |> element(
+      "button[phx-click='toggle_group_expanded'][phx-value-component_id='1'][phx-value-group_id='10']"
+    )
+    |> render_click()
+
+    assert has_element?(view, "#scene-component-1-group-10 #scene-component-1-group-11")
+    assert has_element?(view, "#scene-component-1-group-10 #scene-component-1-group-12")
+    refute has_element?(view, "#scene-component-1-group-10-light-1")
+
+    view
+    |> element(
+      "button[phx-click='toggle_group_expanded'][phx-value-component_id='1'][phx-value-group_id='11']"
+    )
+    |> render_click()
+
+    assert has_element?(view, "#scene-component-1-group-11-light-1")
+
+    assert has_element?(
+             view,
+             "#scene-component-1-group-11-light-1 button[phx-click='toggle_light_default_power'][phx-value-component_id='1'][phx-value-light_id='1']"
+           )
+
+    assert has_element?(
+             view,
+             "#scene-component-1-group-11-light-1 button[phx-click='remove_light'][phx-value-component_id='1'][phx-value-light_id='1']"
+           )
+
+    assert has_element?(
+             view,
+             "button[phx-click='remove_light'][phx-value-component_id='1'][phx-value-light_id='4']"
+           )
+
+    view
+    |> element(
+      "button[phx-click='toggle_group_expanded'][phx-value-component_id='1'][phx-value-group_id='10']"
+    )
+    |> render_click()
+
+    refute has_element?(view, "#scene-component-1-group-11-light-1")
   end
 
   test "removing a component returns lights to the available pool", %{conn: conn} do

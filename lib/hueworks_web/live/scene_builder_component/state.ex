@@ -1,6 +1,7 @@
 defmodule HueworksWeb.SceneBuilderComponent.State do
   @moduledoc false
 
+  alias Hueworks.Groups.Topology
   alias Hueworks.Scenes.Builder
   alias Hueworks.Schemas.LightState
   alias HueworksWeb.LightStateEditorLive.FormState
@@ -264,6 +265,14 @@ defmodule HueworksWeb.SceneBuilderComponent.State do
     |> normalize_default_power_value()
   end
 
+  def component_group_topology(component, groups, room_light_ids) do
+    groups
+    |> Enum.map(fn group ->
+      Map.put(group, :light_ids, Builder.group_room_light_ids(group, room_light_ids))
+    end)
+    |> Topology.presentation_tree(Map.get(component, :light_ids, []))
+  end
+
   def component_groups(component, groups, room_light_ids) do
     component_light_ids = MapSet.new(Map.get(component, :light_ids, []))
 
@@ -324,13 +333,15 @@ defmodule HueworksWeb.SceneBuilderComponent.State do
   end
 
   def custom_manual?(component) when is_map(component) do
-    embedded_manual_config?(component) and LightState.manual_mode(component.embedded_manual_config) != :color
+    embedded_manual_config?(component) and
+      LightState.manual_mode(component.embedded_manual_config) != :color
   end
 
   def custom_manual?(_component), do: false
 
   def custom_color?(component) when is_map(component) do
-    embedded_manual_config?(component) and LightState.manual_mode(component.embedded_manual_config) == :color
+    embedded_manual_config?(component) and
+      LightState.manual_mode(component.embedded_manual_config) == :color
   end
 
   def custom_color?(_component), do: false
@@ -342,9 +353,14 @@ defmodule HueworksWeb.SceneBuilderComponent.State do
     |> FormState.manual_field_value(key)
   end
 
-  def custom_color_preview_style(component), do: component |> custom_config(:color) |> FormState.manual_color_preview_style()
-  def custom_color_preview_label(component), do: component |> custom_config(:color) |> FormState.manual_color_preview_label()
-  def custom_saturation_scale_style(component), do: component |> custom_config(:color) |> FormState.manual_saturation_scale_style()
+  def custom_color_preview_style(component),
+    do: component |> custom_config(:color) |> FormState.manual_color_preview_style()
+
+  def custom_color_preview_label(component),
+    do: component |> custom_config(:color) |> FormState.manual_color_preview_label()
+
+  def custom_saturation_scale_style(component),
+    do: component |> custom_config(:color) |> FormState.manual_saturation_scale_style()
 
   def state_option_label(%{type: :circadian, name: name}), do: "#{name} (circadian)"
 
@@ -434,10 +450,18 @@ defmodule HueworksWeb.SceneBuilderComponent.State do
   defp normalize_component_light_state_selection(component, state_id, valid_ids) do
     case state_id do
       "custom" ->
-        %{component | light_state_id: nil, embedded_manual_config: custom_config(component, :temperature)}
+        %{
+          component
+          | light_state_id: nil,
+            embedded_manual_config: custom_config(component, :temperature)
+        }
 
       "custom_color" ->
-        %{component | light_state_id: nil, embedded_manual_config: custom_config(component, :color)}
+        %{
+          component
+          | light_state_id: nil,
+            embedded_manual_config: custom_config(component, :color)
+        }
 
       _ ->
         %{

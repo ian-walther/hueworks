@@ -320,6 +320,12 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
 
     view
     |> element(
+      "button[phx-click='toggle_group_expanded'][phx-value-component_id='1'][phx-value-group_id='#{group.id}']"
+    )
+    |> render_click()
+
+    view
+    |> element(
       "button[phx-click='toggle_light_default_power'][phx-value-component_id='1'][phx-value-light_id='#{light1.id}']"
     )
     |> render_click()
@@ -497,6 +503,7 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
 
     assert_patch(view, "/rooms/#{room.id}/scenes/#{scene.id}/edit")
     assert component.light_state_id == nil
+
     assert component.embedded_manual_config == %{
              "brightness" => 42,
              "mode" => "temperature",
@@ -517,7 +524,11 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
         %{
           name: "Component 1",
           light_ids: [light.id],
-          embedded_manual_config: %{"mode" => "temperature", "brightness" => "35", "temperature" => "2700"}
+          embedded_manual_config: %{
+            "mode" => "temperature",
+            "brightness" => "35",
+            "temperature" => "2700"
+          }
         }
       ])
 
