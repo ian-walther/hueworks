@@ -88,7 +88,12 @@ defmodule Hueworks.Scenes.Apply do
       |> ActiveScenes.power_overrides()
       |> Map.merge(Keyword.get(opts, :power_overrides, %{}))
 
-    case apply_scene(scene, Keyword.put(opts, :power_overrides, power_overrides)) do
+    apply_opts =
+      opts
+      |> Keyword.put(:power_overrides, power_overrides)
+      |> Keyword.put_new(:enqueue_mode, :replace_targets)
+
+    case apply_scene(scene, apply_opts) do
       {:ok, _diff, _updated} = ok ->
         _ = ActiveScenes.mark_applied(active_scene)
         ok

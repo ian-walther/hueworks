@@ -1,7 +1,9 @@
 defmodule Hueworks.ScenesQueueingTest do
   use Hueworks.DataCase, async: false
 
-  alias Hueworks.Control.Executor
+  alias Hueworks.ActiveScenes
+  alias Hueworks.AppSettings
+  alias Hueworks.Control.{Executor, State}
   alias Hueworks.Repo
   alias Hueworks.Scenes
 
@@ -22,6 +24,7 @@ defmodule Hueworks.ScenesQueueingTest do
 
     dispatch_fun = fn action ->
       Agent.update(actions_agent, fn actions -> actions ++ [action] end)
+      State.put(action.type, action.id, action.desired)
       :ok
     end
 
@@ -29,7 +32,7 @@ defmodule Hueworks.ScenesQueueingTest do
 
     {:ok, _pid} =
       start_supervised(
-        {Executor, name: server, dispatch_fun: dispatch_fun, bridge_rate_fun: fn _ -> 10 end}
+        {Executor, name: server, dispatch_fun: dispatch_fun, bridge_rate_fun: fn _ -> 1 end}
       )
 
     original_enabled = Application.get_env(:hueworks, :control_executor_enabled)
@@ -221,6 +224,104 @@ defmodule Hueworks.ScenesQueueingTest do
              Enum.sort([group_one.id, group_one_b.id, group_two.id])
   end
 
+  test "active scene reapply does not starve a pending same-bridge sibling action", %{
+    actions_agent: actions_agent,
+    executor_server: executor_server
+  } do
+    bridge =
+      insert_bridge!(%{
+        name: "Hue Bridge",
+        type: :hue,
+        host: "192.168.1.16",
+        credentials: %{"api_key" => "test"}
+      })
+
+    room = Repo.insert!(%Room{name: "Circadian Queue Room"})
+
+    light_one =
+      Repo.insert!(%Light{
+        name: "Circadian Lamp A",
+        display_name: "Circadian Lamp A",
+        source: :hue,
+        source_id: "circadian-a",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        supports_temp: true,
+        reported_min_kelvin: 2000,
+        reported_max_kelvin: 6500
+      })
+
+    light_two =
+      Repo.insert!(%Light{
+        name: "Circadian Lamp B",
+        display_name: "Circadian Lamp B",
+        source: :hue,
+        source_id: "circadian-b",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        supports_temp: true,
+        reported_min_kelvin: 2000,
+        reported_max_kelvin: 6500
+      })
+
+    {:ok, circadian_state} =
+      Scenes.create_light_state("Adaptive Queue", :circadian, %{
+        "sunrise_time" => "06:00:00",
+        "sunset_time" => "18:00:00",
+        "min_brightness" => 10,
+        "max_brightness" => 90,
+        "min_color_temp" => 2000,
+        "max_color_temp" => 4000,
+        "brightness_mode" => "linear",
+        "brightness_mode_time_dark" => 10_800,
+        "brightness_mode_time_light" => 10_800
+      })
+
+    {:ok, scene} = Scenes.create_scene(%{name: "Adaptive Queue Scene", room_id: room.id})
+
+    {:ok, _} =
+      Scenes.replace_scene_components(scene, [
+        %{
+          name: "Adaptive",
+          light_ids: [light_one.id, light_two.id],
+          light_state_id: to_string(circadian_state.id)
+        }
+      ])
+
+    {:ok, _} =
+      AppSettings.upsert_global(%{
+        latitude: 40.7128,
+        longitude: -74.0060,
+        timezone: "America/New_York"
+      })
+
+    {:ok, active_scene} = ActiveScenes.set_active(scene)
+
+    assert {:ok, _diff, _updated} =
+             Scenes.apply_active_scene(scene, active_scene,
+               now: ny_dt("2026-03-31 05:00:00"),
+               occupied: true,
+               preserve_power_latches: true
+             )
+
+    assert eventually_action_count(actions_agent, 1)
+    [first_action] = Agent.get(actions_agent, & &1)
+    first_id = first_action.id
+    sibling_id = ([light_one.id, light_two.id] -- [first_id]) |> List.first()
+
+    assert {:ok, _diff, _updated} =
+             Scenes.apply_active_scene(scene, active_scene,
+               now: ny_dt("2026-03-31 05:30:00"),
+               occupied: true,
+               preserve_power_latches: true
+             )
+
+    Executor.tick(executor_server, force: true)
+
+    assert [_, second_action] = Agent.get(actions_agent, & &1)
+    assert second_action.id == sibling_id
+  end
+
   defp drain_executor(server, attempts \\ 5)
 
   defp drain_executor(_server, 0), do: :ok
@@ -259,5 +360,22 @@ defmodule Hueworks.ScenesQueueingTest do
     %LightState{}
     |> LightState.changeset(attrs)
     |> Repo.insert!()
+  end
+
+  defp eventually_action_count(actions_agent, expected_count, attempts \\ 20)
+  defp eventually_action_count(_actions_agent, _expected_count, 0), do: false
+
+  defp eventually_action_count(actions_agent, expected_count, attempts) do
+    if Agent.get(actions_agent, &(length(&1) == expected_count)) do
+      true
+    else
+      Process.sleep(10)
+      eventually_action_count(actions_agent, expected_count, attempts - 1)
+    end
+  end
+
+  defp ny_dt(local_time) do
+    {:ok, naive} = NaiveDateTime.from_iso8601(local_time)
+    DateTime.from_naive!(naive, "America/New_York") |> DateTime.shift_zone!("Etc/UTC")
   end
 end

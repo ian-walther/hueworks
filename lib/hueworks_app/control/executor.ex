@@ -150,6 +150,7 @@ defmodule Hueworks.Control.Executor do
       queue =
         case mode do
           :append -> Enum.reduce(normalized, existing_queue, &:queue.in/2)
+          :replace_targets -> replace_queued_targets(existing_queue, normalized)
           _ -> Enum.reduce(normalized, :queue.new(), &:queue.in/2)
         end
 
@@ -159,6 +160,7 @@ defmodule Hueworks.Control.Executor do
       should_reset_last_sent =
         case mode do
           :append -> :queue.is_empty(existing_queue)
+          :replace_targets -> :queue.is_empty(existing_queue)
           _ -> true
         end
 
@@ -186,6 +188,55 @@ defmodule Hueworks.Control.Executor do
       value -> value
     end)
   end
+
+  defp replace_queued_targets(existing_queue, incoming_actions) do
+    incoming_by_target = Map.new(incoming_actions, &{action_target(&1), &1})
+    incoming_targets = incoming_by_target |> Map.keys() |> MapSet.new()
+    replacement_scope = replacement_scope(incoming_actions)
+
+    {queued_actions, remaining_targets} =
+      existing_queue
+      |> :queue.to_list()
+      |> Enum.reduce({[], incoming_targets}, fn existing, {actions_acc, targets_acc} ->
+        target = action_target(existing)
+
+        cond do
+          MapSet.member?(targets_acc, target) ->
+            {[Map.fetch!(incoming_by_target, target) | actions_acc],
+             MapSet.delete(targets_acc, target)}
+
+          in_replacement_scope?(existing, replacement_scope) ->
+            {actions_acc, targets_acc}
+
+          true ->
+            {[existing | actions_acc], targets_acc}
+        end
+      end)
+
+    appended_actions =
+      Enum.filter(incoming_actions, fn action ->
+        MapSet.member?(remaining_targets, action_target(action))
+      end)
+
+    queued_actions
+    |> Enum.reverse()
+    |> Kernel.++(appended_actions)
+    |> Enum.reduce(:queue.new(), &:queue.in/2)
+  end
+
+  defp replacement_scope(actions) do
+    actions
+    |> Enum.map(&Map.get(&1, :trace_room_id))
+    |> Enum.reject(&is_nil/1)
+    |> MapSet.new()
+  end
+
+  defp in_replacement_scope?(action, replacement_scope) do
+    MapSet.size(replacement_scope) > 0 and
+      MapSet.member?(replacement_scope, Map.get(action, :trace_room_id))
+  end
+
+  defp action_target(action), do: {Map.get(action, :type), Map.get(action, :id)}
 
   defp ensure_timer(%{timer_ref: nil} = state) do
     ref = Process.send_after(self(), :tick, 0)
