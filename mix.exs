@@ -39,6 +39,7 @@ defmodule Hueworks.MixProject do
 
       # MQTT for Zigbee2MQTT
       {:tortoise, "~> 0.10"},
+      {:hap, "~> 0.6.0"},
       {:solarex, "~> 0.1.2"},
       {:tzdata, "~> 1.1"},
 

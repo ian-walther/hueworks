@@ -1,4 +1,4 @@
-# HomeKit Bridge Integration (Planned)
+# HomeKit Bridge Integration
 
 ## Goal
 Expose HueWorks lights and HueWorks scenes to Apple Home through a HomeKit bridge, while keeping HueWorks as the source of truth for scene behavior.
@@ -6,17 +6,12 @@ Expose HueWorks lights and HueWorks scenes to Apple Home through a HomeKit bridg
 ## Priority
 Near-term. This is likely a prerequisite for having a second person test the app in a realistic day-to-day control flow.
 
-## V1 Scope
-- Add a HomeKit bridge runtime component in HueWorks using the `hap` Elixir dependency as-is.
-- Expose eligible HueWorks-controlled lights as HomeKit `LightBulb` accessories.
-- Expose HueWorks scenes as virtual HomeKit `Switch` accessories.
-- Route HomeKit writes through the existing HueWorks control pipeline:
-  - desired state update
-  - planner
-  - executor
-- Reflect HueWorks physical-state and active-scene updates back into HomeKit so Apple Home stays in sync.
-- Restart only the HomeKit bridge child when exported topology changes.
-- Persist HomeKit pairing and bridge identity safely across HomeKit bridge restarts.
+## Remaining V1 Work
+- Validate pairing and daily control against Apple Home on real devices.
+- Add a HueWorks UI surface for HomeKit bridge status and pairing details instead of relying on console output.
+- Verify that the persistent HAP `data_path`, bridge identifier, setup ID, and pairing code preserve pairing across app restarts and HomeKit bridge child restarts.
+- Decide whether the first UI should include a manual "restart HomeKit bridge" action for debugging, even though normal topology changes restart automatically.
+- Confirm that enabling scene export with many scenes still feels usable in Apple Home.
 
 ## Out of Scope (V1)
 - Native Apple Home scene authoring as a primary workflow.
@@ -32,6 +27,8 @@ Near-term. This is likely a prerequisite for having a second person test the app
   - one active scene switch per room
   - when one scene activates, other scene switches in that room turn off
   - if no HueWorks scene is active for a room, all scene switches for that room are off
+- Scene export is controlled by one global HomeKit scene toggle.
+- Light/group export is opt-in per entity from the Lights page edit modal.
 
 ## Technical Direction
 - Use `hap` as a normal dependency rather than forking it up front.
@@ -43,52 +40,17 @@ Near-term. This is likely a prerequisite for having a second person test the app
 ## Accessory Mapping
 - Lights:
   - map controllable HueWorks lights to `LightBulb`
-  - include on/off in V1
-  - include brightness/temperature/color only if the mapping stays straightforward during implementation
+- Groups:
+  - map controllable HueWorks groups to `LightBulb`
+- Light/group V1:
+  - expose only on/off behavior
+  - keep the per-entity export mode shape expandable for future brightness/temperature/color support
 - Scenes:
-  - map each exported HueWorks scene to a virtual `Switch`
+  - map all HueWorks scenes to virtual `Switch` accessories when global scene export is enabled
   - switch `on` activates the scene
   - scene-switch state reflects HueWorks active-scene state rather than acting as an independent boolean
 
-## Implementation Areas
-- HomeKit bridge runtime module(s) under `lib/hueworks_app/` or a dedicated `lib/hueworks/homekit/` namespace.
-- Accessory graph builder:
-  - stable accessory selection
-  - stable ordering
-  - stable accessory ID mapping
-- HueWorks <-> HomeKit value-store layer for:
-  - light writes
-  - light reads
-  - scene switch activation
-  - async state notifications
-- HomeKit bridge child manager responsible for:
-  - startup
-  - topology hash comparison
-  - rebuild/restart when exported entities change
-- Config surface for:
-  - enable/disable HomeKit bridge
-  - pairing metadata path
-  - bridge display name / identity inputs if needed
-
-## Testing Plan
-- Unit:
-  - light characteristic <-> HueWorks command mapping
-  - scene switch activation mapping
-  - per-room active-scene switch exclusivity
-  - deterministic accessory ordering and stable ID mapping
-- Integration:
-  - HomeKit light write -> desired state -> planned actions
-  - HomeKit scene switch write -> HueWorks scene activation
-  - HueWorks physical-state updates reflected back to HomeKit
-  - active-scene changes reflected by turning off sibling scene switches in the same room
-  - HomeKit bridge child restart preserving pairing and bridge identity
-- Manual:
-  - pair from Apple Home
-  - verify second-device control without HueWorks UI access
-  - verify topology-change behavior after adding/removing exported entities
-
-## Open Questions
-- Should V1 expose groups in addition to lights, or keep the first pass lights-only plus scenes?
-- Which HueWorks scenes should be exported by default, and does the user need explicit per-scene export control?
-- Should brightness/temperature/color ship in the first pass, or should V1 deliberately target reliable on/off first?
-- What exact runtime events should trigger a HomeKit bridge child rebuild/restart?
+## Future Expansion
+- Add brightness, temperature, and color HomeKit characteristics for lights/groups after on/off pairing and restart behavior is proven.
+- Consider a reset-pairing workflow if testing shows stale HomeKit pairings are hard to recover from.
+- Consider per-scene export controls only if global scene export proves noisy in real use.

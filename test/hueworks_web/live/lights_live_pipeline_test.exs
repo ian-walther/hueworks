@@ -917,6 +917,76 @@ defmodule Hueworks.LightsLivePipelineTest do
     assert Repo.get!(Light, light.id).ha_export_mode == :light
   end
 
+  test "light edit modal saves HomeKit export mode", %{conn: conn} do
+    room = Repo.insert!(%Room{name: "Kitchen"})
+
+    bridge =
+      insert_bridge!(%{
+        name: "Hue Bridge",
+        type: :hue,
+        host: "192.168.1.90",
+        credentials: %{api_key: "test"}
+      })
+
+    light =
+      Repo.insert!(%Light{
+        name: "kitchen.task",
+        display_name: "Kitchen Task",
+        source: :hue,
+        source_id: "1",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        homekit_export_mode: :none
+      })
+
+    {:ok, view, _html} = live(conn, "/lights")
+
+    view
+    |> element("#light-#{light.id} button[aria-label='Edit light name']")
+    |> render_click()
+
+    view
+    |> element("form[phx-submit='save_edit_fields']")
+    |> render_submit(%{"homekit_export_mode" => "switch"})
+
+    assert Repo.get!(Light, light.id).homekit_export_mode == :switch
+  end
+
+  test "group edit modal saves HomeKit export mode", %{conn: conn} do
+    room = Repo.insert!(%Room{name: "Kitchen"})
+
+    bridge =
+      insert_bridge!(%{
+        name: "Hue Bridge",
+        type: :hue,
+        host: "192.168.1.90",
+        credentials: %{api_key: "test"}
+      })
+
+    group =
+      Repo.insert!(%Group{
+        name: "kitchen.group",
+        display_name: "Kitchen Group",
+        source: :hue,
+        source_id: "10",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        homekit_export_mode: :none
+      })
+
+    {:ok, view, _html} = live(conn, "/lights")
+
+    view
+    |> element("#group-#{group.id} button[aria-label='Edit group name']")
+    |> render_click()
+
+    view
+    |> element("form[phx-submit='save_edit_fields']")
+    |> render_submit(%{"homekit_export_mode" => "switch"})
+
+    assert Repo.get!(Group, group.id).homekit_export_mode == :switch
+  end
+
   test "show linked toggle reveals linked lights", %{conn: conn} do
     room = Repo.insert!(%Room{name: "Office"})
 

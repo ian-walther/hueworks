@@ -6,6 +6,7 @@ defmodule Hueworks.Groups do
   import Ecto.Query, only: [from: 2]
 
   alias Hueworks.HomeAssistant.Export, as: HomeAssistantExport
+  alias Hueworks.HomeKit
   alias Hueworks.Groups.Topology
   alias Hueworks.Util
   alias Hueworks.Schemas.Group
@@ -47,6 +48,7 @@ defmodule Hueworks.Groups do
     |> Repo.update()
     |> maybe_sync_room_lights(attrs)
     |> maybe_refresh_home_assistant_export()
+    |> maybe_reload_homekit()
   end
 
   def update_display_name(group, display_name) do
@@ -97,6 +99,13 @@ defmodule Hueworks.Groups do
   end
 
   defp maybe_refresh_home_assistant_export(result), do: result
+
+  defp maybe_reload_homekit({:ok, %Group{}} = result) do
+    HomeKit.reload()
+    result
+  end
+
+  defp maybe_reload_homekit(result), do: result
 
   defp maybe_filter_enabled(query, true), do: query
 

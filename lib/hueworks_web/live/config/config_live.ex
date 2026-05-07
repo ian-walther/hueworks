@@ -4,6 +4,7 @@ defmodule HueworksWeb.ConfigLive do
   alias Hueworks.AppSettings
   alias Hueworks.Bridges
   alias Hueworks.HomeAssistant.Export, as: HomeAssistantExport
+  alias Hueworks.HomeKit
   alias Hueworks.Repo
   alias Hueworks.Scenes
   alias Hueworks.Schemas.{Bridge, LightState}
@@ -26,11 +27,13 @@ defmodule HueworksWeb.ConfigLive do
        ha_export_room_selects_enabled: app_setting.ha_export_room_selects_enabled == true,
        ha_export_lights_enabled: app_setting.ha_export_lights_enabled == true,
        ha_export_mqtt_host: app_setting.ha_export_mqtt_host || "",
-      ha_export_mqtt_port: format_integer(app_setting.ha_export_mqtt_port || 1883),
-      ha_export_mqtt_username: app_setting.ha_export_mqtt_username || "",
-      ha_export_mqtt_password: "",
-      ha_export_discovery_prefix: app_setting.ha_export_discovery_prefix || "homeassistant"
-    )}
+       ha_export_mqtt_port: format_integer(app_setting.ha_export_mqtt_port || 1883),
+       ha_export_mqtt_username: app_setting.ha_export_mqtt_username || "",
+       ha_export_mqtt_password: "",
+       ha_export_discovery_prefix: app_setting.ha_export_discovery_prefix || "homeassistant",
+       homekit_scenes_enabled: app_setting.homekit_scenes_enabled == true,
+       homekit_bridge_name: app_setting.homekit_bridge_name || "HueWorks"
+     )}
   end
 
   def handle_event("noop", _params, socket) do
@@ -210,6 +213,50 @@ defmodule HueworksWeb.ConfigLive do
     HomeAssistantExport.refresh_all_scenes()
 
     {:noreply, put_notice(socket, :info, "Republished exported Home Assistant entities.")}
+  end
+
+  def handle_event("update_homekit", params, socket) do
+    {:noreply,
+     assign(socket,
+       homekit_scenes_enabled:
+         parse_boolean_param(
+           Map.get(params, "homekit_scenes_enabled", socket.assigns.homekit_scenes_enabled)
+         ),
+       homekit_bridge_name:
+         Map.get(params, "homekit_bridge_name", socket.assigns.homekit_bridge_name)
+     )}
+  end
+
+  def handle_event("save_homekit", params, socket) do
+    attrs = %{
+      homekit_scenes_enabled:
+        parse_boolean_param(
+          Map.get(params, "homekit_scenes_enabled", socket.assigns.homekit_scenes_enabled)
+        ),
+      homekit_bridge_name:
+        Map.get(params, "homekit_bridge_name", socket.assigns.homekit_bridge_name)
+    }
+
+    case AppSettings.upsert_global(attrs) do
+      {:ok, app_setting} ->
+        HomeKit.reload()
+
+        {:noreply,
+         socket
+         |> assign(
+           homekit_scenes_enabled: app_setting.homekit_scenes_enabled == true,
+           homekit_bridge_name: app_setting.homekit_bridge_name || "HueWorks"
+         )
+         |> put_notice(:info, "HomeKit bridge settings saved.")}
+
+      {:error, changeset} ->
+        message =
+          changeset.errors
+          |> Enum.map(fn {field, {text, _opts}} -> "#{field} #{text}" end)
+          |> Enum.join(", ")
+
+        {:noreply, put_notice(socket, :error, message)}
+    end
   end
 
   def handle_event(

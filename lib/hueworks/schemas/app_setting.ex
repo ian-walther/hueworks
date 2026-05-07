@@ -18,6 +18,8 @@ defmodule Hueworks.Schemas.AppSetting do
     field(:ha_export_mqtt_username, :string)
     field(:ha_export_mqtt_password, :string)
     field(:ha_export_discovery_prefix, :string, default: "homeassistant")
+    field(:homekit_scenes_enabled, :boolean, default: false)
+    field(:homekit_bridge_name, :string)
 
     timestamps()
   end
@@ -39,7 +41,9 @@ defmodule Hueworks.Schemas.AppSetting do
       :ha_export_mqtt_port,
       :ha_export_mqtt_username,
       :ha_export_mqtt_password,
-      :ha_export_discovery_prefix
+      :ha_export_discovery_prefix,
+      :homekit_scenes_enabled,
+      :homekit_bridge_name
     ])
     |> validate_required([:scope])
     |> validate_inclusion(:scope, ["global"])
@@ -54,6 +58,7 @@ defmodule Hueworks.Schemas.AppSetting do
     |> validate_length(:ha_export_mqtt_username, max: 255)
     |> validate_length(:ha_export_mqtt_password, max: 255)
     |> validate_length(:ha_export_discovery_prefix, min: 1, max: 255)
+    |> validate_length(:homekit_bridge_name, max: 64)
     |> validate_ha_export_requirements()
     |> unique_constraint(:scope)
   end

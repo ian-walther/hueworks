@@ -13,6 +13,12 @@ if is_binary(credentials_root) and String.trim(credentials_root) != "" do
   config :hueworks, :credentials_root, String.trim(credentials_root)
 end
 
+homekit_data_path = System.get_env("HOMEKIT_DATA_PATH")
+
+if is_binary(homekit_data_path) and String.trim(homekit_data_path) != "" do
+  config :hueworks, :homekit_data_path, String.trim(homekit_data_path)
+end
+
 # Runtime configuration (can read from environment variables)
 if config_env() == :prod do
   if System.get_env("PHX_SERVER") do

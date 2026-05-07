@@ -7,7 +7,17 @@ defmodule HueworksWeb.ConfigLiveTest do
   alias Hueworks.HomeAssistant.Export
   alias Hueworks.Repo
   alias Hueworks.Scenes
-  alias Hueworks.Schemas.{AppSetting, Bridge, Group, Light, LightState, PicoDevice, Room, SceneComponent}
+
+  alias Hueworks.Schemas.{
+    AppSetting,
+    Bridge,
+    Group,
+    Light,
+    LightState,
+    PicoDevice,
+    Room,
+    SceneComponent
+  }
 
   setup do
     original_tortoise = Application.get_env(:hueworks, :ha_export_tortoise_module)
@@ -162,6 +172,37 @@ defmodule HueworksWeb.ConfigLiveTest do
     assert settings.ha_export_mqtt_username == "ha_user"
     assert settings.ha_export_mqtt_password == "secret"
     assert settings.ha_export_discovery_prefix == "homeassistant"
+  end
+
+  test "shows homekit bridge settings form and saves values", %{conn: conn} do
+    Repo.insert!(%AppSetting{
+      scope: "global",
+      latitude: 40.7128,
+      longitude: -74.0060,
+      timezone: "America/New_York",
+      default_transition_ms: 0,
+      scale_transition_by_brightness: false
+    })
+
+    HueworksApp.Cache.flush_namespace(:app_settings)
+
+    {:ok, view, html} = live(conn, "/config")
+
+    assert html =~ "HomeKit Bridge"
+    assert html =~ "Save HomeKit Bridge"
+
+    view
+    |> form("form[phx-submit='save_homekit']", %{
+      "homekit_bridge_name" => "HueWorks Test",
+      "homekit_scenes_enabled" => "true"
+    })
+    |> render_submit()
+
+    assert render(view) =~ "HomeKit bridge settings saved."
+
+    settings = AppSettings.get_global()
+    assert settings.homekit_bridge_name == "HueWorks Test"
+    assert settings.homekit_scenes_enabled == true
   end
 
   test "shows a validation error for invalid HA export input", %{conn: conn} do

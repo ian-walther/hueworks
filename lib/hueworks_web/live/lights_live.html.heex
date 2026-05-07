@@ -464,6 +464,13 @@
           <option value="switch" selected={@edit_ha_export_mode == "switch"}>Switch</option>
           <option value="light" selected={@edit_ha_export_mode == "light"}>Light</option>
         </select>
+        <label class="hw-modal-label" for="homekit_export_mode">HomeKit Export Mode</label>
+        <select id="homekit_export_mode" name="homekit_export_mode" class="hw-select">
+          <option value="none" selected={@edit_homekit_export_mode == "none"}>None</option>
+          <option value="switch" selected={@edit_homekit_export_mode == "switch"}>
+            On/Off Switch
+          </option>
+        </select>
         <%= if @edit_mapping_supported do %>
           <label class="hw-checkbox hw-modal-checkbox">
             <input
