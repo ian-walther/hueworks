@@ -1,7 +1,7 @@
 defmodule Hueworks.Subscription.HueEventStream.MapperTest do
   use Hueworks.DataCase, async: false
 
-  alias Hueworks.Control.State
+  alias Hueworks.Control.{DesiredState, State}
   alias Hueworks.Repo
   alias Hueworks.Schemas.{Group, GroupLight, Light, Room}
   alias Hueworks.Subscription.HueEventStream.Mapper
@@ -160,6 +160,95 @@ defmodule Hueworks.Subscription.HueEventStream.MapperTest do
     assert State.get(:light, light_a.id) == %{power: :on, brightness: 85, kelvin: 2062}
     assert State.get(:light, light_b.id) == %{power: :on, brightness: 85, kelvin: 2062}
     assert State.get(:group, child.id) == %{power: :on, brightness: 85, kelvin: 2062}
+  end
+
+  test "grouped_light aggregate on does not mark every member light on" do
+    room = Repo.insert!(%Room{name: "Master Bedroom"})
+
+    bridge =
+      insert_bridge!(%{
+        type: :hue,
+        name: "Hue",
+        host: "10.0.0.44",
+        credentials: %{"api_key" => "key"},
+        enabled: true
+      })
+
+    bedroom_light =
+      Repo.insert!(%Light{
+        name: "Bedroom Lamp",
+        source: :hue,
+        source_id: "11",
+        bridge_id: bridge.id,
+        room_id: room.id
+      })
+
+    sitting_light =
+      Repo.insert!(%Light{
+        name: "Sitting Area Lamp",
+        source: :hue,
+        source_id: "12",
+        bridge_id: bridge.id,
+        room_id: room.id
+      })
+
+    parent =
+      Repo.insert!(%Group{
+        name: "Master Bedroom",
+        source: :hue,
+        source_id: "21",
+        bridge_id: bridge.id,
+        room_id: room.id
+      })
+
+    sitting_area =
+      Repo.insert!(%Group{
+        name: "Master Bedroom Sitting Area",
+        source: :hue,
+        source_id: "22",
+        bridge_id: bridge.id,
+        room_id: room.id
+      })
+
+    Repo.insert!(%GroupLight{group_id: parent.id, light_id: bedroom_light.id})
+    Repo.insert!(%GroupLight{group_id: parent.id, light_id: sitting_light.id})
+    Repo.insert!(%GroupLight{group_id: sitting_area.id, light_id: sitting_light.id})
+
+    _ = State.put(:light, bedroom_light.id, %{power: :on})
+    _ = State.put(:light, sitting_light.id, %{power: :on})
+    _ = DesiredState.put(:light, bedroom_light.id, %{power: :on})
+    _ = DesiredState.put(:light, sitting_light.id, %{power: :off})
+
+    state = %{
+      lights_by_id: %{},
+      groups_by_id: %{
+        parent.source_id => %{id: parent.id},
+        sitting_area.source_id => %{id: sitting_area.id}
+      },
+      group_light_ids: %{
+        bedroom_light.id => [parent.id],
+        sitting_light.id => [parent.id, sitting_area.id]
+      },
+      group_lights: %{
+        parent.id => [bedroom_light.id, sitting_light.id],
+        sitting_area.id => [sitting_light.id]
+      }
+    }
+
+    Mapper.handle_resource(
+      %{
+        "type" => "grouped_light",
+        "id_v1" => "/groups/#{parent.source_id}",
+        "on" => %{"on" => true},
+        "dimming" => %{"brightness" => 60.0}
+      },
+      state
+    )
+
+    assert State.get(:group, parent.id) == %{power: :on, brightness: 60}
+    assert State.get(:light, bedroom_light.id).power == :on
+    assert State.get(:light, sitting_light.id).power == :off
+    assert State.get(:group, sitting_area.id) == %{power: :off}
   end
 
   test "grouped_light owner fallback resolves group id and fans out to members" do

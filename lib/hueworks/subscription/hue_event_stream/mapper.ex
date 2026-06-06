@@ -3,7 +3,7 @@ defmodule Hueworks.Subscription.HueEventStream.Mapper do
 
   import Ecto.Query, only: [from: 2]
 
-  alias Hueworks.Control.State
+  alias Hueworks.Control.{DesiredState, State}
   alias Hueworks.Control.StateParser
   alias Hueworks.Schemas.Group
   alias Hueworks.Schemas.GroupLight
@@ -119,7 +119,7 @@ defmodule Hueworks.Subscription.HueEventStream.Mapper do
       light_ids = Map.get(state.group_lights, group_id, [])
 
       Enum.each(light_ids, fn light_id ->
-        State.put(:light, light_id, attrs)
+        State.put(:light, light_id, member_attrs_from_group(attrs, light_id))
       end)
 
       refresh_groups_for_lights(state, light_ids)
@@ -162,10 +162,16 @@ defmodule Hueworks.Subscription.HueEventStream.Mapper do
         _ -> false
       end)
 
+    off_states =
+      Enum.filter(states, fn
+        %{power: power} when power in [:off, "off", false] -> true
+        _ -> false
+      end)
+
     base =
       cond do
         on_states != [] -> %{power: :on}
-        states != [] and length(states) == length(member_ids) -> %{power: :off}
+        length(off_states) == length(member_ids) -> %{power: :off}
         true -> %{}
       end
 
@@ -176,6 +182,36 @@ defmodule Hueworks.Subscription.HueEventStream.Mapper do
   end
 
   defp derive_group_state(_member_ids), do: %{}
+
+  defp member_attrs_from_group(%{power: :on} = attrs, light_id) do
+    cond do
+      explicit_power?(DesiredState.get(:light, light_id), :on) ->
+        attrs
+
+      explicit_power?(DesiredState.get(:light, light_id), :off) ->
+        Map.put(attrs, :power, :off)
+
+      explicit_power?(State.get(:light, light_id), :off) ->
+        Map.delete(attrs, :power)
+
+      true ->
+        attrs
+    end
+  end
+
+  defp member_attrs_from_group(attrs, _light_id), do: attrs
+
+  defp explicit_power?(state, expected_power) when expected_power in [:on, :off] do
+    case state do
+      %{power: power} -> normalize_power(power) == expected_power
+      %{"power" => power} -> normalize_power(power) == expected_power
+      _ -> false
+    end
+  end
+
+  defp normalize_power(power) when power in [:on, "on", "ON", true], do: :on
+  defp normalize_power(power) when power in [:off, "off", "OFF", false], do: :off
+  defp normalize_power(_power), do: nil
 
   defp maybe_put_group_brightness(group_state, on_states) do
     on_states
