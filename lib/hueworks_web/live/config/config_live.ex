@@ -4,6 +4,8 @@ defmodule HueworksWeb.ConfigLive do
   alias Hueworks.AppSettings
   alias Hueworks.Bridges
   alias Hueworks.HomeAssistant.Export, as: HomeAssistantExport
+  alias Hueworks.HomeKit
+  alias Hueworks.HomeKit.Config, as: HomeKitBridgeConfig
   alias Hueworks.Repo
   alias Hueworks.Scenes
   alias Hueworks.Schemas.{Bridge, LightState}
@@ -31,7 +33,8 @@ defmodule HueworksWeb.ConfigLive do
        ha_export_mqtt_password: "",
        ha_export_discovery_prefix: app_setting.ha_export_discovery_prefix || "homeassistant",
        homekit_scenes_enabled: app_setting.homekit_scenes_enabled == true,
-       homekit_bridge_name: app_setting.homekit_bridge_name || "HueWorks"
+       homekit_bridge_name: app_setting.homekit_bridge_name || "HueWorks",
+       homekit_pairing_code: homekit_pairing_code(app_setting)
      )}
   end
 
@@ -238,11 +241,14 @@ defmodule HueworksWeb.ConfigLive do
 
     case AppSettings.upsert_global(attrs) do
       {:ok, app_setting} ->
+        HomeKit.reload()
+
         {:noreply,
          socket
          |> assign(
            homekit_scenes_enabled: app_setting.homekit_scenes_enabled == true,
-           homekit_bridge_name: app_setting.homekit_bridge_name || "HueWorks"
+           homekit_bridge_name: app_setting.homekit_bridge_name || "HueWorks",
+           homekit_pairing_code: homekit_pairing_code(app_setting)
          )
          |> put_notice(:info, "HomeKit bridge settings saved.")}
 
@@ -352,6 +358,12 @@ defmodule HueworksWeb.ConfigLive do
 
   defp list_light_states do
     Scenes.list_editable_light_states_with_usage()
+  end
+
+  defp homekit_pairing_code(app_setting) do
+    app_setting
+    |> HomeKitBridgeConfig.from_settings()
+    |> Map.fetch!(:pairing_code)
   end
 
   defp format_coord(nil), do: ""

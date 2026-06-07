@@ -1,0 +1,4 @@
+services:
+  hueworks:
+    network_mode: host
+    ports: !reset []

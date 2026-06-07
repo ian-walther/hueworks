@@ -13,6 +13,8 @@ services:
       DATABASE_PATH: /data/hueworks.db
       POOL_SIZE: ${POOL_SIZE:-5}
       ADVANCED_DEBUG_LOGGING: ${ADVANCED_DEBUG_LOGGING:-false}
+      HOMEKIT_RUNTIME_ENABLED: ${HOMEKIT_RUNTIME_ENABLED:-false}
+      HOMEKIT_DATA_PATH: ${HOMEKIT_DATA_PATH:-/data/homekit}
       BRIDGE_SECRETS_PATH: /run/hueworks/secrets.json
       CREDENTIALS_ROOT: /credentials
     volumes:

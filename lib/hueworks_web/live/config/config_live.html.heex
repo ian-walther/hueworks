@@ -221,6 +221,14 @@
       Expose HueWorks scenes and opt-in lights/groups to Apple Home through a local HomeKit bridge.
     </p>
 
+    <div class="hw-form">
+      <label class="hw-modal-label" for="homekit_pairing_code">Apple Home Setup Code</label>
+      <code id="homekit_pairing_code" class="hw-modal-input"><%= @homekit_pairing_code %></code>
+      <p class="hw-muted">
+        Use this code when Apple Home asks to add the HueWorks bridge manually.
+      </p>
+    </div>
+
     <form class="hw-form" phx-change="update_homekit" phx-submit="save_homekit">
       <label class="hw-modal-label" for="homekit_bridge_name">Bridge Name</label>
       <input

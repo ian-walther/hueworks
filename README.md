@@ -166,7 +166,15 @@ What startup does:
 Persistent data:
 
 - SQLite database: `./data`
+- HomeKit pairing data: `./data/homekit` by default, override with `HOMEKIT_DATA_PATH`
 - uploaded credentials: `./credentials`
+
+HomeKit runtime:
+
+- Docker defaults `HOMEKIT_RUNTIME_ENABLED=false` so schema/config changes can be deployed before starting the HAP server.
+- Set `HOMEKIT_RUNTIME_ENABLED=true` when you are ready to expose the bridge and pair with Apple Home.
+- The Apple Home setup code is shown on the Config page in the HomeKit Bridge section.
+- For production HomeKit pairing from Docker on Linux, set `COMPOSE_FILE=docker-compose.yml:docker-compose.homekit.yml` so the HAP server's mDNS advertisement and dynamically chosen TCP port are reachable on the LAN through host networking.
 
 Useful commands:
 

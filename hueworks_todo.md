@@ -6,13 +6,12 @@ Forward-looking backlog only. Completed work has been removed.
 
 ### 1) HomeKit bridge integration
 Reference: `planning/homekit-bridge.md`
-- [ ] Add a HomeKit bridge endpoint using the `hap` dependency as-is.
-- [ ] Expose HueWorks-controlled lights as HomeKit accessories for second-device testing.
-- [ ] Expose HueWorks scenes as virtual HomeKit switches with per-room active-scene exclusivity.
-- [ ] Map HomeKit writes to HueWorks desired-state -> planner/executor flow.
-- [ ] Mirror physical-state and active-scene updates back to HomeKit.
-- [ ] Add stable bridge identity/pairing persistence and HAP-child restart handling for topology changes.
-- [ ] Add integration and manual verification coverage for pairing, light control, and scene-switch behavior.
+- [ ] Decide deployment shape: one HomeKit rollout vs a staged migration/config-UI rollout followed by runtime enablement.
+- [ ] Verify rollback safety for the new nullable/defaulted HomeKit schema fields before production rollout.
+- [ ] Validate pairing, light/group toggles, scene switches, and bridge child restarts against Apple Home on real devices.
+- [ ] Add a HueWorks UI surface for HomeKit bridge status and pairing details instead of relying on console output.
+- [ ] Decide whether the first UI should include a manual "restart HomeKit bridge" action for debugging.
+- [ ] Confirm that exposing all scenes through the global scene toggle is usable in Apple Home with production scene volume.
 
 ### 2) Reimport and idempotency polish
 Reference: `planning/import-resync.md`

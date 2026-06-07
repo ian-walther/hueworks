@@ -7,10 +7,29 @@ advanced_debug_logging =
 
 config :hueworks, :advanced_debug_logging, advanced_debug_logging
 
+homekit_runtime_enabled =
+  case System.get_env("HOMEKIT_RUNTIME_ENABLED") do
+    nil ->
+      Application.get_env(:hueworks, :homekit_runtime_enabled, true)
+
+    value ->
+      value
+      |> String.downcase()
+      |> then(&(&1 in ["1", "true", "yes", "on"]))
+  end
+
+config :hueworks, :homekit_runtime_enabled, homekit_runtime_enabled
+
 credentials_root = System.get_env("CREDENTIALS_ROOT")
 
 if is_binary(credentials_root) and String.trim(credentials_root) != "" do
   config :hueworks, :credentials_root, String.trim(credentials_root)
+end
+
+homekit_data_path = System.get_env("HOMEKIT_DATA_PATH")
+
+if is_binary(homekit_data_path) and String.trim(homekit_data_path) != "" do
+  config :hueworks, :homekit_data_path, String.trim(homekit_data_path)
 end
 
 # Runtime configuration (can read from environment variables)

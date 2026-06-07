@@ -189,6 +189,8 @@ defmodule HueworksWeb.ConfigLiveTest do
     {:ok, view, html} = live(conn, "/config")
 
     assert html =~ "HomeKit Bridge"
+    assert html =~ "Apple Home Setup Code"
+    assert html =~ ~r/\d{3}-\d{2}-\d{3}/
     assert html =~ "Save HomeKit Bridge"
 
     view

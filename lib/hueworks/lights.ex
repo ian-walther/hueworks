@@ -6,6 +6,7 @@ defmodule Hueworks.Lights do
   import Ecto.Query, only: [from: 2]
 
   alias Hueworks.HomeAssistant.Export, as: HomeAssistantExport
+  alias Hueworks.HomeKit
   alias Hueworks.Kelvin
   alias Hueworks.Util
   alias Hueworks.Schemas.Group
@@ -55,6 +56,7 @@ defmodule Hueworks.Lights do
          |> Repo.update() do
       {:ok, updated} ->
         HomeAssistantExport.refresh_light(updated.id)
+        HomeKit.reload()
         {:ok, updated}
 
       other ->

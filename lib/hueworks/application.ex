@@ -21,6 +21,7 @@ defmodule Hueworks.Application do
         Hueworks.Subscription.CasetaEventStream,
         Hueworks.Subscription.Z2MEventStream,
         maybe_home_assistant_export(),
+        maybe_homekit_bridge(),
         HueworksWeb.Endpoint
         # Exploration modules will be started manually in iex for now
         # {Hueworks.Exploration.PicoHueSlice, []},
@@ -48,6 +49,14 @@ defmodule Hueworks.Application do
   defp maybe_home_assistant_export do
     if Application.get_env(:hueworks, :ha_export_runtime_enabled, true) do
       Hueworks.HomeAssistant.Export
+    else
+      nil
+    end
+  end
+
+  defp maybe_homekit_bridge do
+    if Application.get_env(:hueworks, :homekit_runtime_enabled, true) do
+      Hueworks.HomeKit.Bridge
     else
       nil
     end

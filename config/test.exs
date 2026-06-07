@@ -16,3 +16,4 @@ config :hueworks, :control_executor_enabled, false
 config :hueworks, :circadian_poll_enabled, false
 config :hueworks, :circadian_poll_interval_ms, 60_000
 config :hueworks, :ha_export_runtime_enabled, false
+config :hueworks, :homekit_runtime_enabled, false

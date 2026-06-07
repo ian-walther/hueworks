@@ -2,6 +2,7 @@ defmodule Hueworks.Scenes.Persistence do
   @moduledoc false
 
   alias Hueworks.HomeAssistant.Export, as: HomeAssistantExport
+  alias Hueworks.HomeKit
   alias Hueworks.Repo
   alias Hueworks.Schemas.Scene
 
@@ -32,6 +33,8 @@ defmodule Hueworks.Scenes.Persistence do
     scene.room_id
     |> HomeAssistantExport.refresh_room()
 
+    HomeKit.reload()
+
     {:ok, scene}
   end
 
@@ -44,6 +47,8 @@ defmodule Hueworks.Scenes.Persistence do
     scene.room_id
     |> HomeAssistantExport.refresh_room()
 
+    HomeKit.reload()
+
     {:ok, scene}
   end
 
@@ -55,6 +60,8 @@ defmodule Hueworks.Scenes.Persistence do
 
     scene.room_id
     |> HomeAssistantExport.refresh_room()
+
+    HomeKit.reload()
 
     {:ok, scene}
   end

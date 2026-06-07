@@ -49,6 +49,8 @@ RUN chmod +x /app/bin/docker-start
 
 ENV PHX_SERVER=true \
     DATABASE_PATH=/data/hueworks.db \
+    HOMEKIT_RUNTIME_ENABLED=false \
+    HOMEKIT_DATA_PATH=/data/homekit \
     HOME=/app
 
 EXPOSE 4000
