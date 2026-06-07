@@ -6,6 +6,7 @@ defmodule Hueworks.AppSettings do
   import Ecto.Changeset
 
   alias Hueworks.AppSettings.HaExportConfig
+  alias Hueworks.AppSettings.HomeKitConfig
   alias Hueworks.AppSettings.SolarConfig
   alias Hueworks.Repo
   alias Hueworks.Schemas.AppSetting
@@ -74,7 +75,9 @@ defmodule Hueworks.AppSettings do
       ha_export_mqtt_port: app_setting.ha_export_mqtt_port || 1883,
       ha_export_mqtt_username: app_setting.ha_export_mqtt_username,
       ha_export_mqtt_password: app_setting.ha_export_mqtt_password,
-      ha_export_discovery_prefix: app_setting.ha_export_discovery_prefix || "homeassistant"
+      ha_export_discovery_prefix: app_setting.ha_export_discovery_prefix || "homeassistant",
+      homekit_scenes_enabled: app_setting.homekit_scenes_enabled == true,
+      homekit_bridge_name: app_setting.homekit_bridge_name || HomeKitConfig.default_bridge_name()
     }
   end
 
@@ -88,12 +91,20 @@ defmodule Hueworks.AppSettings do
   defp fallback_setting do
     solar = SolarConfig.fallback_attrs()
     ha = HaExportConfig.fallback_attrs()
+    homekit = HomeKitConfig.fallback_attrs()
 
-    struct(AppSetting, Map.merge(solar, ha) |> Map.put(:scope, @global_scope))
+    struct(
+      AppSetting,
+      solar |> Map.merge(ha) |> Map.merge(homekit) |> Map.put(:scope, @global_scope)
+    )
   end
 
   defp normalize_updates(attrs) do
-    [SolarConfig.normalize(attrs), HaExportConfig.normalize(attrs)]
+    [
+      SolarConfig.normalize(attrs),
+      HaExportConfig.normalize(attrs),
+      HomeKitConfig.normalize(attrs)
+    ]
     |> Enum.reduce({%{}, []}, fn
       {:ok, update}, {acc, errors} ->
         {Map.merge(acc, update), errors}
@@ -159,7 +170,9 @@ defmodule Hueworks.AppSettings do
       ha_export_mqtt_port: s.ha_export_mqtt_port || 1883,
       ha_export_mqtt_username: s.ha_export_mqtt_username,
       ha_export_mqtt_password: s.ha_export_mqtt_password,
-      ha_export_discovery_prefix: s.ha_export_discovery_prefix || "homeassistant"
+      ha_export_discovery_prefix: s.ha_export_discovery_prefix || "homeassistant",
+      homekit_scenes_enabled: s.homekit_scenes_enabled == true,
+      homekit_bridge_name: s.homekit_bridge_name || HomeKitConfig.default_bridge_name()
     }
   end
 end

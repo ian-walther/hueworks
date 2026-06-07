@@ -24,6 +24,7 @@ defmodule HueworksWeb.LightsLive.Editor do
       edit_reported_max_kelvin: "",
       edit_enabled: true,
       edit_ha_export_mode: "none",
+      edit_homekit_export_mode: "none",
       edit_mapping_supported: false,
       edit_extended_kelvin_range: false
     }
@@ -50,6 +51,7 @@ defmodule HueworksWeb.LightsLive.Editor do
          edit_reported_max_kelvin: Util.format_integer(target.reported_max_kelvin),
          edit_enabled: target.enabled,
          edit_ha_export_mode: Atom.to_string(target.ha_export_mode || :none),
+         edit_homekit_export_mode: Atom.to_string(target.homekit_export_mode || :none),
          edit_mapping_supported: Hueworks.Kelvin.mapping_supported?(target),
          edit_extended_kelvin_range: target.extended_kelvin_range
        })}
@@ -73,6 +75,10 @@ defmodule HueworksWeb.LightsLive.Editor do
       edit_enabled: Util.parse_optional_bool(Map.get(params, "enabled", assigns.edit_enabled)),
       edit_ha_export_mode:
         normalize_ha_export_mode(Map.get(params, "ha_export_mode", assigns.edit_ha_export_mode)),
+      edit_homekit_export_mode:
+        normalize_homekit_export_mode(
+          Map.get(params, "homekit_export_mode", assigns.edit_homekit_export_mode)
+        ),
       edit_extended_kelvin_range:
         Util.parse_optional_bool(
           Map.get(params, "extended_kelvin_range", assigns.edit_extended_kelvin_range)
@@ -123,6 +129,7 @@ defmodule HueworksWeb.LightsLive.Editor do
       extended_min_kelvin: Util.parse_optional_integer(Map.get(params, "extended_min_kelvin")),
       extended_kelvin_range: Util.parse_optional_bool(Map.get(params, "extended_kelvin_range")),
       ha_export_mode: normalize_ha_export_mode(Map.get(params, "ha_export_mode")),
+      homekit_export_mode: normalize_homekit_export_mode(Map.get(params, "homekit_export_mode")),
       enabled: Util.parse_optional_bool(Map.get(params, "enabled"))
     ]
     |> Enum.reject(fn
@@ -140,4 +147,11 @@ defmodule HueworksWeb.LightsLive.Editor do
     do: Atom.to_string(value)
 
   defp normalize_ha_export_mode(_value), do: "none"
+
+  defp normalize_homekit_export_mode(value) when value in ["none", "switch"], do: value
+
+  defp normalize_homekit_export_mode(value) when value in [:none, :switch],
+    do: Atom.to_string(value)
+
+  defp normalize_homekit_export_mode(_value), do: "none"
 end

@@ -214,6 +214,46 @@
 
   <section class="hw-panel">
     <div class="hw-panel-header">
+      <h2>HomeKit Bridge</h2>
+    </div>
+
+    <p class="hw-muted">
+      Expose HueWorks scenes and opt-in lights/groups to Apple Home through a local HomeKit bridge.
+    </p>
+
+    <form class="hw-form" phx-change="update_homekit" phx-submit="save_homekit">
+      <label class="hw-modal-label" for="homekit_bridge_name">Bridge Name</label>
+      <input
+        id="homekit_bridge_name"
+        name="homekit_bridge_name"
+        type="text"
+        value={@homekit_bridge_name}
+        class="hw-modal-input"
+        placeholder="HueWorks"
+        autocomplete="off"
+      />
+
+      <label class="hw-modal-label" for="homekit_scenes_enabled">Expose Scenes</label>
+      <input type="hidden" name="homekit_scenes_enabled" value="false" />
+      <label class="hw-toggle">
+        <input
+          id="homekit_scenes_enabled"
+          name="homekit_scenes_enabled"
+          type="checkbox"
+          value="true"
+          checked={@homekit_scenes_enabled}
+        />
+        <span>Expose all HueWorks scenes as HomeKit switch controls.</span>
+      </label>
+
+      <div class="hw-modal-actions">
+        <button type="submit" class="hw-button hw-button-on">Save HomeKit Bridge</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="hw-panel">
+    <div class="hw-panel-header">
       <h2>Light State Configs</h2>
       <span class="hw-count"><%= length(@light_states) %></span>
     </div>
