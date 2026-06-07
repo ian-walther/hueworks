@@ -174,7 +174,7 @@ HomeKit runtime:
 - Docker defaults `HOMEKIT_RUNTIME_ENABLED=false` so schema/config changes can be deployed before starting the HAP server.
 - Set `HOMEKIT_RUNTIME_ENABLED=true` when you are ready to expose the bridge and pair with Apple Home.
 - The Apple Home setup code is shown on the Config page in the HomeKit Bridge section.
-- Light/group HomeKit export can expose entities as on/off switches or dimmable lights.
+- Light/group HomeKit export can expose entities as on/off switches or dimmable lights. On/off control is the reliable path today; brightness is available for testing but can be laggy or intermittently miss commands.
 - For production HomeKit pairing from Docker on Linux, set `COMPOSE_FILE=docker-compose.yml:docker-compose.homekit.yml` so the HAP server's mDNS advertisement and dynamically chosen TCP port are reachable on the LAN through host networking.
 
 Useful commands:

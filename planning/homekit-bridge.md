@@ -8,6 +8,7 @@ Near-term. This is likely a prerequisite for having a second person test the app
 
 ## Remaining V1 Work
 - Validate pairing and daily control against Apple Home on real devices.
+- Stabilize HomeKit brightness writes before treating dimmable light export as public-ready; on/off control is the primary reliable V1 behavior.
 - Add a HueWorks UI surface for HomeKit bridge runtime status and health instead of relying on logs.
 - Decide whether the first UI should include a manual "restart HomeKit bridge" action for debugging, even though normal topology changes restart automatically.
 - Confirm that enabling scene export with many scenes still feels usable in Apple Home.
@@ -45,7 +46,8 @@ Near-term. This is likely a prerequisite for having a second person test the app
   - map controllable HueWorks groups to `LightBulb`
 - Light/group V1:
   - expose on/off behavior for `switch` export mode
-  - expose on/off plus brightness for `light` export mode
+  - expose on/off plus experimental brightness for `light` export mode
+  - treat brightness as a testable capability, not the primary supported control path, until lag and intermittent missed commands are resolved
   - keep the per-entity export mode shape expandable for future temperature/color support
 - Scenes:
   - map all HueWorks scenes to virtual `Switch` accessories when global scene export is enabled

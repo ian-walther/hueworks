@@ -6,7 +6,8 @@ Forward-looking backlog only. Completed work has been removed.
 
 ### 1) HomeKit bridge integration
 Reference: `planning/homekit-bridge.md`
-- [ ] Validate light/group toggles, light brightness, scene switches, and bridge child restarts against Apple Home on real devices.
+- [ ] Validate light/group on/off toggles, scene switches, and bridge child restarts against Apple Home on real devices.
+- [ ] Stabilize HomeKit brightness writes before treating dimmable light export as public-ready.
 - [ ] Add a HueWorks UI surface for HomeKit bridge runtime status and health instead of relying on logs.
 - [ ] Decide whether the first UI should include a manual "restart HomeKit bridge" action for debugging.
 - [ ] Confirm that exposing all scenes through the global scene toggle is usable in Apple Home with production scene volume.
