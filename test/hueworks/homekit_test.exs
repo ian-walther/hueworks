@@ -363,6 +363,46 @@ defmodule Hueworks.HomeKitTest do
     refute_receive {:hap_started, _names}
   end
 
+  test "bridge restarts HAP child when pair setup is stuck mid-flow" do
+    original_hap_module = Application.get_env(:hueworks, :homekit_hap_module)
+    original_pair_setup_module = Application.get_env(:hueworks, :homekit_pair_setup_module)
+    original_timeout = Application.get_env(:hueworks, :homekit_pairing_timeout_ms)
+    original_interval = Application.get_env(:hueworks, :homekit_pairing_watchdog_interval_ms)
+    original_sink = Application.get_env(:hueworks, :homekit_test_sink)
+
+    Application.put_env(:hueworks, :homekit_hap_module, __MODULE__.HAPStub)
+    Application.put_env(:hueworks, :homekit_pair_setup_module, __MODULE__.PairSetupStuckStub)
+    Application.put_env(:hueworks, :homekit_pairing_timeout_ms, 0)
+    Application.put_env(:hueworks, :homekit_pairing_watchdog_interval_ms, 10)
+    Application.put_env(:hueworks, :homekit_test_sink, self())
+
+    on_exit(fn ->
+      restore_app_env(:hueworks, :homekit_hap_module, original_hap_module)
+      restore_app_env(:hueworks, :homekit_pair_setup_module, original_pair_setup_module)
+      restore_app_env(:hueworks, :homekit_pairing_timeout_ms, original_timeout)
+      restore_app_env(:hueworks, :homekit_pairing_watchdog_interval_ms, original_interval)
+      restore_app_env(:hueworks, :homekit_test_sink, original_sink)
+    end)
+
+    room = Repo.insert!(%Room{name: "Kitchen"})
+    bridge = insert_bridge!()
+
+    Repo.insert!(%Light{
+      name: "kitchen.task",
+      display_name: "Kitchen Task",
+      source: :hue,
+      source_id: "1",
+      bridge_id: bridge.id,
+      room_id: room.id,
+      homekit_export_mode: :switch
+    })
+
+    start_supervised!({HomeKitBridge, []})
+
+    assert_receive {:hap_started, ["Kitchen Task"]}
+    assert_receive {:hap_started, ["Kitchen Task"]}, 200
+  end
+
   defp insert_bridge! do
     Repo.insert!(%Bridge{
       name: "Hue Bridge",
@@ -397,5 +437,9 @@ defmodule Hueworks.HomeKitTest do
 
       Supervisor.start_link([], strategy: :one_for_one)
     end
+  end
+
+  defmodule PairSetupStuckStub do
+    def state, do: %{step: 3}
   end
 end

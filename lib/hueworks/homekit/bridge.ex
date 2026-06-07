@@ -9,6 +9,9 @@ defmodule Hueworks.HomeKit.Bridge do
   alias Phoenix.PubSub
 
   @control_topic "control_state"
+  @idle_pair_setup_step 1
+  @default_pairing_timeout_ms 30_000
+  @default_pairing_watchdog_interval_ms 5_000
 
   def start_link(_opts \\ []) do
     GenServer.start_link(__MODULE__, %{}, name: __MODULE__)
@@ -31,8 +34,10 @@ defmodule Hueworks.HomeKit.Bridge do
   def init(_opts) do
     PubSub.subscribe(Hueworks.PubSub, @control_topic)
     PubSub.subscribe(Hueworks.PubSub, ActiveScenes.topic())
+    schedule_pairing_watchdog()
 
-    {:ok, %{hap_pid: nil, topology_hash: nil, change_tokens: %{}}, {:continue, :reload}}
+    {:ok, %{hap_pid: nil, topology_hash: nil, change_tokens: %{}, pairing_busy_since_ms: nil},
+     {:continue, :reload}}
   end
 
   @impl true
@@ -68,6 +73,11 @@ defmodule Hueworks.HomeKit.Bridge do
     {:noreply, state}
   end
 
+  def handle_info(:pairing_watchdog, state) do
+    schedule_pairing_watchdog()
+    {:noreply, maybe_restart_stuck_pairing(state)}
+  end
+
   def handle_info(_message, state), do: {:noreply, state}
 
   defp rebuild(state) do
@@ -75,7 +85,7 @@ defmodule Hueworks.HomeKit.Bridge do
       {:disabled, _topology} ->
         state
         |> stop_hap()
-        |> Map.merge(%{topology_hash: nil, change_tokens: %{}})
+        |> Map.merge(%{topology_hash: nil, change_tokens: %{}, pairing_busy_since_ms: nil})
 
       {:ok, accessory_server, topology} ->
         hash = AccessoryGraph.topology_hash(topology)
@@ -97,14 +107,33 @@ defmodule Hueworks.HomeKit.Bridge do
           "Started HomeKit bridge with #{length(accessory_server.accessories)} accessories"
         )
 
-        %{state | hap_pid: pid, topology_hash: topology_hash, change_tokens: %{}}
+        %{
+          state
+          | hap_pid: pid,
+            topology_hash: topology_hash,
+            change_tokens: %{},
+            pairing_busy_since_ms: nil
+        }
 
       {:error, {:already_started, pid}} ->
-        %{state | hap_pid: pid, topology_hash: topology_hash, change_tokens: %{}}
+        %{
+          state
+          | hap_pid: pid,
+            topology_hash: topology_hash,
+            change_tokens: %{},
+            pairing_busy_since_ms: nil
+        }
 
       {:error, reason} ->
         Logger.warning("Unable to start HomeKit bridge: #{inspect(reason)}")
-        %{state | hap_pid: nil, topology_hash: nil, change_tokens: %{}}
+
+        %{
+          state
+          | hap_pid: nil,
+            topology_hash: nil,
+            change_tokens: %{},
+            pairing_busy_since_ms: nil
+        }
     end
   end
 
@@ -115,9 +144,63 @@ defmodule Hueworks.HomeKit.Bridge do
       _ = Supervisor.stop(pid, :normal, 5_000)
     end
 
-    %{state | hap_pid: nil}
+    %{state | hap_pid: nil, pairing_busy_since_ms: nil}
   catch
-    :exit, _reason -> %{state | hap_pid: nil}
+    :exit, _reason -> %{state | hap_pid: nil, pairing_busy_since_ms: nil}
+  end
+
+  defp maybe_restart_stuck_pairing(%{hap_pid: pid} = state) when is_pid(pid) do
+    if Process.alive?(pid) do
+      check_pairing_progress(state)
+    else
+      %{state | hap_pid: nil, pairing_busy_since_ms: nil}
+    end
+  end
+
+  defp maybe_restart_stuck_pairing(state), do: %{state | pairing_busy_since_ms: nil}
+
+  defp check_pairing_progress(state) do
+    case pair_setup_step() do
+      {:ok, @idle_pair_setup_step} ->
+        %{state | pairing_busy_since_ms: nil}
+
+      {:ok, step} ->
+        handle_busy_pair_setup(state, step)
+
+      {:error, reason} ->
+        Logger.debug("Unable to inspect HomeKit pair setup state: #{inspect(reason)}")
+        %{state | pairing_busy_since_ms: nil}
+    end
+  end
+
+  defp handle_busy_pair_setup(%{pairing_busy_since_ms: nil} = state, step) do
+    now = monotonic_ms()
+
+    if pairing_timeout_ms() <= 0 do
+      restart_stuck_pairing(state, step, 0)
+    else
+      %{state | pairing_busy_since_ms: now}
+    end
+  end
+
+  defp handle_busy_pair_setup(%{pairing_busy_since_ms: busy_since} = state, step) do
+    elapsed_ms = monotonic_ms() - busy_since
+
+    if elapsed_ms >= pairing_timeout_ms() do
+      restart_stuck_pairing(state, step, elapsed_ms)
+    else
+      state
+    end
+  end
+
+  defp restart_stuck_pairing(state, step, elapsed_ms) do
+    Logger.warning(
+      "Restarting HomeKit bridge after pair setup remained at step #{inspect(step)} for #{elapsed_ms}ms"
+    )
+
+    state
+    |> stop_hap()
+    |> rebuild()
   end
 
   defp notify_change_token(nil), do: :ok
@@ -140,6 +223,42 @@ defmodule Hueworks.HomeKit.Bridge do
   defp hap_module do
     Application.get_env(:hueworks, :homekit_hap_module, HAP)
   end
+
+  defp pair_setup_step do
+    module = Application.get_env(:hueworks, :homekit_pair_setup_module, HAP.PairSetup)
+
+    state =
+      if function_exported?(module, :state, 0) do
+        module.state()
+      else
+        :sys.get_state(module)
+      end
+
+    case state do
+      %{step: step} -> {:ok, step}
+      _ -> {:error, {:unexpected_pair_setup_state, state}}
+    end
+  catch
+    kind, reason -> {:error, {kind, reason}}
+  end
+
+  defp schedule_pairing_watchdog do
+    Process.send_after(self(), :pairing_watchdog, pairing_watchdog_interval_ms())
+  end
+
+  defp pairing_timeout_ms do
+    Application.get_env(:hueworks, :homekit_pairing_timeout_ms, @default_pairing_timeout_ms)
+  end
+
+  defp pairing_watchdog_interval_ms do
+    Application.get_env(
+      :hueworks,
+      :homekit_pairing_watchdog_interval_ms,
+      @default_pairing_watchdog_interval_ms
+    )
+  end
+
+  defp monotonic_ms, do: System.monotonic_time(:millisecond)
 
   defp maybe_cast(message) do
     case Process.whereis(__MODULE__) do
