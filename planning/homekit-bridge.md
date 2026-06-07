@@ -44,14 +44,15 @@ Near-term. This is likely a prerequisite for having a second person test the app
 - Groups:
   - map controllable HueWorks groups to `LightBulb`
 - Light/group V1:
-  - expose only on/off behavior
-  - keep the per-entity export mode shape expandable for future brightness/temperature/color support
+  - expose on/off behavior for `switch` export mode
+  - expose on/off plus brightness for `light` export mode
+  - keep the per-entity export mode shape expandable for future temperature/color support
 - Scenes:
   - map all HueWorks scenes to virtual `Switch` accessories when global scene export is enabled
   - switch `on` activates the scene
   - scene-switch state reflects HueWorks active-scene state rather than acting as an independent boolean
 
 ## Future Expansion
-- Add brightness, temperature, and color HomeKit characteristics for lights/groups after on/off pairing and restart behavior is proven.
+- Add temperature and color HomeKit characteristics for lights/groups after brightness behavior is proven.
 - Consider a reset-pairing workflow if testing shows stale HomeKit pairings are hard to recover from.
 - Consider per-scene export controls only if global scene export proves noisy in real use.

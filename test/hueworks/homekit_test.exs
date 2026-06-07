@@ -130,6 +130,43 @@ defmodule Hueworks.HomeKitTest do
            ]
   end
 
+  test "accessory graph exposes brightness only for light export mode" do
+    room = Repo.insert!(%Room{name: "Kitchen"})
+    bridge = insert_bridge!()
+
+    light =
+      Repo.insert!(%Light{
+        name: "kitchen.task",
+        display_name: "Kitchen Task",
+        source: :hue,
+        source_id: "1",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        homekit_export_mode: :light
+      })
+
+    group =
+      Repo.insert!(%Group{
+        name: "kitchen.group",
+        display_name: "Kitchen Group",
+        source: :hue,
+        source_id: "10",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        homekit_export_mode: :switch
+      })
+
+    Repo.insert!(%GroupLight{group_id: group.id, light_id: light.id})
+
+    assert {:ok, server, _topology} = AccessoryGraph.build()
+    tree = HAP.AccessoryServer.accessories_tree(HAP.AccessoryServer.compile(server))
+
+    [light_accessory, group_accessory] = tree.accessories
+
+    assert "8" in characteristic_types(light_accessory)
+    refute "8" in characteristic_types(group_accessory)
+  end
+
   test "value store reads entity power and active scene state" do
     room = Repo.insert!(%Room{name: "Kitchen"})
     bridge = insert_bridge!()
@@ -150,6 +187,43 @@ defmodule Hueworks.HomeKitTest do
 
     assert ValueStore.get_value(kind: :light, id: light.id) == {:ok, true}
     assert ValueStore.get_value(kind: :scene, id: scene.id) == {:ok, true}
+  end
+
+  test "value store reads and writes entity brightness", %{
+    actions_agent: actions_agent,
+    executor_server: executor_server
+  } do
+    room = Repo.insert!(%Room{name: "Kitchen"})
+    bridge = insert_bridge!()
+
+    light =
+      Repo.insert!(%Light{
+        name: "kitchen.task",
+        source: :hue,
+        source_id: "1",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        homekit_export_mode: :light
+      })
+
+    State.put(:light, light.id, %{power: :on, brightness: 42})
+
+    assert ValueStore.get_value(kind: :light, id: light.id, characteristic: :brightness) ==
+             {:ok, 42}
+
+    assert :ok = ValueStore.put_value(73, kind: :light, id: light.id, characteristic: :brightness)
+
+    drain_executor(executor_server)
+
+    assert [
+             %{
+               type: :light,
+               id: light_id,
+               desired: %{brightness: 73}
+             }
+           ] = Agent.get(actions_agent, & &1)
+
+    assert light_id == light.id
   end
 
   test "value store writes light power through desired-state planning", %{
@@ -427,6 +501,12 @@ defmodule Hueworks.HomeKitTest do
       Executor.tick(server, force: true)
       drain_executor(server, attempts - 1)
     end
+  end
+
+  defp characteristic_types(accessory) do
+    accessory.services
+    |> Enum.flat_map(& &1.characteristics)
+    |> Enum.map(& &1.type)
   end
 
   defmodule HAPStub do

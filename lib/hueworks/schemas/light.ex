@@ -22,7 +22,7 @@ defmodule Hueworks.Schemas.Light do
     field(:supports_temp, :boolean, default: false)
     field(:enabled, :boolean, default: true)
     field(:ha_export_mode, Ecto.Enum, values: [:none, :switch, :light], default: :none)
-    field(:homekit_export_mode, Ecto.Enum, values: [:none, :switch], default: :none)
+    field(:homekit_export_mode, Ecto.Enum, values: [:none, :switch, :light], default: :none)
     field(:metadata, :map, default: %{})
     field(:external_id, :string)
     field(:normalized_json, :map, default: %{})

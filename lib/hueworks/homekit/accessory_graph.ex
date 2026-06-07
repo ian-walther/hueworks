@@ -51,21 +51,31 @@ defmodule Hueworks.HomeKit.AccessoryGraph do
 
   defp light_accessory(light) do
     accessory("HueWorks Light", "light-#{light.id}", display_name(light), [
-      %HAP.Services.LightBulb{
-        name: display_name(light),
-        on: {ValueStore, kind: :light, id: light.id}
-      }
+      lightbulb_service(:light, light)
     ])
   end
 
   defp group_accessory(group) do
     accessory("HueWorks Group", "group-#{group.id}", display_name(group), [
-      %HAP.Services.LightBulb{
-        name: display_name(group),
-        on: {ValueStore, kind: :group, id: group.id}
-      }
+      lightbulb_service(:group, group)
     ])
   end
+
+  defp lightbulb_service(kind, entity) do
+    value_opts = [kind: kind, id: entity.id]
+
+    %HAP.Services.LightBulb{
+      name: display_name(entity),
+      on: {ValueStore, Keyword.put(value_opts, :characteristic, :on)},
+      brightness: brightness_characteristic(entity, value_opts)
+    }
+  end
+
+  defp brightness_characteristic(%{homekit_export_mode: :light}, value_opts) do
+    {ValueStore, Keyword.put(value_opts, :characteristic, :brightness)}
+  end
+
+  defp brightness_characteristic(_entity, _value_opts), do: nil
 
   defp scene_accessory(scene) do
     accessory("HueWorks Scene", "scene-#{scene.id}", display_name(scene), [

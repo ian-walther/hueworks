@@ -470,6 +470,9 @@
           <option value="switch" selected={@edit_homekit_export_mode == "switch"}>
             On/Off Switch
           </option>
+          <option value="light" selected={@edit_homekit_export_mode == "light"}>
+            Light
+          </option>
         </select>
         <%= if @edit_mapping_supported do %>
           <label class="hw-checkbox hw-modal-checkbox">

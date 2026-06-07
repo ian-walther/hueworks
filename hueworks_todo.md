@@ -6,10 +6,8 @@ Forward-looking backlog only. Completed work has been removed.
 
 ### 1) HomeKit bridge integration
 Reference: `planning/homekit-bridge.md`
-- [ ] Decide deployment shape: one HomeKit rollout vs a staged migration/config-UI rollout followed by runtime enablement.
-- [ ] Verify rollback safety for the new nullable/defaulted HomeKit schema fields before production rollout.
-- [ ] Validate pairing, light/group toggles, scene switches, and bridge child restarts against Apple Home on real devices.
-- [ ] Add a HueWorks UI surface for HomeKit bridge status and pairing details instead of relying on console output.
+- [ ] Validate light/group toggles, light brightness, scene switches, and bridge child restarts against Apple Home on real devices.
+- [ ] Add a HueWorks UI surface for HomeKit bridge runtime status and health instead of relying on logs.
 - [ ] Decide whether the first UI should include a manual "restart HomeKit bridge" action for debugging.
 - [ ] Confirm that exposing all scenes through the global scene toggle is usable in Apple Home with production scene volume.
 

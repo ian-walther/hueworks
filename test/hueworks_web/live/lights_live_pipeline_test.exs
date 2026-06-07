@@ -947,9 +947,9 @@ defmodule Hueworks.LightsLivePipelineTest do
 
     view
     |> element("form[phx-submit='save_edit_fields']")
-    |> render_submit(%{"homekit_export_mode" => "switch"})
+    |> render_submit(%{"homekit_export_mode" => "light"})
 
-    assert Repo.get!(Light, light.id).homekit_export_mode == :switch
+    assert Repo.get!(Light, light.id).homekit_export_mode == :light
   end
 
   test "group edit modal saves HomeKit export mode", %{conn: conn} do
@@ -982,9 +982,9 @@ defmodule Hueworks.LightsLivePipelineTest do
 
     view
     |> element("form[phx-submit='save_edit_fields']")
-    |> render_submit(%{"homekit_export_mode" => "switch"})
+    |> render_submit(%{"homekit_export_mode" => "light"})
 
-    assert Repo.get!(Group, group.id).homekit_export_mode == :switch
+    assert Repo.get!(Group, group.id).homekit_export_mode == :light
   end
 
   test "show linked toggle reveals linked lights", %{conn: conn} do

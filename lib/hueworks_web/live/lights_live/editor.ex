@@ -148,9 +148,9 @@ defmodule HueworksWeb.LightsLive.Editor do
 
   defp normalize_ha_export_mode(_value), do: "none"
 
-  defp normalize_homekit_export_mode(value) when value in ["none", "switch"], do: value
+  defp normalize_homekit_export_mode(value) when value in ["none", "switch", "light"], do: value
 
-  defp normalize_homekit_export_mode(value) when value in [:none, :switch],
+  defp normalize_homekit_export_mode(value) when value in [:none, :switch, :light],
     do: Atom.to_string(value)
 
   defp normalize_homekit_export_mode(_value), do: "none"

@@ -58,7 +58,13 @@ defmodule Hueworks.HomeKit.Bridge do
   @impl true
   def handle_info({:control_state, kind, id, _control_state}, state)
       when kind in [:light, :group] and is_integer(id) do
-    notify_change_token(Map.get(state.change_tokens, {:entity, kind, id}))
+    state.change_tokens
+    |> Enum.filter(fn
+      {{:entity, ^kind, ^id, _characteristic}, _token} -> true
+      _ -> false
+    end)
+    |> Enum.each(fn {_key, token} -> notify_change_token(token) end)
+
     {:noreply, state}
   end
 
@@ -214,9 +220,14 @@ defmodule Hueworks.HomeKit.Bridge do
 
   defp token_key(opts) do
     case {Keyword.get(opts, :kind), Keyword.get(opts, :id)} do
-      {kind, id} when kind in [:light, :group] and is_integer(id) -> {:entity, kind, id}
-      {:scene, id} when is_integer(id) -> {:scene, id}
-      _ -> {:unknown, opts}
+      {kind, id} when kind in [:light, :group] and is_integer(id) ->
+        {:entity, kind, id, Keyword.get(opts, :characteristic, :on)}
+
+      {:scene, id} when is_integer(id) ->
+        {:scene, id}
+
+      _ ->
+        {:unknown, opts}
     end
   end
 
