@@ -15,6 +15,8 @@ services:
       ADVANCED_DEBUG_LOGGING: ${ADVANCED_DEBUG_LOGGING:-false}
       HOMEKIT_RUNTIME_ENABLED: ${HOMEKIT_RUNTIME_ENABLED:-false}
       HOMEKIT_DATA_PATH: ${HOMEKIT_DATA_PATH:-/data/homekit}
+      HOMEKIT_PORT: ${HOMEKIT_PORT:-51827}
+      HOMEKIT_MDNS_HOST: ${HOMEKIT_MDNS_HOST:-hueworks}
       BRIDGE_SECRETS_PATH: /run/hueworks/secrets.json
       CREDENTIALS_ROOT: /credentials
     volumes:

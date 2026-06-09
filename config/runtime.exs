@@ -32,6 +32,31 @@ if is_binary(homekit_data_path) and String.trim(homekit_data_path) != "" do
   config :hueworks, :homekit_data_path, String.trim(homekit_data_path)
 end
 
+homekit_port =
+  case System.get_env("HOMEKIT_PORT") do
+    nil ->
+      Application.get_env(:hueworks, :homekit_port, 51_827)
+
+    value ->
+      String.to_integer(value)
+  end
+
+config :hueworks, :homekit_port, homekit_port
+
+homekit_mdns_host =
+  case System.get_env("HOMEKIT_MDNS_HOST") do
+    nil -> Application.get_env(:hueworks, :homekit_mdns_host, "hueworks")
+    value -> String.trim(value)
+  end
+
+if is_binary(homekit_mdns_host) and homekit_mdns_host != "" do
+  config :hueworks, :homekit_mdns_host, homekit_mdns_host
+
+  config :mdns_lite,
+    hosts: [homekit_mdns_host],
+    ipv4_only: true
+end
+
 # Runtime configuration (can read from environment variables)
 if config_env() == :prod do
   if System.get_env("PHX_SERVER") do

@@ -394,6 +394,34 @@ defmodule Hueworks.HomeKitTest do
     assert config.data_path == "/data/homekit"
   end
 
+  test "hueworks HAP runtime uses configured static networking" do
+    original_port = Application.get_env(:hueworks, :homekit_port)
+    original_mdns_host = Application.get_env(:hueworks, :homekit_mdns_host)
+
+    Application.put_env(:hueworks, :homekit_port, 52_127)
+    Application.put_env(:hueworks, :homekit_mdns_host, "hueworks")
+
+    on_exit(fn ->
+      restore_app_env(:hueworks, :homekit_port, original_port)
+      restore_app_env(:hueworks, :homekit_mdns_host, original_mdns_host)
+    end)
+
+    assert Hueworks.HomeKit.HAP.port() == 52_127
+    assert Hueworks.HomeKit.HAP.mdns_host() == "hueworks"
+
+    bandit_child =
+      %HAP.AccessoryServer{name: "Test", identifier: "02:00:00:00:00:01"}
+      |> Hueworks.HomeKit.HAP.child_specs()
+      |> Enum.find(fn
+        {Bandit, _opts} -> true
+        _ -> false
+      end)
+
+    assert {Bandit, bandit_opts} = bandit_child
+    assert bandit_opts[:port] == 52_127
+    assert bandit_opts[:ip] == {0, 0, 0, 0}
+  end
+
   test "bridge restarts HAP child when exposed entity topology changes" do
     original_hap_module = Application.get_env(:hueworks, :homekit_hap_module)
     original_sink = Application.get_env(:hueworks, :homekit_test_sink)

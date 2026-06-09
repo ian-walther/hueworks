@@ -37,7 +37,7 @@ Near-term. This is likely a prerequisite for having a second person test the app
 - Keep a stable HomeKit bridge `identifier`, deterministic accessory ordering, and persistent `data_path` so Home pairing survives HomeKit bridge child restarts.
 - Treat HomeKit topology updates as rebuild + HomeKit bridge child restart events, not live graph edits.
 - Use `hap` async value-notification support to keep light state and scene-switch state coherent without full restarts.
-- Run production Docker with `docker-compose.homekit.yml` host networking when HomeKit is enabled, because `hap` advertises a dynamically selected TCP port over mDNS.
+- Run production Docker with `docker-compose.homekit.yml` host networking when HomeKit is enabled, so the static HAP TCP port and IPv4-only mDNS advertisement are reachable on the LAN.
 
 ## Accessory Mapping
 - Lights:

@@ -173,9 +173,11 @@ HomeKit runtime:
 
 - Docker defaults `HOMEKIT_RUNTIME_ENABLED=false` so schema/config changes can be deployed before starting the HAP server.
 - Set `HOMEKIT_RUNTIME_ENABLED=true` when you are ready to expose the bridge and pair with Apple Home.
+- `HOMEKIT_PORT` defaults to `51827` so Apple Home does not have to rediscover a new HAP TCP port after every HueWorks restart.
+- `HOMEKIT_MDNS_HOST` defaults to `hueworks`, which advertises the bridge at `hueworks.local` over IPv4-only mDNS. Keep normal DNS such as `hueworks.home` pointed at the same host for browser access, but HomeKit discovery itself uses mDNS.
 - The Apple Home setup code is shown on the Config page in the HomeKit Bridge section.
 - Light/group HomeKit export can expose entities as on/off switches or dimmable lights. On/off control is the reliable path today; brightness is available for testing but can be laggy or intermittently miss commands.
-- For production HomeKit pairing from Docker on Linux, set `COMPOSE_FILE=docker-compose.yml:docker-compose.homekit.yml` so the HAP server's mDNS advertisement and dynamically chosen TCP port are reachable on the LAN through host networking.
+- For production HomeKit pairing from Docker on Linux, set `COMPOSE_FILE=docker-compose.yml:docker-compose.homekit.yml` so the HAP server's mDNS advertisement and static TCP port are reachable on the LAN through host networking.
 
 Useful commands:
 

@@ -232,7 +232,7 @@ defmodule Hueworks.HomeKit.Bridge do
   end
 
   defp hap_module do
-    Application.get_env(:hueworks, :homekit_hap_module, HAP)
+    Application.get_env(:hueworks, :homekit_hap_module, Hueworks.HomeKit.HAP)
   end
 
   defp pair_setup_step do

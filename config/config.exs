@@ -11,12 +11,19 @@ config :hueworks,
   ecto_repos: [Hueworks.Repo],
   credentials_root: Path.expand("../priv/credentials", __DIR__),
   instance_name: Atom.to_string(config_env()),
+  homekit_hap_module: Hueworks.HomeKit.HAP,
+  homekit_port: 51_827,
+  homekit_mdns_host: "hueworks",
   global_solar_config: %{
     latitude: nil,
     longitude: nil,
     timezone: "Etc/UTC"
   },
   advanced_debug_logging: false
+
+config :mdns_lite,
+  hosts: ["hueworks"],
+  ipv4_only: true
 
 # Configure Phoenix endpoint
 config :hueworks, HueworksWeb.Endpoint,
