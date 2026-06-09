@@ -420,6 +420,29 @@ defmodule Hueworks.HomeKitTest do
     assert {Bandit, bandit_opts} = bandit_child
     assert bandit_opts[:port] == 52_127
     assert bandit_opts[:ip] == {0, 0, 0, 0}
+
+    transport_opts = bandit_opts[:thousand_island_options]
+    assert transport_opts[:handler_module] == Hueworks.HomeKit.HAPSessionHandler
+    assert transport_opts[:transport_module] == Hueworks.HomeKit.HAPSessionTransport
+  end
+
+  test "homekit transport chunks encrypted responses into HAP-sized frames" do
+    key = <<1::256>>
+    payload = :binary.copy("a", 2_050)
+
+    Process.delete(:send_counter)
+    frames = Hueworks.HomeKit.HAPSessionTransport.encrypted_frames(payload, key)
+
+    assert encrypted_frame_lengths(IO.iodata_to_binary(frames)) == [1_024, 1_024, 2]
+    assert Process.get(:send_counter) == 3
+
+    Process.delete(:recv_counter)
+    Process.put(:hap_recv_key, key)
+
+    assert {:ok, ^payload} =
+             frames
+             |> IO.iodata_to_binary()
+             |> Hueworks.HomeKit.HAPSessionTransport.decrypt_if_needed()
   end
 
   test "bridge restarts HAP child when exposed entity topology changes" do
@@ -535,6 +558,18 @@ defmodule Hueworks.HomeKitTest do
     accessory.services
     |> Enum.flat_map(& &1.characteristics)
     |> Enum.map(& &1.type)
+  end
+
+  defp encrypted_frame_lengths(data, lengths \\ [])
+
+  defp encrypted_frame_lengths(<<>>, lengths), do: Enum.reverse(lengths)
+
+  defp encrypted_frame_lengths(
+         <<length::integer-size(16)-little, _encrypted::binary-size(length),
+           _tag::binary-size(16), rest::binary>>,
+         lengths
+       ) do
+    encrypted_frame_lengths(rest, [length | lengths])
   end
 
   defmodule HAPStub do

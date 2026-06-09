@@ -33,8 +33,8 @@ defmodule Hueworks.HomeKit.HAP do
        port: port(),
        http_1_options: [clear_process_dict: false],
        thousand_island_options: [
-         handler_module: HAP.HAPSessionHandler,
-         transport_module: HAP.HAPSessionTransport
+         handler_module: Hueworks.HomeKit.HAPSessionHandler,
+         transport_module: Hueworks.HomeKit.HAPSessionTransport
        ]}
     ]
   end
