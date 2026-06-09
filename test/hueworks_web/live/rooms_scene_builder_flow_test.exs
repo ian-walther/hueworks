@@ -382,8 +382,8 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
       )
       |> Map.new()
 
-    assert default_power_by_light[light1.id] == :force_off
-    assert default_power_by_light[light2.id] == :force_on
+    assert default_power_by_light[light1.id] == :default_off
+    assert default_power_by_light[light2.id] == :default_on
   end
 
   test "editing a scene updates components and light state via the UI", %{conn: conn} do
@@ -704,13 +704,13 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
           name: "Component 1",
           light_ids: [light1.id],
           light_state_id: to_string(warm.id),
-          light_defaults: %{light1.id => :force_off}
+          light_defaults: %{light1.id => :default_off}
         },
         %{
           name: "Component 2",
           light_ids: [light2.id],
           light_state_id: to_string(blue.id),
-          light_defaults: %{light2.id => :force_on}
+          light_defaults: %{light2.id => :default_on}
         }
       ])
 

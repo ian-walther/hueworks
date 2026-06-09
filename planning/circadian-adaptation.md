@@ -16,14 +16,18 @@ Circadian work should follow the reset architecture:
 - Global solar inputs stay global for now; no per-room or per-scene geolocation overrides in v1.
 - No smoothing or interpolation engine is required for v1.
 - Config key names should continue to track Home Assistant Adaptive Lighting names where practical.
-- Scene component power policy continues to use the existing internal enum values:
+- Scene component power policy uses explicit default and force semantics:
+  - `:default_on`
+  - `:default_off`
+  - `:follow_occupancy`
   - `:force_on`
   - `:force_off`
-  - `:follow_occupancy`
 - User-facing labels for those policies are:
   - `Default On`
   - `Default Off`
   - `Follow Occupancy`
+  - `Force On`
+  - `Force Off`
 
 ## Primary Validation Areas
 
@@ -75,4 +79,4 @@ Circadian behavior still needs continued validation around:
 ## Remaining Decisions
 - Is log-based observability enough for ongoing production use, or do circadian apply attempts and scene clears need first-class telemetry?
 - Does the product actually need a room-coherent circadian mode, or is careful grouping the better long-term answer?
-- Once HA-driven occupancy exists, do `Default Off` and `Follow Occupancy` still feel like the right mental model for scene component power policy?
+- Once HA-driven occupancy exists, do `Default Off`, `Force Off`, and `Follow Occupancy` still feel like the right mental model for scene component power policy?

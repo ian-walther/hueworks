@@ -285,6 +285,42 @@ defmodule Hueworks.SceneBuilderComponentTest do
              "button[phx-click='toggle_light_default_power'][phx-value-component_id='1'][phx-value-light_id='1']",
              "Power policy: Default Off"
            )
+
+    view
+    |> element(
+      "button[phx-click='toggle_light_default_power'][phx-value-component_id='1'][phx-value-light_id='1']"
+    )
+    |> render_click()
+
+    assert has_element?(
+             view,
+             "button[phx-click='toggle_light_default_power'][phx-value-component_id='1'][phx-value-light_id='1']",
+             "Power policy: Follow Occupancy"
+           )
+
+    view
+    |> element(
+      "button[phx-click='toggle_light_default_power'][phx-value-component_id='1'][phx-value-light_id='1']"
+    )
+    |> render_click()
+
+    assert has_element?(
+             view,
+             "button[phx-click='toggle_light_default_power'][phx-value-component_id='1'][phx-value-light_id='1']",
+             "Power policy: Force On"
+           )
+
+    view
+    |> element(
+      "button[phx-click='toggle_light_default_power'][phx-value-component_id='1'][phx-value-light_id='1']"
+    )
+    |> render_click()
+
+    assert has_element?(
+             view,
+             "button[phx-click='toggle_light_default_power'][phx-value-component_id='1'][phx-value-light_id='1']",
+             "Power policy: Force Off"
+           )
   end
 
   test "assigned groups show mixed state and can bulk-toggle member power policy", %{conn: conn} do
@@ -303,7 +339,7 @@ defmodule Hueworks.SceneBuilderComponentTest do
                light_ids: [1, 2],
                group_ids: [10],
                light_state_id: nil,
-               light_defaults: %{1 => :force_on, 2 => :force_off}
+               light_defaults: %{1 => :default_on, 2 => :default_off}
              }
            ],
            light_states: []

@@ -91,19 +91,21 @@ defmodule Hueworks.Scenes.Intent do
         Enum.reduce(component_lights, acc, fn light, txn ->
           current_desired = DesiredState.get(:light, light.id) || %{}
           power_override = Map.get(power_overrides, light.id)
+          power_policy = Map.get(default_power_by_light, light.id, :default_on)
 
           light_desired =
             desired
             |> maybe_apply_default_power(
               component.light_state,
-              Map.get(default_power_by_light, light.id, :force_on),
+              power_policy,
               occupied
             )
             |> maybe_preserve_manual_power_latch(
               current_desired,
-              preserve_power_latches and is_nil(power_override)
+              preserve_power_latches and is_nil(power_override) and
+                not force_power_policy?(power_policy)
             )
-            |> maybe_apply_power_override(power_override)
+            |> maybe_apply_power_override(power_override, power_policy)
 
           DesiredState.apply(txn, :light, light.id, DesiredAttrs.to_map(light_desired))
         end)
@@ -182,14 +184,18 @@ defmodule Hueworks.Scenes.Intent do
 
   defp maybe_apply_default_power(desired, _light_state, _power_policy, _occupied), do: desired
 
-  defp resolve_power_policy(:force_on, _occupied), do: :on
-  defp resolve_power_policy("force_on", _occupied), do: :on
-  defp resolve_power_policy(:force_off, _occupied), do: :off
-  defp resolve_power_policy("force_off", _occupied), do: :off
+  defp resolve_power_policy(:default_on, _occupied), do: :on
+  defp resolve_power_policy("default_on", _occupied), do: :on
+  defp resolve_power_policy(:default_off, _occupied), do: :off
+  defp resolve_power_policy("default_off", _occupied), do: :off
   defp resolve_power_policy(:follow_occupancy, true), do: :on
   defp resolve_power_policy("follow_occupancy", true), do: :on
   defp resolve_power_policy(:follow_occupancy, false), do: :off
   defp resolve_power_policy("follow_occupancy", false), do: :off
+  defp resolve_power_policy(:force_on, _occupied), do: :on
+  defp resolve_power_policy("force_on", _occupied), do: :on
+  defp resolve_power_policy(:force_off, _occupied), do: :off
+  defp resolve_power_policy("force_off", _occupied), do: :off
   defp resolve_power_policy(_unknown, _occupied), do: :on
 
   defp component_default_power_map(component) do
@@ -226,18 +232,20 @@ defmodule Hueworks.Scenes.Intent do
   defp light_default_lookup(_defaults, _light_id), do: nil
 
   defp parse_default_power(value) when value in [nil, true, "true", 1, "1", :on, "on"],
-    do: :force_on
+    do: :default_on
 
   defp parse_default_power(value) when value in [false, "false", 0, "0", :off, "off"],
-    do: :force_off
+    do: :default_off
 
+  defp parse_default_power(value) when value in [:default_on, "default_on"], do: :default_on
+  defp parse_default_power(value) when value in [:default_off, "default_off"], do: :default_off
   defp parse_default_power(value) when value in [:force_on, "force_on"], do: :force_on
   defp parse_default_power(value) when value in [:force_off, "force_off"], do: :force_off
 
   defp parse_default_power(value) when value in [:follow_occupancy, "follow_occupancy"],
     do: :follow_occupancy
 
-  defp parse_default_power(_value), do: :force_on
+  defp parse_default_power(_value), do: :default_on
 
   defp skip_component?(%{light_state: %LightState{type: :circadian}}, true), do: false
   defp skip_component?(%{light_state: %LightState{}}, true), do: true
@@ -270,14 +278,24 @@ defmodule Hueworks.Scenes.Intent do
   defp maybe_preserve_manual_power_latch(desired, _current_desired, _preserve_power_latches),
     do: desired
 
-  defp maybe_apply_power_override(desired, nil), do: desired
+  defp maybe_apply_power_override(desired, nil, _power_policy), do: desired
 
-  defp maybe_apply_power_override(desired, power) when power in [:on, :off],
+  defp maybe_apply_power_override(desired, _power, power_policy)
+       when power_policy in [:force_on, "force_on", :force_off, "force_off"],
+       do: desired
+
+  defp maybe_apply_power_override(desired, power, _power_policy) when power in [:on, :off],
     do: put_attr(desired, :power, power)
 
-  defp maybe_apply_power_override(desired, "on"), do: put_attr(desired, :power, :on)
-  defp maybe_apply_power_override(desired, "off"), do: put_attr(desired, :power, :off)
-  defp maybe_apply_power_override(desired, _power), do: desired
+  defp maybe_apply_power_override(desired, "on", _power_policy),
+    do: put_attr(desired, :power, :on)
+
+  defp maybe_apply_power_override(desired, "off", _power_policy),
+    do: put_attr(desired, :power, :off)
+
+  defp maybe_apply_power_override(desired, _power, _power_policy), do: desired
+
+  defp force_power_policy?(policy), do: policy in [:force_on, "force_on", :force_off, "force_off"]
 
   defp explicit_off_intent?(state), do: power_value(state) == :off
 

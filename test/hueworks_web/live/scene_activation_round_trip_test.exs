@@ -405,13 +405,13 @@ defmodule Hueworks.SceneActivationRoundTripTest do
     Repo.insert!(%SceneComponentLight{
       scene_component_id: component.id,
       light_id: light_on.id,
-      default_power: :force_on
+      default_power: :default_on
     })
 
     Repo.insert!(%SceneComponentLight{
       scene_component_id: component.id,
       light_id: light_off.id,
-      default_power: :force_off
+      default_power: :default_off
     })
 
     if :ets.whereis(:hueworks_control_state) != :undefined do
@@ -504,7 +504,7 @@ defmodule Hueworks.SceneActivationRoundTripTest do
     Repo.insert!(%SceneComponentLight{
       scene_component_id: component.id,
       light_id: light.id,
-      default_power: :force_off
+      default_power: :default_off
     })
 
     if :ets.whereis(:hueworks_control_state) != :undefined do
@@ -530,7 +530,7 @@ defmodule Hueworks.SceneActivationRoundTripTest do
            end)
   end
 
-  test "occupancy toggle dispatches follow_occupancy power changes and also catches stale force_on lights",
+  test "occupancy toggle dispatches follow_occupancy power changes and also catches stale default-on lights",
        %{
          conn: conn,
          actions_agent: actions_agent,
@@ -546,7 +546,7 @@ defmodule Hueworks.SceneActivationRoundTripTest do
         credentials: %{"api_key" => "test"}
       })
 
-    force_on_light =
+    default_on_light =
       Repo.insert!(%Light{
         name: "Always On",
         display_name: "Always On",
@@ -596,8 +596,8 @@ defmodule Hueworks.SceneActivationRoundTripTest do
 
     Repo.insert!(%SceneComponentLight{
       scene_component_id: component.id,
-      light_id: force_on_light.id,
-      default_power: :force_on
+      light_id: default_on_light.id,
+      default_power: :default_on
     })
 
     Repo.insert!(%SceneComponentLight{
@@ -609,11 +609,15 @@ defmodule Hueworks.SceneActivationRoundTripTest do
     {:ok, _} = ActiveScenes.set_active(scene)
 
     _ =
-      DesiredState.put(:light, force_on_light.id, %{power: :on, brightness: "45", kelvin: "2800"})
+      DesiredState.put(:light, default_on_light.id, %{
+        power: :on,
+        brightness: "45",
+        kelvin: "2800"
+      })
 
     _ = DesiredState.put(:light, follow_light.id, %{power: :on, brightness: "45", kelvin: "2800"})
 
-    _ = State.put(:light, force_on_light.id, %{power: :on, brightness: 10, kelvin: 4000})
+    _ = State.put(:light, default_on_light.id, %{power: :on, brightness: 10, kelvin: 4000})
     _ = State.put(:light, follow_light.id, %{power: :on, brightness: 45, kelvin: 2800})
 
     {:ok, view, _html} = live(conn, "/rooms")
@@ -634,7 +638,7 @@ defmodule Hueworks.SceneActivationRoundTripTest do
            end)
 
     assert Enum.any?(actions, fn action ->
-             action.type == :light and action.id == force_on_light.id and
+             action.type == :light and action.id == default_on_light.id and
                action.desired[:power] == :on and action.desired[:brightness] == 45 and
                action.desired[:kelvin] == 2800
            end)

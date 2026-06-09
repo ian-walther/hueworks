@@ -654,7 +654,7 @@ defmodule Hueworks.LightsLivePipelineTest do
           name: "Evening Component",
           light_ids: [light.id],
           light_state_id: to_string(state.id),
-          light_defaults: %{light.id => :force_off}
+          light_defaults: %{light.id => :default_off}
         }
       ])
 

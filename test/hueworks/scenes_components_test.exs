@@ -95,7 +95,11 @@ defmodule Hueworks.ScenesComponentsTest do
         %{
           name: "Component 1",
           light_ids: [light.id],
-          embedded_manual_config: %{"mode" => "temperature", "brightness" => "45", "temperature" => "2800"}
+          embedded_manual_config: %{
+            "mode" => "temperature",
+            "brightness" => "45",
+            "temperature" => "2800"
+          }
         }
       ])
 
@@ -105,6 +109,7 @@ defmodule Hueworks.ScenesComponentsTest do
       )
 
     assert scene_component.light_state_id == nil
+
     assert scene_component.embedded_manual_config == %{
              "brightness" => 45,
              "mode" => "temperature",
@@ -283,7 +288,7 @@ defmodule Hueworks.ScenesComponentsTest do
           name: "Component 1",
           light_ids: [light1.id, light2.id],
           light_state_id: to_string(state.id),
-          light_defaults: %{light1.id => :force_on, light2.id => :force_off}
+          light_defaults: %{light1.id => :default_on, light2.id => :default_off}
         }
       ])
 
@@ -298,8 +303,8 @@ defmodule Hueworks.ScenesComponentsTest do
       )
       |> Map.new()
 
-    assert persisted_defaults[light1.id] == :force_on
-    assert persisted_defaults[light2.id] == :force_off
+    assert persisted_defaults[light1.id] == :default_on
+    assert persisted_defaults[light2.id] == :default_off
   end
 
   test "refresh_active_scene reapplies updated scene component state immediately" do
@@ -621,7 +626,7 @@ defmodule Hueworks.ScenesComponentsTest do
           name: "Component 1",
           light_ids: [light.id],
           light_state_id: to_string(state.id),
-          light_defaults: %{light.id => :force_off}
+          light_defaults: %{light.id => :default_off}
         }
       ])
 
@@ -805,7 +810,7 @@ defmodule Hueworks.ScenesComponentsTest do
           name: "Component 1",
           light_ids: [light1.id, light2.id],
           light_state_id: to_string(state.id),
-          light_defaults: %{light1.id => :force_on, light2.id => :force_off}
+          light_defaults: %{light1.id => :default_on, light2.id => :default_off}
         }
       ])
 
@@ -830,5 +835,69 @@ defmodule Hueworks.ScenesComponentsTest do
     assert desired_light2[:power] == :off
     refute Map.has_key?(desired_light2, :brightness)
     refute Map.has_key?(desired_light2, :kelvin)
+  end
+
+  test "active scene manual power can turn on a default-off light" do
+    room = insert_room()
+    bridge = insert_bridge()
+    cove = insert_light(room, bridge, %{name: "Cove"})
+    ceiling = insert_light(room, bridge, %{name: "Ceiling"})
+
+    {:ok, state} =
+      Scenes.create_manual_light_state("Evening", %{"brightness" => "40", "temperature" => "3000"})
+
+    {:ok, scene} = Scenes.create_scene(%{name: "Evening", room_id: room.id})
+
+    {:ok, _} =
+      Scenes.replace_scene_components(scene, [
+        %{
+          name: "Office Accent",
+          light_ids: [cove.id, ceiling.id],
+          light_state_id: to_string(state.id),
+          light_defaults: %{cove.id => :default_on, ceiling.id => :default_off}
+        }
+      ])
+
+    {:ok, _} = ActiveScenes.set_active(scene)
+    {:ok, _diff, _updated} = Scenes.apply_scene(scene)
+
+    assert DesiredState.get(:light, ceiling.id)[:power] == :off
+
+    assert {:ok, _result} = ManualControl.apply_power_action(room.id, [cove.id, ceiling.id], :on)
+
+    assert DesiredState.get(:light, cove.id)[:power] == :on
+    assert DesiredState.get(:light, ceiling.id)[:power] == :on
+  end
+
+  test "active scene manual power cannot turn on a force-off light" do
+    room = insert_room()
+    bridge = insert_bridge()
+    cove = insert_light(room, bridge, %{name: "Cove"})
+    ceiling = insert_light(room, bridge, %{name: "Ceiling"})
+
+    {:ok, state} =
+      Scenes.create_manual_light_state("Evening", %{"brightness" => "40", "temperature" => "3000"})
+
+    {:ok, scene} = Scenes.create_scene(%{name: "Evening", room_id: room.id})
+
+    {:ok, _} =
+      Scenes.replace_scene_components(scene, [
+        %{
+          name: "Office Accent",
+          light_ids: [cove.id, ceiling.id],
+          light_state_id: to_string(state.id),
+          light_defaults: %{cove.id => :default_on, ceiling.id => :force_off}
+        }
+      ])
+
+    {:ok, _} = ActiveScenes.set_active(scene)
+    {:ok, _diff, _updated} = Scenes.apply_scene(scene)
+
+    assert DesiredState.get(:light, ceiling.id)[:power] == :off
+
+    assert {:ok, _result} = ManualControl.apply_power_action(room.id, [cove.id, ceiling.id], :on)
+
+    assert DesiredState.get(:light, cove.id)[:power] == :on
+    assert DesiredState.get(:light, ceiling.id)[:power] == :off
   end
 end
