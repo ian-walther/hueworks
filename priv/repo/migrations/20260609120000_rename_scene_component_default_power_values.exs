@@ -10,10 +10,6 @@ defmodule Hueworks.Repo.Migrations.RenameSceneComponentDefaultPowerValues do
       ELSE default_power
     END
     """)
-
-    alter table(:scene_component_lights) do
-      modify(:default_power, :string, null: false, default: "default_on")
-    end
   end
 
   def down do
@@ -25,9 +21,5 @@ defmodule Hueworks.Repo.Migrations.RenameSceneComponentDefaultPowerValues do
       ELSE default_power
     END
     """)
-
-    alter table(:scene_component_lights) do
-      modify(:default_power, :string, null: false, default: "force_on")
-    end
   end
 end
