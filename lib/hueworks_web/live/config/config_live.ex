@@ -34,7 +34,8 @@ defmodule HueworksWeb.ConfigLive do
        ha_export_discovery_prefix: app_setting.ha_export_discovery_prefix || "homeassistant",
        homekit_scenes_enabled: app_setting.homekit_scenes_enabled == true,
        homekit_bridge_name: app_setting.homekit_bridge_name || "HueWorks",
-       homekit_pairing_code: homekit_pairing_code(app_setting)
+       homekit_pairing_code: homekit_pairing_code(app_setting),
+       homekit_paired?: HomeKit.paired?()
      )}
   end
 
@@ -259,6 +260,32 @@ defmodule HueworksWeb.ConfigLive do
           |> Enum.join(", ")
 
         {:noreply, put_notice(socket, :error, message)}
+    end
+  end
+
+  def handle_event("reset_homekit_pairings", _params, socket) do
+    case HomeKit.reset_pairings() do
+      {:ok, count} ->
+        message =
+          case count do
+            0 ->
+              "HomeKit bridge had no saved pairings."
+
+            1 ->
+              "Reset 1 HomeKit pairing. Remove HueWorks from Apple Home, then add it again."
+
+            n ->
+              "Reset #{n} HomeKit pairings. Remove HueWorks from Apple Home, then add it again."
+          end
+
+        {:noreply,
+         socket
+         |> assign(homekit_paired?: HomeKit.paired?())
+         |> put_notice(:info, message)}
+
+      {:error, reason} ->
+        {:noreply,
+         put_notice(socket, :error, "Unable to reset HomeKit pairings: #{inspect(reason)}")}
     end
   end
 

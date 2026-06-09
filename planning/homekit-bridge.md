@@ -35,6 +35,7 @@ Near-term. This is likely a prerequisite for having a second person test the app
 - Use `hap` as a normal dependency rather than forking it up front.
 - Run `hap` behind a dedicated HueWorks manager/supervisor layer.
 - Keep a stable HomeKit bridge `identifier`, deterministic accessory ordering, and persistent `data_path` so Home pairing survives HomeKit bridge child restarts.
+- Defer child accessory publication until shortly after first pairing completes so Apple Home adds lights/groups/scenes from their HueWorks names instead of prompting for setup-flow placeholder names.
 - Treat HomeKit topology updates as rebuild + HomeKit bridge child restart events, not live graph edits.
 - Use `hap` async value-notification support to keep light state and scene-switch state coherent without full restarts.
 - Run production Docker with `docker-compose.homekit.yml` host networking when HomeKit is enabled, so the static HAP TCP port and IPv4-only mDNS advertisement are reachable on the LAN.
@@ -56,5 +57,4 @@ Near-term. This is likely a prerequisite for having a second person test the app
 
 ## Future Expansion
 - Add temperature and color HomeKit characteristics for lights/groups after brightness behavior is proven.
-- Consider a reset-pairing workflow if testing shows stale HomeKit pairings are hard to recover from.
 - Consider per-scene export controls only if global scene export proves noisy in real use.

@@ -447,13 +447,16 @@ defmodule Hueworks.HomeKitTest do
 
   test "bridge restarts HAP child when exposed entity topology changes" do
     original_hap_module = Application.get_env(:hueworks, :homekit_hap_module)
+    original_pairing_state_module = Application.get_env(:hueworks, :homekit_pairing_state_module)
     original_sink = Application.get_env(:hueworks, :homekit_test_sink)
 
     Application.put_env(:hueworks, :homekit_hap_module, __MODULE__.HAPStub)
+    Application.put_env(:hueworks, :homekit_pairing_state_module, __MODULE__.PairedStub)
     Application.put_env(:hueworks, :homekit_test_sink, self())
 
     on_exit(fn ->
       restore_app_env(:hueworks, :homekit_hap_module, original_hap_module)
+      restore_app_env(:hueworks, :homekit_pairing_state_module, original_pairing_state_module)
       restore_app_env(:hueworks, :homekit_test_sink, original_sink)
     end)
 
@@ -488,15 +491,63 @@ defmodule Hueworks.HomeKitTest do
     refute_receive {:hap_started, _names}
   end
 
+  test "bridge defers child accessories until after HomeKit pairing completes" do
+    original_hap_module = Application.get_env(:hueworks, :homekit_hap_module)
+    original_pairing_state_module = Application.get_env(:hueworks, :homekit_pairing_state_module)
+
+    original_publish_delay =
+      Application.get_env(:hueworks, :homekit_publish_after_pairing_delay_ms)
+
+    original_stub_paired = Application.get_env(:hueworks, :homekit_pairing_state_stub_paired?)
+    original_sink = Application.get_env(:hueworks, :homekit_test_sink)
+
+    Application.put_env(:hueworks, :homekit_hap_module, __MODULE__.HAPStub)
+    Application.put_env(:hueworks, :homekit_pairing_state_module, __MODULE__.PairingStateStub)
+    Application.put_env(:hueworks, :homekit_publish_after_pairing_delay_ms, 0)
+    Application.put_env(:hueworks, :homekit_test_sink, self())
+    __MODULE__.PairingStateStub.put(false)
+
+    on_exit(fn ->
+      restore_app_env(:hueworks, :homekit_hap_module, original_hap_module)
+      restore_app_env(:hueworks, :homekit_pairing_state_module, original_pairing_state_module)
+      restore_app_env(:hueworks, :homekit_publish_after_pairing_delay_ms, original_publish_delay)
+      restore_app_env(:hueworks, :homekit_pairing_state_stub_paired?, original_stub_paired)
+      restore_app_env(:hueworks, :homekit_test_sink, original_sink)
+    end)
+
+    room = Repo.insert!(%Room{name: "Kitchen"})
+    bridge = insert_bridge!()
+
+    Repo.insert!(%Light{
+      name: "kitchen.task",
+      display_name: "Kitchen Task",
+      source: :hue,
+      source_id: "1",
+      bridge_id: bridge.id,
+      room_id: room.id,
+      homekit_export_mode: :switch
+    })
+
+    start_supervised!({HomeKitBridge, []})
+
+    assert_receive {:hap_started, []}
+    __MODULE__.PairingStateStub.put(true)
+    send(HomeKitBridge, :pairing_watchdog)
+
+    assert_receive {:hap_started, ["Kitchen Task"]}, 200
+  end
+
   test "bridge restarts HAP child when pair setup is stuck mid-flow" do
     original_hap_module = Application.get_env(:hueworks, :homekit_hap_module)
     original_pair_setup_module = Application.get_env(:hueworks, :homekit_pair_setup_module)
+    original_pairing_state_module = Application.get_env(:hueworks, :homekit_pairing_state_module)
     original_timeout = Application.get_env(:hueworks, :homekit_pairing_timeout_ms)
     original_interval = Application.get_env(:hueworks, :homekit_pairing_watchdog_interval_ms)
     original_sink = Application.get_env(:hueworks, :homekit_test_sink)
 
     Application.put_env(:hueworks, :homekit_hap_module, __MODULE__.HAPStub)
     Application.put_env(:hueworks, :homekit_pair_setup_module, __MODULE__.PairSetupStuckStub)
+    Application.put_env(:hueworks, :homekit_pairing_state_module, __MODULE__.PairedStub)
     Application.put_env(:hueworks, :homekit_pairing_timeout_ms, 0)
     Application.put_env(:hueworks, :homekit_pairing_watchdog_interval_ms, 10)
     Application.put_env(:hueworks, :homekit_test_sink, self())
@@ -504,6 +555,7 @@ defmodule Hueworks.HomeKitTest do
     on_exit(fn ->
       restore_app_env(:hueworks, :homekit_hap_module, original_hap_module)
       restore_app_env(:hueworks, :homekit_pair_setup_module, original_pair_setup_module)
+      restore_app_env(:hueworks, :homekit_pairing_state_module, original_pairing_state_module)
       restore_app_env(:hueworks, :homekit_pairing_timeout_ms, original_timeout)
       restore_app_env(:hueworks, :homekit_pairing_watchdog_interval_ms, original_interval)
       restore_app_env(:hueworks, :homekit_test_sink, original_sink)
@@ -584,5 +636,19 @@ defmodule Hueworks.HomeKitTest do
 
   defmodule PairSetupStuckStub do
     def state, do: %{step: 3}
+  end
+
+  defmodule PairedStub do
+    def paired?(_data_path), do: true
+  end
+
+  defmodule PairingStateStub do
+    def put(paired?) do
+      Application.put_env(:hueworks, :homekit_pairing_state_stub_paired?, paired?)
+    end
+
+    def paired?(_data_path) do
+      Application.get_env(:hueworks, :homekit_pairing_state_stub_paired?, false)
+    end
   end
 end

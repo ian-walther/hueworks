@@ -12,6 +12,7 @@ defmodule Hueworks.HomeKit.Bridge do
   @idle_pair_setup_step 1
   @default_pairing_timeout_ms 30_000
   @default_pairing_watchdog_interval_ms 5_000
+  @default_publish_after_pairing_delay_ms 10_000
 
   def start_link(_opts \\ []) do
     GenServer.start_link(__MODULE__, %{}, name: __MODULE__)
@@ -36,8 +37,15 @@ defmodule Hueworks.HomeKit.Bridge do
     PubSub.subscribe(Hueworks.PubSub, ActiveScenes.topic())
     schedule_pairing_watchdog()
 
-    {:ok, %{hap_pid: nil, topology_hash: nil, change_tokens: %{}, pairing_busy_since_ms: nil},
-     {:continue, :reload}}
+    {:ok,
+     %{
+       hap_pid: nil,
+       topology_hash: nil,
+       change_tokens: %{},
+       pairing_busy_since_ms: nil,
+       pairing_shell?: false,
+       publish_after_pairing_ref: nil
+     }, {:continue, :reload}}
   end
 
   @impl true
@@ -81,7 +89,17 @@ defmodule Hueworks.HomeKit.Bridge do
 
   def handle_info(:pairing_watchdog, state) do
     schedule_pairing_watchdog()
-    {:noreply, maybe_restart_stuck_pairing(state)}
+
+    state =
+      state
+      |> maybe_restart_stuck_pairing()
+      |> maybe_schedule_publish_after_pairing()
+
+    {:noreply, state}
+  end
+
+  def handle_info(:publish_deferred_accessories, state) do
+    {:noreply, %{state | publish_after_pairing_ref: nil} |> rebuild()}
   end
 
   def handle_info(_message, state), do: {:noreply, state}
@@ -91,22 +109,42 @@ defmodule Hueworks.HomeKit.Bridge do
       {:disabled, _topology} ->
         state
         |> stop_hap()
-        |> Map.merge(%{topology_hash: nil, change_tokens: %{}, pairing_busy_since_ms: nil})
+        |> Map.merge(%{
+          topology_hash: nil,
+          change_tokens: %{},
+          pairing_busy_since_ms: nil,
+          pairing_shell?: false
+        })
 
       {:ok, accessory_server, topology} ->
-        hash = AccessoryGraph.topology_hash(topology)
+        full_hash = AccessoryGraph.topology_hash(topology)
+
+        {accessory_server, hash, pairing_shell?} =
+          maybe_pairing_shell(accessory_server, full_hash)
 
         if hash == state.topology_hash and is_pid(state.hap_pid) do
-          state
+          %{state | pairing_shell?: pairing_shell?}
         else
           state
           |> stop_hap()
-          |> start_hap(accessory_server, hash)
+          |> start_hap(accessory_server, hash, pairing_shell?)
         end
     end
   end
 
-  defp start_hap(state, accessory_server, topology_hash) do
+  defp maybe_pairing_shell(%{accessories: []} = accessory_server, full_hash) do
+    {accessory_server, full_hash, false}
+  end
+
+  defp maybe_pairing_shell(accessory_server, full_hash) do
+    if pairing_state_module().paired?(accessory_server.data_path) do
+      {accessory_server, full_hash, false}
+    else
+      {%{accessory_server | accessories: []}, "pairing-shell:#{full_hash}", true}
+    end
+  end
+
+  defp start_hap(state, accessory_server, topology_hash, pairing_shell?) do
     case hap_module().start_link(accessory_server) do
       {:ok, pid} ->
         Logger.info(
@@ -118,7 +156,8 @@ defmodule Hueworks.HomeKit.Bridge do
           | hap_pid: pid,
             topology_hash: topology_hash,
             change_tokens: %{},
-            pairing_busy_since_ms: nil
+            pairing_busy_since_ms: nil,
+            pairing_shell?: pairing_shell?
         }
 
       {:error, {:already_started, pid}} ->
@@ -127,7 +166,8 @@ defmodule Hueworks.HomeKit.Bridge do
           | hap_pid: pid,
             topology_hash: topology_hash,
             change_tokens: %{},
-            pairing_busy_since_ms: nil
+            pairing_busy_since_ms: nil,
+            pairing_shell?: pairing_shell?
         }
 
       {:error, reason} ->
@@ -138,7 +178,8 @@ defmodule Hueworks.HomeKit.Bridge do
           | hap_pid: nil,
             topology_hash: nil,
             change_tokens: %{},
-            pairing_busy_since_ms: nil
+            pairing_busy_since_ms: nil,
+            pairing_shell?: false
         }
     end
   end
@@ -164,6 +205,29 @@ defmodule Hueworks.HomeKit.Bridge do
   end
 
   defp maybe_restart_stuck_pairing(state), do: %{state | pairing_busy_since_ms: nil}
+
+  defp maybe_schedule_publish_after_pairing(
+         %{pairing_shell?: true, publish_after_pairing_ref: nil} = state
+       ) do
+    if pairing_state_module().paired?(current_data_path()) do
+      Logger.info(
+        "HomeKit pairing completed; publishing deferred accessories in #{publish_after_pairing_delay_ms()}ms"
+      )
+
+      ref =
+        Process.send_after(
+          self(),
+          :publish_deferred_accessories,
+          publish_after_pairing_delay_ms()
+        )
+
+      %{state | publish_after_pairing_ref: ref}
+    else
+      state
+    end
+  end
+
+  defp maybe_schedule_publish_after_pairing(state), do: state
 
   defp check_pairing_progress(state) do
     case pair_setup_step() do
@@ -235,6 +299,10 @@ defmodule Hueworks.HomeKit.Bridge do
     Application.get_env(:hueworks, :homekit_hap_module, Hueworks.HomeKit.HAP)
   end
 
+  defp pairing_state_module do
+    Application.get_env(:hueworks, :homekit_pairing_state_module, Hueworks.HomeKit.PairingState)
+  end
+
   defp pair_setup_step do
     module = Application.get_env(:hueworks, :homekit_pair_setup_module, HAP.PairSetup)
 
@@ -267,6 +335,20 @@ defmodule Hueworks.HomeKit.Bridge do
       :homekit_pairing_watchdog_interval_ms,
       @default_pairing_watchdog_interval_ms
     )
+  end
+
+  defp publish_after_pairing_delay_ms do
+    Application.get_env(
+      :hueworks,
+      :homekit_publish_after_pairing_delay_ms,
+      @default_publish_after_pairing_delay_ms
+    )
+  end
+
+  defp current_data_path do
+    Hueworks.AppSettings.get_global()
+    |> Hueworks.HomeKit.Config.from_settings()
+    |> Map.fetch!(:data_path)
   end
 
   defp monotonic_ms, do: System.monotonic_time(:millisecond)

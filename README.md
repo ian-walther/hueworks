@@ -176,6 +176,8 @@ HomeKit runtime:
 - `HOMEKIT_PORT` defaults to `51827` so Apple Home does not have to rediscover a new HAP TCP port after every HueWorks restart.
 - `HOMEKIT_MDNS_HOST` defaults to `hueworks`, which advertises the bridge at `hueworks.local` over IPv4-only mDNS. Keep normal DNS such as `hueworks.home` pointed at the same host for browser access, but HomeKit discovery itself uses mDNS.
 - The Apple Home setup code is shown on the Config page in the HomeKit Bridge section.
+- On first pairing, HueWorks initially exposes the bridge without child accessories, then publishes exposed lights/groups/scenes shortly after pairing completes. This avoids Apple Home's initial add flow prompting for dumb prefilled child names.
+- If Apple Home and HueWorks get out of sync during pairing or testing, use Config -> HomeKit Bridge -> Reset Pairing to clear saved HomeKit controller pairings before adding the bridge again.
 - Light/group HomeKit export can expose entities as on/off switches or dimmable lights. On/off control is the reliable path today; brightness is available for testing but can be laggy or intermittently miss commands.
 - For production HomeKit pairing from Docker on Linux, set `COMPOSE_FILE=docker-compose.yml:docker-compose.homekit.yml` so the HAP server's mDNS advertisement and static TCP port are reachable on the LAN through host networking.
 

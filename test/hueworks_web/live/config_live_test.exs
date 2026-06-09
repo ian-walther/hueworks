@@ -27,6 +27,8 @@ defmodule HueworksWeb.ConfigLiveTest do
       Application.get_env(:hueworks, :ha_export_dynamic_supervisor_module)
 
     original_supervisor_name = Application.get_env(:hueworks, :ha_export_tortoise_supervisor_name)
+    original_pairing_state_module = Application.get_env(:hueworks, :homekit_pairing_state_module)
+    original_pairing_stub = Application.get_env(:hueworks, :homekit_config_test_pairing)
 
     Application.put_env(:hueworks, :ha_export_tortoise_module, __MODULE__.TortoiseStub)
 
@@ -43,6 +45,9 @@ defmodule HueworksWeb.ConfigLiveTest do
     )
 
     Application.put_env(:hueworks, :ha_export_tortoise_supervisor_name, __MODULE__.SupervisorStub)
+    Application.put_env(:hueworks, :homekit_pairing_state_module, __MODULE__.PairingStateStub)
+
+    Application.put_env(:hueworks, :homekit_config_test_pairing, %{paired?: false, clear_count: 0})
 
     Repo.delete_all(AppSetting)
     HueworksApp.Cache.flush_namespace(:app_settings)
@@ -64,6 +69,9 @@ defmodule HueworksWeb.ConfigLiveTest do
         :ha_export_tortoise_supervisor_name,
         original_supervisor_name
       )
+
+      restore_app_env(:hueworks, :homekit_pairing_state_module, original_pairing_state_module)
+      restore_app_env(:hueworks, :homekit_config_test_pairing, original_pairing_stub)
     end)
 
     :ok
@@ -191,7 +199,10 @@ defmodule HueworksWeb.ConfigLiveTest do
     assert html =~ "HomeKit Bridge"
     assert html =~ "Apple Home Setup Code"
     assert html =~ ~r/\d{3}-\d{2}-\d{3}/
+    assert html =~ "Pairing status:"
+    assert html =~ "ready to pair"
     assert html =~ "Save HomeKit Bridge"
+    assert html =~ "Reset Pairing"
 
     view
     |> form("form[phx-submit='save_homekit']", %{
@@ -205,6 +216,25 @@ defmodule HueworksWeb.ConfigLiveTest do
     settings = AppSettings.get_global()
     assert settings.homekit_bridge_name == "HueWorks Test"
     assert settings.homekit_scenes_enabled == true
+  end
+
+  test "homekit bridge settings can reset saved pairings", %{conn: conn} do
+    Application.put_env(:hueworks, :homekit_config_test_pairing, %{
+      paired?: true,
+      clear_count: 1
+    })
+
+    {:ok, view, html} = live(conn, "/config")
+
+    assert html =~ "paired"
+
+    view
+    |> element("#reset-homekit-pairings")
+    |> render_click()
+
+    html = render(view)
+    assert html =~ "Reset 1 HomeKit pairing."
+    assert html =~ "ready to pair"
   end
 
   test "shows a validation error for invalid HA export input", %{conn: conn} do
@@ -513,6 +543,26 @@ defmodule HueworksWeb.ConfigLiveTest do
     def terminate_child(_name, pid) when is_pid(pid) do
       Process.exit(pid, :kill)
       :ok
+    end
+  end
+
+  defmodule PairingStateStub do
+    def paired?(_data_path) do
+      Application.get_env(:hueworks, :homekit_config_test_pairing, %{})
+      |> Map.get(:paired?, false)
+    end
+
+    def clear_pairings(_data_path) do
+      pairing = Application.get_env(:hueworks, :homekit_config_test_pairing, %{})
+      count = Map.get(pairing, :clear_count, 0)
+
+      Application.put_env(
+        :hueworks,
+        :homekit_config_test_pairing,
+        Map.put(pairing, :paired?, false)
+      )
+
+      {:ok, count}
     end
   end
 end

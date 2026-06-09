@@ -227,6 +227,9 @@
       <p class="hw-muted">
         Use this code when Apple Home asks to add the HueWorks bridge manually.
       </p>
+      <p class="hw-muted">
+        Pairing status: <strong><%= if @homekit_paired?, do: "paired", else: "ready to pair" %></strong>
+      </p>
     </div>
 
     <form class="hw-form" phx-change="update_homekit" phx-submit="save_homekit">
@@ -256,6 +259,15 @@
 
       <div class="hw-modal-actions">
         <button type="submit" class="hw-button hw-button-on">Save HomeKit Bridge</button>
+        <button
+          id="reset-homekit-pairings"
+          type="button"
+          class="hw-button hw-delete-button"
+          phx-click="reset_homekit_pairings"
+          phx-confirm="Reset HomeKit pairings? Apple Home will need to add the HueWorks bridge again."
+        >
+          Reset Pairing
+        </button>
       </div>
     </form>
   </section>
