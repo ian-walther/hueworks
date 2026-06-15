@@ -25,6 +25,7 @@ defmodule Hueworks.Scenes.Intent do
               target_light_ids: MapSet.new(),
               circadian_only: false,
               power_overrides: %{},
+              occupancy_sources: %{},
               preserve_power_latches: true
 
     def from_opts(opts) when is_list(opts) do
@@ -39,6 +40,7 @@ defmodule Hueworks.Scenes.Intent do
         target_light_ids: target_light_ids,
         circadian_only: Keyword.get(opts, :circadian_only, false),
         power_overrides: Keyword.get(opts, :power_overrides, %{}),
+        occupancy_sources: Keyword.get(opts, :occupancy_sources, %{}),
         preserve_power_latches: Keyword.get(opts, :preserve_power_latches, true)
       }
     end
@@ -75,6 +77,7 @@ defmodule Hueworks.Scenes.Intent do
       target_light_ids: target_light_ids,
       circadian_only: circadian_only,
       power_overrides: power_overrides,
+      occupancy_sources: occupancy_sources,
       preserve_power_latches: preserve_power_latches
     } = BuildOptions.from_opts(opts)
 
@@ -87,6 +90,7 @@ defmodule Hueworks.Scenes.Intent do
         desired = desired_from_light_state(component.light_state, now)
         default_power_by_light = component_default_power_map(component)
         component_lights = target_component_lights(component.lights, target_light_ids)
+        component_occupied = component_occupied?(component, occupied, occupancy_sources)
 
         Enum.reduce(component_lights, acc, fn light, txn ->
           current_desired = DesiredState.get(:light, light.id) || %{}
@@ -98,7 +102,7 @@ defmodule Hueworks.Scenes.Intent do
             |> maybe_apply_default_power(
               component.light_state,
               power_policy,
-              occupied
+              component_occupied
             )
             |> maybe_preserve_manual_power_latch(
               current_desired,
@@ -261,6 +265,24 @@ defmodule Hueworks.Scenes.Intent do
   end
 
   defp target_component_lights(lights, _target_light_ids), do: lights
+
+  defp component_occupied?(component, fallback_occupied, occupancy_sources) do
+    source_id = Map.get(component, :occupancy_source_id)
+
+    cond do
+      is_nil(source_id) ->
+        fallback_occupied
+
+      Map.has_key?(occupancy_sources, source_id) ->
+        Map.get(occupancy_sources, source_id)
+
+      source = Map.get(component, :occupancy_source) ->
+        Map.get(source, :occupied, fallback_occupied)
+
+      true ->
+        fallback_occupied
+    end
+  end
 
   defp maybe_preserve_manual_power_latch(desired, current_desired, true) do
     cond do

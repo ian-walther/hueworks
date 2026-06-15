@@ -45,10 +45,7 @@ Follow-up:
 - decide whether grouping guidance is enough
 - or whether planner/convergence work should compensate more aggressively for imperfect topology
 
-### 3) Occupancy Input
-Occupancy behavior should move toward HA-driven presence input while preserving the existing scene component power-policy semantics.
-
-### 4) Active Scene Persistence vs User Intent
+### 3) Active Scene Persistence vs User Intent
 Circadian behavior still needs continued validation around:
 
 - automatic scene deactivation thresholds
@@ -79,4 +76,4 @@ Circadian behavior still needs continued validation around:
 ## Remaining Decisions
 - Is log-based observability enough for ongoing production use, or do circadian apply attempts and scene clears need first-class telemetry?
 - Does the product actually need a room-coherent circadian mode, or is careful grouping the better long-term answer?
-- Once HA-driven occupancy exists, do `Default Off`, `Force Off`, and `Follow Occupancy` still feel like the right mental model for scene component power policy?
+- Do `Default Off`, `Force Off`, and `Follow Occupancy` still feel like the right mental model for scene component power policy after more real-world use with component-specific occupancy sources?

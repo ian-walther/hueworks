@@ -11,6 +11,7 @@ defmodule HueworksWeb.SceneBuilderComponent do
        room_lights: [],
        groups: [],
        light_states: [],
+       occupancy_sources: [],
        scene_id: nil,
        builder: nil,
        expanded_group_keys: MapSet.new()
@@ -70,6 +71,26 @@ defmodule HueworksWeb.SceneBuilderComponent do
             <%= if @light_states == [] do %>
               <p class="hw-muted">Create light states from Config before saving this scene.</p>
             <% end %>
+          </div>
+
+          <div class="hw-row">
+            <label class="hw-modal-label">Occupancy</label>
+            <form phx-change="select_occupancy_source" phx-target={@myself} data-component-id={component.id}>
+              <input type="hidden" name="component_id" value={component.id} />
+              <select class="hw-select" name="occupancy_source_id">
+                <option value="" selected={is_nil(selected_occupancy_source_value(component))}>
+                  Room occupancy
+                </option>
+                <%= for source <- @occupancy_sources do %>
+                  <option
+                    value={source.id}
+                    selected={to_string(source.id) == selected_occupancy_source_value(component)}
+                  >
+                    <%= display_name(source) %>
+                  </option>
+                <% end %>
+              </select>
+            </form>
           </div>
 
           <%= if custom_manual?(component) do %>
@@ -275,6 +296,19 @@ defmodule HueworksWeb.SceneBuilderComponent do
     socket =
       socket.assigns
       |> Flow.select_light_state(id, state_id)
+      |> apply_component_change(socket)
+
+    {:noreply, socket}
+  end
+
+  def handle_event(
+        "select_occupancy_source",
+        %{"component_id" => id, "occupancy_source_id" => source_id},
+        socket
+      ) do
+    socket =
+      socket.assigns
+      |> Flow.select_occupancy_source(id, source_id)
       |> apply_component_change(socket)
 
     {:noreply, socket}
@@ -503,6 +537,10 @@ defmodule HueworksWeb.SceneBuilderComponent do
   defp display_name(entity), do: State.display_name(entity)
 
   defp selected_state_value(component), do: State.selected_state_value(component)
+
+  defp selected_occupancy_source_value(component),
+    do: State.selected_occupancy_source_value(component)
+
   defp custom_manual?(component), do: State.custom_manual?(component)
   defp custom_color?(component), do: State.custom_color?(component)
   defp custom_field_value(component, key), do: State.custom_field_value(component, key)

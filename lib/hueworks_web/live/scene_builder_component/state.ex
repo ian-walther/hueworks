@@ -14,6 +14,7 @@ defmodule HueworksWeb.SceneBuilderComponent.State do
     group_ids: [],
     light_state_id: nil,
     embedded_manual_config: nil,
+    occupancy_source_id: nil,
     light_defaults: %{}
   }
 
@@ -71,6 +72,28 @@ defmodule HueworksWeb.SceneBuilderComponent.State do
           | light_state_id: nil,
             embedded_manual_config: default_custom_config(config, mode)
         }
+      else
+        component
+      end
+    end)
+  end
+
+  def select_occupancy_source(components, component_id, source_id, occupancy_sources) do
+    valid_ids =
+      occupancy_sources
+      |> Enum.map(& &1.id)
+      |> Enum.map(&to_string/1)
+      |> MapSet.new()
+
+    component_id = parse_id(component_id)
+
+    Enum.map(components, fn component ->
+      if component.id == component_id do
+        Map.put(
+          component,
+          :occupancy_source_id,
+          normalize_occupancy_source_id(source_id, valid_ids)
+        )
       else
         component
       end
@@ -255,6 +278,10 @@ defmodule HueworksWeb.SceneBuilderComponent.State do
           Map.get(component, :light_state_id)
         )
       )
+      |> Map.put(
+        :occupancy_source_id,
+        normalize_occupancy_source_id(Map.get(component, :occupancy_source_id), nil)
+      )
     end)
   end
 
@@ -334,6 +361,16 @@ defmodule HueworksWeb.SceneBuilderComponent.State do
     end
   end
 
+  def selected_occupancy_source_value(component) when is_map(component) do
+    case Map.get(component, :occupancy_source_id) do
+      nil -> nil
+      "" -> nil
+      source_id -> to_string(source_id)
+    end
+  end
+
+  def selected_occupancy_source_value(_component), do: nil
+
   def custom_manual?(component) when is_map(component) do
     embedded_manual_config?(component) and
       LightState.manual_mode(component.embedded_manual_config) != :color
@@ -396,6 +433,22 @@ defmodule HueworksWeb.SceneBuilderComponent.State do
     state_id = to_string(state_id)
 
     if MapSet.size(valid_ids) == 0 or MapSet.member?(valid_ids, state_id), do: state_id, else: nil
+  end
+
+  defp normalize_occupancy_source_id(nil, _valid_ids), do: nil
+  defp normalize_occupancy_source_id("", _valid_ids), do: nil
+
+  defp normalize_occupancy_source_id(source_id, nil) do
+    case parse_id(source_id) do
+      nil -> nil
+      id -> to_string(id)
+    end
+  end
+
+  defp normalize_occupancy_source_id(source_id, valid_ids) do
+    source_id = to_string(source_id)
+
+    if MapSet.member?(valid_ids, source_id), do: source_id, else: nil
   end
 
   defp parse_id(value), do: Util.parse_id(value)

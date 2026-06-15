@@ -4,7 +4,7 @@ defmodule Hueworks.HomeAssistant.Export.Messages.Discovery do
   alias Hueworks.ActiveScenes
   alias Hueworks.HomeAssistant.Export.Messages.State
   alias Hueworks.HomeAssistant.Export.Messages.Topics
-  alias Hueworks.Schemas.{Room, Scene}
+  alias Hueworks.Schemas.{OccupancySource, Room, Scene}
 
   def discovery_payload(%Scene{} = scene, config) do
     room_name = room_name(scene.room)
@@ -129,8 +129,44 @@ defmodule Hueworks.HomeAssistant.Export.Messages.Discovery do
     }
   end
 
+  def occupancy_source_discovery_payload(%OccupancySource{} = source, config) do
+    %{
+      "platform" => "switch",
+      "name" => occupancy_source_name(source),
+      "unique_id" => "hueworks_occupancy_source_#{source.id}_switch",
+      "command_topic" => Topics.occupancy_source_command_topic(source.id),
+      "state_topic" => Topics.occupancy_source_state_topic(source.id),
+      "payload_on" => "ON",
+      "payload_off" => "OFF",
+      "availability_topic" => Topics.availability_topic(),
+      "payload_available" => "online",
+      "payload_not_available" => "offline",
+      "json_attributes_topic" => Topics.occupancy_source_attributes_topic(source.id),
+      "device" => %{
+        "identifiers" => ["hueworks_room_#{source.room_id}"],
+        "name" => "HueWorks #{room_name(source.room)}",
+        "manufacturer" => "HueWorks",
+        "model" => "Room Occupancy"
+      }
+    }
+    |> maybe_put("configuration_url", configuration_url(config))
+  end
+
+  def occupancy_source_attributes_payload(%OccupancySource{} = source) do
+    %{
+      "hueworks_managed" => true,
+      "hueworks_entity_kind" => "occupancy_source",
+      "hueworks_occupancy_source_id" => source.id,
+      "hueworks_room_id" => source.room_id,
+      "room_name" => room_name(source.room),
+      "occupancy_source_name" => occupancy_source_name(source)
+    }
+  end
+
   def room_scene_options(scenes) when is_list(scenes), do: State.room_scene_options(scenes)
-  def active_scene_name(room_id, scenes) when is_integer(room_id) and is_list(scenes), do: State.active_scene_name(room_id, scenes)
+
+  def active_scene_name(room_id, scenes) when is_integer(room_id) and is_list(scenes),
+    do: State.active_scene_name(room_id, scenes)
 
   defp room_device(entity) do
     room_id = entity.room_id || "unassigned"
@@ -157,6 +193,8 @@ defmodule Hueworks.HomeAssistant.Export.Messages.Discovery do
   defp scene_name(%Scene{} = scene), do: scene.display_name || scene.name
 
   defp entity_name(entity), do: entity.display_name || entity.name
+
+  defp occupancy_source_name(%OccupancySource{} = source), do: source.name
 
   defp room_select_option_labels(scenes) when is_list(scenes) do
     scenes

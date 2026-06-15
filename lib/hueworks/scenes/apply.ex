@@ -4,6 +4,7 @@ defmodule Hueworks.Scenes.Apply do
   alias Hueworks.ActiveScenes
   alias Hueworks.Control.Apply, as: ControlApply
   alias Hueworks.DebugLogging
+  alias Hueworks.Occupancy
   alias Hueworks.Repo
   alias Hueworks.Rooms
   alias Hueworks.Scenes.Components
@@ -32,7 +33,9 @@ defmodule Hueworks.Scenes.Apply do
   def apply_scene(%Scene{} = scene, opts \\ []) do
     scene =
       scene
-      |> Repo.preload(scene_components: [:lights, :light_state, :scene_component_lights])
+      |> Repo.preload(
+        scene_components: [:lights, :light_state, :scene_component_lights, :occupancy_source]
+      )
       |> attach_effective_light_states()
 
     occupied = Keyword.get_lazy(opts, :occupied, fn -> Rooms.room_occupied?(scene.room_id) end)
@@ -40,6 +43,9 @@ defmodule Hueworks.Scenes.Apply do
     intent_opts =
       opts
       |> Keyword.put(:occupied, occupied)
+      |> Keyword.put_new_lazy(:occupancy_sources, fn ->
+        Occupancy.source_occupied_map_for_room(scene.room_id)
+      end)
       |> BuildOptions.from_opts()
 
     preserve_power_latches = intent_opts.preserve_power_latches

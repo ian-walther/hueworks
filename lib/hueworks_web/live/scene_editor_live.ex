@@ -4,6 +4,7 @@ defmodule HueworksWeb.SceneEditorLive do
   import Ecto.Query, only: [from: 2]
 
   alias Hueworks.ActiveScenes
+  alias Hueworks.Occupancy
   alias Hueworks.Repo
   alias Hueworks.Rooms
   alias Hueworks.Scenes
@@ -17,6 +18,7 @@ defmodule HueworksWeb.SceneEditorLive do
     group_ids: [],
     light_state_id: nil,
     embedded_manual_config: nil,
+    occupancy_source_id: nil,
     light_defaults: %{}
   }
 
@@ -36,6 +38,7 @@ defmodule HueworksWeb.SceneEditorLive do
        scene_builder: nil,
        scene_room_lights: [],
        scene_room_groups: [],
+       scene_occupancy_sources: [],
        scene_light_states: [],
        active_scene_id: nil,
        scene_save_error: nil
@@ -169,6 +172,7 @@ defmodule HueworksWeb.SceneEditorLive do
         else
           {room_lights, room_groups} = scene_room_data(room_id)
           light_states = Scenes.list_editable_light_states()
+          occupancy_sources = Occupancy.list_sources_for_room(room_id)
           components = load_scene_components(scene)
           builder = Builder.build(room_lights, room_groups, components)
           active_scene_id = active_scene_id_for_room(room_id)
@@ -183,6 +187,7 @@ defmodule HueworksWeb.SceneEditorLive do
             scene_builder: builder,
             scene_room_lights: room_lights,
             scene_room_groups: room_groups,
+            scene_occupancy_sources: occupancy_sources,
             scene_light_states: light_states,
             active_scene_id: active_scene_id,
             scene_save_error: nil
@@ -283,6 +288,7 @@ defmodule HueworksWeb.SceneEditorLive do
     room_id = room.id
     {room_lights, room_groups} = scene_room_data(room_id)
     light_states = Scenes.list_editable_light_states()
+    occupancy_sources = Occupancy.list_sources_for_room(room_id)
     builder = Builder.build(room_lights, room_groups, components)
 
     assign(socket,
@@ -295,6 +301,7 @@ defmodule HueworksWeb.SceneEditorLive do
       scene_builder: builder,
       scene_room_lights: room_lights,
       scene_room_groups: room_groups,
+      scene_occupancy_sources: occupancy_sources,
       scene_light_states: light_states,
       active_scene_id: active_scene_id_for_room(room_id),
       scene_save_error: nil
@@ -364,6 +371,8 @@ defmodule HueworksWeb.SceneEditorLive do
           group_ids: [],
           light_state_id: if(component.light_state_id, do: to_string(component.light_state_id)),
           embedded_manual_config: component.embedded_manual_config,
+          occupancy_source_id:
+            if(component.occupancy_source_id, do: to_string(component.occupancy_source_id)),
           light_defaults: light_defaults
         }
       end)

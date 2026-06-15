@@ -21,7 +21,9 @@ defmodule Hueworks.HomeAssistant.Export.Lifecycle.SyncDispatch do
       when is_binary(connection_client_id) and is_binary(client_id) and
              is_function(publish_fun, 3) do
     if connection_client_id == client_id and Runtime.export_enabled?(state.config) do
-      :ok = publish_fun.(Hueworks.HomeAssistant.Export.availability_topic(), "online", retain: true)
+      :ok =
+        publish_fun.(Hueworks.HomeAssistant.Export.availability_topic(), "online", retain: true)
+
       run_sync(state, :publish_all_entities, [], publish_fun)
     else
       state
@@ -55,9 +57,20 @@ defmodule Hueworks.HomeAssistant.Export.Lifecycle.SyncDispatch do
   defp sync_operation({:refresh_room_select, room_id}), do: {:publish_room_select, [room_id]}
   defp sync_operation({:refresh_light, light_id}), do: {:publish_entity, [:light, light_id]}
   defp sync_operation({:refresh_group, group_id}), do: {:publish_entity, [:group, group_id]}
+
+  defp sync_operation({:refresh_occupancy_source, source_id}),
+    do: {:publish_occupancy_source, [source_id]}
+
+  defp sync_operation({:refresh_occupancy_sources_for_room, room_id}),
+    do: {:publish_room_entities, [room_id]}
+
   defp sync_operation({:refresh_scene, scene_id}), do: {:publish_scene, [scene_id]}
   defp sync_operation({:remove_light, light_id}), do: {:unpublish_entity, [:light, light_id]}
   defp sync_operation({:remove_group, group_id}), do: {:unpublish_entity, [:group, group_id]}
+
+  defp sync_operation({:remove_occupancy_source, source_id}),
+    do: {:unpublish_occupancy_source, [source_id]}
+
   defp sync_operation({:remove_scene, scene_id}), do: {:unpublish_scene, [scene_id]}
   defp sync_operation({:remove_room, room_id}), do: {:unpublish_room_select, [room_id]}
   defp sync_operation(_message), do: nil

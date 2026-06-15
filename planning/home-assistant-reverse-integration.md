@@ -32,7 +32,7 @@ Instead:
 - Tighten metadata and device grouping so exported scenes, room selectors, lights, and groups feel consistent in HA.
 - Improve republish and recovery behavior when MQTT export settings or entity shapes change.
 - Add stronger operator-facing visibility for export health, discovery state, and stale retained payload cleanup.
-- Decide whether room-level context entities should expand before any deeper light-capability work.
+- Decide whether occupancy sources should remain writable switches or also gain read-only sensor/binary-sensor representations.
 - Revalidate daily-control parity in real use before treating HA export as a primary control surface.
 
 ## Open Questions

@@ -2,6 +2,7 @@ defmodule HueworksWeb.RoomsLive do
   use Phoenix.LiveView
 
   alias Hueworks.ActiveScenes
+  alias Hueworks.Occupancy
   alias Hueworks.Rooms
   alias Hueworks.Scenes
 
@@ -202,6 +203,37 @@ defmodule HueworksWeb.RoomsLive do
               {:error, _changeset} -> {:noreply, socket}
             end
         end
+    end
+  end
+
+  def handle_event("create_occupancy_source", %{"room_id" => room_id, "name" => name}, socket) do
+    with room_id when is_integer(room_id) <- Hueworks.Util.parse_id(room_id),
+         trimmed when trimmed != "" <- String.trim(name) do
+      _ = Occupancy.create_source(room_id, %{name: trimmed, occupied: true, metadata: %{}})
+      {:noreply, refresh_rooms(socket)}
+    else
+      _ -> {:noreply, socket}
+    end
+  end
+
+  def handle_event("update_occupancy_source", %{"source_id" => source_id, "name" => name}, socket) do
+    with source_id when is_integer(source_id) <- Hueworks.Util.parse_id(source_id),
+         trimmed when trimmed != "" <- String.trim(name),
+         %{} = source <- Occupancy.get_source(source_id) do
+      _ = Occupancy.update_source(source, %{name: trimmed})
+      {:noreply, refresh_rooms(socket)}
+    else
+      _ -> {:noreply, socket}
+    end
+  end
+
+  def handle_event("delete_occupancy_source", %{"id" => source_id}, socket) do
+    with source_id when is_integer(source_id) <- Hueworks.Util.parse_id(source_id),
+         %{} = source <- Occupancy.get_source(source_id) do
+      _ = Occupancy.delete_source(source)
+      {:noreply, refresh_rooms(socket)}
+    else
+      _ -> {:noreply, socket}
     end
   end
 

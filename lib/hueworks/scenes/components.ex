@@ -6,7 +6,15 @@ defmodule Hueworks.Scenes.Components do
   alias Hueworks.Repo
   alias Hueworks.Scenes.Intent
   alias Hueworks.Schemas.LightState.ManualConfig
-  alias Hueworks.Schemas.{Light, LightState, Scene, SceneComponent, SceneComponentLight}
+
+  alias Hueworks.Schemas.{
+    Light,
+    LightState,
+    OccupancySource,
+    Scene,
+    SceneComponent,
+    SceneComponentLight
+  }
 
   def replace(%Scene{} = scene, components) when is_list(components) do
     Repo.transaction(fn ->
@@ -22,7 +30,7 @@ defmodule Hueworks.Scenes.Components do
 
           {:ok, resolved_light_state} ->
             component
-            |> validate_component_targets(resolved_light_state.light_state)
+            |> validate_component(scene, resolved_light_state.light_state)
             |> case do
               :ok ->
                 component
@@ -46,6 +54,7 @@ defmodule Hueworks.Scenes.Components do
       scene_id: scene.id,
       light_state_id: resolved_light_state.light_state_id,
       embedded_manual_config: resolved_light_state.embedded_manual_config,
+      occupancy_source_id: normalized_occupancy_source_id(component),
       metadata: %{}
     })
     |> Repo.insert!()
@@ -149,6 +158,31 @@ defmodule Hueworks.Scenes.Components do
 
   defp validate_component_targets(_component, _light_state), do: :ok
 
+  defp validate_component(component, scene, light_state) do
+    with :ok <- validate_component_targets(component, light_state),
+         :ok <- validate_occupancy_source(component, scene) do
+      :ok
+    end
+  end
+
+  defp validate_occupancy_source(component, scene) do
+    case normalized_occupancy_source_id(component) do
+      nil ->
+        :ok
+
+      occupancy_source_id ->
+        if Repo.exists?(
+             from(os in OccupancySource,
+               where: os.id == ^occupancy_source_id and os.room_id == ^scene.room_id
+             )
+           ) do
+          :ok
+        else
+          {:error, :invalid_occupancy_source}
+        end
+    end
+  end
+
   defp component_has_non_color_lights?(component) do
     component
     |> Map.get(:light_ids, [])
@@ -176,5 +210,11 @@ defmodule Hueworks.Scenes.Components do
       config when is_map(config) and map_size(config) > 0 -> config
       _ -> nil
     end
+  end
+
+  defp normalized_occupancy_source_id(component) do
+    component
+    |> Map.get(:occupancy_source_id, Map.get(component, "occupancy_source_id"))
+    |> Hueworks.Util.parse_id()
   end
 end
