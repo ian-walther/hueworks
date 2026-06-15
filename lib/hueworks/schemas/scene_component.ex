@@ -11,6 +11,7 @@ defmodule Hueworks.Schemas.SceneComponent do
 
     belongs_to(:scene, Hueworks.Schemas.Scene)
     belongs_to(:light_state, Hueworks.Schemas.LightState)
+    belongs_to(:occupancy_source, Hueworks.Schemas.OccupancySource)
     has_many(:scene_component_lights, Hueworks.Schemas.SceneComponentLight)
     has_many(:lights, through: [:scene_component_lights, :light])
 
@@ -19,7 +20,14 @@ defmodule Hueworks.Schemas.SceneComponent do
 
   def changeset(scene_component, attrs) do
     scene_component
-    |> cast(attrs, [:name, :metadata, :scene_id, :light_state_id, :embedded_manual_config])
+    |> cast(attrs, [
+      :name,
+      :metadata,
+      :scene_id,
+      :light_state_id,
+      :embedded_manual_config,
+      :occupancy_source_id
+    ])
     |> validate_required([:scene_id])
     |> normalize_embedded_manual_config()
     |> validate_light_state_source()
