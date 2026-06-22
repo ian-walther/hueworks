@@ -10,6 +10,7 @@ defmodule Hueworks.SchemasTest do
     GroupLight,
     Light,
     LightState,
+    PresenceInput,
     Room,
     Scene,
     SceneComponent,
@@ -427,6 +428,25 @@ defmodule Hueworks.SchemasTest do
 
     assert valid_changeset.valid?
     assert get_change(valid_changeset, :default_power) == :force_off
+  end
+
+  test "presence_input requires room_id and name and defaults to unoccupied" do
+    changeset = PresenceInput.changeset(%PresenceInput{}, %{})
+    errors = errors_on(changeset)
+
+    assert errors[:room_id] == ["can't be blank"]
+    assert errors[:name] == ["can't be blank"]
+    assert Ecto.Changeset.apply_changes(changeset).occupied == false
+
+    valid_changeset =
+      PresenceInput.changeset(%PresenceInput{}, %{
+        room_id: 1,
+        name: "Desk Area",
+        occupied: true
+      })
+
+    assert valid_changeset.valid?
+    assert get_change(valid_changeset, :occupied) == true
   end
 
   test "group_light requires group_id and light_id" do
