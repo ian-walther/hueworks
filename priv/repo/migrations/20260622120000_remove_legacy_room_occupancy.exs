@@ -8,6 +8,8 @@ defmodule Hueworks.Repo.Migrations.RemoveLegacyRoomOccupancy do
     WHERE default_power = 'follow_occupancy'
     """)
 
+    drop_if_exists(index(:scene_components, [:occupancy_source_id]))
+
     alter table(:scene_components) do
       remove(:occupancy_source_id)
     end
