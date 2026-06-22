@@ -32,8 +32,7 @@ defmodule Hueworks.HomeAssistant.Export.Runtime do
       "#{topic_prefix}/lights/+/switch/set",
       "#{topic_prefix}/lights/+/light/set",
       "#{topic_prefix}/groups/+/switch/set",
-      "#{topic_prefix}/groups/+/light/set",
-      "#{topic_prefix}/occupancy_sources/+/switch/set"
+      "#{topic_prefix}/groups/+/light/set"
     ]
   end
 end

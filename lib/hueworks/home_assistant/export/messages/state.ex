@@ -6,7 +6,7 @@ defmodule Hueworks.HomeAssistant.Export.Messages.State do
   alias Hueworks.Control.State
   alias Hueworks.HomeAssistant.Export.Messages.RoomSceneOption
   alias Hueworks.Kelvin
-  alias Hueworks.Schemas.{OccupancySource, Scene}
+  alias Hueworks.Schemas.Scene
   alias Hueworks.Util
 
   def light_state_payload(:group, entity) when is_map(entity) do
@@ -57,10 +57,6 @@ defmodule Hueworks.HomeAssistant.Export.Messages.State do
       _ -> "None"
     end
   end
-
-  def occupancy_source_state_payload(%OccupancySource{occupied: true}), do: "ON"
-  def occupancy_source_state_payload(%OccupancySource{occupied: false}), do: "OFF"
-  def occupancy_source_state_payload(_source), do: "None"
 
   def entity_export_mode(%{ha_export_mode: mode}) when mode in [:none, :switch, :light], do: mode
   def entity_export_mode(_entity), do: :none

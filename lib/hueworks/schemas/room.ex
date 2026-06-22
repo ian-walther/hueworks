@@ -5,20 +5,18 @@ defmodule Hueworks.Schemas.Room do
   schema "rooms" do
     field(:name, :string)
     field(:display_name, :string)
-    field(:occupied, :boolean, default: true)
     field(:metadata, :map, default: %{})
 
     has_many(:lights, Hueworks.Schemas.Light)
     has_many(:groups, Hueworks.Schemas.Group)
     has_many(:scenes, Hueworks.Schemas.Scene)
-    has_many(:occupancy_sources, Hueworks.Schemas.OccupancySource)
 
     timestamps()
   end
 
   def changeset(room, attrs) do
     room
-    |> cast(attrs, [:name, :display_name, :occupied, :metadata])
+    |> cast(attrs, [:name, :display_name, :metadata])
     |> validate_required([:name])
   end
 end

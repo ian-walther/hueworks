@@ -8,7 +8,6 @@ defmodule Hueworks.Control.CircadianPoller do
 
   alias Hueworks.ActiveScenes
   alias Hueworks.DebugLogging
-  alias Hueworks.Rooms
   alias Hueworks.Scenes
 
   @default_interval_ms 60_000
@@ -62,7 +61,6 @@ defmodule Hueworks.Control.CircadianPoller do
             }
 
             case Scenes.apply_active_scene(scene, active,
-                   occupied: Rooms.room_occupied?(active.room_id),
                    preserve_power_latches: true,
                    trace: trace
                  ) do

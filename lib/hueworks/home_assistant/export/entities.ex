@@ -7,7 +7,7 @@ defmodule Hueworks.HomeAssistant.Export.Entities do
   alias Hueworks.HomeAssistant.Export.Messages
   alias Hueworks.HomeAssistant.Export.Messages.RoomSceneOption
   alias Hueworks.Repo
-  alias Hueworks.Schemas.{Group, GroupLight, Light, OccupancySource, Room, Scene}
+  alias Hueworks.Schemas.{Group, GroupLight, Light, Room, Scene}
 
   def control_target(:light, light_id) when is_integer(light_id) do
     case fetch_entity(:light, light_id) do
@@ -58,37 +58,6 @@ defmodule Hueworks.HomeAssistant.Export.Entities do
 
   def list_rooms do
     Repo.all(from(r in Room, order_by: [asc: r.name]))
-  end
-
-  def list_occupancy_sources do
-    Repo.all(
-      from(os in OccupancySource,
-        join: r in assoc(os, :room),
-        preload: [room: r],
-        order_by: [asc: r.name, asc: os.name]
-      )
-    )
-  end
-
-  def list_occupancy_sources_for_room(room_id) when is_integer(room_id) do
-    Repo.all(
-      from(os in OccupancySource,
-        join: r in assoc(os, :room),
-        where: os.room_id == ^room_id,
-        preload: [room: r],
-        order_by: [asc: os.name]
-      )
-    )
-  end
-
-  def fetch_occupancy_source(source_id) when is_integer(source_id) do
-    OccupancySource
-    |> Repo.get(source_id)
-    |> Repo.preload(:room)
-  end
-
-  def list_occupancy_source_ids do
-    Repo.all(from(os in OccupancySource, select: os.id))
   end
 
   def list_exportable_scenes_for_room(room_id) when is_integer(room_id) do

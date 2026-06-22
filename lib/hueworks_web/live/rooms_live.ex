@@ -2,7 +2,6 @@ defmodule HueworksWeb.RoomsLive do
   use Phoenix.LiveView
 
   alias Hueworks.ActiveScenes
-  alias Hueworks.Occupancy
   alias Hueworks.Rooms
   alias Hueworks.Scenes
 
@@ -18,7 +17,6 @@ defmodule HueworksWeb.RoomsLive do
      assign(socket,
        rooms: rooms,
        active_scene_by_room: scene_assigns.active_scene_by_room,
-       occupancy_by_room: scene_assigns.occupancy_by_room,
        modal_open: false,
        edit_mode: :new,
        edit_room_id: nil,
@@ -129,47 +127,6 @@ defmodule HueworksWeb.RoomsLive do
     end
   end
 
-  def handle_event("toggle_occupancy", %{"room_id" => room_id}, socket) do
-    with room_id when is_integer(room_id) <- Hueworks.Util.parse_id(room_id),
-         scene_id when is_integer(scene_id) <- active_scene_id_for_room(socket, room_id),
-         %{} = scene <- Scenes.get_scene(scene_id) do
-      active = ActiveScenes.get_for_room(room_id)
-      current_occupied = current_occupied_for_room(socket, room_id, active)
-      next_occupied = not current_occupied
-      trace = occupancy_trace(room_id, scene_id, current_occupied, next_occupied)
-
-      case active do
-        %{} = active_scene ->
-          _ = Rooms.set_occupied(room_id, next_occupied)
-
-          _ =
-            Scenes.apply_active_scene(scene, active_scene,
-              occupied: next_occupied,
-              preserve_power_latches: false,
-              trace: trace
-            )
-
-        nil ->
-          # If an external update cleared active_scenes but the UI still shows an active scene,
-          # recreate the active row so this toggle remains usable.
-          _ = ActiveScenes.set_active(scene)
-          _ = Rooms.set_occupied(room_id, next_occupied)
-
-          _ =
-            Scenes.apply_scene(scene,
-              occupied: next_occupied,
-              preserve_power_latches: false,
-              trace: trace
-            )
-      end
-
-      {:noreply, assign(socket, active_scene_assigns())}
-    else
-      _ ->
-        {:noreply, assign(socket, active_scene_assigns())}
-    end
-  end
-
   def handle_event("update_room", %{"name" => name}, socket) do
     {:noreply, assign(socket, edit_name: name)}
   end
@@ -206,37 +163,6 @@ defmodule HueworksWeb.RoomsLive do
     end
   end
 
-  def handle_event("create_occupancy_source", %{"room_id" => room_id, "name" => name}, socket) do
-    with room_id when is_integer(room_id) <- Hueworks.Util.parse_id(room_id),
-         trimmed when trimmed != "" <- String.trim(name) do
-      _ = Occupancy.create_source(room_id, %{name: trimmed, occupied: true, metadata: %{}})
-      {:noreply, refresh_rooms(socket)}
-    else
-      _ -> {:noreply, socket}
-    end
-  end
-
-  def handle_event("update_occupancy_source", %{"source_id" => source_id, "name" => name}, socket) do
-    with source_id when is_integer(source_id) <- Hueworks.Util.parse_id(source_id),
-         trimmed when trimmed != "" <- String.trim(name),
-         %{} = source <- Occupancy.get_source(source_id) do
-      _ = Occupancy.update_source(source, %{name: trimmed})
-      {:noreply, refresh_rooms(socket)}
-    else
-      _ -> {:noreply, socket}
-    end
-  end
-
-  def handle_event("delete_occupancy_source", %{"id" => source_id}, socket) do
-    with source_id when is_integer(source_id) <- Hueworks.Util.parse_id(source_id),
-         %{} = source <- Occupancy.get_source(source_id) do
-      _ = Occupancy.delete_source(source)
-      {:noreply, refresh_rooms(socket)}
-    else
-      _ -> {:noreply, socket}
-    end
-  end
-
   def handle_event("delete_room", %{"id" => id}, socket) do
     case Rooms.get_room(String.to_integer(id)) do
       nil ->
@@ -255,7 +181,6 @@ defmodule HueworksWeb.RoomsLive do
     assign(socket,
       rooms: rooms,
       active_scene_by_room: scene_assigns.active_scene_by_room,
-      occupancy_by_room: scene_assigns.occupancy_by_room,
       modal_open: false,
       edit_mode: :new,
       edit_room_id: nil,
@@ -264,7 +189,7 @@ defmodule HueworksWeb.RoomsLive do
   end
 
   defp active_scene_assigns do
-    active_scene_assigns(Rooms.list_rooms())
+    active_scene_assigns(Rooms.list_rooms_with_children())
   end
 
   defp active_scene_assigns(rooms) do
@@ -273,34 +198,7 @@ defmodule HueworksWeb.RoomsLive do
     %{
       active_scene_by_room:
         Map.new(active_scenes, fn active -> {active.room_id, active.scene_id} end),
-      occupancy_by_room: Map.new(rooms, fn room -> {room.id, Map.get(room, :occupied, true)} end)
-    }
-  end
-
-  defp active_scene_id_for_room(socket, room_id) do
-    case ActiveScenes.get_for_room(room_id) do
-      %{} = active -> active.scene_id
-      nil -> Map.get(socket.assigns.active_scene_by_room || %{}, room_id)
-    end
-  end
-
-  defp current_occupied_for_room(socket, room_id, nil) do
-    Map.get(socket.assigns.occupancy_by_room || %{}, room_id, true)
-  end
-
-  defp current_occupied_for_room(socket, room_id, %{}) do
-    Map.get(socket.assigns.occupancy_by_room || %{}, room_id, true)
-  end
-
-  defp occupancy_trace(room_id, scene_id, from_occupied, to_occupied) do
-    %{
-      trace_id: "occ-#{room_id}-#{System.unique_integer([:positive])}",
-      source: "rooms_live.toggle_occupancy",
-      room_id: room_id,
-      scene_id: scene_id,
-      from_occupied: from_occupied,
-      to_occupied: to_occupied,
-      started_at_ms: System.monotonic_time(:millisecond)
+      rooms: rooms
     }
   end
 

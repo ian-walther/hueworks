@@ -312,7 +312,7 @@ defmodule Hueworks.ContextsTest do
     assert Rooms.get_room(updated.id) == nil
   end
 
-  test "Rooms.list_rooms_with_children preloads room associations and occupancy helpers work" do
+  test "Rooms.list_rooms_with_children preloads room associations" do
     room = insert_room("Studio")
     bridge = insert_bridge(%{host: "10.0.0.155"})
     light = insert_light(bridge, %{source_id: "room-light", room_id: room.id})
@@ -325,11 +325,6 @@ defmodule Hueworks.ContextsTest do
     assert Enum.map(loaded_room.lights, & &1.id) == [light.id]
     assert Enum.map(loaded_room.groups, & &1.id) == [group.id]
     assert Enum.map(loaded_room.scenes, & &1.id) == [scene.id]
-
-    assert Rooms.room_occupied?(room.id) == true
-    :ok = Rooms.set_occupied(room.id, false)
-    assert Rooms.room_occupied?(room.id) == false
-    assert Rooms.room_occupied?(999_999) == true
   end
 
   test "Bridges.latest_import and list_imports_for_bridge return newest imports first" do
@@ -373,7 +368,9 @@ defmodule Hueworks.ContextsTest do
     {:ok, light_state} = Scenes.create_manual_light_state("Delete State", %{"brightness" => "40"})
 
     {:ok, _} =
-      Scenes.replace_scene_components(scene, [%{light_ids: [light.id], light_state_id: light_state.id}])
+      Scenes.replace_scene_components(scene, [
+        %{light_ids: [light.id], light_state_id: light_state.id}
+      ])
 
     Repo.insert!(%Hueworks.Schemas.PicoDevice{
       bridge_id: bridge.id,
@@ -443,7 +440,9 @@ defmodule Hueworks.ContextsTest do
     Repo.insert!(%GroupLight{group_id: delete_group.id, light_id: delete_light.id})
 
     {:ok, scene} = Scenes.create_scene(%{name: "Selective Delete Scene", room_id: room.id})
-    {:ok, light_state} = Scenes.create_manual_light_state("Selective Delete State", %{"brightness" => "40"})
+
+    {:ok, light_state} =
+      Scenes.create_manual_light_state("Selective Delete State", %{"brightness" => "40"})
 
     {:ok, _} =
       Scenes.replace_scene_components(scene, [
@@ -476,7 +475,9 @@ defmodule Hueworks.ContextsTest do
     bridge = insert_bridge(%{host: "10.0.0.158"})
     root = insert_light(bridge, %{source_id: "root"})
     child = insert_light(bridge, %{source_id: "child"})
-    linked_target = insert_light(bridge, %{source_id: "linked-target", canonical_light_id: root.id})
+
+    linked_target =
+      insert_light(bridge, %{source_id: "linked-target", canonical_light_id: root.id})
 
     assert {:error, :invalid_canonical_light} = Lights.update_link(child, linked_target.id)
 

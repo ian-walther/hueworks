@@ -10,7 +10,6 @@ defmodule Hueworks.SchemasTest do
     GroupLight,
     Light,
     LightState,
-    OccupancySource,
     Room,
     Scene,
     SceneComponent,
@@ -428,25 +427,6 @@ defmodule Hueworks.SchemasTest do
 
     assert valid_changeset.valid?
     assert get_change(valid_changeset, :default_power) == :force_off
-  end
-
-  test "occupancy_source requires room_id and name and defaults to occupied" do
-    changeset = OccupancySource.changeset(%OccupancySource{}, %{})
-    errors = errors_on(changeset)
-
-    assert errors[:room_id] == ["can't be blank"]
-    assert errors[:name] == ["can't be blank"]
-    assert Ecto.Changeset.apply_changes(changeset).occupied == true
-
-    valid_changeset =
-      OccupancySource.changeset(%OccupancySource{}, %{
-        room_id: 1,
-        name: "Desk Area",
-        occupied: false
-      })
-
-    assert valid_changeset.valid?
-    assert get_change(valid_changeset, :occupied) == false
   end
 
   test "group_light requires group_id and light_id" do

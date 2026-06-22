@@ -4,7 +4,6 @@ defmodule Hueworks.ActiveScenesTest do
   alias Hueworks.ActiveScenes
   alias Phoenix.PubSub
   alias Hueworks.Repo
-  alias Hueworks.Rooms
   alias Hueworks.Schemas.{ActiveScene, Room, Scene}
 
   defp insert_room do
@@ -69,16 +68,5 @@ defmodule Hueworks.ActiveScenesTest do
 
     :ok = ActiveScenes.clear_for_room(room.id)
     assert_receive {:active_scene_updated, ^room_id, nil}
-  end
-
-  test "room occupancy is stored on rooms, not active scenes" do
-    room = insert_room()
-    scene = insert_scene(room, "Night")
-    {:ok, _} = ActiveScenes.set_active(scene)
-
-    :ok = Rooms.set_occupied(room.id, false)
-
-    assert Rooms.room_occupied?(room.id) == false
-    assert Repo.get_by!(ActiveScene, room_id: room.id).scene_id == scene.id
   end
 end

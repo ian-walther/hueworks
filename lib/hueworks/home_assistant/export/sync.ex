@@ -4,7 +4,6 @@ defmodule Hueworks.HomeAssistant.Export.Sync do
   alias Hueworks.HomeAssistant.Export.Entities
   alias Hueworks.HomeAssistant.Export.Runtime
   alias Hueworks.HomeAssistant.Export.Sync.Entities, as: EntitySync
-  alias Hueworks.HomeAssistant.Export.Sync.OccupancySources, as: OccupancySourceSync
   alias Hueworks.HomeAssistant.Export.Sync.Rooms, as: RoomSync
   alias Hueworks.HomeAssistant.Export.Sync.Scenes, as: SceneSync
   alias Hueworks.Schemas.Scene
@@ -12,7 +11,6 @@ defmodule Hueworks.HomeAssistant.Export.Sync do
   def publish_all_entities(publish_fun, config) when is_function(publish_fun, 3) do
     :ok = SceneSync.publish_all(publish_fun, config)
     :ok = RoomSync.publish_all_selects(publish_fun, config)
-    :ok = OccupancySourceSync.publish_all(publish_fun, config)
     :ok = EntitySync.publish_all(publish_fun, config)
 
     :ok
@@ -22,7 +20,6 @@ defmodule Hueworks.HomeAssistant.Export.Sync do
       when is_function(publish_fun, 3) and is_integer(room_id) do
     :ok = SceneSync.publish_room(publish_fun, room_id, config)
     :ok = RoomSync.publish_select(publish_fun, room_id, config)
-    :ok = OccupancySourceSync.publish_room(publish_fun, room_id, config)
     :ok = EntitySync.publish_room(publish_fun, room_id, config)
 
     :ok
@@ -77,19 +74,9 @@ defmodule Hueworks.HomeAssistant.Export.Sync do
     EntitySync.publish_groups_for_light(publish_fun, light_id, config)
   end
 
-  def publish_occupancy_source(publish_fun, source_id, config)
-      when is_function(publish_fun, 3) and is_integer(source_id) do
-    OccupancySourceSync.publish_one(publish_fun, source_id, config)
-  end
-
   def unpublish_entity(publish_fun, kind, id, config)
       when is_function(publish_fun, 3) and kind in [:light, :group] and is_integer(id) do
     EntitySync.unpublish_one(publish_fun, kind, id, config)
-  end
-
-  def unpublish_occupancy_source(publish_fun, source_id, config)
-      when is_function(publish_fun, 3) and is_integer(source_id) do
-    OccupancySourceSync.unpublish_one(publish_fun, source_id, config)
   end
 
   def unpublish_room_select(publish_fun, room_id, config)
@@ -107,9 +94,5 @@ defmodule Hueworks.HomeAssistant.Export.Sync do
 
   def unpublish_all_light_entities(publish_fun, config) when is_function(publish_fun, 3) do
     EntitySync.unpublish_all(publish_fun, config)
-  end
-
-  def unpublish_all_occupancy_sources(publish_fun, config) when is_function(publish_fun, 3) do
-    OccupancySourceSync.unpublish_all(publish_fun, config)
   end
 end

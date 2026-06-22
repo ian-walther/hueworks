@@ -40,7 +40,6 @@ It imports devices from Hue, Caseta, Home Assistant, and Zigbee2MQTT, links them
   - manual overrides
 - `/rooms`
   - room CRUD
-  - occupancy toggles
   - scene activation
 - `/rooms/:room_id/scenes/new`
 - `/rooms/:room_id/scenes/:id/edit`

@@ -40,12 +40,6 @@ defmodule HueworksWeb.SceneBuilderComponent.Flow do
     |> component_change(assigns)
   end
 
-  def select_occupancy_source(assigns, component_id, source_id) do
-    assigns.components
-    |> State.select_occupancy_source(component_id, source_id, assigns.occupancy_sources)
-    |> component_change(assigns)
-  end
-
   def update_embedded_manual_config(assigns, component_id, params) do
     assigns.components
     |> State.update_embedded_manual_config(component_id, params)

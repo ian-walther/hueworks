@@ -5,7 +5,6 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
   import Phoenix.LiveViewTest
 
   alias Hueworks.Repo
-  alias Hueworks.Control.State
   alias Hueworks.Control.DesiredState
 
   alias Hueworks.Schemas.{
@@ -13,7 +12,6 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
     Group,
     GroupLight,
     Light,
-    OccupancySource,
     Room,
     Scene,
     SceneComponent,
@@ -89,41 +87,6 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
              |> render_click()
 
     assert to == "/rooms/#{room.id}/scenes/new"
-  end
-
-  test "rooms page can create rename and delete occupancy sources", %{conn: conn} do
-    room = insert_room()
-
-    {:ok, view, _html} = live(conn, "/rooms")
-
-    view
-    |> form("#room-#{room.id} form[phx-submit='create_occupancy_source']", %{
-      "room_id" => Integer.to_string(room.id),
-      "name" => "Desk Occupancy"
-    })
-    |> render_submit()
-
-    source = Repo.get_by!(OccupancySource, room_id: room.id, name: "Desk Occupancy")
-    assert render(view) =~ ~s(id="occupancy-source-#{source.id}")
-    assert render(view) =~ ~s(value="Desk Occupancy")
-
-    view
-    |> form("#occupancy-source-#{source.id} form[phx-submit='update_occupancy_source']", %{
-      "source_id" => Integer.to_string(source.id),
-      "name" => "Sitting Area"
-    })
-    |> render_submit()
-
-    source = Repo.get!(OccupancySource, source.id)
-    assert source.name == "Sitting Area"
-    assert render(view) =~ ~s(value="Sitting Area")
-
-    view
-    |> element("#occupancy-source-#{source.id} button[phx-click='delete_occupancy_source']")
-    |> render_click()
-
-    refute Repo.get(OccupancySource, source.id)
-    refute has_element?(view, "#occupancy-source-#{source.id}")
   end
 
   test "rooms page edit-scene action navigates to scene editor", %{conn: conn} do
@@ -239,91 +202,6 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
            end)
   end
 
-  test "active scene occupancy toggle flips room occupancy state for testing", %{conn: conn} do
-    room = insert_room()
-    {:ok, scene} = Hueworks.Scenes.create_scene(%{name: "Night", room_id: room.id})
-    {:ok, _} = Hueworks.ActiveScenes.set_active(scene)
-
-    {:ok, view, _html} = live(conn, "/rooms")
-
-    assert has_element?(
-             view,
-             "#room-#{room.id} button[phx-click='toggle_occupancy'][phx-value-room_id='#{room.id}']",
-             "Occupied"
-           )
-
-    view
-    |> element(
-      "#room-#{room.id} button[phx-click='toggle_occupancy'][phx-value-room_id='#{room.id}']"
-    )
-    |> render_click()
-
-    assert has_element?(
-             view,
-             "#room-#{room.id} button[phx-click='toggle_occupancy'][phx-value-room_id='#{room.id}']",
-             "Unoccupied"
-           )
-
-    assert Repo.get!(Room, room.id).occupied == false
-  end
-
-  test "occupancy toggle should still flip back to occupied after a manual power toggle",
-       %{conn: conn} do
-    room = insert_room()
-    bridge = insert_bridge()
-    light = insert_light(room, bridge, %{name: "Path Light"})
-
-    {:ok, state} =
-      Hueworks.Scenes.create_manual_light_state("Night Path", %{
-        "brightness" => "10",
-        "temperature" => "2200"
-      })
-
-    {:ok, scene} = Hueworks.Scenes.create_scene(%{name: "Night", room_id: room.id})
-
-    {:ok, _} =
-      Hueworks.Scenes.replace_scene_components(scene, [
-        %{
-          name: "Component 1",
-          light_ids: [light.id],
-          light_state_id: to_string(state.id),
-          light_defaults: %{light.id => :follow_occupancy}
-        }
-      ])
-
-    {:ok, _} = Hueworks.ActiveScenes.set_active(scene)
-
-    {:ok, view, _html} = live(conn, "/rooms")
-
-    view
-    |> element(
-      "#room-#{room.id} button[phx-click='toggle_occupancy'][phx-value-room_id='#{room.id}']"
-    )
-    |> render_click()
-
-    assert has_element?(
-             view,
-             "#room-#{room.id} button[phx-click='toggle_occupancy'][phx-value-room_id='#{room.id}']",
-             "Unoccupied"
-           )
-
-    _ = State.put(:light, light.id, %{power: :on, brightness: 10, kelvin: 2200})
-
-    assert Repo.get_by!(ActiveScene, room_id: room.id).scene_id == scene.id
-
-    view
-    |> element(
-      "#room-#{room.id} button[phx-click='toggle_occupancy'][phx-value-room_id='#{room.id}']"
-    )
-    |> render_click()
-
-    assert has_element?(
-             view,
-             "#room-#{room.id} button[phx-click='toggle_occupancy'][phx-value-room_id='#{room.id}']",
-             "Occupied"
-           )
-  end
-
   test "creates a scene with components, lights, and manual light state via the UI", %{conn: conn} do
     room = insert_room()
     bridge = insert_bridge()
@@ -420,74 +298,6 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
 
     assert default_power_by_light[light1.id] == :default_off
     assert default_power_by_light[light2.id] == :default_on
-  end
-
-  test "scene builder persists selected occupancy source for a component", %{conn: conn} do
-    room = insert_room()
-    bridge = insert_bridge()
-    light = insert_light(room, bridge, %{name: "Desk Lamp"})
-
-    source =
-      Repo.insert!(%OccupancySource{
-        room_id: room.id,
-        name: "Desk Occupancy",
-        occupied: true
-      })
-
-    {:ok, state} =
-      Hueworks.Scenes.create_manual_light_state("Warm", %{
-        "brightness" => "55",
-        "temperature" => "3000"
-      })
-
-    {:ok, view, html} = live(conn, "/rooms/#{room.id}/scenes/new")
-
-    assert html =~ "Room occupancy"
-    assert html =~ "Desk Occupancy"
-
-    view
-    |> form("form[phx-change='select_light_state'][data-component-id='1']", %{
-      "component_id" => "1",
-      "light_state_id" => Integer.to_string(state.id)
-    })
-    |> render_change()
-
-    view
-    |> form("form[phx-change='select_occupancy_source'][data-component-id='1']", %{
-      "component_id" => "1",
-      "occupancy_source_id" => Integer.to_string(source.id)
-    })
-    |> render_change()
-
-    view
-    |> form("form[phx-change='select_light'][data-component-id='1']", %{
-      "component_id" => "1",
-      "light_id" => Integer.to_string(light.id)
-    })
-    |> render_change()
-
-    view
-    |> form("form[phx-change='update_scene']", %{"name" => "Work"})
-    |> render_change()
-
-    view
-    |> element("button[phx-click='save_scene']")
-    |> render_click()
-
-    scene = Repo.one(from(s in Scene, where: s.room_id == ^room.id and s.name == "Work"))
-    assert_patch(view, "/rooms/#{room.id}/scenes/#{scene.id}/edit")
-
-    component =
-      Repo.one(
-        from(sc in SceneComponent,
-          where: sc.scene_id == ^scene.id,
-          preload: [:occupancy_source]
-        )
-      )
-
-    assert component.occupancy_source_id == source.id
-    assert component.occupancy_source.name == "Desk Occupancy"
-    assert render(view) =~ ~s(value="#{source.id}" selected)
   end
 
   test "editing a scene updates components and light state via the UI", %{conn: conn} do
@@ -786,13 +596,6 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
     light1 = insert_light(room, bridge, %{name: "Lamp", supports_color: true})
     light2 = insert_light(room, bridge, %{name: "Ceiling", supports_color: true})
 
-    source =
-      Repo.insert!(%OccupancySource{
-        room_id: room.id,
-        name: "Desk Occupancy",
-        occupied: true
-      })
-
     {:ok, warm} =
       Hueworks.Scenes.create_manual_light_state("Warm", %{
         "brightness" => "55",
@@ -815,7 +618,6 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
           name: "Component 1",
           light_ids: [light1.id],
           light_state_id: to_string(warm.id),
-          occupancy_source_id: to_string(source.id),
           light_defaults: %{light1.id => :default_off}
         },
         %{
@@ -1011,7 +813,6 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
       %{
         name: component.name,
         light_state_id: component.light_state_id,
-        occupancy_source_id: component.occupancy_source_id,
         lights:
           component.scene_component_lights
           |> Enum.map(&{&1.light_id, &1.default_power})

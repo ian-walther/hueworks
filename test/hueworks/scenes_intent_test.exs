@@ -7,7 +7,6 @@ defmodule Hueworks.ScenesIntentTest do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
 
     assert %BuildOptions{
-             occupied: true,
              now: ^now,
              target_light_ids: target_light_ids,
              circadian_only: true,
@@ -15,7 +14,6 @@ defmodule Hueworks.ScenesIntentTest do
              preserve_power_latches: false
            } =
              BuildOptions.from_opts(
-               occupied: true,
                now: now,
                target_light_ids: [1, 2, 2],
                circadian_only: true,
@@ -28,7 +26,6 @@ defmodule Hueworks.ScenesIntentTest do
 
   test "build options accepts an existing struct unchanged" do
     opts = %BuildOptions{
-      occupied: false,
       now: DateTime.utc_now(),
       target_light_ids: MapSet.new(),
       circadian_only: false,

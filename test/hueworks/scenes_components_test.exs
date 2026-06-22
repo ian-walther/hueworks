@@ -13,7 +13,6 @@ defmodule Hueworks.ScenesComponentsTest do
     ActiveScene,
     Light,
     LightState,
-    OccupancySource,
     Room,
     SceneComponent,
     SceneComponentLight
@@ -69,55 +68,6 @@ defmodule Hueworks.ScenesComponentsTest do
     assert Enum.count(scene_components) == 2
     assert Enum.any?(scene_components, fn sc -> Enum.map(sc.lights, & &1.id) == [light1.id] end)
     assert Enum.any?(scene_components, fn sc -> Enum.map(sc.lights, & &1.id) == [light2.id] end)
-  end
-
-  test "replace_scene_components persists component occupancy source selections" do
-    room = insert_room()
-    bridge = insert_bridge()
-    light = insert_light(room, bridge, %{name: "Lamp"})
-
-    source =
-      Repo.insert!(%OccupancySource{room_id: room.id, name: "Sitting Area", occupied: true})
-
-    {:ok, state} = Scenes.create_manual_light_state("Soft")
-    {:ok, scene} = Scenes.create_scene(%{name: "Chill", room_id: room.id})
-
-    {:ok, _} =
-      Scenes.replace_scene_components(scene, [
-        %{
-          name: "Component 1",
-          light_ids: [light.id],
-          light_state_id: to_string(state.id),
-          occupancy_source_id: to_string(source.id)
-        }
-      ])
-
-    [component] = Repo.all(from(sc in SceneComponent, where: sc.scene_id == ^scene.id))
-
-    assert component.occupancy_source_id == source.id
-  end
-
-  test "replace_scene_components rejects occupancy sources from another room" do
-    room = insert_room()
-    other_room = Repo.insert!(%Room{name: "Other", metadata: %{}})
-    bridge = insert_bridge()
-    light = insert_light(room, bridge, %{name: "Lamp"})
-
-    source =
-      Repo.insert!(%OccupancySource{room_id: other_room.id, name: "Other Source", occupied: true})
-
-    {:ok, state} = Scenes.create_manual_light_state("Soft")
-    {:ok, scene} = Scenes.create_scene(%{name: "Chill", room_id: room.id})
-
-    assert {:error, :invalid_occupancy_source} =
-             Scenes.replace_scene_components(scene, [
-               %{
-                 name: "Component 1",
-                 light_ids: [light.id],
-                 light_state_id: to_string(state.id),
-                 occupancy_source_id: to_string(source.id)
-               }
-             ])
   end
 
   test "replace_scene_components returns an error when no light state is specified" do
@@ -701,71 +651,6 @@ defmodule Hueworks.ScenesComponentsTest do
     assert desired[:kelvin] == 5000
   end
 
-  test "apply_scene resolves follow occupancy per selected component source" do
-    room = insert_room()
-    bridge = insert_bridge()
-    sitting_light = insert_light(room, bridge, %{name: "Sitting Lamp"})
-    desk_light = insert_light(room, bridge, %{name: "Desk Lamp"})
-
-    sitting_source =
-      Repo.insert!(%OccupancySource{room_id: room.id, name: "Sitting Area", occupied: false})
-
-    desk_source = Repo.insert!(%OccupancySource{room_id: room.id, name: "Desk", occupied: true})
-
-    {:ok, state} =
-      Scenes.create_manual_light_state("Soft", %{"brightness" => "40", "temperature" => "3000"})
-
-    {:ok, scene} = Scenes.create_scene(%{name: "Work", room_id: room.id})
-
-    {:ok, _} =
-      Scenes.replace_scene_components(scene, [
-        %{
-          name: "Sitting",
-          light_ids: [sitting_light.id],
-          light_state_id: to_string(state.id),
-          occupancy_source_id: to_string(sitting_source.id),
-          light_defaults: %{sitting_light.id => :follow_occupancy}
-        },
-        %{
-          name: "Desk",
-          light_ids: [desk_light.id],
-          light_state_id: to_string(state.id),
-          occupancy_source_id: to_string(desk_source.id),
-          light_defaults: %{desk_light.id => :follow_occupancy}
-        }
-      ])
-
-    {:ok, _diff, _updated} = Scenes.apply_scene(scene, occupied: true)
-
-    assert DesiredState.get(:light, sitting_light.id)[:power] == :off
-    assert DesiredState.get(:light, desk_light.id)[:power] == :on
-  end
-
-  test "apply_scene falls back to room occupancy when no component source is selected" do
-    room = insert_room()
-    bridge = insert_bridge()
-    light = insert_light(room, bridge, %{name: "Lamp"})
-
-    {:ok, state} =
-      Scenes.create_manual_light_state("Soft", %{"brightness" => "40", "temperature" => "3000"})
-
-    {:ok, scene} = Scenes.create_scene(%{name: "Work", room_id: room.id})
-
-    {:ok, _} =
-      Scenes.replace_scene_components(scene, [
-        %{
-          name: "Component 1",
-          light_ids: [light.id],
-          light_state_id: to_string(state.id),
-          light_defaults: %{light.id => :follow_occupancy}
-        }
-      ])
-
-    {:ok, _diff, _updated} = Scenes.apply_scene(scene, occupied: false)
-
-    assert DesiredState.get(:light, light.id)[:power] == :off
-  end
-
   test "apply_scene clears previous power latch on fresh scene activation semantics" do
     room = insert_room()
     bridge = insert_bridge()
@@ -896,7 +781,6 @@ defmodule Hueworks.ScenesComponentsTest do
     {:ok, _diff, _updated} =
       Scenes.apply_active_scene(scene, ActiveScenes.get_for_room(room.id),
         preserve_power_latches: true,
-        occupied: false,
         now: utc_dt("2026-03-08T12:00:00Z")
       )
 

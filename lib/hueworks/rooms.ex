@@ -6,7 +6,6 @@ defmodule Hueworks.Rooms do
   import Ecto.Query, only: [from: 2]
 
   alias Hueworks.HomeAssistant.Export, as: HomeAssistantExport
-  alias Hueworks.Occupancy
   alias Hueworks.Repo
   alias Hueworks.Schemas.{Room, Scene}
 
@@ -16,7 +15,7 @@ defmodule Hueworks.Rooms do
 
   def list_rooms_with_children do
     Repo.all(from(r in Room, order_by: [asc: r.name]))
-    |> Repo.preload([:groups, :lights, :scenes, :occupancy_sources])
+    |> Repo.preload([:groups, :lights, :scenes])
   end
 
   def get_room(id), do: Repo.get(Room, id)
@@ -38,14 +37,6 @@ defmodule Hueworks.Rooms do
       other ->
         other
     end
-  end
-
-  def set_occupied(room_id, value) when is_integer(room_id) and is_boolean(value) do
-    Occupancy.set_room_occupied(room_id, value)
-  end
-
-  def room_occupied?(room_id) when is_integer(room_id) do
-    Occupancy.room_occupied?(room_id)
   end
 
   def delete_room(room) do

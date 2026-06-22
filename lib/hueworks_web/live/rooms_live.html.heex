@@ -54,20 +54,6 @@
                   </svg>
                 </button>
               </div>
-              <%= if active_scene_id do %>
-                <div class="hw-title-row">
-                  <span class="hw-muted">Occupancy</span>
-                  <button
-                    type="button"
-                    class="hw-button"
-                    phx-click="toggle_occupancy"
-                    phx-value-room_id={room.id}
-                  >
-                    <%= if Map.get(@occupancy_by_room, room.id, true), do: "Occupied", else: "Unoccupied" %>
-                  </button>
-                  <span class="hw-muted">Test control (temporary)</span>
-                </div>
-              <% end %>
             </div>
             <div class="hw-room-scenes">
               <div class="hw-room-scenes-header">
@@ -144,56 +130,6 @@
                 <% end %>
               </div>
             </div>
-            <details class="hw-room-section">
-              <summary class="hw-room-label">Occupancy sources</summary>
-              <div class="hw-room-list">
-                <%= for source <- Enum.sort_by(room.occupancy_sources, & &1.name) do %>
-                  <div class="hw-room-item hw-room-item-row" id={"occupancy-source-#{source.id}"}>
-                    <form
-                      class="hw-inline-form"
-                      phx-submit="update_occupancy_source"
-                    >
-                      <input type="hidden" name="source_id" value={source.id} />
-                      <input
-                        type="text"
-                        name="name"
-                        value={source.name}
-                        class="hw-modal-input"
-                        autocomplete="off"
-                        aria-label="Occupancy source name"
-                      />
-                      <button type="submit" class="hw-button">Rename</button>
-                    </form>
-                    <span class="hw-muted">
-                      <%= if source.occupied, do: "Occupied", else: "Unoccupied" %>
-                    </span>
-                    <%= unless source.name == Hueworks.Occupancy.default_source_name() do %>
-                      <button
-                        type="button"
-                        class="hw-edit-button hw-delete-button"
-                        phx-click="delete_occupancy_source"
-                        phx-value-id={source.id}
-                        aria-label="Delete occupancy source"
-                      >
-                        ×
-                      </button>
-                    <% end %>
-                  </div>
-                <% end %>
-                <form class="hw-room-item hw-room-item-row" phx-submit="create_occupancy_source">
-                  <input type="hidden" name="room_id" value={room.id} />
-                  <input
-                    type="text"
-                    name="name"
-                    class="hw-modal-input"
-                    placeholder="New occupancy source"
-                    autocomplete="off"
-                    aria-label="New occupancy source name"
-                  />
-                  <button type="submit" class="hw-button">Add</button>
-                </form>
-              </div>
-            </details>
             <div class="hw-room-grid">
               <div>
                 <details class="hw-room-section">

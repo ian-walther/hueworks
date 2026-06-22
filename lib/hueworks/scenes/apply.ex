@@ -4,9 +4,7 @@ defmodule Hueworks.Scenes.Apply do
   alias Hueworks.ActiveScenes
   alias Hueworks.Control.Apply, as: ControlApply
   alias Hueworks.DebugLogging
-  alias Hueworks.Occupancy
   alias Hueworks.Repo
-  alias Hueworks.Rooms
   alias Hueworks.Scenes.Components
   alias Hueworks.Scenes.Intent
   alias Hueworks.Scenes.Intent.BuildOptions
@@ -33,19 +31,11 @@ defmodule Hueworks.Scenes.Apply do
   def apply_scene(%Scene{} = scene, opts \\ []) do
     scene =
       scene
-      |> Repo.preload(
-        scene_components: [:lights, :light_state, :scene_component_lights, :occupancy_source]
-      )
+      |> Repo.preload(scene_components: [:lights, :light_state, :scene_component_lights])
       |> attach_effective_light_states()
-
-    occupied = Keyword.get_lazy(opts, :occupied, fn -> Rooms.room_occupied?(scene.room_id) end)
 
     intent_opts =
       opts
-      |> Keyword.put(:occupied, occupied)
-      |> Keyword.put_new_lazy(:occupancy_sources, fn ->
-        Occupancy.source_occupied_map_for_room(scene.room_id)
-      end)
       |> BuildOptions.from_opts()
 
     preserve_power_latches = intent_opts.preserve_power_latches
@@ -55,15 +45,14 @@ defmodule Hueworks.Scenes.Apply do
     trace =
       opts
       |> Keyword.get(:trace)
-      |> ensure_trace(scene, occupied)
-      |> enrich_trace(scene, occupied)
+      |> ensure_trace(scene)
+      |> enrich_trace(scene)
 
     log_trace(
       trace,
       "apply_scene_start",
       room_id: scene.room_id,
       scene_id: scene.id,
-      occupied: occupied,
       preserve_power_latches: preserve_power_latches,
       force_apply: force_apply
     )
@@ -109,8 +98,6 @@ defmodule Hueworks.Scenes.Apply do
     end
   end
 
-  defp log_trace(nil, _event, _kv), do: :ok
-
   defp log_trace(trace, event, kv) when is_map(trace) and is_list(kv) do
     trace_id = Map.get(trace, :trace_id) || Map.get(trace, "trace_id")
     source = Map.get(trace, :source) || Map.get(trace, "source")
@@ -119,30 +106,30 @@ defmodule Hueworks.Scenes.Apply do
       kv
       |> Enum.map_join(" ", fn {key, value} -> "#{key}=#{inspect(value)}" end)
 
-    DebugLogging.info("[occ-trace #{trace_id}] #{event} source=#{source} #{attrs}")
+    DebugLogging.info("[scene-trace #{trace_id}] #{event} source=#{source} #{attrs}")
   end
 
-  defp enrich_trace(nil, _scene, _occupied), do: nil
+  defp log_trace(_trace, _event, _kv), do: :ok
 
-  defp enrich_trace(trace, scene, occupied) when is_map(trace) do
+  defp enrich_trace(trace, scene) when is_map(trace) do
     trace
     |> Map.put_new(:trace_room_id, scene.room_id)
     |> Map.put_new(:trace_scene_id, scene.id)
-    |> Map.put_new(:trace_target_occupied, occupied)
   end
 
-  defp ensure_trace(nil, scene, occupied) do
+  defp enrich_trace(trace, _scene), do: trace
+
+  defp ensure_trace(nil, scene) do
     %{
       trace_id: "scene-#{scene.id}-#{System.unique_integer([:positive])}",
       source: "scenes.apply_scene",
       started_at_ms: System.monotonic_time(:millisecond),
       trace_room_id: scene.room_id,
-      trace_scene_id: scene.id,
-      trace_target_occupied: occupied
+      trace_scene_id: scene.id
     }
   end
 
-  defp ensure_trace(trace, _scene, _occupied), do: trace
+  defp ensure_trace(trace, _scene), do: trace
 
   defp attach_effective_light_states(%Scene{} = scene) do
     scene_components =

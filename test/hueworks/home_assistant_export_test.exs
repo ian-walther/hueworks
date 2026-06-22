@@ -7,12 +7,11 @@ defmodule Hueworks.HomeAssistant.ExportTest do
   alias Hueworks.Control.State
   alias Hueworks.HomeAssistant.Export.Config
   alias Hueworks.HomeAssistant.Export
-  alias Hueworks.HomeAssistant.Export.Runtime
   alias Hueworks.HomeAssistant.Export.ServerState
   alias Hueworks.HomeAssistant.Export.Messages
   alias Hueworks.HomeAssistant.Export.Messages.{CommandTarget, RoomSceneOption}
   alias Hueworks.Repo
-  alias Hueworks.Schemas.{AppSetting, Group, GroupLight, Light, OccupancySource, Room, Scene}
+  alias Hueworks.Schemas.{AppSetting, Group, GroupLight, Light, Room, Scene}
 
   setup do
     original_tortoise = Application.get_env(:hueworks, :ha_export_tortoise_module)
@@ -147,13 +146,6 @@ defmodule Hueworks.HomeAssistant.ExportTest do
                "light",
                "set"
              ])
-
-    assert %CommandTarget{kind: :occupancy_source, mode: :switch, id: 9} =
-             Messages.command_export_target("hueworks/ha_export/occupancy_sources/9/switch/set")
-  end
-
-  test "command topic filters include occupancy source commands" do
-    assert "hueworks/ha_export/occupancy_sources/+/switch/set" in Runtime.command_topic_filters()
   end
 
   test "room scene options return typed runtime structs" do
@@ -194,35 +186,6 @@ defmodule Hueworks.HomeAssistant.ExportTest do
     assert payload["command_topic"] == "hueworks/ha_export/lights/#{light.id}/switch/set"
     assert payload["state_topic"] == "hueworks/ha_export/lights/#{light.id}/switch/state"
     assert payload["device"]["name"] == "HueWorks Kitchen"
-  end
-
-  test "occupancy source discovery payload uses stable IDs and switch topics" do
-    room = Repo.insert!(%Room{name: "Office"})
-
-    source =
-      Repo.insert!(%OccupancySource{
-        room_id: room.id,
-        name: "Desk Occupancy",
-        occupied: true
-      })
-      |> Repo.preload(:room)
-
-    payload = Export.occupancy_source_discovery_payload(source)
-
-    assert payload["name"] == "Desk Occupancy"
-    assert payload["unique_id"] == "hueworks_occupancy_source_#{source.id}_switch"
-
-    assert payload["command_topic"] ==
-             "hueworks/ha_export/occupancy_sources/#{source.id}/switch/set"
-
-    assert payload["state_topic"] ==
-             "hueworks/ha_export/occupancy_sources/#{source.id}/switch/state"
-
-    assert payload["json_attributes_topic"] ==
-             "hueworks/ha_export/occupancy_sources/#{source.id}/attributes"
-
-    assert payload["device"]["name"] == "HueWorks Office"
-    assert payload["device"]["model"] == "Room Occupancy"
   end
 
   test "json light discovery payload includes brightness and temp/color capabilities" do
@@ -453,46 +416,6 @@ defmodule Hueworks.HomeAssistant.ExportTest do
       assert_publish("homeassistant/light/hueworks_group_#{group.id}/config")
   end
 
-  test "publishes occupancy source discovery and retained state when connected" do
-    put_export_settings(%{
-      ha_export_lights_enabled: true,
-      ha_export_mqtt_host: "mqtt.local",
-      ha_export_discovery_prefix: "homeassistant"
-    })
-
-    room = Repo.insert!(%Room{name: "Office"})
-
-    source =
-      Repo.insert!(%OccupancySource{
-        room_id: room.id,
-        name: "Desk Occupancy",
-        occupied: false
-      })
-
-    Export.reload()
-    _ = :sys.get_state(Export)
-    send(Export, {:mqtt_connected, Export.client_id()})
-    _ = :sys.get_state(Export)
-
-    {_client_id, _topic, payload} =
-      assert_publish("homeassistant/switch/hueworks_occupancy_source_#{source.id}/config")
-
-    decoded = Jason.decode!(payload)
-    assert decoded["name"] == "Desk Occupancy"
-
-    {_client_id, _topic, attrs_payload} =
-      assert_publish("hueworks/ha_export/occupancy_sources/#{source.id}/attributes")
-
-    attrs = Jason.decode!(attrs_payload)
-    assert attrs["hueworks_entity_kind"] == "occupancy_source"
-    assert attrs["hueworks_room_id"] == room.id
-
-    {_client_id, _topic, state_payload} =
-      assert_publish("hueworks/ha_export/occupancy_sources/#{source.id}/switch/state")
-
-    assert state_payload == "OFF"
-  end
-
   test "switch command turns an exported light off through manual control" do
     put_export_settings(%{
       ha_export_lights_enabled: true,
@@ -524,49 +447,6 @@ defmodule Hueworks.HomeAssistant.ExportTest do
     _ = :sys.get_state(Export)
 
     assert DesiredState.get(:light, light.id) == %{power: :off}
-  end
-
-  test "occupancy source switch command updates source state and republishes it" do
-    put_export_settings(%{
-      ha_export_lights_enabled: true,
-      ha_export_mqtt_host: "mqtt.local",
-      ha_export_discovery_prefix: "homeassistant"
-    })
-
-    room = Repo.insert!(%Room{name: "Office"})
-
-    source =
-      Repo.insert!(%OccupancySource{
-        room_id: room.id,
-        name: "Desk Occupancy",
-        occupied: true
-      })
-
-    Export.reload()
-    _ = :sys.get_state(Export)
-    drain_published_messages()
-
-    send(
-      Export,
-      {:mqtt_message,
-       [
-         "hueworks",
-         "ha_export",
-         "occupancy_sources",
-         Integer.to_string(source.id),
-         "switch",
-         "set"
-       ], "OFF"}
-    )
-
-    _ = :sys.get_state(Export)
-
-    assert Repo.get!(OccupancySource, source.id).occupied == false
-
-    {_client_id, _topic, state_payload} =
-      assert_publish("hueworks/ha_export/occupancy_sources/#{source.id}/switch/state")
-
-    assert state_payload == "OFF"
   end
 
   test "json light command applies brightness and kelvin updates to an exported group" do

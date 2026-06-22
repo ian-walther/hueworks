@@ -4,7 +4,7 @@ defmodule Hueworks.HomeAssistant.Export.Publisher do
   alias Hueworks.HomeAssistant.Export.Entities
   alias Hueworks.HomeAssistant.Export.Messages
   alias Hueworks.Repo
-  alias Hueworks.Schemas.{OccupancySource, Room, Scene}
+  alias Hueworks.Schemas.{Room, Scene}
 
   def publish_scene_payloads(publish_fun, %Scene{} = scene, config)
       when is_function(publish_fun, 3) do
@@ -95,50 +95,6 @@ defmodule Hueworks.HomeAssistant.Export.Publisher do
     :ok = publish_fun.(discovery, "", retain: true)
     :ok = publish_fun.(attributes, "", retain: true)
     publish_fun.(state, "Manual", retain: true)
-  end
-
-  def publish_occupancy_source_payloads(publish_fun, nil, _config)
-      when is_function(publish_fun, 3),
-      do: :ok
-
-  def publish_occupancy_source_payloads(
-        publish_fun,
-        %OccupancySource{} = source,
-        config
-      )
-      when is_function(publish_fun, 3) do
-    discovery = Messages.occupancy_source_discovery_topic(source.id, config.discovery_prefix)
-    attributes = Messages.occupancy_source_attributes_topic(source.id)
-    state = Messages.occupancy_source_state_topic(source.id)
-
-    :ok =
-      publish_fun.(
-        discovery,
-        Jason.encode!(Messages.occupancy_source_discovery_payload(source, config)),
-        retain: true
-      )
-
-    :ok =
-      publish_fun.(
-        attributes,
-        Jason.encode!(Messages.occupancy_source_attributes_payload(source)),
-        retain: true
-      )
-
-    publish_fun.(state, Messages.occupancy_source_state_payload(source), retain: true)
-  end
-
-  def unpublish_occupancy_source_payloads(publish_fun, source_id, config)
-      when is_function(publish_fun, 3) and is_integer(source_id) do
-    :ok =
-      publish_fun.(
-        Messages.occupancy_source_discovery_topic(source_id, config.discovery_prefix),
-        "",
-        retain: true
-      )
-
-    :ok = publish_fun.(Messages.occupancy_source_attributes_topic(source_id), "", retain: true)
-    publish_fun.(Messages.occupancy_source_state_topic(source_id), "None", retain: true)
   end
 
   def publish_optimistic_entity_state(publish_fun, kind, entity, state)

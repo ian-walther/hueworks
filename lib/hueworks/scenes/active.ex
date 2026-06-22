@@ -5,7 +5,6 @@ defmodule Hueworks.Scenes.Active do
 
   alias Hueworks.ActiveScenes
   alias Hueworks.Repo
-  alias Hueworks.Rooms
   alias Hueworks.Scenes
   alias Hueworks.Schemas.{ActiveScene, Scene, SceneComponent}
 
@@ -21,10 +20,7 @@ defmodule Hueworks.Scenes.Active do
         |> ActiveScenes.get_for_room()
         |> case do
           %{scene_id: ^scene_id} = active_scene ->
-            Scenes.apply_active_scene(scene, active_scene,
-              preserve_power_latches: true,
-              occupied: Rooms.room_occupied?(scene.room_id)
-            )
+            Scenes.apply_active_scene(scene, active_scene, preserve_power_latches: true)
 
           _ ->
             {:ok, %{}, %{}}
@@ -38,8 +34,7 @@ defmodule Hueworks.Scenes.Active do
     |> Enum.reduce([], fn {scene, active_scene}, acc ->
       scene
       |> Scenes.apply_active_scene(active_scene,
-        preserve_power_latches: true,
-        occupied: Rooms.room_occupied?(scene.room_id)
+        preserve_power_latches: true
       )
       |> case do
         {:ok, _diff, _updated} -> [scene | acc]
@@ -65,7 +60,8 @@ defmodule Hueworks.Scenes.Active do
         {:ok, %{}, %{}}
 
       {_light_ids, active_scene} ->
-        {active_scene, power_overrides} = persist_power_overrides(active_scene, room_id, light_ids, opts)
+        {active_scene, power_overrides} =
+          persist_power_overrides(active_scene, room_id, light_ids, opts)
 
         active_scene.scene_id
         |> Scenes.get_scene()
@@ -76,7 +72,6 @@ defmodule Hueworks.Scenes.Active do
           scene ->
             Scenes.apply_active_scene(scene, active_scene,
               preserve_power_latches: true,
-              occupied: Rooms.room_occupied?(room_id),
               target_light_ids: light_ids,
               circadian_only: Keyword.get(opts, :circadian_only, false),
               power_overrides: power_overrides,

@@ -32,7 +32,7 @@ Instead:
 - Tighten metadata and device grouping so exported scenes, room selectors, lights, and groups feel consistent in HA.
 - Improve republish and recovery behavior when MQTT export settings or entity shapes change.
 - Add stronger operator-facing visibility for export health, discovery state, and stale retained payload cleanup.
-- Decide whether occupancy sources should remain writable switches or also gain read-only sensor/binary-sensor representations.
+- Decide how a future HueWorks occupancy model should be represented in HA, including whether writable switches or read-only sensor/binary-sensor entities are the right fit.
 - Revalidate daily-control parity in real use before treating HA export as a primary control surface.
 
 ## Open Questions

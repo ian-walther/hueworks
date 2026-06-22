@@ -13,19 +13,16 @@ defmodule Hueworks.Scenes.Intent do
     @moduledoc false
 
     @enforce_keys [
-      :occupied,
       :now,
       :target_light_ids,
       :circadian_only,
       :power_overrides,
       :preserve_power_latches
     ]
-    defstruct occupied: false,
-              now: nil,
+    defstruct now: nil,
               target_light_ids: MapSet.new(),
               circadian_only: false,
               power_overrides: %{},
-              occupancy_sources: %{},
               preserve_power_latches: true
 
     def from_opts(opts) when is_list(opts) do
@@ -35,12 +32,10 @@ defmodule Hueworks.Scenes.Intent do
         |> normalize_target_light_ids()
 
       %__MODULE__{
-        occupied: Keyword.get(opts, :occupied, false),
         now: Keyword.get(opts, :now, DateTime.utc_now()),
         target_light_ids: target_light_ids,
         circadian_only: Keyword.get(opts, :circadian_only, false),
         power_overrides: Keyword.get(opts, :power_overrides, %{}),
-        occupancy_sources: Keyword.get(opts, :occupancy_sources, %{}),
         preserve_power_latches: Keyword.get(opts, :preserve_power_latches, true)
       }
     end
@@ -72,12 +67,10 @@ defmodule Hueworks.Scenes.Intent do
 
   def build_transaction(%Scene{} = scene, opts \\ []) do
     %BuildOptions{
-      occupied: occupied,
       now: now,
       target_light_ids: target_light_ids,
       circadian_only: circadian_only,
       power_overrides: power_overrides,
-      occupancy_sources: occupancy_sources,
       preserve_power_latches: preserve_power_latches
     } = BuildOptions.from_opts(opts)
 
@@ -90,7 +83,6 @@ defmodule Hueworks.Scenes.Intent do
         desired = desired_from_light_state(component.light_state, now)
         default_power_by_light = component_default_power_map(component)
         component_lights = target_component_lights(component.lights, target_light_ids)
-        component_occupied = component_occupied?(component, occupied, occupancy_sources)
 
         Enum.reduce(component_lights, acc, fn light, txn ->
           current_desired = DesiredState.get(:light, light.id) || %{}
@@ -101,8 +93,7 @@ defmodule Hueworks.Scenes.Intent do
             desired
             |> maybe_apply_default_power(
               component.light_state,
-              power_policy,
-              component_occupied
+              power_policy
             )
             |> maybe_preserve_manual_power_latch(
               current_desired,
@@ -181,26 +172,22 @@ defmodule Hueworks.Scenes.Intent do
 
   defp maybe_put_manual_color(attrs, _mode, _config), do: attrs
 
-  defp maybe_apply_default_power(desired, %LightState{type: type}, power_policy, occupied)
+  defp maybe_apply_default_power(desired, %LightState{type: type}, power_policy)
        when type in [:manual, :circadian] do
-    put_attr(desired, :power, resolve_power_policy(power_policy, occupied))
+    put_attr(desired, :power, resolve_power_policy(power_policy))
   end
 
-  defp maybe_apply_default_power(desired, _light_state, _power_policy, _occupied), do: desired
+  defp maybe_apply_default_power(desired, _light_state, _power_policy), do: desired
 
-  defp resolve_power_policy(:default_on, _occupied), do: :on
-  defp resolve_power_policy("default_on", _occupied), do: :on
-  defp resolve_power_policy(:default_off, _occupied), do: :off
-  defp resolve_power_policy("default_off", _occupied), do: :off
-  defp resolve_power_policy(:follow_occupancy, true), do: :on
-  defp resolve_power_policy("follow_occupancy", true), do: :on
-  defp resolve_power_policy(:follow_occupancy, false), do: :off
-  defp resolve_power_policy("follow_occupancy", false), do: :off
-  defp resolve_power_policy(:force_on, _occupied), do: :on
-  defp resolve_power_policy("force_on", _occupied), do: :on
-  defp resolve_power_policy(:force_off, _occupied), do: :off
-  defp resolve_power_policy("force_off", _occupied), do: :off
-  defp resolve_power_policy(_unknown, _occupied), do: :on
+  defp resolve_power_policy(:default_on), do: :on
+  defp resolve_power_policy("default_on"), do: :on
+  defp resolve_power_policy(:default_off), do: :off
+  defp resolve_power_policy("default_off"), do: :off
+  defp resolve_power_policy(:force_on), do: :on
+  defp resolve_power_policy("force_on"), do: :on
+  defp resolve_power_policy(:force_off), do: :off
+  defp resolve_power_policy("force_off"), do: :off
+  defp resolve_power_policy(_unknown), do: :on
 
   defp component_default_power_map(component) do
     component
@@ -246,9 +233,6 @@ defmodule Hueworks.Scenes.Intent do
   defp parse_default_power(value) when value in [:force_on, "force_on"], do: :force_on
   defp parse_default_power(value) when value in [:force_off, "force_off"], do: :force_off
 
-  defp parse_default_power(value) when value in [:follow_occupancy, "follow_occupancy"],
-    do: :follow_occupancy
-
   defp parse_default_power(_value), do: :default_on
 
   defp skip_component?(%{light_state: %LightState{type: :circadian}}, true), do: false
@@ -265,24 +249,6 @@ defmodule Hueworks.Scenes.Intent do
   end
 
   defp target_component_lights(lights, _target_light_ids), do: lights
-
-  defp component_occupied?(component, fallback_occupied, occupancy_sources) do
-    source_id = Map.get(component, :occupancy_source_id)
-
-    cond do
-      is_nil(source_id) ->
-        fallback_occupied
-
-      Map.has_key?(occupancy_sources, source_id) ->
-        Map.get(occupancy_sources, source_id)
-
-      source = Map.get(component, :occupancy_source) ->
-        Map.get(source, :occupied, fallback_occupied)
-
-      true ->
-        fallback_occupied
-    end
-  end
 
   defp maybe_preserve_manual_power_latch(desired, current_desired, true) do
     cond do

@@ -4,7 +4,7 @@ defmodule Hueworks.Schemas.SceneComponentLight do
 
   schema "scene_component_lights" do
     field(:default_power, Ecto.Enum,
-      values: [:default_on, :default_off, :follow_occupancy, :force_on, :force_off],
+      values: [:default_on, :default_off, :force_on, :force_off],
       default: :default_on
     )
 

@@ -27,22 +27,13 @@ defmodule Hueworks.HomeAssistant.Export.Messages.Topics do
       when kind in [:light, :group] and is_integer(id),
       do: "#{@default_topic_prefix}/#{kind_segment(kind)}/#{id}/attributes"
 
-  def occupancy_source_attributes_topic(id) when is_integer(id),
-    do: "#{@default_topic_prefix}/occupancy_sources/#{id}/attributes"
-
   def switch_command_topic(kind, id)
       when kind in [:light, :group] and is_integer(id),
       do: "#{@default_topic_prefix}/#{kind_segment(kind)}/#{id}/switch/set"
 
-  def occupancy_source_command_topic(id) when is_integer(id),
-    do: "#{@default_topic_prefix}/occupancy_sources/#{id}/switch/set"
-
   def switch_state_topic(kind, id)
       when kind in [:light, :group] and is_integer(id),
       do: "#{@default_topic_prefix}/#{kind_segment(kind)}/#{id}/switch/state"
-
-  def occupancy_source_state_topic(id) when is_integer(id),
-    do: "#{@default_topic_prefix}/occupancy_sources/#{id}/switch/state"
 
   def light_command_topic(kind, id)
       when kind in [:light, :group] and is_integer(id),
@@ -65,11 +56,6 @@ defmodule Hueworks.HomeAssistant.Export.Messages.Topics do
   def switch_discovery_topic(kind, id, discovery_prefix \\ @default_discovery_prefix)
       when kind in [:light, :group] and is_integer(id) and is_binary(discovery_prefix) do
     "#{discovery_prefix}/switch/#{entity_object_id(kind, id)}/config"
-  end
-
-  def occupancy_source_discovery_topic(id, discovery_prefix \\ @default_discovery_prefix)
-      when is_integer(id) and is_binary(discovery_prefix) do
-    "#{discovery_prefix}/switch/hueworks_occupancy_source_#{id}/config"
   end
 
   def light_discovery_topic(kind, id, discovery_prefix \\ @default_discovery_prefix)
@@ -164,9 +150,6 @@ defmodule Hueworks.HomeAssistant.Export.Messages.Topics do
         ["groups", id, "light", "set"] ->
           parse_command_target(:group, :light, id)
 
-        ["occupancy_sources", id, "switch", "set"] ->
-          parse_command_target(:occupancy_source, :switch, id)
-
         _ ->
           nil
       end
@@ -185,7 +168,7 @@ defmodule Hueworks.HomeAssistant.Export.Messages.Topics do
   end
 
   defp parse_command_target(kind, mode, id)
-       when kind in [:light, :group, :occupancy_source] and mode in [:switch, :light] do
+       when kind in [:light, :group] and mode in [:switch, :light] do
     case Integer.parse(id) do
       {parsed, ""} -> %CommandTarget{kind: kind, mode: mode, id: parsed}
       _ -> nil
