@@ -145,7 +145,7 @@ defmodule Hueworks.Control.Apply do
         trace_source = map_value(trace, :source) || map_value(trace, :trace_source)
 
         DebugLogging.info(
-          "[occ-trace #{trace_id}] plan_built source=#{trace_source} room_id=#{inspect(room_id)} planner_ms=#{planner_ms} actions_total=#{length(plan)} group_actions=#{count_action_type(plan, :group)} light_actions=#{count_action_type(plan, :light)} off_actions=#{count_power(plan, :off)} on_actions=#{count_power(plan, :on)}"
+          "[control-trace #{trace_id}] plan_built source=#{trace_source} room_id=#{inspect(room_id)} planner_ms=#{planner_ms} actions_total=#{length(plan)} group_actions=#{count_action_type(plan, :group)} light_actions=#{count_action_type(plan, :light)} off_actions=#{count_power(plan, :off)} on_actions=#{count_power(plan, :on)}"
         )
     end
   end
@@ -162,7 +162,7 @@ defmodule Hueworks.Control.Apply do
         trace_source = map_value(trace, :source) || map_value(trace, :trace_source)
 
         DebugLogging.info(
-          "[occ-trace #{trace_id}] plan_enqueued source=#{trace_source} room_id=#{inspect(room_id)} enqueue_mode=#{enqueue_mode} actions_total=#{length(plan)}"
+          "[control-trace #{trace_id}] plan_enqueued source=#{trace_source} room_id=#{inspect(room_id)} enqueue_mode=#{enqueue_mode} actions_total=#{length(plan)}"
         )
     end
   end

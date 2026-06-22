@@ -378,6 +378,6 @@ defmodule Hueworks.Control.Planner do
       kv
       |> Enum.map_join(" ", fn {key, value} -> "#{key}=#{inspect(value)}" end)
 
-    DebugLogging.info("[occ-trace #{trace_id}] #{event} source=#{source} #{attrs}")
+    DebugLogging.info("[control-trace #{trace_id}] #{event} source=#{source} #{attrs}")
   end
 end

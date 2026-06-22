@@ -12,7 +12,7 @@ defmodule Hueworks.Control.Executor.Trace do
         queue_delay_ms = queue_delay_ms(action, dispatch_started_ms)
 
         DebugLogging.info(
-          "[occ-trace #{trace_id}] dispatch_start type=#{action.type} id=#{action.id} bridge_id=#{action.bridge_id} queue_delay_ms=#{queue_delay_ms} queue_len_after_pop=#{queue_len_after_pop} desired=#{inspect(action.desired)}"
+          "[control-trace #{trace_id}] dispatch_start type=#{action.type} id=#{action.id} bridge_id=#{action.bridge_id} queue_delay_ms=#{queue_delay_ms} queue_len_after_pop=#{queue_len_after_pop} desired=#{inspect(action.desired)}"
         )
     end
   end
@@ -27,7 +27,7 @@ defmodule Hueworks.Control.Executor.Trace do
         total_elapsed_ms = total_elapsed_ms(action, dispatch_completed_ms)
 
         DebugLogging.info(
-          "[occ-trace #{trace_id}] dispatch_end type=#{action.type} id=#{action.id} result=#{inspect(result)} dispatch_ms=#{dispatch_ms} total_elapsed_ms=#{total_elapsed_ms}"
+          "[control-trace #{trace_id}] dispatch_end type=#{action.type} id=#{action.id} result=#{inspect(result)} dispatch_ms=#{dispatch_ms} total_elapsed_ms=#{total_elapsed_ms}"
         )
     end
   end
@@ -39,7 +39,7 @@ defmodule Hueworks.Control.Executor.Trace do
 
       trace_id ->
         DebugLogging.info(
-          "[occ-trace #{trace_id}] convergence_ok type=#{action.type} id=#{action.id} attempts=#{action.attempts}"
+          "[control-trace #{trace_id}] convergence_ok type=#{action.type} id=#{action.id} attempts=#{action.attempts}"
         )
     end
   end
@@ -51,7 +51,7 @@ defmodule Hueworks.Control.Executor.Trace do
 
       trace_id ->
         DebugLogging.info(
-          "[occ-trace #{trace_id}] convergence_retry type=#{action.type} id=#{action.id} attempts=#{action.attempts} recovery_actions=#{length(recovery_actions)}"
+          "[control-trace #{trace_id}] convergence_retry type=#{action.type} id=#{action.id} attempts=#{action.attempts} recovery_actions=#{length(recovery_actions)}"
         )
     end
   end
