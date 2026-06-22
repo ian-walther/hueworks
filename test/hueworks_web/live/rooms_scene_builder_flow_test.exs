@@ -12,6 +12,7 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
     Group,
     GroupLight,
     Light,
+    PresenceInput,
     Room,
     Scene,
     SceneComponent,
@@ -87,6 +88,43 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
              |> render_click()
 
     assert to == "/rooms/#{room.id}/scenes/new"
+  end
+
+  test "rooms page can create rename and delete presence inputs", %{conn: conn} do
+    room = insert_room()
+
+    {:ok, view, _html} = live(conn, "/rooms")
+
+    view
+    |> form("#room-#{room.id} form[phx-submit='create_presence_input']", %{
+      "room_id" => Integer.to_string(room.id),
+      "name" => "Desk Presence"
+    })
+    |> render_submit()
+
+    input = Repo.get_by!(PresenceInput, room_id: room.id, name: "Desk Presence")
+    assert input.occupied == false
+    assert render(view) =~ ~s(id="presence-input-#{input.id}")
+    assert render(view) =~ ~s(value="Desk Presence")
+    assert render(view) =~ "Unoccupied"
+
+    view
+    |> form("#presence-input-#{input.id} form[phx-submit='update_presence_input']", %{
+      "input_id" => Integer.to_string(input.id),
+      "name" => "Sitting Area"
+    })
+    |> render_submit()
+
+    input = Repo.get!(PresenceInput, input.id)
+    assert input.name == "Sitting Area"
+    assert render(view) =~ ~s(value="Sitting Area")
+
+    view
+    |> element("#presence-input-#{input.id} button[phx-click='delete_presence_input']")
+    |> render_click()
+
+    refute Repo.get(PresenceInput, input.id)
+    refute has_element?(view, "#presence-input-#{input.id}")
   end
 
   test "rooms page edit-scene action navigates to scene editor", %{conn: conn} do

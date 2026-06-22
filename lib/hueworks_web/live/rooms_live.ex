@@ -2,6 +2,7 @@ defmodule HueworksWeb.RoomsLive do
   use Phoenix.LiveView
 
   alias Hueworks.ActiveScenes
+  alias Hueworks.PresenceInputs
   alias Hueworks.Rooms
   alias Hueworks.Scenes
 
@@ -160,6 +161,37 @@ defmodule HueworksWeb.RoomsLive do
               {:error, _changeset} -> {:noreply, socket}
             end
         end
+    end
+  end
+
+  def handle_event("create_presence_input", %{"room_id" => room_id, "name" => name}, socket) do
+    with room_id when is_integer(room_id) <- Hueworks.Util.parse_id(room_id),
+         trimmed when trimmed != "" <- String.trim(name) do
+      _ = PresenceInputs.create_input(room_id, %{name: trimmed, occupied: false, metadata: %{}})
+      {:noreply, refresh_rooms(socket)}
+    else
+      _ -> {:noreply, socket}
+    end
+  end
+
+  def handle_event("update_presence_input", %{"input_id" => input_id, "name" => name}, socket) do
+    with input_id when is_integer(input_id) <- Hueworks.Util.parse_id(input_id),
+         trimmed when trimmed != "" <- String.trim(name),
+         %{} = input <- PresenceInputs.get_input(input_id) do
+      _ = PresenceInputs.update_input(input, %{name: trimmed})
+      {:noreply, refresh_rooms(socket)}
+    else
+      _ -> {:noreply, socket}
+    end
+  end
+
+  def handle_event("delete_presence_input", %{"id" => input_id}, socket) do
+    with input_id when is_integer(input_id) <- Hueworks.Util.parse_id(input_id),
+         %{} = input <- PresenceInputs.get_input(input_id) do
+      _ = PresenceInputs.delete_input(input)
+      {:noreply, refresh_rooms(socket)}
+    else
+      _ -> {:noreply, socket}
     end
   end
 

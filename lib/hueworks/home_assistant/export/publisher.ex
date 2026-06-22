@@ -4,7 +4,7 @@ defmodule Hueworks.HomeAssistant.Export.Publisher do
   alias Hueworks.HomeAssistant.Export.Entities
   alias Hueworks.HomeAssistant.Export.Messages
   alias Hueworks.Repo
-  alias Hueworks.Schemas.{Room, Scene}
+  alias Hueworks.Schemas.{PresenceInput, Room, Scene}
 
   def publish_scene_payloads(publish_fun, %Scene{} = scene, config)
       when is_function(publish_fun, 3) do
@@ -95,6 +95,46 @@ defmodule Hueworks.HomeAssistant.Export.Publisher do
     :ok = publish_fun.(discovery, "", retain: true)
     :ok = publish_fun.(attributes, "", retain: true)
     publish_fun.(state, "Manual", retain: true)
+  end
+
+  def publish_presence_input_payloads(publish_fun, nil, _config)
+      when is_function(publish_fun, 3),
+      do: :ok
+
+  def publish_presence_input_payloads(publish_fun, %PresenceInput{} = input, config)
+      when is_function(publish_fun, 3) do
+    discovery = Messages.presence_input_discovery_topic(input.id, config.discovery_prefix)
+    attributes = Messages.presence_input_attributes_topic(input.id)
+    state = Messages.presence_input_state_topic(input.id)
+
+    :ok =
+      publish_fun.(
+        discovery,
+        Jason.encode!(Messages.presence_input_discovery_payload(input, config)),
+        retain: true
+      )
+
+    :ok =
+      publish_fun.(
+        attributes,
+        Jason.encode!(Messages.presence_input_attributes_payload(input)),
+        retain: true
+      )
+
+    publish_fun.(state, Messages.presence_input_state_payload(input), retain: true)
+  end
+
+  def unpublish_presence_input_payloads(publish_fun, input_id, config)
+      when is_function(publish_fun, 3) and is_integer(input_id) do
+    :ok =
+      publish_fun.(
+        Messages.presence_input_discovery_topic(input_id, config.discovery_prefix),
+        "",
+        retain: true
+      )
+
+    :ok = publish_fun.(Messages.presence_input_attributes_topic(input_id), "", retain: true)
+    publish_fun.(Messages.presence_input_state_topic(input_id), "None", retain: true)
   end
 
   def publish_optimistic_entity_state(publish_fun, kind, entity, state)

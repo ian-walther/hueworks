@@ -6,7 +6,7 @@ defmodule Hueworks.HomeAssistant.Export.Messages.State do
   alias Hueworks.Control.State
   alias Hueworks.HomeAssistant.Export.Messages.RoomSceneOption
   alias Hueworks.Kelvin
-  alias Hueworks.Schemas.Scene
+  alias Hueworks.Schemas.{PresenceInput, Scene}
   alias Hueworks.Util
 
   def light_state_payload(:group, entity) when is_map(entity) do
@@ -57,6 +57,10 @@ defmodule Hueworks.HomeAssistant.Export.Messages.State do
       _ -> "None"
     end
   end
+
+  def presence_input_state_payload(%PresenceInput{occupied: true}), do: "ON"
+  def presence_input_state_payload(%PresenceInput{occupied: false}), do: "OFF"
+  def presence_input_state_payload(_input), do: "None"
 
   def entity_export_mode(%{ha_export_mode: mode}) when mode in [:none, :switch, :light], do: mode
   def entity_export_mode(_entity), do: :none

@@ -58,9 +58,18 @@ defmodule Hueworks.HomeAssistant.Export.Lifecycle.SyncDispatch do
   defp sync_operation({:refresh_light, light_id}), do: {:publish_entity, [:light, light_id]}
   defp sync_operation({:refresh_group, group_id}), do: {:publish_entity, [:group, group_id]}
 
+  defp sync_operation({:refresh_presence_input, input_id}),
+    do: {:publish_presence_input, [input_id]}
+
+  defp sync_operation({:refresh_presence_inputs_for_room, room_id}),
+    do: {:publish_room_entities, [room_id]}
+
   defp sync_operation({:refresh_scene, scene_id}), do: {:publish_scene, [scene_id]}
   defp sync_operation({:remove_light, light_id}), do: {:unpublish_entity, [:light, light_id]}
   defp sync_operation({:remove_group, group_id}), do: {:unpublish_entity, [:group, group_id]}
+
+  defp sync_operation({:remove_presence_input, input_id}),
+    do: {:unpublish_presence_input, [input_id]}
 
   defp sync_operation({:remove_scene, scene_id}), do: {:unpublish_scene, [scene_id]}
   defp sync_operation({:remove_room, room_id}), do: {:unpublish_room_select, [room_id]}

@@ -26,13 +26,17 @@ defmodule Hueworks.HomeAssistant.Export.Messages do
   defdelegate room_select_state_topic(room_id), to: Topics
   defdelegate room_select_attributes_topic(room_id), to: Topics
   defdelegate entity_attributes_topic(kind, id), to: Topics
+  defdelegate presence_input_attributes_topic(id), to: Topics
   defdelegate switch_command_topic(kind, id), to: Topics
+  defdelegate presence_input_command_topic(id), to: Topics
   defdelegate switch_state_topic(kind, id), to: Topics
+  defdelegate presence_input_state_topic(id), to: Topics
   defdelegate light_command_topic(kind, id), to: Topics
   defdelegate light_state_topic(kind, id), to: Topics
   defdelegate discovery_topic(scene_id, discovery_prefix), to: Topics
   defdelegate room_select_discovery_topic(room_id, discovery_prefix), to: Topics
   defdelegate switch_discovery_topic(kind, id, discovery_prefix), to: Topics
+  defdelegate presence_input_discovery_topic(id, discovery_prefix), to: Topics
   defdelegate light_discovery_topic(kind, id, discovery_prefix), to: Topics
   defdelegate command_scene_id(topic_levels, topic_prefix), to: Topics
   defdelegate command_room_id(topic_levels, topic_prefix), to: Topics
@@ -43,8 +47,10 @@ defmodule Hueworks.HomeAssistant.Export.Messages do
   defdelegate room_select_discovery_payload(room, scenes, config), to: Discovery
   defdelegate room_select_attributes_payload(room, scenes), to: Discovery
   defdelegate switch_discovery_payload(kind, entity, config), to: Discovery
+  defdelegate presence_input_discovery_payload(input, config), to: Discovery
   defdelegate light_discovery_payload(kind, entity, config), to: Discovery
   defdelegate entity_attributes_payload(kind, entity), to: Discovery
+  defdelegate presence_input_attributes_payload(input), to: Discovery
   defdelegate room_scene_options(scenes), to: Discovery
   defdelegate active_scene_name(room_id, scenes), to: Discovery
 
@@ -60,6 +66,8 @@ defmodule Hueworks.HomeAssistant.Export.Messages do
   def room_select_discovery_topic(room_id), do: Topics.room_select_discovery_topic(room_id)
 
   def switch_discovery_topic(kind, id), do: Topics.switch_discovery_topic(kind, id)
+
+  def presence_input_discovery_topic(id), do: Topics.presence_input_discovery_topic(id)
 
   def light_discovery_topic(kind, id), do: Topics.light_discovery_topic(kind, id)
 
@@ -84,4 +92,6 @@ defmodule Hueworks.HomeAssistant.Export.Messages do
   def switch_state_payload(state) when is_map(state) do
     State.switch_state_payload(state)
   end
+
+  defdelegate presence_input_state_payload(input), to: State
 end

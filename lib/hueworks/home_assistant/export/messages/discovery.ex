@@ -4,7 +4,7 @@ defmodule Hueworks.HomeAssistant.Export.Messages.Discovery do
   alias Hueworks.ActiveScenes
   alias Hueworks.HomeAssistant.Export.Messages.State
   alias Hueworks.HomeAssistant.Export.Messages.Topics
-  alias Hueworks.Schemas.{Room, Scene}
+  alias Hueworks.Schemas.{PresenceInput, Room, Scene}
 
   def discovery_payload(%Scene{} = scene, config) do
     room_name = room_name(scene.room)
@@ -129,6 +129,40 @@ defmodule Hueworks.HomeAssistant.Export.Messages.Discovery do
     }
   end
 
+  def presence_input_discovery_payload(%PresenceInput{} = input, config) do
+    %{
+      "platform" => "switch",
+      "name" => presence_input_name(input),
+      "unique_id" => "hueworks_presence_input_#{input.id}_switch",
+      "command_topic" => Topics.presence_input_command_topic(input.id),
+      "state_topic" => Topics.presence_input_state_topic(input.id),
+      "payload_on" => "ON",
+      "payload_off" => "OFF",
+      "availability_topic" => Topics.availability_topic(),
+      "payload_available" => "online",
+      "payload_not_available" => "offline",
+      "json_attributes_topic" => Topics.presence_input_attributes_topic(input.id),
+      "device" => %{
+        "identifiers" => ["hueworks_room_#{input.room_id}"],
+        "name" => "HueWorks #{room_name(input.room)}",
+        "manufacturer" => "HueWorks",
+        "model" => "Presence Inputs"
+      }
+    }
+    |> maybe_put("configuration_url", configuration_url(config))
+  end
+
+  def presence_input_attributes_payload(%PresenceInput{} = input) do
+    %{
+      "hueworks_managed" => true,
+      "hueworks_entity_kind" => "presence_input",
+      "hueworks_presence_input_id" => input.id,
+      "hueworks_room_id" => input.room_id,
+      "room_name" => room_name(input.room),
+      "presence_input_name" => presence_input_name(input)
+    }
+  end
+
   def room_scene_options(scenes) when is_list(scenes), do: State.room_scene_options(scenes)
 
   def active_scene_name(room_id, scenes) when is_integer(room_id) and is_list(scenes),
@@ -159,6 +193,8 @@ defmodule Hueworks.HomeAssistant.Export.Messages.Discovery do
   defp scene_name(%Scene{} = scene), do: scene.display_name || scene.name
 
   defp entity_name(entity), do: entity.display_name || entity.name
+
+  defp presence_input_name(%PresenceInput{} = input), do: input.name
 
   defp room_select_option_labels(scenes) when is_list(scenes) do
     scenes

@@ -11,6 +11,7 @@ It imports devices from Hue, Caseta, Home Assistant, and Zigbee2MQTT, links them
 - Maintains in-memory physical state and desired state for live control
 - Applies scenes through a queued executor so changes can be planned and dispatched consistently per bridge
 - Exports HueWorks scenes and optional entities back into Home Assistant over MQTT
+- Provides room-scoped Presence Inputs that Home Assistant can write over MQTT as simple occupied/unoccupied booleans
 - Lets you configure Caseta Picos with room-scoped control groups and scene bindings
 
 ## Supported Integrations
@@ -40,6 +41,7 @@ It imports devices from Hue, Caseta, Home Assistant, and Zigbee2MQTT, links them
   - manual overrides
 - `/rooms`
   - room CRUD
+  - presence input management
   - scene activation
 - `/rooms/:room_id/scenes/new`
 - `/rooms/:room_id/scenes/:id/edit`
@@ -179,6 +181,12 @@ HomeKit runtime:
 - If Apple Home and HueWorks get out of sync during pairing or testing, use Config -> HomeKit Bridge -> Reset Pairing to clear saved HomeKit controller pairings before adding the bridge again.
 - Light/group HomeKit export can expose entities as on/off switches or dimmable lights. On/off control is the reliable path today; brightness is available for testing but can be laggy or intermittently miss commands.
 - For production HomeKit pairing from Docker on Linux, set `COMPOSE_FILE=docker-compose.yml:docker-compose.homekit.yml` so the HAP server's mDNS advertisement and static TCP port are reachable on the LAN through host networking.
+
+Home Assistant MQTT export:
+
+- Scenes, room scene selectors, lights, groups, and Presence Inputs are published through Home Assistant MQTT discovery when Home Assistant export is enabled.
+- Presence Inputs are configured per room on `/rooms` and exported as writable MQTT switches. `ON` means `Occupied`; `OFF` means `Unoccupied`.
+- Presence Inputs are passive state today: Home Assistant owns their value, and changing one does not directly apply scenes or dispatch light controls.
 
 Useful commands:
 

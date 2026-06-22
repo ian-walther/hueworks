@@ -10,7 +10,7 @@ defmodule Hueworks.HomeAssistant.Export do
   alias Hueworks.HomeAssistant.Export.Router
   alias Hueworks.HomeAssistant.Export.Runtime
   alias Hueworks.Instance
-  alias Hueworks.Schemas.{Group, Light, Scene}
+  alias Hueworks.Schemas.{Group, Light, PresenceInput, Scene}
   alias Phoenix.PubSub
 
   @default_discovery_prefix "homeassistant"
@@ -48,6 +48,16 @@ defmodule Hueworks.HomeAssistant.Export do
     maybe_cast({:refresh_group, group_id})
   end
 
+  def refresh_presence_input(%PresenceInput{id: input_id}), do: refresh_presence_input(input_id)
+
+  def refresh_presence_input(input_id) when is_integer(input_id) do
+    maybe_cast({:refresh_presence_input, input_id})
+  end
+
+  def refresh_presence_inputs_for_room(room_id) when is_integer(room_id) do
+    maybe_cast({:refresh_presence_inputs_for_room, room_id})
+  end
+
   def remove_light(%Light{id: light_id}), do: remove_light(light_id)
 
   def remove_light(light_id) when is_integer(light_id) do
@@ -58,6 +68,12 @@ defmodule Hueworks.HomeAssistant.Export do
 
   def remove_group(group_id) when is_integer(group_id) do
     maybe_cast({:remove_group, group_id})
+  end
+
+  def remove_presence_input(%PresenceInput{id: input_id}), do: remove_presence_input(input_id)
+
+  def remove_presence_input(input_id) when is_integer(input_id) do
+    maybe_cast({:remove_presence_input, input_id})
   end
 
   def refresh_scene(%Scene{id: scene_id}), do: refresh_scene(scene_id)
@@ -87,8 +103,11 @@ defmodule Hueworks.HomeAssistant.Export do
   defdelegate room_select_state_topic(room_id), to: Messages
   defdelegate room_select_attributes_topic(room_id), to: Messages
   defdelegate entity_attributes_topic(kind, id), to: Messages
+  defdelegate presence_input_attributes_topic(id), to: Messages
   defdelegate switch_command_topic(kind, id), to: Messages
+  defdelegate presence_input_command_topic(id), to: Messages
   defdelegate switch_state_topic(kind, id), to: Messages
+  defdelegate presence_input_state_topic(id), to: Messages
   defdelegate light_command_topic(kind, id), to: Messages
   defdelegate light_state_topic(kind, id), to: Messages
 
@@ -100,6 +119,9 @@ defmodule Hueworks.HomeAssistant.Export do
 
   def switch_discovery_topic(kind, id, discovery_prefix \\ @default_discovery_prefix),
     do: Messages.switch_discovery_topic(kind, id, discovery_prefix)
+
+  def presence_input_discovery_topic(id, discovery_prefix \\ @default_discovery_prefix),
+    do: Messages.presence_input_discovery_topic(id, discovery_prefix)
 
   def light_discovery_topic(kind, id, discovery_prefix \\ @default_discovery_prefix),
     do: Messages.light_discovery_topic(kind, id, discovery_prefix)
@@ -127,6 +149,11 @@ defmodule Hueworks.HomeAssistant.Export do
     do: Messages.light_discovery_payload(kind, entity, config)
 
   defdelegate entity_attributes_payload(kind, entity), to: Messages
+
+  def presence_input_discovery_payload(input, config \\ export_config()),
+    do: Messages.presence_input_discovery_payload(input, config)
+
+  defdelegate presence_input_attributes_payload(input), to: Messages
 
   def export_config do
     Runtime.export_config()

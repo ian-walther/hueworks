@@ -8,9 +8,10 @@ defmodule Hueworks.HomeAssistant.Export.Router.EntityCommands do
   alias Hueworks.HomeAssistant.Export.Messages
   alias Hueworks.HomeAssistant.Export.Publisher
   alias Hueworks.Lights.ManualControl
+  alias Hueworks.PresenceInputs
 
   def handle_switch_command(kind, id, payload, config, publish_fun)
-      when kind in [:light, :group] and is_integer(id) and is_binary(payload) and
+      when kind in [:light, :group, :presence_input] and is_integer(id) and is_binary(payload) and
              is_function(publish_fun, 3) do
     case Messages.normalize_power_payload(payload) do
       :on ->
@@ -99,6 +100,21 @@ defmodule Hueworks.HomeAssistant.Export.Router.EntityCommands do
 
       _ ->
         :ok
+    end
+  end
+
+  defp apply_power_command(:presence_input, id, power, config, publish_fun)
+       when power in [:on, :off] and is_function(publish_fun, 3) do
+    occupied = power == :on
+
+    case PresenceInputs.set_occupied(id, occupied, refresh_home_assistant: false) do
+      {:ok, input} ->
+        Publisher.publish_presence_input_payloads(publish_fun, input, config)
+
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("HA export presence input command failed: #{inspect(reason)}")
     end
   end
 

@@ -15,7 +15,7 @@ defmodule Hueworks.Rooms do
 
   def list_rooms_with_children do
     Repo.all(from(r in Room, order_by: [asc: r.name]))
-    |> Repo.preload([:groups, :lights, :scenes])
+    |> Repo.preload([:groups, :lights, :scenes, :presence_inputs])
   end
 
   def get_room(id), do: Repo.get(Room, id)

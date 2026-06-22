@@ -27,13 +27,22 @@ defmodule Hueworks.HomeAssistant.Export.Messages.Topics do
       when kind in [:light, :group] and is_integer(id),
       do: "#{@default_topic_prefix}/#{kind_segment(kind)}/#{id}/attributes"
 
+  def presence_input_attributes_topic(id) when is_integer(id),
+    do: "#{@default_topic_prefix}/presence_inputs/#{id}/attributes"
+
   def switch_command_topic(kind, id)
       when kind in [:light, :group] and is_integer(id),
       do: "#{@default_topic_prefix}/#{kind_segment(kind)}/#{id}/switch/set"
 
+  def presence_input_command_topic(id) when is_integer(id),
+    do: "#{@default_topic_prefix}/presence_inputs/#{id}/switch/set"
+
   def switch_state_topic(kind, id)
       when kind in [:light, :group] and is_integer(id),
       do: "#{@default_topic_prefix}/#{kind_segment(kind)}/#{id}/switch/state"
+
+  def presence_input_state_topic(id) when is_integer(id),
+    do: "#{@default_topic_prefix}/presence_inputs/#{id}/switch/state"
 
   def light_command_topic(kind, id)
       when kind in [:light, :group] and is_integer(id),
@@ -56,6 +65,11 @@ defmodule Hueworks.HomeAssistant.Export.Messages.Topics do
   def switch_discovery_topic(kind, id, discovery_prefix \\ @default_discovery_prefix)
       when kind in [:light, :group] and is_integer(id) and is_binary(discovery_prefix) do
     "#{discovery_prefix}/switch/#{entity_object_id(kind, id)}/config"
+  end
+
+  def presence_input_discovery_topic(id, discovery_prefix \\ @default_discovery_prefix)
+      when is_integer(id) and is_binary(discovery_prefix) do
+    "#{discovery_prefix}/switch/hueworks_presence_input_#{id}/config"
   end
 
   def light_discovery_topic(kind, id, discovery_prefix \\ @default_discovery_prefix)
@@ -150,6 +164,9 @@ defmodule Hueworks.HomeAssistant.Export.Messages.Topics do
         ["groups", id, "light", "set"] ->
           parse_command_target(:group, :light, id)
 
+        ["presence_inputs", id, "switch", "set"] ->
+          parse_command_target(:presence_input, :switch, id)
+
         _ ->
           nil
       end
@@ -171,6 +188,13 @@ defmodule Hueworks.HomeAssistant.Export.Messages.Topics do
        when kind in [:light, :group] and mode in [:switch, :light] do
     case Integer.parse(id) do
       {parsed, ""} -> %CommandTarget{kind: kind, mode: mode, id: parsed}
+      _ -> nil
+    end
+  end
+
+  defp parse_command_target(:presence_input, :switch, id) do
+    case Integer.parse(id) do
+      {parsed, ""} -> %CommandTarget{kind: :presence_input, mode: :switch, id: parsed}
       _ -> nil
     end
   end

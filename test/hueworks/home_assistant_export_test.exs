@@ -10,8 +10,9 @@ defmodule Hueworks.HomeAssistant.ExportTest do
   alias Hueworks.HomeAssistant.Export.ServerState
   alias Hueworks.HomeAssistant.Export.Messages
   alias Hueworks.HomeAssistant.Export.Messages.{CommandTarget, RoomSceneOption}
+  alias Hueworks.PresenceInputs
   alias Hueworks.Repo
-  alias Hueworks.Schemas.{AppSetting, Group, GroupLight, Light, Room, Scene}
+  alias Hueworks.Schemas.{AppSetting, Group, GroupLight, Light, PresenceInput, Room, Scene}
 
   setup do
     original_tortoise = Application.get_env(:hueworks, :ha_export_tortoise_module)
@@ -146,6 +147,9 @@ defmodule Hueworks.HomeAssistant.ExportTest do
                "light",
                "set"
              ])
+
+    assert %CommandTarget{kind: :presence_input, mode: :switch, id: 9} =
+             Messages.command_export_target("hueworks/ha_export/presence_inputs/9/switch/set")
   end
 
   test "room scene options return typed runtime structs" do
@@ -219,6 +223,33 @@ defmodule Hueworks.HomeAssistant.ExportTest do
     assert payload["transition"] == false
   end
 
+  test "presence input discovery payload exposes a writable room switch" do
+    room = Repo.insert!(%Room{name: "Office"})
+
+    input =
+      Repo.insert!(%PresenceInput{
+        room_id: room.id,
+        name: "Desk Presence",
+        occupied: true
+      })
+      |> Repo.preload(:room)
+
+    payload = Export.presence_input_discovery_payload(input)
+
+    assert payload["platform"] == "switch"
+    assert payload["name"] == "Desk Presence"
+    assert payload["unique_id"] == "hueworks_presence_input_#{input.id}_switch"
+    assert payload["command_topic"] == "hueworks/ha_export/presence_inputs/#{input.id}/switch/set"
+    assert payload["state_topic"] == "hueworks/ha_export/presence_inputs/#{input.id}/switch/state"
+
+    assert payload["json_attributes_topic"] ==
+             "hueworks/ha_export/presence_inputs/#{input.id}/attributes"
+
+    assert payload["device"]["identifiers"] == ["hueworks_room_#{room.id}"]
+    assert payload["device"]["name"] == "HueWorks Office"
+    assert payload["device"]["model"] == "Presence Inputs"
+  end
+
   test "publishes retained discovery and attributes payloads when connected" do
     put_export_settings(%{
       ha_export_scenes_enabled: true,
@@ -269,6 +300,52 @@ defmodule Hueworks.HomeAssistant.ExportTest do
       assert_publish("hueworks/ha_export/rooms/#{room.id}/scene/state")
 
     assert select_state == "Manual"
+  end
+
+  test "publishes presence inputs when connected" do
+    put_export_settings(%{
+      ha_export_scenes_enabled: true,
+      ha_export_mqtt_host: "mqtt.local",
+      ha_export_mqtt_port: 1883,
+      ha_export_discovery_prefix: "homeassistant"
+    })
+
+    room = Repo.insert!(%Room{name: "Office"})
+
+    input =
+      Repo.insert!(%PresenceInput{
+        room_id: room.id,
+        name: "Desk Presence",
+        occupied: false
+      })
+
+    Export.reload()
+    _ = :sys.get_state(Export)
+    send(Export, {:mqtt_connected, Export.client_id()})
+    _ = :sys.get_state(Export)
+
+    {_client_id, _topic, discovery_payload} =
+      assert_publish("homeassistant/switch/hueworks_presence_input_#{input.id}/config")
+
+    discovery = Jason.decode!(discovery_payload)
+    assert discovery["name"] == "Desk Presence"
+
+    assert discovery["command_topic"] ==
+             "hueworks/ha_export/presence_inputs/#{input.id}/switch/set"
+
+    {_client_id, _attrs_topic, attrs_payload} =
+      assert_publish("hueworks/ha_export/presence_inputs/#{input.id}/attributes")
+
+    attrs = Jason.decode!(attrs_payload)
+    assert attrs["hueworks_managed"] == true
+    assert attrs["hueworks_entity_kind"] == "presence_input"
+    assert attrs["hueworks_presence_input_id"] == input.id
+    assert attrs["hueworks_room_id"] == room.id
+
+    {_client_id, _state_topic, state_payload} =
+      assert_publish("hueworks/ha_export/presence_inputs/#{input.id}/switch/state")
+
+    assert state_payload == "OFF"
   end
 
   test "command topic ON activates the matching HueWorks scene" do
@@ -447,6 +524,44 @@ defmodule Hueworks.HomeAssistant.ExportTest do
     _ = :sys.get_state(Export)
 
     assert DesiredState.get(:light, light.id) == %{power: :off}
+  end
+
+  test "presence input switch command updates stored occupancy without applying controls" do
+    put_export_settings(%{
+      ha_export_scenes_enabled: true,
+      ha_export_mqtt_host: "mqtt.local",
+      ha_export_discovery_prefix: "homeassistant"
+    })
+
+    room = Repo.insert!(%Room{name: "Office"})
+    input = Repo.insert!(%PresenceInput{room_id: room.id, name: "Desk Presence", occupied: false})
+
+    Export.reload()
+    _ = :sys.get_state(Export)
+    drain_published_messages()
+
+    send(
+      Export,
+      {:mqtt_message,
+       [
+         "hueworks",
+         "ha_export",
+         "presence_inputs",
+         Integer.to_string(input.id),
+         "switch",
+         "set"
+       ], "ON"}
+    )
+
+    _ = :sys.get_state(Export)
+
+    assert Repo.get!(PresenceInput, input.id).occupied == true
+    assert DesiredState.get(:light, input.id) == nil
+
+    {_client_id, _state_topic, state_payload} =
+      assert_publish("hueworks/ha_export/presence_inputs/#{input.id}/switch/state")
+
+    assert state_payload == "ON"
   end
 
   test "json light command applies brightness and kelvin updates to an exported group" do
@@ -874,6 +989,41 @@ defmodule Hueworks.HomeAssistant.ExportTest do
       assert_publish("homeassistant/light/hueworks_group_#{group.id}/config")
 
     assert light_discovery_payload == ""
+  end
+
+  test "deleting a presence input tombstones its retained MQTT topics" do
+    put_export_settings(%{
+      ha_export_scenes_enabled: true,
+      ha_export_mqtt_host: "mqtt.local",
+      ha_export_discovery_prefix: "homeassistant"
+    })
+
+    room = Repo.insert!(%Room{name: "Office"})
+    input = Repo.insert!(%PresenceInput{room_id: room.id, name: "Desk Presence", occupied: true})
+
+    Export.reload()
+    _ = :sys.get_state(Export)
+    send(Export, {:mqtt_connected, Export.client_id()})
+    _ = :sys.get_state(Export)
+    drain_published_messages()
+
+    assert {:ok, _deleted} = PresenceInputs.delete_input(input)
+    _ = :sys.get_state(Export)
+
+    {_client_id, _topic, discovery_payload} =
+      assert_publish("homeassistant/switch/hueworks_presence_input_#{input.id}/config")
+
+    assert discovery_payload == ""
+
+    {_client_id, _topic, attributes_payload} =
+      assert_publish("hueworks/ha_export/presence_inputs/#{input.id}/attributes")
+
+    assert attributes_payload == ""
+
+    {_client_id, _topic, state_payload} =
+      assert_publish("hueworks/ha_export/presence_inputs/#{input.id}/switch/state")
+
+    assert state_payload == "None"
   end
 
   test "command_scene_id parses scene ids from export topics" do

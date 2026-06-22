@@ -130,6 +130,57 @@
                 <% end %>
               </div>
             </div>
+            <details class="hw-room-section">
+              <summary class="hw-room-label">Presence Inputs</summary>
+              <div class="hw-room-list">
+                <%= for input <- Enum.sort_by(room.presence_inputs, & &1.name) do %>
+                  <div class="hw-room-item hw-room-item-row" id={"presence-input-#{input.id}"}>
+                    <form
+                      class="hw-inline-form"
+                      phx-submit="update_presence_input"
+                    >
+                      <input type="hidden" name="input_id" value={input.id} />
+                      <input
+                        type="text"
+                        name="name"
+                        value={input.name}
+                        class="hw-modal-input"
+                        autocomplete="off"
+                        aria-label="Presence input name"
+                      />
+                      <button type="submit" class="hw-button">Rename</button>
+                    </form>
+                    <span class="hw-muted">
+                      <%= if input.occupied, do: "Occupied", else: "Unoccupied" %>
+                    </span>
+                    <button
+                      type="button"
+                      class="hw-edit-button hw-delete-button"
+                      phx-click="delete_presence_input"
+                      phx-value-id={input.id}
+                      aria-label="Delete presence input"
+                    >
+                      ×
+                    </button>
+                  </div>
+                <% end %>
+                <%= if Enum.empty?(room.presence_inputs) do %>
+                  <span class="hw-room-item hw-room-empty">None</span>
+                <% end %>
+                <form class="hw-room-item hw-room-item-row" phx-submit="create_presence_input">
+                  <input type="hidden" name="room_id" value={room.id} />
+                  <input
+                    type="text"
+                    name="name"
+                    class="hw-modal-input"
+                    placeholder="New presence input"
+                    autocomplete="off"
+                    aria-label="New presence input name"
+                  />
+                  <button type="submit" class="hw-button">Add</button>
+                </form>
+              </div>
+            </details>
             <div class="hw-room-grid">
               <div>
                 <details class="hw-room-section">

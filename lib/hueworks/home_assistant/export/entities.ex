@@ -7,7 +7,7 @@ defmodule Hueworks.HomeAssistant.Export.Entities do
   alias Hueworks.HomeAssistant.Export.Messages
   alias Hueworks.HomeAssistant.Export.Messages.RoomSceneOption
   alias Hueworks.Repo
-  alias Hueworks.Schemas.{Group, GroupLight, Light, Room, Scene}
+  alias Hueworks.Schemas.{Group, GroupLight, Light, PresenceInput, Room, Scene}
 
   def control_target(:light, light_id) when is_integer(light_id) do
     case fetch_entity(:light, light_id) do
@@ -58,6 +58,33 @@ defmodule Hueworks.HomeAssistant.Export.Entities do
 
   def list_rooms do
     Repo.all(from(r in Room, order_by: [asc: r.name]))
+  end
+
+  def list_presence_inputs do
+    Repo.all(
+      from(pi in PresenceInput,
+        join: r in assoc(pi, :room),
+        preload: [room: r],
+        order_by: [asc: r.name, asc: pi.name]
+      )
+    )
+  end
+
+  def list_presence_inputs_for_room(room_id) when is_integer(room_id) do
+    Repo.all(
+      from(pi in PresenceInput,
+        join: r in assoc(pi, :room),
+        where: pi.room_id == ^room_id,
+        preload: [room: r],
+        order_by: [asc: pi.name]
+      )
+    )
+  end
+
+  def fetch_presence_input(input_id) when is_integer(input_id) do
+    PresenceInput
+    |> Repo.get(input_id)
+    |> Repo.preload(:room)
   end
 
   def list_exportable_scenes_for_room(room_id) when is_integer(room_id) do
