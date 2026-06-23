@@ -188,7 +188,7 @@ Home Assistant MQTT export:
 - Scenes, room scene selectors, lights, groups, and Presence Inputs are published through Home Assistant MQTT discovery when Home Assistant export is enabled.
 - Presence Inputs are configured per room on `/rooms` and exported as writable MQTT switches. `ON` means `Occupied`; `OFF` means `Unoccupied`.
 - Scene components can use `Follow Presence` as a power policy for individual lights or nested groups. The policy resolves to on/off from the selected Presence Input when a scene is applied.
-- Home Assistant owns Presence Input values. Changing one stores and republishes state, but does not directly apply scenes or dispatch light controls by itself.
+- Home Assistant owns Presence Input values. Changing one stores and republishes state, then reapplies the room's active scene so any `Follow Presence` scene components dispatch their updated on/off intent.
 
 Useful commands:
 

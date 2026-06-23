@@ -1,12 +1,42 @@
 defmodule Hueworks.PresenceInputsTest do
-  use Hueworks.DataCase, async: true
+  use Hueworks.DataCase, async: false
 
+  alias Hueworks.Control.DesiredState
   alias Hueworks.PresenceInputs
   alias Hueworks.Repo
-  alias Hueworks.Schemas.{PresenceInput, Room}
+  alias Hueworks.Scenes
+  alias Hueworks.Schemas.{Light, PresenceInput, Room}
 
-  test "create_input persists a room-scoped passive boolean" do
-    room = Repo.insert!(%Room{name: "Office"})
+  defp insert_room do
+    Repo.insert!(%Room{name: "Office"})
+  end
+
+  defp insert_bridge do
+    insert_bridge!(%{
+      type: :hue,
+      name: "Hue Bridge",
+      host: "10.0.0.230",
+      credentials: %{"api_key" => "key"},
+      import_complete: false,
+      enabled: true
+    })
+  end
+
+  defp insert_light(room, bridge, attrs) do
+    defaults = %{
+      name: "Light",
+      source: :hue,
+      source_id: Integer.to_string(System.unique_integer([:positive])),
+      bridge_id: bridge.id,
+      room_id: room.id,
+      metadata: %{}
+    }
+
+    Repo.insert!(struct(Light, Map.merge(defaults, attrs)))
+  end
+
+  test "create_input persists a room-scoped boolean" do
+    room = insert_room()
 
     assert {:ok, input} =
              PresenceInputs.create_input(room.id, %{
@@ -21,7 +51,7 @@ defmodule Hueworks.PresenceInputsTest do
   end
 
   test "update_input and delete_input manage ordinary presence inputs" do
-    room = Repo.insert!(%Room{name: "Office"})
+    room = insert_room()
     input = Repo.insert!(%PresenceInput{room_id: room.id, name: "Desk", occupied: true})
 
     assert {:ok, updated} = PresenceInputs.update_input(input, %{name: "Sitting Area"})
@@ -32,8 +62,8 @@ defmodule Hueworks.PresenceInputsTest do
     refute Repo.get(PresenceInput, input.id)
   end
 
-  test "set_occupied stores HA-driven state without touching control state" do
-    room = Repo.insert!(%Room{name: "Office"})
+  test "set_occupied stores HA-driven state" do
+    room = insert_room()
     input = Repo.insert!(%PresenceInput{room_id: room.id, name: "Desk", occupied: true})
 
     assert {:ok, updated} =
@@ -41,5 +71,43 @@ defmodule Hueworks.PresenceInputsTest do
 
     assert updated.occupied == false
     assert Repo.get!(PresenceInput, input.id).occupied == false
+  end
+
+  test "set_occupied reapplies the active room scene when follow presence is used" do
+    room = insert_room()
+    bridge = insert_bridge()
+    light = insert_light(room, bridge, %{name: "Desk Lamp"})
+
+    input =
+      Repo.insert!(%PresenceInput{
+        room_id: room.id,
+        name: "Desk Presence",
+        occupied: true
+      })
+
+    {:ok, state} =
+      Scenes.create_manual_light_state("Soft", %{"brightness" => "40", "temperature" => "3000"})
+
+    {:ok, scene} = Scenes.create_scene(%{name: "Work", room_id: room.id})
+
+    {:ok, _} =
+      Scenes.replace_scene_components(scene, [
+        %{
+          name: "Component 1",
+          light_ids: [light.id],
+          light_state_id: to_string(state.id),
+          light_defaults: %{light.id => :follow_presence},
+          light_presence_inputs: %{light.id => input.id}
+        }
+      ])
+
+    {:ok, _diff, _updated} = Scenes.activate_scene(scene.id)
+    assert DesiredState.get(:light, light.id)[:power] == :on
+
+    assert {:ok, updated} =
+             PresenceInputs.set_occupied(input.id, false, refresh_home_assistant: false)
+
+    assert updated.occupied == false
+    assert DesiredState.get(:light, light.id)[:power] == :off
   end
 end
