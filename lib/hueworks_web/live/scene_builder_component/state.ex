@@ -14,7 +14,8 @@ defmodule HueworksWeb.SceneBuilderComponent.State do
     group_ids: [],
     light_state_id: nil,
     embedded_manual_config: nil,
-    light_defaults: %{}
+    light_defaults: %{},
+    light_presence_inputs: %{}
   }
 
   def blank_component, do: @blank_component
@@ -90,7 +91,11 @@ defmodule HueworksWeb.SceneBuilderComponent.State do
         %{
           component
           | light_ids: Enum.uniq(component.light_ids ++ [light_id]),
-            light_defaults: defaults
+            light_defaults: defaults,
+            light_presence_inputs:
+              component
+              |> Map.get(:light_presence_inputs, %{})
+              |> Map.delete(light_id)
         }
       else
         component
@@ -115,7 +120,11 @@ defmodule HueworksWeb.SceneBuilderComponent.State do
           component
           | light_ids: Enum.uniq(component.light_ids ++ group_light_ids),
             group_ids: Enum.uniq(component.group_ids ++ [group.id]),
-            light_defaults: defaults
+            light_defaults: defaults,
+            light_presence_inputs:
+              component
+              |> Map.get(:light_presence_inputs, %{})
+              |> Map.drop(group_light_ids)
         }
       else
         component
@@ -137,7 +146,11 @@ defmodule HueworksWeb.SceneBuilderComponent.State do
         %{
           component
           | light_ids: List.delete(component.light_ids, light_id),
-            light_defaults: defaults
+            light_defaults: defaults,
+            light_presence_inputs:
+              component
+              |> Map.get(:light_presence_inputs, %{})
+              |> Map.delete(light_id)
         }
       else
         component
@@ -161,11 +174,17 @@ defmodule HueworksWeb.SceneBuilderComponent.State do
           |> Map.get(:light_defaults, %{})
           |> Map.drop(group_light_ids)
 
+        remaining_presence_inputs =
+          component
+          |> Map.get(:light_presence_inputs, %{})
+          |> Map.drop(group_light_ids)
+
         %{
           component
           | light_ids: remaining_light_ids,
             group_ids: List.delete(Map.get(component, :group_ids, []), group.id),
-            light_defaults: remaining_defaults
+            light_defaults: remaining_defaults,
+            light_presence_inputs: remaining_presence_inputs
         }
       else
         component
@@ -195,7 +214,51 @@ defmodule HueworksWeb.SceneBuilderComponent.State do
           |> Map.get(light_id, :default_on)
           |> normalize_default_power_value()
 
-        %{component | light_defaults: Map.put(defaults, light_id, next_power_policy(current))}
+        put_light_power_policy(component, light_id, next_power_policy(current), [])
+      else
+        component
+      end
+    end)
+  end
+
+  def set_light_default_power(components, component_id, light_id, policy, presence_inputs) do
+    component_id = parse_id(component_id)
+    light_id = parse_id(light_id)
+    policy = normalize_default_power_value(policy)
+
+    Enum.map(components, fn component ->
+      if component.id == component_id and is_integer(light_id) do
+        put_light_power_policy(component, light_id, policy, presence_inputs)
+      else
+        component
+      end
+    end)
+  end
+
+  def set_light_presence_input(
+        components,
+        component_id,
+        light_id,
+        presence_input_id,
+        presence_inputs
+      ) do
+    component_id = parse_id(component_id)
+    light_id = parse_id(light_id)
+    presence_input_id = valid_presence_input_id(presence_input_id, presence_inputs)
+
+    Enum.map(components, fn component ->
+      if component.id == component_id and is_integer(light_id) and is_integer(presence_input_id) do
+        defaults =
+          component
+          |> Map.get(:light_defaults, %{})
+          |> Map.put(light_id, :follow_presence)
+
+        presence_defaults =
+          component
+          |> Map.get(:light_presence_inputs, %{})
+          |> Map.put(light_id, presence_input_id)
+
+        %{component | light_defaults: defaults, light_presence_inputs: presence_defaults}
       else
         component
       end
@@ -225,7 +288,69 @@ defmodule HueworksWeb.SceneBuilderComponent.State do
     end)
   end
 
-  def normalize_components(components, light_states) do
+  def set_group_default_power(
+        components,
+        component_id,
+        group,
+        room_light_ids,
+        policy,
+        presence_inputs
+      ) do
+    component_id = parse_id(component_id)
+    policy = normalize_default_power_value(policy)
+
+    Enum.map(components, fn component ->
+      if component.id == component_id and group do
+        group_light_ids = component_group_light_ids(component, group, room_light_ids)
+
+        Enum.reduce(group_light_ids, component, fn light_id, acc ->
+          put_light_power_policy(acc, light_id, policy, presence_inputs)
+        end)
+      else
+        component
+      end
+    end)
+  end
+
+  def set_group_presence_input(
+        components,
+        component_id,
+        group,
+        room_light_ids,
+        presence_input_id,
+        presence_inputs
+      ) do
+    component_id = parse_id(component_id)
+    presence_input_id = valid_presence_input_id(presence_input_id, presence_inputs)
+
+    Enum.map(components, fn component ->
+      if component.id == component_id and is_map(group) and is_integer(presence_input_id) do
+        group_light_ids = component_group_light_ids(component, group, room_light_ids)
+        defaults = Map.get(component, :light_defaults, %{})
+        presence_defaults = Map.get(component, :light_presence_inputs, %{})
+
+        updated_defaults =
+          Enum.reduce(group_light_ids, defaults, fn light_id, acc ->
+            Map.put(acc, light_id, :follow_presence)
+          end)
+
+        updated_presence_defaults =
+          Enum.reduce(group_light_ids, presence_defaults, fn light_id, acc ->
+            Map.put(acc, light_id, presence_input_id)
+          end)
+
+        %{
+          component
+          | light_defaults: updated_defaults,
+            light_presence_inputs: updated_presence_defaults
+        }
+      else
+        component
+      end
+    end)
+  end
+
+  def normalize_components(components, light_states, presence_inputs \\ []) do
     valid_ids =
       light_states
       |> Enum.map(& &1.id)
@@ -242,8 +367,16 @@ defmodule HueworksWeb.SceneBuilderComponent.State do
         |> keep_defaults_for_light_ids(light_ids)
         |> ensure_defaults_for_light_ids(light_ids)
 
+      presence_defaults =
+        component
+        |> Map.get(:light_presence_inputs, %{})
+        |> normalize_presence_inputs_map(presence_inputs)
+        |> keep_defaults_for_light_ids(light_ids)
+        |> keep_presence_inputs_for_following_lights(defaults)
+
       component
       |> Map.put(:light_defaults, defaults)
+      |> Map.put(:light_presence_inputs, presence_defaults)
       |> Map.put(
         :light_state_id,
         normalize_saved_light_state_id(Map.get(component, :light_state_id), valid_ids)
@@ -263,6 +396,13 @@ defmodule HueworksWeb.SceneBuilderComponent.State do
     |> Map.get(:light_defaults, %{})
     |> Map.get(light_id, :default_on)
     |> normalize_default_power_value()
+  end
+
+  def light_presence_input_id(component, light_id) do
+    component
+    |> Map.get(:light_presence_inputs, %{})
+    |> light_default_lookup(light_id)
+    |> parse_id()
   end
 
   def component_group_topology(component, groups, room_light_ids) do
@@ -298,13 +438,34 @@ defmodule HueworksWeb.SceneBuilderComponent.State do
   end
 
   def group_default_power(component, group, room_light_ids) do
-    component
-    |> component_group_light_ids(group, room_light_ids)
-    |> Enum.map(&light_default_power(component, &1))
+    group_light_ids = component_group_light_ids(component, group, room_light_ids)
+
+    policies =
+      group_light_ids
+      |> Enum.map(&light_default_power(component, &1))
+      |> Enum.uniq()
+
+    presence_input_ids =
+      group_light_ids
+      |> Enum.map(&light_presence_input_id(component, &1))
+      |> Enum.uniq()
+
+    case {policies, presence_input_ids} do
+      {[:follow_presence], [_presence_input_id]} -> :follow_presence
+      {[policy], _presence_input_ids} when policy != :follow_presence -> policy
+      _ -> :mixed
+    end
+  end
+
+  def group_presence_input_id(component, group, room_light_ids) do
+    group_light_ids = component_group_light_ids(component, group, room_light_ids)
+
+    group_light_ids
+    |> Enum.map(&light_presence_input_id(component, &1))
     |> Enum.uniq()
     |> case do
-      [policy] -> policy
-      _ -> :mixed
+      [presence_input_id] -> presence_input_id
+      _ -> nil
     end
   end
 
@@ -312,6 +473,7 @@ defmodule HueworksWeb.SceneBuilderComponent.State do
   def power_policy_label(:default_off), do: "Default Off"
   def power_policy_label(:force_on), do: "Force On"
   def power_policy_label(:force_off), do: "Force Off"
+  def power_policy_label(:follow_presence), do: "Follow Presence"
   def power_policy_label(:mixed), do: "..."
 
   def selected_state_id(%{light_state_id: light_state_id}), do: parse_id(light_state_id)
@@ -388,6 +550,15 @@ defmodule HueworksWeb.SceneBuilderComponent.State do
     end
   end
 
+  def presence_input_name(presence_inputs, id) do
+    presence_inputs
+    |> Enum.find(&(&1.id == id))
+    |> case do
+      nil -> "Presence Input #{id}"
+      presence_input -> display_name(presence_input)
+    end
+  end
+
   defp normalize_saved_light_state_id(nil, _valid_ids), do: nil
   defp normalize_saved_light_state_id("", _valid_ids), do: nil
 
@@ -411,6 +582,39 @@ defmodule HueworksWeb.SceneBuilderComponent.State do
 
   defp normalize_light_defaults_map(_defaults), do: %{}
 
+  defp light_default_lookup(defaults, light_id) when is_map(defaults) do
+    cond do
+      Map.has_key?(defaults, light_id) ->
+        Map.get(defaults, light_id)
+
+      Map.has_key?(defaults, to_string(light_id)) ->
+        Map.get(defaults, to_string(light_id))
+
+      true ->
+        nil
+    end
+  end
+
+  defp light_default_lookup(_defaults, _light_id), do: nil
+
+  defp normalize_presence_inputs_map(presence_inputs, valid_presence_inputs)
+       when is_map(presence_inputs) do
+    valid_ids = valid_presence_input_ids(valid_presence_inputs)
+
+    presence_inputs
+    |> Enum.reduce(%{}, fn {key, value}, acc ->
+      with light_id when is_integer(light_id) <- parse_id(key),
+           input_id when is_integer(input_id) <- parse_id(value),
+           true <- MapSet.member?(valid_ids, input_id) do
+        Map.put(acc, light_id, input_id)
+      else
+        _ -> acc
+      end
+    end)
+  end
+
+  defp normalize_presence_inputs_map(_presence_inputs, _valid_presence_inputs), do: %{}
+
   defp keep_defaults_for_light_ids(defaults, light_ids) do
     allowed_ids = MapSet.new(light_ids)
 
@@ -426,6 +630,14 @@ defmodule HueworksWeb.SceneBuilderComponent.State do
     end)
   end
 
+  defp keep_presence_inputs_for_following_lights(presence_inputs, defaults) do
+    presence_inputs
+    |> Enum.filter(fn {light_id, _presence_input_id} ->
+      Map.get(defaults, light_id) == :follow_presence
+    end)
+    |> Map.new()
+  end
+
   defp normalize_default_power_value(value) when value in [:default_on, "default_on"],
     do: :default_on
 
@@ -436,6 +648,9 @@ defmodule HueworksWeb.SceneBuilderComponent.State do
 
   defp normalize_default_power_value(value) when value in [:force_off, "force_off"],
     do: :force_off
+
+  defp normalize_default_power_value(value) when value in [:follow_presence, "follow_presence"],
+    do: :follow_presence
 
   defp normalize_default_power_value(value) when value in [true, "true", 1, "1", :on, "on"],
     do: :default_on
@@ -451,6 +666,67 @@ defmodule HueworksWeb.SceneBuilderComponent.State do
   defp next_power_policy(:force_off), do: :default_on
   defp next_power_policy(:mixed), do: :default_on
   defp next_power_policy(_policy), do: :default_on
+
+  defp put_light_power_policy(component, light_id, :follow_presence, presence_inputs) do
+    presence_input_id =
+      component
+      |> light_presence_input_id(light_id)
+      |> case do
+        id when is_integer(id) -> id
+        _ -> first_presence_input_id(presence_inputs)
+      end
+
+    if is_integer(presence_input_id) do
+      %{
+        component
+        | light_defaults:
+            component
+            |> Map.get(:light_defaults, %{})
+            |> Map.put(light_id, :follow_presence),
+          light_presence_inputs:
+            component
+            |> Map.get(:light_presence_inputs, %{})
+            |> Map.put(light_id, presence_input_id)
+      }
+    else
+      put_light_power_policy(component, light_id, :default_on, [])
+    end
+  end
+
+  defp put_light_power_policy(component, light_id, policy, _presence_inputs) do
+    %{
+      component
+      | light_defaults:
+          component
+          |> Map.get(:light_defaults, %{})
+          |> Map.put(light_id, policy),
+        light_presence_inputs:
+          component
+          |> Map.get(:light_presence_inputs, %{})
+          |> Map.delete(light_id)
+    }
+  end
+
+  defp valid_presence_input_id(presence_input_id, presence_inputs) do
+    presence_input_id = parse_id(presence_input_id)
+    valid_ids = valid_presence_input_ids(presence_inputs)
+
+    if MapSet.member?(valid_ids, presence_input_id), do: presence_input_id, else: nil
+  end
+
+  defp valid_presence_input_ids(presence_inputs) do
+    presence_inputs
+    |> List.wrap()
+    |> Enum.map(&Map.get(&1, :id))
+    |> Enum.filter(&is_integer/1)
+    |> MapSet.new()
+  end
+
+  defp first_presence_input_id(presence_inputs) do
+    presence_inputs
+    |> List.wrap()
+    |> Enum.find_value(&Map.get(&1, :id))
+  end
 
   defp normalize_component_light_state_selection(component, state_id, valid_ids) do
     case state_id do

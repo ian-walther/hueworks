@@ -277,10 +277,15 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
     |> render_click()
 
     view
-    |> element(
-      "button[phx-click='toggle_light_default_power'][phx-value-component_id='1'][phx-value-light_id='#{light1.id}']"
+    |> form(
+      "#scene-component-1-group-#{group.id}-light-#{light1.id} form[phx-change='set_light_default_power']",
+      %{
+        "component_id" => "1",
+        "light_id" => Integer.to_string(light1.id),
+        "default_power" => "default_off"
+      }
     )
-    |> render_click()
+    |> render_change()
 
     view
     |> form("form[phx-change='update_scene']", %{"name" => "Chill"})

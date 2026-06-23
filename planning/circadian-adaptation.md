@@ -21,11 +21,13 @@ Circadian work should follow the reset architecture:
   - `:default_off`
   - `:force_on`
   - `:force_off`
+  - `:follow_presence`
 - User-facing labels for those policies are:
   - `Default On`
   - `Default Off`
   - `Force On`
   - `Force Off`
+  - `Follow Presence`
 
 ## Primary Validation Areas
 
@@ -74,4 +76,3 @@ Circadian behavior still needs continued validation around:
 ## Remaining Decisions
 - Is log-based observability enough for ongoing production use, or do circadian apply attempts and scene clears need first-class telemetry?
 - Does the product actually need a room-coherent circadian mode, or is careful grouping the better long-term answer?
-- Does the product need a rebuilt occupancy-aware scene power policy after the zone/presence model is clearer?

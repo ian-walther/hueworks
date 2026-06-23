@@ -4,19 +4,31 @@ defmodule Hueworks.Schemas.SceneComponentLight do
 
   schema "scene_component_lights" do
     field(:default_power, Ecto.Enum,
-      values: [:default_on, :default_off, :force_on, :force_off],
+      values: [:default_on, :default_off, :force_on, :force_off, :follow_presence],
       default: :default_on
     )
 
     belongs_to(:scene_component, Hueworks.Schemas.SceneComponent)
     belongs_to(:light, Hueworks.Schemas.Light)
+    belongs_to(:presence_input, Hueworks.Schemas.PresenceInput)
 
     timestamps()
   end
 
   def changeset(scene_component_light, attrs) do
     scene_component_light
-    |> cast(attrs, [:scene_component_id, :light_id, :default_power])
+    |> cast(attrs, [:scene_component_id, :light_id, :default_power, :presence_input_id])
     |> validate_required([:scene_component_id, :light_id, :default_power])
+    |> validate_presence_input_for_policy()
+  end
+
+  defp validate_presence_input_for_policy(changeset) do
+    case get_field(changeset, :default_power) do
+      :follow_presence ->
+        validate_required(changeset, [:presence_input_id])
+
+      _policy ->
+        put_change(changeset, :presence_input_id, nil)
+    end
   end
 end

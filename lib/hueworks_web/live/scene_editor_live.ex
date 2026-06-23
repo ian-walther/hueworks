@@ -17,7 +17,8 @@ defmodule HueworksWeb.SceneEditorLive do
     group_ids: [],
     light_state_id: nil,
     embedded_manual_config: nil,
-    light_defaults: %{}
+    light_defaults: %{},
+    light_presence_inputs: %{}
   }
 
   def mount(_params, _session, socket) do
@@ -36,6 +37,7 @@ defmodule HueworksWeb.SceneEditorLive do
        scene_builder: nil,
        scene_room_lights: [],
        scene_room_groups: [],
+       scene_presence_inputs: [],
        scene_light_states: [],
        active_scene_id: nil,
        scene_save_error: nil
@@ -167,7 +169,7 @@ defmodule HueworksWeb.SceneEditorLive do
         if scene.room_id != room_id do
           push_navigate(socket, to: "/rooms")
         else
-          {room_lights, room_groups} = scene_room_data(room_id)
+          {room_lights, room_groups, presence_inputs} = scene_room_data(room_id)
           light_states = Scenes.list_editable_light_states()
           components = load_scene_components(scene)
           builder = Builder.build(room_lights, room_groups, components)
@@ -183,6 +185,7 @@ defmodule HueworksWeb.SceneEditorLive do
             scene_builder: builder,
             scene_room_lights: room_lights,
             scene_room_groups: room_groups,
+            scene_presence_inputs: presence_inputs,
             scene_light_states: light_states,
             active_scene_id: active_scene_id,
             scene_save_error: nil
@@ -281,7 +284,7 @@ defmodule HueworksWeb.SceneEditorLive do
 
   defp assign_new_scene(socket, room, scene_name, components) do
     room_id = room.id
-    {room_lights, room_groups} = scene_room_data(room_id)
+    {room_lights, room_groups, presence_inputs} = scene_room_data(room_id)
     light_states = Scenes.list_editable_light_states()
     builder = Builder.build(room_lights, room_groups, components)
 
@@ -295,6 +298,7 @@ defmodule HueworksWeb.SceneEditorLive do
       scene_builder: builder,
       scene_room_lights: room_lights,
       scene_room_groups: room_groups,
+      scene_presence_inputs: presence_inputs,
       scene_light_states: light_states,
       active_scene_id: active_scene_id_for_room(room_id),
       scene_save_error: nil
@@ -357,6 +361,16 @@ defmodule HueworksWeb.SceneEditorLive do
             Map.put(acc, join.light_id, join.default_power)
           end)
 
+        light_presence_inputs =
+          component.scene_component_lights
+          |> Enum.reduce(%{}, fn join, acc ->
+            if join.presence_input_id do
+              Map.put(acc, join.light_id, join.presence_input_id)
+            else
+              acc
+            end
+          end)
+
         %{
           id: component.id,
           name: component.name || "Component",
@@ -364,7 +378,8 @@ defmodule HueworksWeb.SceneEditorLive do
           group_ids: [],
           light_state_id: if(component.light_state_id, do: to_string(component.light_state_id)),
           embedded_manual_config: component.embedded_manual_config,
-          light_defaults: light_defaults
+          light_defaults: light_defaults,
+          light_presence_inputs: light_presence_inputs
         }
       end)
 
@@ -377,10 +392,10 @@ defmodule HueworksWeb.SceneEditorLive do
   defp scene_room_data(room_id) do
     case Rooms.get_room(room_id) do
       nil ->
-        {[], []}
+        {[], [], []}
 
       room ->
-        room = Repo.preload(room, [:lights, :groups])
+        room = Repo.preload(room, [:lights, :groups, :presence_inputs])
         groups = room.groups
         group_ids = Enum.map(groups, & &1.id)
 
@@ -402,7 +417,7 @@ defmodule HueworksWeb.SceneEditorLive do
             Map.put(group, :light_ids, light_ids)
           end)
 
-        {room.lights, groups_with_lights}
+        {room.lights, groups_with_lights, room.presence_inputs}
     end
   end
 

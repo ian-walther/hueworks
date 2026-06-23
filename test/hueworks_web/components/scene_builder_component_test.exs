@@ -205,7 +205,7 @@ defmodule Hueworks.SceneBuilderComponentTest do
 
     assert has_element?(
              view,
-             "#scene-component-1-group-11-light-1 button[phx-click='toggle_light_default_power'][phx-value-component_id='1'][phx-value-light_id='1']"
+             "#scene-component-1-group-11-light-1 select[name='default_power']"
            )
 
     assert has_element?(
@@ -261,7 +261,7 @@ defmodule Hueworks.SceneBuilderComponentTest do
     assert render(view) =~ "All lights assigned."
   end
 
-  test "assigned light default power can be toggled in the component list", %{conn: conn} do
+  test "assigned light default power can be selected in the component list", %{conn: conn} do
     {:ok, view, _html} = live_isolated(conn, TestLive)
 
     view
@@ -270,56 +270,59 @@ defmodule Hueworks.SceneBuilderComponentTest do
 
     assert has_element?(
              view,
-             "button[phx-click='toggle_light_default_power'][phx-value-component_id='1'][phx-value-light_id='1']",
-             "Power policy: Default On"
+             "form[phx-change='set_light_default_power'] select[name='default_power'] option[value='default_on'][selected]"
            )
 
     view
-    |> element(
-      "button[phx-click='toggle_light_default_power'][phx-value-component_id='1'][phx-value-light_id='1']"
-    )
-    |> render_click()
+    |> form("form[phx-change='set_light_default_power']", %{
+      "component_id" => "1",
+      "light_id" => "1",
+      "default_power" => "default_off"
+    })
+    |> render_change()
 
     assert has_element?(
              view,
-             "button[phx-click='toggle_light_default_power'][phx-value-component_id='1'][phx-value-light_id='1']",
-             "Power policy: Default Off"
+             "form[phx-change='set_light_default_power'] select[name='default_power'] option[value='default_off'][selected]"
            )
 
     view
-    |> element(
-      "button[phx-click='toggle_light_default_power'][phx-value-component_id='1'][phx-value-light_id='1']"
-    )
-    |> render_click()
+    |> form("form[phx-change='set_light_default_power']", %{
+      "component_id" => "1",
+      "light_id" => "1",
+      "default_power" => "force_on"
+    })
+    |> render_change()
 
     assert has_element?(
              view,
-             "button[phx-click='toggle_light_default_power'][phx-value-component_id='1'][phx-value-light_id='1']",
-             "Power policy: Force On"
+             "form[phx-change='set_light_default_power'] select[name='default_power'] option[value='force_on'][selected]"
            )
 
     view
-    |> element(
-      "button[phx-click='toggle_light_default_power'][phx-value-component_id='1'][phx-value-light_id='1']"
-    )
-    |> render_click()
+    |> form("form[phx-change='set_light_default_power']", %{
+      "component_id" => "1",
+      "light_id" => "1",
+      "default_power" => "force_off"
+    })
+    |> render_change()
 
     assert has_element?(
              view,
-             "button[phx-click='toggle_light_default_power'][phx-value-component_id='1'][phx-value-light_id='1']",
-             "Power policy: Force Off"
+             "form[phx-change='set_light_default_power'] select[name='default_power'] option[value='force_off'][selected]"
            )
 
     view
-    |> element(
-      "button[phx-click='toggle_light_default_power'][phx-value-component_id='1'][phx-value-light_id='1']"
-    )
-    |> render_click()
+    |> form("form[phx-change='set_light_default_power']", %{
+      "component_id" => "1",
+      "light_id" => "1",
+      "default_power" => "default_on"
+    })
+    |> render_change()
 
     assert has_element?(
              view,
-             "button[phx-click='toggle_light_default_power'][phx-value-component_id='1'][phx-value-light_id='1']",
-             "Power policy: Default On"
+             "form[phx-change='set_light_default_power'] select[name='default_power'] option[value='default_on'][selected]"
            )
   end
 
@@ -364,20 +367,97 @@ defmodule Hueworks.SceneBuilderComponentTest do
 
     assert has_element?(
              view,
-             "button[phx-click='toggle_group_default_power'][phx-value-component_id='1'][phx-value-group_id='10']",
-             "Power policy: ..."
+             "#scene-component-1-group-10 form[phx-change='set_group_default_power'] select[name='default_power'] option[value='mixed'][selected]"
            )
 
     view
-    |> element(
-      "button[phx-click='toggle_group_default_power'][phx-value-component_id='1'][phx-value-group_id='10']"
-    )
-    |> render_click()
+    |> form("#scene-component-1-group-10 form[phx-change='set_group_default_power']", %{
+      "component_id" => "1",
+      "group_id" => "10",
+      "default_power" => "default_on"
+    })
+    |> render_change()
 
     assert has_element?(
              view,
-             "button[phx-click='toggle_group_default_power'][phx-value-component_id='1'][phx-value-group_id='10']",
-             "Power policy: Default On"
+             "#scene-component-1-group-10 form[phx-change='set_group_default_power'] select[name='default_power'] option[value='default_on'][selected]"
+           )
+  end
+
+  test "assigned groups can bulk-follow a selected presence input", %{conn: conn} do
+    defmodule GroupPresencePolicyLive do
+      use Phoenix.LiveView
+
+      def mount(_params, _session, socket) do
+        {:ok,
+         assign(socket,
+           room_lights: [%{id: 1, name: "Lamp"}, %{id: 2, name: "Ceiling"}],
+           groups: [%{id: 10, name: "All", light_ids: [1, 2]}],
+           presence_inputs: [
+             %{id: 20, name: "Desk Presence"},
+             %{id: 21, name: "Sitting Presence"}
+           ],
+           components: [
+             %{
+               id: 1,
+               name: "Component 1",
+               light_ids: [1, 2],
+               group_ids: [10],
+               light_state_id: nil,
+               light_defaults: %{1 => :default_on, 2 => :default_on},
+               light_presence_inputs: %{}
+             }
+           ],
+           light_states: []
+         )}
+      end
+
+      def render(assigns) do
+        ~H"""
+        <.live_component
+          module={HueworksWeb.SceneBuilderComponent}
+          id="scene-builder"
+          room_lights={@room_lights}
+          groups={@groups}
+          presence_inputs={@presence_inputs}
+          components={@components}
+          light_states={@light_states}
+        />
+        """
+      end
+    end
+
+    {:ok, view, _html} = live_isolated(conn, GroupPresencePolicyLive)
+
+    view
+    |> form("#scene-component-1-group-10 form[phx-change='set_group_default_power']", %{
+      "component_id" => "1",
+      "group_id" => "10",
+      "default_power" => "follow_presence"
+    })
+    |> render_change()
+
+    assert has_element?(
+             view,
+             "#scene-component-1-group-10 form[phx-change='set_group_default_power'] select[name='default_power'] option[value='follow_presence'][selected]"
+           )
+
+    assert has_element?(
+             view,
+             "#scene-component-1-group-10 form[phx-change='set_group_presence_input'] select[name='presence_input_id'] option[value='20'][selected]"
+           )
+
+    view
+    |> form("#scene-component-1-group-10 form[phx-change='set_group_presence_input']", %{
+      "component_id" => "1",
+      "group_id" => "10",
+      "presence_input_id" => "21"
+    })
+    |> render_change()
+
+    assert has_element?(
+             view,
+             "#scene-component-1-group-10 form[phx-change='set_group_presence_input'] select[name='presence_input_id'] option[value='21'][selected]"
            )
   end
 

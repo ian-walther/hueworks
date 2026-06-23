@@ -7,7 +7,7 @@ defmodule Hueworks.Scenes.Intent do
   alias Hueworks.Color
   alias Hueworks.Circadian
   alias Hueworks.Control.DesiredState
-  alias Hueworks.Schemas.{LightState, Scene}
+  alias Hueworks.Schemas.{LightState, PresenceInput, Scene}
 
   defmodule BuildOptions do
     @moduledoc false
@@ -82,6 +82,7 @@ defmodule Hueworks.Scenes.Intent do
       else
         desired = desired_from_light_state(component.light_state, now)
         default_power_by_light = component_default_power_map(component)
+        presence_by_light = component_presence_map(component)
         component_lights = target_component_lights(component.lights, target_light_ids)
 
         Enum.reduce(component_lights, acc, fn light, txn ->
@@ -93,7 +94,8 @@ defmodule Hueworks.Scenes.Intent do
             desired
             |> maybe_apply_default_power(
               component.light_state,
-              power_policy
+              power_policy,
+              Map.get(presence_by_light, light.id)
             )
             |> maybe_preserve_manual_power_latch(
               current_desired,
@@ -117,6 +119,15 @@ defmodule Hueworks.Scenes.Intent do
     defaults
     |> light_default_lookup(light_id)
     |> parse_default_power()
+  end
+
+  def presence_input_for_light(component, light_id) do
+    if default_power_for_light(component, light_id) == :follow_presence do
+      component
+      |> presence_inputs()
+      |> light_default_lookup(light_id)
+      |> Hueworks.Util.parse_id()
+    end
   end
 
   defp desired_from_light_state(%LightState{type: :manual, config: config}, _now) do
@@ -172,28 +183,45 @@ defmodule Hueworks.Scenes.Intent do
 
   defp maybe_put_manual_color(attrs, _mode, _config), do: attrs
 
-  defp maybe_apply_default_power(desired, %LightState{type: type}, power_policy)
+  defp maybe_apply_default_power(desired, %LightState{type: type}, power_policy, presence_input)
        when type in [:manual, :circadian] do
-    put_attr(desired, :power, resolve_power_policy(power_policy))
+    put_attr(desired, :power, resolve_power_policy(power_policy, presence_input))
   end
 
-  defp maybe_apply_default_power(desired, _light_state, _power_policy), do: desired
+  defp maybe_apply_default_power(desired, _light_state, _power_policy, _presence_input),
+    do: desired
 
-  defp resolve_power_policy(:default_on), do: :on
-  defp resolve_power_policy("default_on"), do: :on
-  defp resolve_power_policy(:default_off), do: :off
-  defp resolve_power_policy("default_off"), do: :off
-  defp resolve_power_policy(:force_on), do: :on
-  defp resolve_power_policy("force_on"), do: :on
-  defp resolve_power_policy(:force_off), do: :off
-  defp resolve_power_policy("force_off"), do: :off
-  defp resolve_power_policy(_unknown), do: :on
+  defp resolve_power_policy(:default_on, _presence_input), do: :on
+  defp resolve_power_policy("default_on", _presence_input), do: :on
+  defp resolve_power_policy(:default_off, _presence_input), do: :off
+  defp resolve_power_policy("default_off", _presence_input), do: :off
+  defp resolve_power_policy(:force_on, _presence_input), do: :on
+  defp resolve_power_policy("force_on", _presence_input), do: :on
+  defp resolve_power_policy(:force_off, _presence_input), do: :off
+  defp resolve_power_policy("force_off", _presence_input), do: :off
+  defp resolve_power_policy(:follow_presence, %PresenceInput{occupied: true}), do: :on
+  defp resolve_power_policy("follow_presence", %PresenceInput{occupied: true}), do: :on
+  defp resolve_power_policy(:follow_presence, _presence_input), do: :off
+  defp resolve_power_policy("follow_presence", _presence_input), do: :off
+  defp resolve_power_policy(_unknown, _presence_input), do: :on
 
   defp component_default_power_map(component) do
     component
     |> Map.get(:scene_component_lights, [])
     |> Enum.reduce(%{}, fn join, acc ->
       Map.put(acc, join.light_id, parse_default_power(join.default_power))
+    end)
+  end
+
+  defp component_presence_map(component) do
+    component
+    |> Map.get(:scene_component_lights, [])
+    |> Enum.reduce(%{}, fn join, acc ->
+      if parse_default_power(join.default_power) == :follow_presence do
+        Map.put(acc, join.light_id, join.presence_input)
+      else
+        acc
+      end
     end)
   end
 
@@ -233,7 +261,16 @@ defmodule Hueworks.Scenes.Intent do
   defp parse_default_power(value) when value in [:force_on, "force_on"], do: :force_on
   defp parse_default_power(value) when value in [:force_off, "force_off"], do: :force_off
 
+  defp parse_default_power(value) when value in [:follow_presence, "follow_presence"],
+    do: :follow_presence
+
   defp parse_default_power(_value), do: :default_on
+
+  defp presence_inputs(component) do
+    Map.get(component, :light_presence_inputs) ||
+      Map.get(component, "light_presence_inputs") ||
+      %{}
+  end
 
   defp skip_component?(%{light_state: %LightState{type: :circadian}}, true), do: false
   defp skip_component?(%{light_state: %LightState{}}, true), do: true
@@ -269,7 +306,14 @@ defmodule Hueworks.Scenes.Intent do
   defp maybe_apply_power_override(desired, nil, _power_policy), do: desired
 
   defp maybe_apply_power_override(desired, _power, power_policy)
-       when power_policy in [:force_on, "force_on", :force_off, "force_off"],
+       when power_policy in [
+              :force_on,
+              "force_on",
+              :force_off,
+              "force_off",
+              :follow_presence,
+              "follow_presence"
+            ],
        do: desired
 
   defp maybe_apply_power_override(desired, power, _power_policy) when power in [:on, :off],
@@ -283,7 +327,16 @@ defmodule Hueworks.Scenes.Intent do
 
   defp maybe_apply_power_override(desired, _power, _power_policy), do: desired
 
-  defp force_power_policy?(policy), do: policy in [:force_on, "force_on", :force_off, "force_off"]
+  defp force_power_policy?(policy),
+    do:
+      policy in [
+        :force_on,
+        "force_on",
+        :force_off,
+        "force_off",
+        :follow_presence,
+        "follow_presence"
+      ]
 
   defp explicit_off_intent?(state), do: power_value(state) == :off
 

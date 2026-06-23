@@ -13,6 +13,7 @@ defmodule Hueworks.ScenesComponentsTest do
     ActiveScene,
     Light,
     LightState,
+    PresenceInput,
     Room,
     SceneComponent,
     SceneComponentLight
@@ -305,6 +306,76 @@ defmodule Hueworks.ScenesComponentsTest do
 
     assert persisted_defaults[light1.id] == :default_on
     assert persisted_defaults[light2.id] == :default_off
+  end
+
+  test "replace_scene_components persists follow presence policy and selected presence input" do
+    room = insert_room()
+    bridge = insert_bridge()
+    light = insert_light(room, bridge, %{name: "Lamp"})
+    presence_input = Repo.insert!(%PresenceInput{room_id: room.id, name: "Desk Presence"})
+
+    {:ok, state} = Scenes.create_manual_light_state("Soft")
+    {:ok, scene} = Scenes.create_scene(%{name: "Chill", room_id: room.id})
+
+    {:ok, _} =
+      Scenes.replace_scene_components(scene, [
+        %{
+          name: "Component 1",
+          light_ids: [light.id],
+          light_state_id: to_string(state.id),
+          light_defaults: %{light.id => :follow_presence},
+          light_presence_inputs: %{light.id => presence_input.id}
+        }
+      ])
+
+    persisted =
+      Repo.one!(
+        from(scl in SceneComponentLight,
+          join: sc in SceneComponent,
+          on: sc.id == scl.scene_component_id,
+          where: sc.scene_id == ^scene.id and scl.light_id == ^light.id
+        )
+      )
+
+    assert persisted.default_power == :follow_presence
+    assert persisted.presence_input_id == presence_input.id
+  end
+
+  test "apply_scene resolves follow presence from selected presence input state" do
+    room = insert_room()
+    bridge = insert_bridge()
+    light = insert_light(room, bridge, %{name: "Lamp"})
+
+    presence_input =
+      Repo.insert!(%PresenceInput{room_id: room.id, name: "Desk Presence", occupied: true})
+
+    {:ok, state} =
+      Scenes.create_manual_light_state("Soft", %{"brightness" => "40", "temperature" => "3000"})
+
+    {:ok, scene} = Scenes.create_scene(%{name: "Chill", room_id: room.id})
+
+    {:ok, _} =
+      Scenes.replace_scene_components(scene, [
+        %{
+          name: "Component 1",
+          light_ids: [light.id],
+          light_state_id: to_string(state.id),
+          light_defaults: %{light.id => :follow_presence},
+          light_presence_inputs: %{light.id => presence_input.id}
+        }
+      ])
+
+    {:ok, _diff, _updated} = Scenes.apply_scene(scene)
+
+    assert DesiredState.get(:light, light.id)[:power] == :on
+
+    presence_input
+    |> PresenceInput.changeset(%{occupied: false})
+    |> Repo.update!()
+
+    {:ok, _diff, _updated} = Scenes.apply_scene(scene)
+
+    assert DesiredState.get(:light, light.id)[:power] == :off
   end
 
   test "refresh_active_scene reapplies updated scene component state immediately" do

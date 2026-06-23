@@ -430,6 +430,28 @@ defmodule Hueworks.SchemasTest do
     assert get_change(valid_changeset, :default_power) == :force_off
   end
 
+  test "scene_component_light follow_presence requires a presence input" do
+    changeset =
+      SceneComponentLight.changeset(%SceneComponentLight{}, %{
+        scene_component_id: 1,
+        light_id: 2,
+        default_power: :follow_presence
+      })
+
+    assert errors_on(changeset)[:presence_input_id] == ["can't be blank"]
+
+    valid_changeset =
+      SceneComponentLight.changeset(%SceneComponentLight{}, %{
+        scene_component_id: 1,
+        light_id: 2,
+        default_power: :follow_presence,
+        presence_input_id: 3
+      })
+
+    assert valid_changeset.valid?
+    assert get_change(valid_changeset, :presence_input_id) == 3
+  end
+
   test "presence_input requires room_id and name and defaults to unoccupied" do
     changeset = PresenceInput.changeset(%PresenceInput{}, %{})
     errors = errors_on(changeset)

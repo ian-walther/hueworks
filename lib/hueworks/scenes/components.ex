@@ -66,7 +66,8 @@ defmodule Hueworks.Scenes.Components do
       |> SceneComponentLight.changeset(%{
         scene_component_id: scene_component.id,
         light_id: light_id,
-        default_power: Intent.default_power_for_light(component, light_id)
+        default_power: Intent.default_power_for_light(component, light_id),
+        presence_input_id: Intent.presence_input_for_light(component, light_id)
       })
       |> Repo.insert!()
     end)

@@ -14,6 +14,7 @@ Medium-term polish work after HomeKit and core control reliability.
 - Use human-readable display names for Home Assistant entities.
 - Do not dynamically change exposed light capabilities based on whether a scene is active.
 - Represent room-scoped Presence Inputs in Home Assistant as writable MQTT switches. Home Assistant owns the value; HueWorks stores the latest occupied/unoccupied state.
+- Consume Presence Inputs through scene component `Follow Presence` power policy. Resolve the selected input to concrete light on/off during scene application so planner/executor batching remains downstream of scene intent.
 
 ## Light Capability Policy
 Do not dynamically change Home Assistant light capabilities based on whether a scene is active.
@@ -33,7 +34,6 @@ Instead:
 - Tighten metadata and device grouping so exported scenes, room selectors, lights, and groups feel consistent in HA.
 - Improve republish and recovery behavior when MQTT export settings or entity shapes change.
 - Add stronger operator-facing visibility for export health, discovery state, and stale retained payload cleanup.
-- Decide how Presence Inputs should affect scene component power policy without fragmenting planner/executor batching.
 - Revalidate daily-control parity in real use before treating HA export as a primary control surface.
 
 ## Open Questions

@@ -31,7 +31,16 @@ defmodule Hueworks.Scenes.Apply do
   def apply_scene(%Scene{} = scene, opts \\ []) do
     scene =
       scene
-      |> Repo.preload(scene_components: [:lights, :light_state, :scene_component_lights])
+      |> Repo.preload(
+        [
+          scene_components: [
+            :lights,
+            :light_state,
+            scene_component_lights: :presence_input
+          ]
+        ],
+        force: true
+      )
       |> attach_effective_light_states()
 
     intent_opts =

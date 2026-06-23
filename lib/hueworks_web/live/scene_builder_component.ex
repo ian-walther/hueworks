@@ -10,6 +10,7 @@ defmodule HueworksWeb.SceneBuilderComponent do
        components: [State.blank_component()],
        room_lights: [],
        groups: [],
+       presence_inputs: [],
        light_states: [],
        scene_id: nil,
        builder: nil,
@@ -197,6 +198,7 @@ defmodule HueworksWeb.SceneBuilderComponent do
                 component={component}
                 room_lights={@room_lights}
                 room_light_ids={@builder.room_light_ids}
+                presence_inputs={@presence_inputs}
                 expanded_group_keys={@expanded_group_keys}
                 target={@myself}
               />
@@ -209,6 +211,7 @@ defmodule HueworksWeb.SceneBuilderComponent do
                 component={component}
                 light_id={light_id}
                 room_lights={@room_lights}
+                presence_inputs={@presence_inputs}
                 target={@myself}
               />
             <% end %>
@@ -343,6 +346,66 @@ defmodule HueworksWeb.SceneBuilderComponent do
   end
 
   def handle_event(
+        "set_light_default_power",
+        %{"component_id" => component_id, "light_id" => light_id, "default_power" => policy},
+        socket
+      ) do
+    socket =
+      socket.assigns
+      |> Flow.set_light_default_power(component_id, light_id, policy)
+      |> apply_component_change(socket)
+
+    {:noreply, socket}
+  end
+
+  def handle_event(
+        "set_light_presence_input",
+        %{
+          "component_id" => component_id,
+          "light_id" => light_id,
+          "presence_input_id" => presence_input_id
+        },
+        socket
+      ) do
+    socket =
+      socket.assigns
+      |> Flow.set_light_presence_input(component_id, light_id, presence_input_id)
+      |> apply_component_change(socket)
+
+    {:noreply, socket}
+  end
+
+  def handle_event(
+        "set_group_default_power",
+        %{"component_id" => component_id, "group_id" => group_id, "default_power" => policy},
+        socket
+      ) do
+    socket =
+      socket.assigns
+      |> Flow.set_group_default_power(component_id, group_id, policy)
+      |> apply_component_change(socket)
+
+    {:noreply, socket}
+  end
+
+  def handle_event(
+        "set_group_presence_input",
+        %{
+          "component_id" => component_id,
+          "group_id" => group_id,
+          "presence_input_id" => presence_input_id
+        },
+        socket
+      ) do
+    socket =
+      socket.assigns
+      |> Flow.set_group_presence_input(component_id, group_id, presence_input_id)
+      |> apply_component_change(socket)
+
+    {:noreply, socket}
+  end
+
+  def handle_event(
         "toggle_group_expanded",
         %{"component_id" => component_id, "group_id" => group_id},
         socket
@@ -391,16 +454,15 @@ defmodule HueworksWeb.SceneBuilderComponent do
           <%= display_name(@node.group) %>
           <span class="hw-muted">(<%= Enum.count(@node.total_light_ids) %> lights)</span>
         </button>
-        <button
-          type="button"
-          class="hw-button"
-          phx-click="toggle_group_default_power"
-          phx-target={@target}
-          phx-value-component_id={@component.id}
-          phx-value-group_id={@node.group_id}
-        >
-          <%= "Power policy: #{power_policy_label(group_default_power(@component, @node.group, @room_light_ids))}" %>
-        </button>
+        <.power_policy_controls
+          component={@component}
+          target={@target}
+          target_kind={:group}
+          target_id={@node.group_id}
+          policy={group_default_power(@component, @node.group, @room_light_ids)}
+          presence_input_id={group_presence_input_id(@component, @node.group, @room_light_ids)}
+          presence_inputs={@presence_inputs}
+        />
         <button
           type="button"
           class="hw-edit-button hw-delete-button"
@@ -420,6 +482,7 @@ defmodule HueworksWeb.SceneBuilderComponent do
           component={@component}
           room_lights={@room_lights}
           room_light_ids={@room_light_ids}
+          presence_inputs={@presence_inputs}
           expanded_group_keys={@expanded_group_keys}
           target={@target}
         />
@@ -432,6 +495,7 @@ defmodule HueworksWeb.SceneBuilderComponent do
             component={@component}
             light_id={light_id}
             room_lights={@room_lights}
+            presence_inputs={@presence_inputs}
             target={@target}
           />
         </div>
@@ -447,18 +511,17 @@ defmodule HueworksWeb.SceneBuilderComponent do
       |> assign_new(:class, fn -> nil end)
 
     ~H"""
-    <span id={@id} class={["hw-room-item hw-room-item-row", @class]}>
-      <span><%= light_name(@room_lights, @light_id) %></span>
-      <button
-        type="button"
-        class="hw-button"
-        phx-click="toggle_light_default_power"
-        phx-target={@target}
-        phx-value-component_id={@component.id}
-        phx-value-light_id={@light_id}
-      >
-        <%= "Power policy: #{power_policy_label(light_default_power(@component, @light_id))}" %>
-      </button>
+      <span id={@id} class={["hw-room-item hw-room-item-row", @class]}>
+        <span><%= light_name(@room_lights, @light_id) %></span>
+      <.power_policy_controls
+        component={@component}
+        target={@target}
+        target_kind={:light}
+        target_id={@light_id}
+        policy={light_default_power(@component, @light_id)}
+        presence_input_id={light_presence_input_id(@component, @light_id)}
+        presence_inputs={@presence_inputs}
+      />
       <button
         type="button"
         class="hw-edit-button hw-delete-button"
@@ -493,6 +556,15 @@ defmodule HueworksWeb.SceneBuilderComponent do
   defp group_default_power(component, group, room_light_ids),
     do: State.group_default_power(component, group, room_light_ids)
 
+  defp group_presence_input_id(component, group, room_light_ids),
+    do: State.group_presence_input_id(component, group, room_light_ids)
+
+  defp light_presence_input_id(component, light_id),
+    do: State.light_presence_input_id(component, light_id)
+
+  defp presence_input_name(presence_inputs, id),
+    do: State.presence_input_name(presence_inputs, id)
+
   defp group_expanded?(expanded_group_keys, component_id, group_id) do
     expanded_group_keys
     |> MapSet.member?(group_expanded_key(component_id, group_id))
@@ -515,5 +587,53 @@ defmodule HueworksWeb.SceneBuilderComponent do
 
   defp state_option_label(state), do: State.state_option_label(state)
 
-  defp power_policy_label(policy), do: State.power_policy_label(policy)
+  defp power_policy_controls(assigns) do
+    ~H"""
+    <span class="hw-inline-form">
+      <form phx-change={power_policy_event(@target_kind)} phx-target={@target}>
+        <input type="hidden" name="component_id" value={@component.id} />
+        <input type="hidden" name={target_id_name(@target_kind)} value={@target_id} />
+        <select class="hw-select" name="default_power" aria-label="Power policy">
+          <option value="default_on" selected={@policy == :default_on}>Default On</option>
+          <option value="default_off" selected={@policy == :default_off}>Default Off</option>
+          <option value="force_on" selected={@policy == :force_on}>Force On</option>
+          <option value="force_off" selected={@policy == :force_off}>Force Off</option>
+          <option
+            :if={@presence_inputs != []}
+            value="follow_presence"
+            selected={@policy == :follow_presence}
+          >
+            Follow Presence
+          </option>
+          <option :if={@policy == :mixed} value="mixed" selected disabled>...</option>
+        </select>
+      </form>
+
+      <form
+        :if={@policy == :follow_presence}
+        phx-change={presence_input_event(@target_kind)}
+        phx-target={@target}
+      >
+        <input type="hidden" name="component_id" value={@component.id} />
+        <input type="hidden" name={target_id_name(@target_kind)} value={@target_id} />
+        <select class="hw-select" name="presence_input_id" aria-label="Presence input">
+          <%= for input <- @presence_inputs do %>
+            <option value={input.id} selected={input.id == @presence_input_id}>
+              <%= presence_input_name(@presence_inputs, input.id) %>
+            </option>
+          <% end %>
+        </select>
+      </form>
+    </span>
+    """
+  end
+
+  defp power_policy_event(:group), do: "set_group_default_power"
+  defp power_policy_event(:light), do: "set_light_default_power"
+
+  defp presence_input_event(:group), do: "set_group_presence_input"
+  defp presence_input_event(:light), do: "set_light_presence_input"
+
+  defp target_id_name(:group), do: "group_id"
+  defp target_id_name(:light), do: "light_id"
 end

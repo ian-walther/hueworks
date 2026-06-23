@@ -6,7 +6,12 @@ defmodule HueworksWeb.SceneBuilderComponent.Flow do
   alias HueworksWeb.SceneBuilderComponent.State
 
   def initialize(assigns) do
-    components = State.normalize_components(assigns.components, assigns.light_states)
+    components =
+      State.normalize_components(
+        assigns.components,
+        assigns.light_states,
+        Map.get(assigns, :presence_inputs, [])
+      )
 
     %{
       components: components,
@@ -77,6 +82,56 @@ defmodule HueworksWeb.SceneBuilderComponent.Flow do
 
     assigns.components
     |> State.toggle_group_default_power(component_id, group, assigns.builder.room_light_ids)
+    |> component_change(assigns)
+  end
+
+  def set_light_default_power(assigns, component_id, light_id, policy) do
+    assigns.components
+    |> State.set_light_default_power(
+      component_id,
+      light_id,
+      policy,
+      Map.get(assigns, :presence_inputs, [])
+    )
+    |> component_change(assigns)
+  end
+
+  def set_light_presence_input(assigns, component_id, light_id, presence_input_id) do
+    assigns.components
+    |> State.set_light_presence_input(
+      component_id,
+      light_id,
+      presence_input_id,
+      Map.get(assigns, :presence_inputs, [])
+    )
+    |> component_change(assigns)
+  end
+
+  def set_group_default_power(assigns, component_id, group_id, policy) do
+    group = Enum.find(assigns.groups, &(&1.id == Util.parse_id(group_id)))
+
+    assigns.components
+    |> State.set_group_default_power(
+      component_id,
+      group,
+      assigns.builder.room_light_ids,
+      policy,
+      Map.get(assigns, :presence_inputs, [])
+    )
+    |> component_change(assigns)
+  end
+
+  def set_group_presence_input(assigns, component_id, group_id, presence_input_id) do
+    group = Enum.find(assigns.groups, &(&1.id == Util.parse_id(group_id)))
+
+    assigns.components
+    |> State.set_group_presence_input(
+      component_id,
+      group,
+      assigns.builder.room_light_ids,
+      presence_input_id,
+      Map.get(assigns, :presence_inputs, [])
+    )
     |> component_change(assigns)
   end
 

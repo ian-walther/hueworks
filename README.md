@@ -12,6 +12,7 @@ It imports devices from Hue, Caseta, Home Assistant, and Zigbee2MQTT, links them
 - Applies scenes through a queued executor so changes can be planned and dispatched consistently per bridge
 - Exports HueWorks scenes and optional entities back into Home Assistant over MQTT
 - Provides room-scoped Presence Inputs that Home Assistant can write over MQTT as simple occupied/unoccupied booleans
+- Lets scene components follow Presence Inputs for per-light or nested-group power policy decisions
 - Lets you configure Caseta Picos with room-scoped control groups and scene bindings
 
 ## Supported Integrations
@@ -186,7 +187,8 @@ Home Assistant MQTT export:
 
 - Scenes, room scene selectors, lights, groups, and Presence Inputs are published through Home Assistant MQTT discovery when Home Assistant export is enabled.
 - Presence Inputs are configured per room on `/rooms` and exported as writable MQTT switches. `ON` means `Occupied`; `OFF` means `Unoccupied`.
-- Presence Inputs are passive state today: Home Assistant owns their value, and changing one does not directly apply scenes or dispatch light controls.
+- Scene components can use `Follow Presence` as a power policy for individual lights or nested groups. The policy resolves to on/off from the selected Presence Input when a scene is applied.
+- Home Assistant owns Presence Input values. Changing one stores and republishes state, but does not directly apply scenes or dispatch light controls by itself.
 
 Useful commands:
 
