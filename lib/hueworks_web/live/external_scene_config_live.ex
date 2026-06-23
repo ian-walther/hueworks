@@ -65,7 +65,8 @@ defmodule HueworksWeb.ExternalSceneConfigLive do
             {:noreply,
              socket
              |> assign(
-               external_scenes: ExternalScenes.list_external_scenes_for_bridge(socket.assigns.bridge.id),
+               external_scenes:
+                 ExternalScenes.list_external_scenes_for_bridge(socket.assigns.bridge.id),
                save_status: nil,
                save_error: nil
              )

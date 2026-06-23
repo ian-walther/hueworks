@@ -359,7 +359,9 @@ defmodule Hueworks.Circadian do
   end
 
   defp apply_temperature_ceiling(kelvin, nil), do: kelvin
-  defp apply_temperature_ceiling(kelvin, ceiling) when is_integer(ceiling), do: min(kelvin, ceiling)
+
+  defp apply_temperature_ceiling(kelvin, ceiling) when is_integer(ceiling),
+    do: min(kelvin, ceiling)
 
   defp round_to_5(value), do: 5 * round(value / 5)
 

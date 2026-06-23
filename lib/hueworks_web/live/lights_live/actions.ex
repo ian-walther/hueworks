@@ -17,7 +17,8 @@ defmodule HueworksWeb.LightsLive.Actions do
   def dispatch("light", id, {:brightness, level}) do
     with {:ok, light} <- Entities.fetch_light(id),
          {:ok, parsed} <- Util.parse_level(level),
-         {:ok, _diff} <- ManualControl.apply_updates(light.room_id, [light.id], %{brightness: parsed}) do
+         {:ok, _diff} <-
+           ManualControl.apply_updates(light.room_id, [light.id], %{brightness: parsed}) do
       {:ok,
        %Result{
          target_type: :light,
@@ -38,7 +39,8 @@ defmodule HueworksWeb.LightsLive.Actions do
     with {:ok, group} <- Entities.fetch_group(id),
          {:ok, parsed} <- Util.parse_level(level),
          light_ids when light_ids != [] <- group_light_ids(group.id),
-         {:ok, _diff} <- ManualControl.apply_updates(group.room_id, light_ids, %{brightness: parsed}) do
+         {:ok, _diff} <-
+           ManualControl.apply_updates(group.room_id, light_ids, %{brightness: parsed}) do
       {:ok,
        %Result{
          target_type: :group,
@@ -105,13 +107,15 @@ defmodule HueworksWeb.LightsLive.Actions do
   def dispatch("light", id, {:color, hue, saturation}) do
     with {:ok, light} <- Entities.fetch_light(id),
          {:ok, parsed_hue, parsed_saturation, x, y} <- parse_color(hue, saturation),
-         {:ok, _diff} <- ManualControl.apply_updates(light.room_id, [light.id], %{power: :on, x: x, y: y}) do
+         {:ok, _diff} <-
+           ManualControl.apply_updates(light.room_id, [light.id], %{power: :on, x: x, y: y}) do
       {:ok,
        %Result{
          target_type: :light,
          target_id: light.id,
          attrs: %{power: :on, x: x, y: y, kelvin: nil, temperature: nil},
-         status: "COLOR light #{Util.display_name(light)} -> #{parsed_hue}° / #{parsed_saturation}%"
+         status:
+           "COLOR light #{Util.display_name(light)} -> #{parsed_hue}° / #{parsed_saturation}%"
        }}
     else
       {:error, :scene_active_manual_adjustment_not_allowed} ->
@@ -126,13 +130,15 @@ defmodule HueworksWeb.LightsLive.Actions do
     with {:ok, group} <- Entities.fetch_group(id),
          {:ok, parsed_hue, parsed_saturation, x, y} <- parse_color(hue, saturation),
          light_ids when light_ids != [] <- group_light_ids(group.id),
-         {:ok, _diff} <- ManualControl.apply_updates(group.room_id, light_ids, %{power: :on, x: x, y: y}) do
+         {:ok, _diff} <-
+           ManualControl.apply_updates(group.room_id, light_ids, %{power: :on, x: x, y: y}) do
       {:ok,
        %Result{
          target_type: :group,
          target_id: group.id,
          attrs: %{power: :on, x: x, y: y, kelvin: nil, temperature: nil},
-         status: "COLOR group #{Util.display_name(group)} -> #{parsed_hue}° / #{parsed_saturation}%"
+         status:
+           "COLOR group #{Util.display_name(group)} -> #{parsed_hue}° / #{parsed_saturation}%"
        }}
     else
       [] ->
@@ -148,7 +154,8 @@ defmodule HueworksWeb.LightsLive.Actions do
 
   def dispatch("light", id, action) when action in [:on, :off] do
     with {:ok, light} <- Entities.fetch_light(id),
-         {:ok, updated_attrs} <- ManualControl.apply_power_action(light.room_id, [light.id], action) do
+         {:ok, updated_attrs} <-
+           ManualControl.apply_power_action(light.room_id, [light.id], action) do
       {:ok,
        %Result{
          target_type: :light,
@@ -165,7 +172,8 @@ defmodule HueworksWeb.LightsLive.Actions do
   def dispatch("group", id, action) when action in [:on, :off] do
     with {:ok, group} <- Entities.fetch_group(id),
          light_ids when light_ids != [] <- group_light_ids(group.id),
-         {:ok, updated_attrs} <- ManualControl.apply_power_action(group.room_id, light_ids, action) do
+         {:ok, updated_attrs} <-
+           ManualControl.apply_power_action(group.room_id, light_ids, action) do
       {:ok,
        %Result{
          target_type: :group,
@@ -224,7 +232,8 @@ defmodule HueworksWeb.LightsLive.Actions do
     with parsed_hue when is_integer(parsed_hue) <- Util.normalize_hue_degrees(hue),
          parsed_saturation when is_integer(parsed_saturation) <-
            Util.normalize_saturation(saturation),
-         {x, y} when is_number(x) and is_number(y) <- Color.hs_to_xy(parsed_hue, parsed_saturation) do
+         {x, y} when is_number(x) and is_number(y) <-
+           Color.hs_to_xy(parsed_hue, parsed_saturation) do
       {:ok, parsed_hue, parsed_saturation, x, y}
     else
       _ -> {:error, :invalid_color}

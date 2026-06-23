@@ -82,7 +82,7 @@ defmodule Hueworks.Import.Link do
   end
 
   defp unique_match(index, key) do
-    case (if is_binary(key), do: Map.get(index, key, []), else: []) |> Enum.uniq() do
+    case if(is_binary(key), do: Map.get(index, key, []), else: []) |> Enum.uniq() do
       [id] -> id
       _ -> nil
     end

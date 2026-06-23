@@ -6,8 +6,6 @@ defmodule Hueworks.Subscription.HueEventStream do
   alias Hueworks.Subscription.GenericEventStream
   alias Hueworks.Subscription.HueEventStream.Connection
 
-
-
   def child_spec(opts) do
     %{
       id: __MODULE__,
@@ -17,6 +15,7 @@ defmodule Hueworks.Subscription.HueEventStream do
       shutdown: 500
     }
   end
+
   def start_link(opts \\ []) do
     opts
     |> Keyword.put_new(:name, __MODULE__)

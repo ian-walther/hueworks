@@ -252,7 +252,9 @@ defmodule Hueworks.PicosTest do
     refute Repo.get(PicoDevice, stale_device.id)
 
     button_source_ids =
-      Repo.all(from(pb in PicoButton, where: pb.pico_device_id == ^device.id, select: pb.source_id))
+      Repo.all(
+        from(pb in PicoButton, where: pb.pico_device_id == ^device.id, select: pb.source_id)
+      )
       |> Enum.sort()
 
     assert button_source_ids == ["1", "2"]
@@ -454,6 +456,7 @@ defmodule Hueworks.PicosTest do
       )
 
     assert button.action_type == "toggle_any_on"
+
     assert %StoredActionConfig{
              target_kind: :control_groups,
              target_ids: control_group_ids
@@ -565,7 +568,8 @@ defmodule Hueworks.PicosTest do
              target_ids: ["group-a", "group-b"]
            } = PicoButton.action_config_struct(button)
 
-    assert Picos.button_binding_summary(button, Picos.get_device(device.id)) == "Toggle Overhead + Lamps"
+    assert Picos.button_binding_summary(button, Picos.get_device(device.id)) ==
+             "Toggle Overhead + Lamps"
 
     State.put(:light, overhead.id, %{power: :off})
     State.put(:light, lamp.id, %{power: :off})
@@ -630,6 +634,7 @@ defmodule Hueworks.PicosTest do
       )
 
     assert button.action_type == "activate_scene"
+
     assert %StoredActionConfig{target_kind: :scene, scene_id: scene_id} =
              PicoButton.action_config_struct(button)
 
@@ -954,6 +959,7 @@ defmodule Hueworks.PicosTest do
     scene_button = Enum.find(cloned_buttons, &(&1.button_number == 4))
 
     assert toggle_button.action_type == "toggle_any_on"
+
     assert %StoredActionConfig{
              target_kind: :control_groups,
              target_ids: toggle_group_ids,
@@ -964,6 +970,7 @@ defmodule Hueworks.PicosTest do
     assert toggle_room_id == room.id
 
     assert multi_group_button.action_type == "turn_off"
+
     assert %StoredActionConfig{
              target_kind: :control_groups,
              target_ids: multi_group_ids,
@@ -976,6 +983,7 @@ defmodule Hueworks.PicosTest do
     assert multi_group_room_id == room.id
 
     assert scene_button.action_type == "activate_scene"
+
     assert %StoredActionConfig{
              target_kind: :scene,
              scene_id: scene_button_scene_id,

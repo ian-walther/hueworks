@@ -21,7 +21,6 @@ defmodule Hueworks.Import.Fetch.Caseta do
     fetch_snapshot(bridge, false)
   end
 
-
   defp fetch_snapshot(bridge, log?) do
     {:ok, socket} = connect(bridge)
     :ssl.setopts(socket, [{:active, false}, {:packet, :line}])
@@ -331,5 +330,4 @@ defmodule Hueworks.Import.Fetch.Caseta do
         "Unknown device"
     end
   end
-
 end

@@ -8,11 +8,13 @@ defmodule Hueworks.Schemas.Bridge do
     field(:type, Ecto.Enum, values: [:hue, :caseta, :ha, :z2m])
     field(:name, :string)
     field(:host, :string)
+
     embeds_one(:credentials, Credentials,
       source: :credentials,
       on_replace: :update,
       defaults_to_struct: true
     )
+
     field(:enabled, :boolean, default: true)
     field(:import_complete, :boolean, default: false)
 

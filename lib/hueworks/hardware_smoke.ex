@@ -145,8 +145,7 @@ defmodule Hueworks.HardwareSmoke do
       all_light_ids: all_light_ids,
       buttons: %{
         overhead_on: find_single_control_group_button!(device, "turn_on", overhead_group["id"]),
-        overhead_off:
-          find_single_control_group_button!(device, "turn_off", overhead_group["id"]),
+        overhead_off: find_single_control_group_button!(device, "turn_off", overhead_group["id"]),
         lower_on: find_single_control_group_button!(device, "turn_on", lower_group["id"]),
         lower_off: find_single_control_group_button!(device, "turn_off", lower_group["id"]),
         all_toggle: find_all_control_groups_button!(device, "toggle_any_on")

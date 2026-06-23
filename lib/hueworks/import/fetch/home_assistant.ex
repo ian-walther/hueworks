@@ -20,7 +20,6 @@ defmodule Hueworks.Import.Fetch.HomeAssistant do
     fetch_snapshot(bridge, false)
   end
 
-
   defp fetch_snapshot(bridge, log?) do
     token = Bridge.credentials_struct(bridge).token
 
@@ -422,5 +421,4 @@ defmodule Hueworks.Import.Fetch.HomeAssistant do
       10_000 -> {:error, :timeout}
     end
   end
-
 end

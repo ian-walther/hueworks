@@ -44,7 +44,9 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
     assert get_assign(view, :import_error) == "Missing test import payload"
   end
 
-  test "apply_materialization shows an error when the persisted bridge import is stale", %{conn: conn} do
+  test "apply_materialization shows an error when the persisted bridge import is stale", %{
+    conn: conn
+  } do
     {view, _bridge} = setup_import_view(conn, with_unassigned: false)
     bridge_import = get_assign(view, :bridge_import)
     Repo.delete!(bridge_import)

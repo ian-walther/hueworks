@@ -68,10 +68,18 @@ defmodule Mix.Tasks.HardwareSmoke do
 
   defp parse_log_level!(value) when is_binary(value) do
     case String.downcase(value) do
-      "debug" -> :debug
-      "info" -> :info
-      "warning" -> :warning
-      "error" -> :error
+      "debug" ->
+        :debug
+
+      "info" ->
+        :info
+
+      "warning" ->
+        :warning
+
+      "error" ->
+        :error
+
       other ->
         Mix.raise(
           "invalid --log-level #{inspect(other)}; expected debug, info, warning, or error"

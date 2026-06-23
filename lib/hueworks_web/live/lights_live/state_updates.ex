@@ -4,14 +4,24 @@ defmodule HueworksWeb.LightsLive.StateUpdates do
   alias HueworksWeb.LightsLive.Actions.Result
   alias HueworksWeb.LightsLive.DisplayState
 
-  def apply_action_result(assigns, %Result{target_type: :light, target_id: id, attrs: attrs, status: status}) do
+  def apply_action_result(assigns, %Result{
+        target_type: :light,
+        target_id: id,
+        attrs: attrs,
+        status: status
+      }) do
     %{
       light_state: merge_light_state(assigns.light_state, id, attrs),
       status: status
     }
   end
 
-  def apply_action_result(assigns, %Result{target_type: :group, target_id: id, attrs: attrs, status: status}) do
+  def apply_action_result(assigns, %Result{
+        target_type: :group,
+        target_id: id,
+        attrs: attrs,
+        status: status
+      }) do
     %{
       group_state: merge_group_state(assigns.group_state, id, attrs),
       status: status

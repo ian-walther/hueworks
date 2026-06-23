@@ -709,8 +709,7 @@ defmodule HueworksWeb.PicoConfigLive do
             control_groups,
             socket.assigns[:binding_target_group_ids]
           ),
-        binding_action:
-          normalize_binding_action(socket.assigns[:binding_action])
+        binding_action: normalize_binding_action(socket.assigns[:binding_action])
       )
 
     load_selected_control_group(socket)
@@ -799,13 +798,15 @@ defmodule HueworksWeb.PicoConfigLive do
   defp normalize_binding_target_id(_kind, _target_id), do: nil
 
   defp normalize_binding_action("activate_scene"), do: "activate_scene"
+
   defp normalize_binding_action(action)
        when action in ["on", "off", "toggle"],
        do: action
 
   defp normalize_binding_action(_action), do: "toggle"
 
-  defp normalize_binding_target_group_ids(control_groups, target_ids) when is_list(control_groups) do
+  defp normalize_binding_target_group_ids(control_groups, target_ids)
+       when is_list(control_groups) do
     valid_group_ids = MapSet.new(Enum.map(control_groups, & &1["id"]))
 
     target_ids
@@ -899,7 +900,10 @@ defmodule HueworksWeb.PicoConfigLive do
           {:ok, updated} ->
             socket
             |> assign(save_status: nil, save_error: nil)
-            |> reload_from_devices(Picos.list_devices_for_bridge(socket.assigns.bridge.id), updated.id)
+            |> reload_from_devices(
+              Picos.list_devices_for_bridge(socket.assigns.bridge.id),
+              updated.id
+            )
             |> select_control_group(group_id)
 
           {:error, :invalid_targets} ->
@@ -941,7 +945,10 @@ defmodule HueworksWeb.PicoConfigLive do
               save_error: nil,
               editing_control_group_name: false
             )
-            |> reload_from_devices(Picos.list_devices_for_bridge(socket.assigns.bridge.id), updated.id)
+            |> reload_from_devices(
+              Picos.list_devices_for_bridge(socket.assigns.bridge.id),
+              updated.id
+            )
             |> select_control_group(group_id)
 
           {:error, :invalid_targets} ->

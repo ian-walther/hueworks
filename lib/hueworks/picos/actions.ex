@@ -190,7 +190,10 @@ defmodule Hueworks.Picos.Actions do
     Targets.normalize_integer_ids(light_ids)
   end
 
-  defp action_light_ids(%ActionConfig{target_kind: :control_groups, target_ids: target_ids}, device)
+  defp action_light_ids(
+         %ActionConfig{target_kind: :control_groups, target_ids: target_ids},
+         device
+       )
        when is_list(target_ids) do
     selected_group_ids = MapSet.new(target_ids)
 

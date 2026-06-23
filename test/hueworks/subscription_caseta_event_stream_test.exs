@@ -25,6 +25,7 @@ defmodule Hueworks.Subscription.CasetaEventStreamTest do
       id: :caseta_stream_test_attempts,
       start: {Agent, :start_link, [fn -> %{} end, [name: :caseta_stream_test_attempts]]}
     })
+
     Process.register(self(), :caseta_stream_test_listener)
 
     on_exit(fn ->
@@ -207,5 +208,4 @@ defmodule Hueworks.Subscription.CasetaEventStreamTest do
       Task.start_link(fn -> Process.sleep(:infinity) end)
     end
   end
-
 end

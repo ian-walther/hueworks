@@ -15,7 +15,8 @@ defmodule HueworksWeb.LightsLive.ActionFlow do
 
   def action_events, do: @action_events
 
-  def run(event, params, assigns) when event in @action_events and is_map(params) and is_map(assigns) do
+  def run(event, params, assigns)
+      when event in @action_events and is_map(params) and is_map(assigns) do
     case action_request(event, params, assigns) do
       {:ok, {:toggle, type, id, state_map}} ->
         case Actions.toggle(type, id, state_map) do

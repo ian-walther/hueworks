@@ -73,7 +73,7 @@ defmodule Hueworks.Import.LinkTest do
       "lights" => [
         %{
           "name" => "Kitchen / Pendants",
-          "serial" => 12345678,
+          "serial" => 12_345_678,
           "type" => "WallDimmer",
           "device_id" => "10",
           "zone_id" => "1",
@@ -126,7 +126,7 @@ defmodule Hueworks.Import.LinkTest do
       "lights" => [
         %{
           "name" => "Hallway / Sconce",
-          "serial" => 87654321,
+          "serial" => 87_654_321,
           "type" => "WallDimmer",
           "device_id" => "11",
           "zone_id" => "2",

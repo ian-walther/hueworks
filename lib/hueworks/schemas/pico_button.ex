@@ -9,11 +9,13 @@ defmodule Hueworks.Schemas.PicoButton do
     field(:button_number, :integer)
     field(:slot_index, :integer)
     field(:action_type, :string)
+
     embeds_one(:action_config, ActionConfig,
       source: :action_config,
       on_replace: :update,
       defaults_to_struct: true
     )
+
     field(:enabled, :boolean, default: true)
     field(:last_pressed_at, :utc_datetime_usec)
     field(:metadata, :map, default: %{})
@@ -43,7 +45,9 @@ defmodule Hueworks.Schemas.PicoButton do
   def action_config_struct(%__MODULE__{action_config: %ActionConfig{} = action_config}),
     do: action_config
 
-  def action_config_struct(%__MODULE__{action_config: action_config}), do: action_config_struct(action_config)
+  def action_config_struct(%__MODULE__{action_config: action_config}),
+    do: action_config_struct(action_config)
+
   def action_config_struct(%ActionConfig{} = action_config), do: action_config
   def action_config_struct(action_config), do: ActionConfig.load(action_config)
 end

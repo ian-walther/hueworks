@@ -20,7 +20,9 @@ defmodule Hueworks.Subscription.HueEventStream.ParserTest do
       "data: " <>
         Jason.encode!(%{"data" => [%{"type" => "light", "id_v1" => "/lights/1"}]}) <> "\n\n"
 
-    second = "data: " <> Jason.encode!(%{"type" => "grouped_light", "id_v1" => "/groups/2"}) <> "\n\n"
+    second =
+      "data: " <> Jason.encode!(%{"type" => "grouped_light", "id_v1" => "/groups/2"}) <> "\n\n"
+
     invalid = "data: {not-json}\n\n"
 
     assert {events, ""} = Parser.consume("", first <> second <> invalid)

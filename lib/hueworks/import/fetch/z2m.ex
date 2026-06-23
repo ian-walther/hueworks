@@ -209,7 +209,6 @@ defmodule Hueworks.Import.Fetch.Z2M do
 
   defp normalize_base_topic(_value), do: @default_base_topic
 
-
   defp format_error({:error, reason}), do: format_error(reason)
   defp format_error(reason) when is_binary(reason), do: reason
   defp format_error(reason), do: inspect(reason)

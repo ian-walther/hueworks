@@ -448,7 +448,12 @@ defmodule HueworksWeb.PicoConfigLiveTest do
         metadata: %{
           "room_override" => true,
           "control_groups" => [
-            %{"id" => "group-a", "name" => "Control Group 1", "group_ids" => [], "light_ids" => []},
+            %{
+              "id" => "group-a",
+              "name" => "Control Group 1",
+              "group_ids" => [],
+              "light_ids" => []
+            },
             %{"id" => "group-b", "name" => "Reading", "group_ids" => [], "light_ids" => []}
           ]
         }

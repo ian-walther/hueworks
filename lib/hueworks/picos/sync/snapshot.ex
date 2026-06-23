@@ -25,7 +25,8 @@ defmodule Hueworks.Picos.Sync.Snapshot do
     )
   end
 
-  def room_ids_by_area_id(bridge_id, raw_lights) when is_integer(bridge_id) and is_list(raw_lights) do
+  def room_ids_by_area_id(bridge_id, raw_lights)
+      when is_integer(bridge_id) and is_list(raw_lights) do
     room_id_by_zone_id =
       Repo.all(
         from(l in Light,

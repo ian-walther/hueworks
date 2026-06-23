@@ -62,7 +62,9 @@ defmodule Hueworks.Picos.Config do
 
   def configured?(%PicoDevice{} = device) do
     device = ensure_buttons_loaded(device)
-    ControlGroups.list_for_device(device) != [] or Enum.any?(device.buttons, &is_binary(&1.action_type))
+
+    ControlGroups.list_for_device(device) != [] or
+      Enum.any?(device.buttons, &is_binary(&1.action_type))
   end
 
   def save_five_button_preset(%PicoDevice{} = device, attrs) when is_map(attrs) do

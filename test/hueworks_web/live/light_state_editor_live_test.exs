@@ -303,17 +303,17 @@ defmodule HueworksWeb.LightStateEditorLiveTest do
     assert {:error, {:live_redirect, %{to: "/config"}}} =
              render_submit(view, "save", %{
                "name" => "Circadian Updated",
-                "brightness_mode" => "linear",
-                "min_brightness" => "20",
-                "max_brightness" => "90",
-                "min_color_temp" => "2200",
-                "max_color_temp" => "5000",
-                "sunrise_offset" => "0",
-                "sunset_offset" => "0",
-                "brightness_mode_time_dark" => "5400",
-                "brightness_mode_time_light" => "900",
-                "save_action" => "save_and_return"
-              })
+               "brightness_mode" => "linear",
+               "min_brightness" => "20",
+               "max_brightness" => "90",
+               "min_color_temp" => "2200",
+               "max_color_temp" => "5000",
+               "sunrise_offset" => "0",
+               "sunset_offset" => "0",
+               "brightness_mode_time_dark" => "5400",
+               "brightness_mode_time_light" => "900",
+               "save_action" => "save_and_return"
+             })
 
     updated = Repo.get!(LightState, state.id)
     assert updated.name == "Circadian Updated"

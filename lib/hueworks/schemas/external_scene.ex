@@ -3,15 +3,15 @@ defmodule Hueworks.Schemas.ExternalScene do
   import Ecto.Changeset
 
   schema "external_scenes" do
-    field :source, Ecto.Enum, values: [:ha]
-    field :source_id, :string
-    field :name, :string
-    field :display_name, :string
-    field :enabled, :boolean, default: true
-    field :metadata, :map, default: %{}
+    field(:source, Ecto.Enum, values: [:ha])
+    field(:source_id, :string)
+    field(:name, :string)
+    field(:display_name, :string)
+    field(:enabled, :boolean, default: true)
+    field(:metadata, :map, default: %{})
 
-    belongs_to :bridge, Hueworks.Schemas.Bridge
-    has_one :mapping, Hueworks.Schemas.ExternalSceneMapping
+    belongs_to(:bridge, Hueworks.Schemas.Bridge)
+    has_one(:mapping, Hueworks.Schemas.ExternalSceneMapping)
 
     timestamps()
   end

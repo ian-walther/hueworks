@@ -2,7 +2,10 @@ defmodule Hueworks.Migrations.AddEmbeddedManualConfigToSceneComponentsTest do
   use Hueworks.DataCase, async: false
 
   Code.require_file(
-    Path.expand("../../../priv/repo/migrations/20260421110000_add_embedded_manual_config_to_scene_components.exs", __DIR__)
+    Path.expand(
+      "../../../priv/repo/migrations/20260421110000_add_embedded_manual_config_to_scene_components.exs",
+      __DIR__
+    )
   )
 
   alias Ecto.Adapters.SQL
@@ -72,7 +75,11 @@ defmodule Hueworks.Migrations.AddEmbeddedManualConfigToSceneComponentsTest do
       []
     )
 
-    AddEmbeddedManualConfigToSceneComponents.rebuild_scene_components(Repo, component_table, join_table)
+    AddEmbeddedManualConfigToSceneComponents.rebuild_scene_components(
+      Repo,
+      component_table,
+      join_table
+    )
 
     assert [[1]] =
              SQL.query!(Repo, "SELECT COUNT(*) FROM #{component_table}", []).rows

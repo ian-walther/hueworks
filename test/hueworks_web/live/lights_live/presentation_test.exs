@@ -13,7 +13,10 @@ defmodule HueworksWeb.LightsLive.PresentationTest do
     preview = Presentation.color_preview(%{}, 1)
 
     assert preview == %{hue: 0, saturation: 100, brightness: 100}
-    assert Presentation.color_preview_label(%{}, 1) == "Color: 0°, 100% saturation, 100% brightness"
+
+    assert Presentation.color_preview_label(%{}, 1) ==
+             "Color: 0°, 100% saturation, 100% brightness"
+
     assert Presentation.color_preview_style(%{}, 1) =~ "background-color: rgb("
     assert Presentation.color_saturation_scale_style(%{}, 1) =~ "linear-gradient"
   end

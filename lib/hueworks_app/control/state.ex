@@ -32,7 +32,9 @@ defmodule Hueworks.Control.State do
     end
 
     :ets.new(@table, [:named_table, :public, read_concurrency: true, write_concurrency: true])
-    {:ok, %{bootstrap_ref: nil, bootstrap_pid: nil, bootstrap_waiters: []}, {:continue, :bootstrap}}
+
+    {:ok, %{bootstrap_ref: nil, bootstrap_pid: nil, bootstrap_waiters: []},
+     {:continue, :bootstrap}}
   end
 
   @spec get(entity_type(), entity_id()) :: state_map() | nil

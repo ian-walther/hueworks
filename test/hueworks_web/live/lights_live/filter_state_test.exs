@@ -16,10 +16,18 @@ defmodule HueworksWeb.LightsLive.FilterStateTest do
     rooms = [%{id: 1}, %{id: 2}]
 
     assert %{group_room_filter: 2} =
-             FilterState.event_updates("set_group_room_filter", %{"group_room_filter" => "2"}, rooms)
+             FilterState.event_updates(
+               "set_group_room_filter",
+               %{"group_room_filter" => "2"},
+               rooms
+             )
 
     assert %{light_room_filter: "all"} =
-             FilterState.event_updates("set_light_room_filter", %{"light_room_filter" => "999"}, rooms)
+             FilterState.event_updates(
+               "set_light_room_filter",
+               %{"light_room_filter" => "999"},
+               rooms
+             )
   end
 
   test "event_updates handles toggle defaults when checkbox param is absent" do
@@ -27,6 +35,10 @@ defmodule HueworksWeb.LightsLive.FilterStateTest do
              FilterState.event_updates("toggle_group_disabled", %{}, [])
 
     assert %{show_linked_lights: true} =
-             FilterState.event_updates("toggle_light_linked", %{"show_linked_lights" => "true"}, [])
+             FilterState.event_updates(
+               "toggle_light_linked",
+               %{"show_linked_lights" => "true"},
+               []
+             )
   end
 end

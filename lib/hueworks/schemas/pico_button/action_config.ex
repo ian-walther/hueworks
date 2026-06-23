@@ -46,7 +46,8 @@ defmodule Hueworks.Schemas.PicoButton.ActionConfig do
 
   def target_id(_config), do: nil
 
-  def target_ids(%__MODULE__{target_kind: :control_groups, target_ids: target_ids}), do: target_ids
+  def target_ids(%__MODULE__{target_kind: :control_groups, target_ids: target_ids}),
+    do: target_ids
 
   def target_ids(_config), do: []
 

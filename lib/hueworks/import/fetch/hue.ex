@@ -24,7 +24,6 @@ defmodule Hueworks.Import.Fetch.Hue do
     fetch_bridge(bridge, false)
   end
 
-
   defp fetch_bridge(bridge, log?) do
     api_key = Bridge.credentials_struct(bridge).api_key
 
@@ -142,5 +141,4 @@ defmodule Hueworks.Import.Fetch.Hue do
   end
 
   defp simplify_hue_groups(groups), do: groups
-
 end

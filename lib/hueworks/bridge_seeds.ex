@@ -109,7 +109,8 @@ defmodule Hueworks.BridgeSeeds do
     end
   end
 
-  defp normalize_credentials(credentials) when is_map(credentials) and map_size(credentials) > 0 do
+  defp normalize_credentials(credentials)
+       when is_map(credentials) and map_size(credentials) > 0 do
     {:ok, stringify_keys(credentials)}
   end
 

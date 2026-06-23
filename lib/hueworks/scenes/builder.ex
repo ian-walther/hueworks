@@ -61,11 +61,10 @@ defmodule Hueworks.Scenes.Builder do
       light_ids = Map.get(group, :light_ids, [])
       light_ids != [] and Enum.all?(light_ids, fn id -> not MapSet.member?(assigned_ids, id) end)
     end)
-    |> Enum.sort_by(
-      fn group ->
-        {-Enum.count(Map.get(group, :light_ids, [])), group |> Util.display_name() |> String.downcase(), group.id}
-      end
-    )
+    |> Enum.sort_by(fn group ->
+      {-Enum.count(Map.get(group, :light_ids, [])),
+       group |> Util.display_name() |> String.downcase(), group.id}
+    end)
   end
 
   def group_room_light_ids(group, room_light_ids) do
@@ -127,6 +126,8 @@ defmodule Hueworks.Scenes.Builder do
     lights
     |> Enum.map(&Map.get(&1, :id))
     |> Enum.filter(&is_integer/1)
-    |> Enum.filter(fn id -> MapSet.member?(enabled_light_ids, id) or MapSet.member?(group_light_ids, id) end)
+    |> Enum.filter(fn id ->
+      MapSet.member?(enabled_light_ids, id) or MapSet.member?(group_light_ids, id)
+    end)
   end
 end

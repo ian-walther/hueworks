@@ -40,7 +40,10 @@ defmodule Hueworks.PicosTargetsTest do
 
     direct_light = insert_light(room, bridge, %{name: "Direct"})
     grouped_light = insert_light(room, bridge, %{name: "Grouped"})
-    linked_light = insert_light(room, bridge, %{name: "Linked", canonical_light_id: direct_light.id})
+
+    linked_light =
+      insert_light(room, bridge, %{name: "Linked", canonical_light_id: direct_light.id})
+
     other_room_light = insert_light(other_room, bridge, %{name: "Other"})
 
     group =

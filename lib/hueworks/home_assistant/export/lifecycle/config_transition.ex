@@ -28,7 +28,11 @@ defmodule Hueworks.HomeAssistant.Export.Lifecycle.ConfigTransition do
     end
   end
 
-  defp maybe_unpublish_removed_entities(%ServerState{config: previous} = state, config, publish_fun) do
+  defp maybe_unpublish_removed_entities(
+         %ServerState{config: previous} = state,
+         config,
+         publish_fun
+       ) do
     cond do
       not Connection.alive?(state.connection_pid) ->
         state
@@ -65,7 +69,8 @@ defmodule Hueworks.HomeAssistant.Export.Lifecycle.ConfigTransition do
     end
   end
 
-  defp stop_connection(%ServerState{connection_pid: nil} = state), do: %{state | connection_pid: nil}
+  defp stop_connection(%ServerState{connection_pid: nil} = state),
+    do: %{state | connection_pid: nil}
 
   defp stop_connection(%ServerState{connection_pid: pid} = state) do
     _ = Connection.stop(pid)

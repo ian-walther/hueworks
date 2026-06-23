@@ -188,5 +188,4 @@ defmodule Hueworks.Subscription.HueEventStreamTest do
       Task.start_link(fn -> Process.sleep(:infinity) end)
     end
   end
-
 end

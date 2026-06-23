@@ -5,6 +5,7 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.ConnectionTest do
   alias Hueworks.Control.State
   alias Hueworks.ActiveScenes
   alias Hueworks.Repo
+
   alias Hueworks.Schemas.{
     ActiveScene,
     Bridge,
@@ -15,6 +16,7 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.ConnectionTest do
     Room,
     Scene
   }
+
   alias Hueworks.Subscription.HomeAssistantEventStream.Connection
 
   setup do

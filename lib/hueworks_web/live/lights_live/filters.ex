@@ -42,6 +42,9 @@ defmodule HueworksWeb.LightsLive.Filters do
   defp filter_by_room(entities, "all"), do: entities
   defp filter_by_room(entities, "unassigned"), do: Enum.filter(entities, &is_nil(&1.room_id))
   defp filter_by_room(entities, nil), do: entities
-  defp filter_by_room(entities, room_id) when is_integer(room_id), do: Enum.filter(entities, &(&1.room_id == room_id))
+
+  defp filter_by_room(entities, room_id) when is_integer(room_id),
+    do: Enum.filter(entities, &(&1.room_id == room_id))
+
   defp filter_by_room(entities, _room_id), do: entities
 end
