@@ -69,6 +69,11 @@ defmodule Hueworks.HomeAssistant.Export.Sync do
     EntitySync.publish_one(publish_fun, kind, id, config)
   end
 
+  def publish_groups_for_light(publish_fun, light_id, config)
+      when is_function(publish_fun, 3) and is_integer(light_id) do
+    EntitySync.publish_groups_for_light(publish_fun, light_id, config)
+  end
+
   def unpublish_entity(publish_fun, kind, id, config)
       when is_function(publish_fun, 3) and kind in [:light, :group] and is_integer(id) do
     EntitySync.unpublish_one(publish_fun, kind, id, config)

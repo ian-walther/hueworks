@@ -7,7 +7,7 @@ defmodule Hueworks.HomeAssistant.Export.Entities do
   alias Hueworks.HomeAssistant.Export.Messages
   alias Hueworks.HomeAssistant.Export.Messages.RoomSceneOption
   alias Hueworks.Repo
-  alias Hueworks.Schemas.{Group, Light, Room, Scene}
+  alias Hueworks.Schemas.{Group, GroupLight, Light, Room, Scene}
 
   def control_target(:light, light_id) when is_integer(light_id) do
     case fetch_entity(:light, light_id) do
@@ -132,6 +132,20 @@ defmodule Hueworks.HomeAssistant.Export.Entities do
       from(g in Group,
         where:
           g.room_id == ^room_id and is_nil(g.canonical_group_id) and g.enabled == true and
+            g.ha_export_mode != :none,
+        order_by: [asc: g.name]
+      )
+    )
+    |> Repo.preload([:room, :lights])
+  end
+
+  def list_exportable_groups_for_light(light_id) when is_integer(light_id) do
+    Repo.all(
+      from(g in Group,
+        join: gl in GroupLight,
+        on: gl.group_id == g.id,
+        where:
+          gl.light_id == ^light_id and is_nil(g.canonical_group_id) and g.enabled == true and
             g.ha_export_mode != :none,
         order_by: [asc: g.name]
       )

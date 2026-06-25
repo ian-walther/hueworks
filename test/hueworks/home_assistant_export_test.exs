@@ -586,6 +586,105 @@ defmodule Hueworks.HomeAssistant.ExportTest do
     refute Map.has_key?(decoded, "color_temp")
   end
 
+  test "exported group light state payload prefers current member aggregate over stale group state" do
+    room = Repo.insert!(%Room{name: "Office"})
+    bridge = insert_bridge!(%{name: "Hue", type: :hue, host: "hue.local", credentials: %{}})
+
+    light_a =
+      Repo.insert!(%Light{
+        name: "Desk Lamp",
+        source: :hue,
+        source_id: "1",
+        bridge_id: bridge.id,
+        room_id: room.id
+      })
+
+    light_b =
+      Repo.insert!(%Light{
+        name: "Corner Lamp",
+        source: :hue,
+        source_id: "2",
+        bridge_id: bridge.id,
+        room_id: room.id
+      })
+
+    group =
+      Repo.insert!(%Group{
+        name: "Office Lamps",
+        source: :hue,
+        source_id: "3",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        ha_export_mode: :light,
+        supports_temp: true
+      })
+
+    Repo.insert!(%GroupLight{group_id: group.id, light_id: light_a.id})
+    Repo.insert!(%GroupLight{group_id: group.id, light_id: light_b.id})
+
+    _ = State.put(:group, group.id, %{power: :on, brightness: 1, kelvin: 4000})
+    _ = State.put(:light, light_a.id, %{power: :on, brightness: 100, kelvin: 4000})
+    _ = State.put(:light, light_b.id, %{power: :on, brightness: 100, kelvin: 4000})
+
+    payload =
+      :group
+      |> Messages.light_state_payload(Repo.preload(group, [:room, :lights]))
+
+    assert payload["state"] == "ON"
+    assert payload["brightness"] == 100
+    assert payload["color_temp"] == 4000
+  end
+
+  test "member light control state updates republish exported group state" do
+    put_export_settings(%{
+      ha_export_lights_enabled: true,
+      ha_export_mqtt_host: "mqtt.local",
+      ha_export_discovery_prefix: "homeassistant"
+    })
+
+    room = Repo.insert!(%Room{name: "Office"})
+    bridge = insert_bridge!(%{name: "Hue", type: :hue, host: "hue.local", credentials: %{}})
+
+    light =
+      Repo.insert!(%Light{
+        name: "Desk Lamp",
+        source: :hue,
+        source_id: "1",
+        bridge_id: bridge.id,
+        room_id: room.id
+      })
+
+    group =
+      Repo.insert!(%Group{
+        name: "Office Lamps",
+        source: :hue,
+        source_id: "3",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        ha_export_mode: :light,
+        supports_temp: true
+      })
+
+    Repo.insert!(%GroupLight{group_id: group.id, light_id: light.id})
+    _ = State.put(:group, group.id, %{power: :on, brightness: 100, kelvin: 4000})
+
+    Export.reload()
+    _ = :sys.get_state(Export)
+    send(Export, {:mqtt_connected, Export.client_id()})
+    _ = :sys.get_state(Export)
+    drain_published_messages()
+
+    _ = State.put(:light, light.id, %{power: :on, brightness: 100, kelvin: 4000})
+
+    {_client_id, _topic, payload} =
+      assert_publish("hueworks/ha_export/groups/#{group.id}/light/state")
+
+    decoded = Jason.decode!(payload)
+    assert decoded["state"] == "ON"
+    assert decoded["brightness"] == 100
+    assert decoded["color_temp"] == 4000
+  end
+
   test "json light color command republishes optimistic xy state immediately" do
     put_export_settings(%{
       ha_export_lights_enabled: true,

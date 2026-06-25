@@ -2,14 +2,19 @@ defmodule Hueworks.HomeAssistant.Export.Messages.State do
   @moduledoc false
 
   alias Hueworks.ActiveScenes
+  alias Hueworks.Control.GroupState
   alias Hueworks.Control.State
   alias Hueworks.HomeAssistant.Export.Messages.RoomSceneOption
   alias Hueworks.Kelvin
   alias Hueworks.Schemas.Scene
   alias Hueworks.Util
 
-  def light_state_payload(kind, entity) when kind in [:light, :group] and is_map(entity) do
-    light_state_payload(entity, State.get(kind, entity.id) || %{})
+  def light_state_payload(:group, entity) when is_map(entity) do
+    light_state_payload(entity, group_state_for_export(entity))
+  end
+
+  def light_state_payload(:light, entity) when is_map(entity) do
+    light_state_payload(entity, State.get(:light, entity.id) || %{})
   end
 
   def light_state_payload(entity, state) when is_map(entity) and is_map(state) do
@@ -194,4 +199,27 @@ defmodule Hueworks.HomeAssistant.Export.Messages.State do
 
   defp maybe_put(payload, _key, nil), do: payload
   defp maybe_put(payload, key, value), do: Map.put(payload, key, value)
+
+  defp group_state_for_export(entity) do
+    case group_member_light_ids(entity) do
+      light_ids when light_ids != [] ->
+        case GroupState.derive_from_light_ids(light_ids) do
+          derived when derived != %{} -> derived
+          _ -> State.get(:group, entity.id) || %{}
+        end
+
+      _ ->
+        State.get(:group, entity.id) || %{}
+    end
+  end
+
+  defp group_member_light_ids(%{lights: %Ecto.Association.NotLoaded{}}), do: []
+
+  defp group_member_light_ids(%{lights: lights}) when is_list(lights) do
+    lights
+    |> Enum.map(&Map.get(&1, :id))
+    |> Enum.filter(&is_integer/1)
+  end
+
+  defp group_member_light_ids(_entity), do: []
 end

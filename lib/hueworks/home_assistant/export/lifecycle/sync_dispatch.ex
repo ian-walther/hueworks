@@ -33,7 +33,13 @@ defmodule Hueworks.HomeAssistant.Export.Lifecycle.SyncDispatch do
              is_function(publish_fun, 3) do
     if Runtime.export_enabled?(state.config) and Runtime.lights_enabled?(state.config) and
          Connection.alive?(state.connection_pid) do
-      run_sync(state, :publish_entity, [kind, id], publish_fun)
+      :ok = apply(Sync, :publish_entity, [publish_fun, kind, id, state.config])
+
+      if kind == :light do
+        :ok = apply(Sync, :publish_groups_for_light, [publish_fun, id, state.config])
+      end
+
+      state
     else
       state
     end
