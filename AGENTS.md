@@ -9,8 +9,8 @@
 3. Prefer pipes when style is a tossup.
    Do not force the pipe operator into every call site, but when two styles are similarly clear, prefer the pipe operator for readability and flow.
 
-4. Run the full test suite before finishing any task.
-   Always run `mix test` before declaring work complete. Fix any failures introduced by the change before closing out.
+4. Run the full test suite after code changes.
+   Run `mix test` before declaring work complete when the task changes application code, tests, migrations, configuration that affects runtime behavior, dependencies, or build/runtime tooling. Fix any failures introduced by the change before closing out. For docs-only changes, do not run the test suite unless the user explicitly asks for it or the docs change includes executable examples that should be verified.
 
 5. Do not use worktree isolation when spawning agents.
    Always edit files directly in the working tree. Do not pass `isolation: "worktree"` when using the Agent tool.

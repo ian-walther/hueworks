@@ -2,87 +2,49 @@
 
 Forward-looking backlog only. Completed work has been removed.
 
-## Now (Critical Path)
+This file should stay short. If a future idea is not likely to be acted on soon, leave it out until it becomes real planning work.
 
-### 1) HomeKit bridge integration
-Reference: `planning/homekit-bridge.md`
-- [ ] Validate light/group on/off toggles, scene switches, and bridge child restarts against Apple Home on real devices.
-- [ ] Stabilize HomeKit brightness writes before treating dimmable light export as public-ready.
-- [ ] Add a HueWorks UI surface for HomeKit bridge runtime status and health instead of relying on logs.
-- [ ] Decide whether the first UI should include a manual "restart HomeKit bridge" action for debugging.
-- [ ] Confirm that exposing all scenes through the global scene toggle is usable in Apple Home with production scene volume.
+## Now
 
-### 2) Reimport and idempotency polish
+### Reimport Idempotency
 Reference: `planning/import-resync.md`
+
 - [ ] Guarantee that a reimport with unchanged upstream data and unchanged operator selections is a true no-op.
-- [ ] Finalize and document deletion semantics (disabled vs removed) during reimport.
-- [ ] Persist/import history queries for operator-facing visibility.
-- [ ] Add stronger tests around preserving user edits during reimport.
+- [ ] Finalize deletion semantics for checked, unchecked, missing, disabled, and removed entities.
+- [ ] Strengthen tests around preserving user edits during repeated imports.
 
-### 3) Circadian validation and polish
-Reference: `planning/circadian-adaptation.md`
-- [ ] Replace the current room occupancy UI toggle with HA-driven presence input for scene power policies.
-- [ ] Do real-world validation of circadian behavior across mixed-range rooms and document any group-layout expectations that fall out of the planner.
-- [ ] Decide whether room-coherent circadian output needs an explicit mode, or whether overlapping Hue groups are sufficient for the intended experience.
-- [ ] Add telemetry/counters for circadian apply attempts/failures if log-based observability stops being sufficient.
+### Control Architecture Refactor
+Reference: `planning/refactoring.md`
 
-### 4) Core control coordination and no-popcorning behavior
-Reference: `planning/control-batching.md`
-- [ ] Ensure coordinated execution semantics for mixed actions in a room scene apply.
-- [ ] Validate cross-bridge timing behavior and define acceptable skew.
-- [ ] Add explicit failure surface for partial bridge failures during scene apply.
-- [ ] Decide and document executor mode defaults (`:append` vs `:replace`) per call path.
-- [ ] Add end-to-end tests proving expected behavior with 10+ light scene patterns.
+- [ ] Extract scene-component power-policy parsing/resolution into a single domain policy API.
+- [ ] Centralize duplicated state-map normalization used by physical state, desired state, and HA export command handling.
+- [ ] Split scene-builder state into smaller typed surfaces for membership, embedded manual state, and per-light policy state.
+- [ ] Preserve existing behavior with characterization tests before changing semantics.
 
-### 5) Close known runtime gaps
-- [ ] Implement Caseta group dispatch path in `Hueworks.Control.Group`.
-- [ ] Resolve HA group fan-out edge cases currently noted in subscription code.
-- [ ] Add regression tests for both items above.
+## Experience Backlog
 
-## Next
+### Transition Smoothness
+Reference: `planning/transition-smoothness.md`
 
-### 6) Bridge credential lifecycle
-- [ ] Support editing bridge host/credentials safely without destructive re-setup.
-- [ ] Re-test credentials from UI after edit and gate save on validation.
-- [ ] Add migration-safe credential update flow for Caseta cert/key paths.
+- [ ] Revisit how transition timing feels across scene changes, circadian adaptation, and manual control.
+- [ ] Define the desired user experience before choosing implementation details.
 
-### 7) DB integrity and query health follow-up
-Reference: `planning/db-integrity.md`
-- [ ] Audit FK behavior vs manual cleanup code for consistency.
+### HomeKit Control Quality
+Reference: `planning/homekit-control-quality.md`
 
-## Later
+- [ ] Improve HomeKit behavior beyond reliable on/off control.
+- [ ] Define the expected user experience for brightness/color control when no HueWorks scene is active.
 
-### 8) Room assignment intelligence
-- [ ] Extract room derivation into a dedicated module.
-- [ ] Add confidence scoring and suggested assignment review.
-- [ ] Improve unassigned/cross-bridge room handling UX.
+## Maintenance Backlog
 
-### 9) Scene UX improvements
-- [ ] Scene preview/dry-run mode before apply.
-- [ ] Scene activation history and error summaries in UI.
-- [ ] Bulk scene operations per room.
-- [ ] Add configurable on/off transition-time support and expose it as scene-level configuration.
+### Test Coverage Audit
+Reference: `planning/test-coverage-audit.md`
 
-### 10) Security and operations
-- [ ] Add security hardening planning doc once scope is finalized.
-- [ ] Encrypt bridge credentials at rest.
-- [ ] Harden file permissions and backup handling for secrets/material.
+- [ ] Audit current test coverage against the code that has changed since the last deliberate coverage pass.
+- [ ] Identify meaningful behavior, regression, and integration gaps before adding new tests.
 
-### 11) Product expansion
-- [ ] Additional bridge integrations beyond Zigbee2MQTT.
-- [ ] Public API surface (WebSocket/REST) for external control.
-- [ ] Multi-user/auth model for non-single-operator deployments.
+## Concrete Runtime Gaps
 
-### 12) Home Assistant reverse integration (HueWorks -> HA)
-Reference: `planning/home-assistant-reverse-integration.md`
-- [ ] Tighten exported-entity parity for daily-control paths across lights, scenes, and room selectors.
-- [ ] Finalize capability-policy decisions so exported entities stay predictable in HA dashboards and automations.
-- [ ] Improve republish/recovery behavior and operator visibility around MQTT export state.
-- [ ] Define and enforce HA parity quality bar (state coherence, interaction latency, reliability) for daily control paths.
-
-### 13) Assisted-user functionality polish
-Reference: `planning/assisted-user-functionality.md`
-- [ ] Add high-impact guardrails for scene/control conflict predictability.
-- [ ] Improve active-scene clarity (state + deactivation reasons) in room UX.
-- [ ] Add plain-language runtime status to increase day-to-day user confidence.
-- [ ] Prioritize outcome-focused scene usability improvements over setup automation.
+- [ ] Implement Caseta group dispatch in `Hueworks.Control.Group`.
+- [ ] Resolve the HA group fan-out edge case noted in `lib/hueworks_app/subscription/home_assistant_event_stream/connection.ex`.
+- [ ] Add regression tests for both runtime gaps above.
