@@ -292,9 +292,6 @@ defmodule Hueworks.Scenes.Intent do
       explicit_off_intent?(current_desired) and not explicit_off_intent?(desired) ->
         %DesiredAttrs{power: :off}
 
-      explicit_on_intent?(current_desired) and explicit_off_intent?(desired) ->
-        put_attr(desired, :power, :on)
-
       true ->
         desired
     end
@@ -339,8 +336,6 @@ defmodule Hueworks.Scenes.Intent do
       ]
 
   defp explicit_off_intent?(state), do: power_value(state) == :off
-
-  defp explicit_on_intent?(state), do: power_value(state) == :on
 
   defp put_attr(%DesiredAttrs{} = desired, key, value), do: Map.put(desired, key, value)
   defp put_attr(desired, key, value) when is_map(desired), do: Map.put(desired, key, value)

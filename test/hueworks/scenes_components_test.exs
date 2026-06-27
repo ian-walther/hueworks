@@ -674,7 +674,7 @@ defmodule Hueworks.ScenesComponentsTest do
     assert DesiredState.get(:light, light.id) == %{power: :off}
   end
 
-  test "apply_scene keeps manually turned-on default-off light aligned to current scene state" do
+  test "apply_scene restores default-off light despite stale desired on state" do
     room = insert_room()
     bridge = insert_bridge()
     light = insert_light(room, bridge, %{name: "Lamp"})
@@ -716,10 +716,7 @@ defmodule Hueworks.ScenesComponentsTest do
         now: utc_dt("2026-03-08T12:00:00Z")
       )
 
-    desired = DesiredState.get(:light, light.id)
-    assert desired[:power] == :on
-    assert desired[:brightness] == 90
-    assert desired[:kelvin] == 5000
+    assert DesiredState.get(:light, light.id) == %{power: :off}
   end
 
   test "apply_scene clears previous power latch on fresh scene activation semantics" do
@@ -763,6 +760,52 @@ defmodule Hueworks.ScenesComponentsTest do
     assert desired[:power] == :on
     assert desired[:brightness] == 90
     assert desired[:kelvin] == 5000
+  end
+
+  test "active scene refresh does not preserve default-off light without power override" do
+    room = insert_room()
+    bridge = insert_bridge()
+    light = insert_light(room, bridge, %{name: "Recessed"})
+
+    {:ok, state} =
+      Scenes.create_light_state("Circadian", :circadian, %{
+        "sunrise_time" => "06:00:00",
+        "sunset_time" => "18:00:00",
+        "min_brightness" => 10,
+        "max_brightness" => 90,
+        "min_color_temp" => 2200,
+        "max_color_temp" => 5000
+      })
+
+    {:ok, scene} = Scenes.create_scene(%{name: "Evening Auto", room_id: room.id})
+
+    {:ok, _} =
+      Scenes.replace_scene_components(scene, [
+        %{
+          name: "Component 1",
+          light_ids: [light.id],
+          light_state_id: to_string(state.id),
+          light_defaults: %{light.id => :default_off}
+        }
+      ])
+
+    {:ok, _} =
+      AppSettings.upsert_global(%{
+        latitude: 40.7128,
+        longitude: -74.0060,
+        timezone: "Etc/UTC"
+      })
+
+    {:ok, _active_scene} = ActiveScenes.set_active(scene)
+    _ = DesiredState.put(:light, light.id, %{power: :on, brightness: 85, kelvin: 2000})
+
+    {:ok, _diff, _updated} =
+      Scenes.apply_active_scene(scene, ActiveScenes.get_for_room(room.id),
+        preserve_power_latches: true,
+        now: utc_dt("2026-03-08T12:00:00Z")
+      )
+
+    assert DesiredState.get(:light, light.id)[:power] == :off
   end
 
   test "apply_scene generates a trace by default when none is provided" do
