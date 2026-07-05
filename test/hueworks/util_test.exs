@@ -1,6 +1,7 @@
 defmodule Hueworks.UtilTest do
   use ExUnit.Case, async: true
 
+  alias Hueworks.Schemas.{Group, Light}
   alias Hueworks.Util
 
   test "clamp accepts numeric strings" do
@@ -14,6 +15,18 @@ defmodule Hueworks.UtilTest do
     assert Util.display_name(%{display_name: nil, name: "Lamp"}) == "Lamp"
     assert Util.display_name(%{name: "Lamp"}) == "Lamp"
     assert Util.display_name(%{}) == "Unknown"
+  end
+
+  test "display_name reads enforced light and group labels directly" do
+    assert Util.display_name(%Light{name: "Bridge Light", display_name: "HueWorks Light"}) ==
+             "HueWorks Light"
+
+    assert Util.display_name(%Light{name: "Bridge Light", display_name: nil}) == nil
+
+    assert Util.display_name(%Group{name: "Bridge Group", display_name: "HueWorks Group"}) ==
+             "HueWorks Group"
+
+    assert Util.display_name(%Group{name: "Bridge Group", display_name: nil}) == nil
   end
 
   test "source filter parsing supports z2m" do

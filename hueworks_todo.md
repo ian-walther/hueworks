@@ -9,9 +9,9 @@ This file should stay short. If a future idea is not likely to be acted on soon,
 ### Reimport Idempotency
 Reference: `planning/import-resync.md`
 
-- [ ] Guarantee that a reimport with unchanged upstream data and unchanged operator selections is a true no-op.
-- [ ] Finalize deletion semantics for checked, unchecked, missing, disabled, and removed entities.
-- [ ] Strengthen tests around preserving user edits during repeated imports.
+- [ ] Replace the legacy checkbox-shaped reimport review page with explicit diff and resolution controls.
+- [ ] Add dependency disclosure and confirmation UI for destructive disable/delete resolutions.
+- [ ] Make bridge-owned auto-refresh details inspectable without presenting them as decisions.
 
 ### Control Architecture Refactor
 Reference: `planning/refactoring.md`

@@ -39,6 +39,23 @@ defmodule Hueworks.Bridges do
     |> Repo.all()
   end
 
+  def prune_imports_for_bridge(%Bridge{id: bridge_id}), do: prune_imports_for_bridge(bridge_id)
+
+  def prune_imports_for_bridge(bridge_id, keep_count \\ 5)
+      when is_integer(bridge_id) and is_integer(keep_count) and keep_count > 0 do
+    keep_ids =
+      bridge_id
+      |> imports_query(limit: keep_count)
+      |> select_import_id()
+      |> Repo.all()
+
+    Repo.delete_all(
+      from(bi in BridgeImport,
+        where: bi.bridge_id == ^bridge_id and bi.id not in ^keep_ids
+      )
+    )
+  end
+
   def delete_entities(%Bridge{} = bridge) do
     light_ids =
       Repo.all(from(l in Light, where: l.bridge_id == ^bridge.id, select: l.id))
@@ -161,6 +178,10 @@ defmodule Hueworks.Bridges do
 
   defp maybe_limit(query, limit_value) when is_integer(limit_value),
     do: from(bi in query, limit: ^limit_value)
+
+  defp select_import_id(query) do
+    from(bi in query, select: bi.id)
+  end
 
   defp normalize_ids(ids) do
     ids

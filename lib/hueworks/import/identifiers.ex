@@ -18,7 +18,9 @@ defmodule Hueworks.Import.Identifiers do
           source_id
 
       :ha ->
-        Normalize.fetch(metadata, :entity_id) ||
+        Normalize.fetch(metadata, :unique_id) ||
+          Normalize.fetch(metadata, "unique_id") ||
+          Normalize.fetch(metadata, :entity_id) ||
           Normalize.fetch(metadata, "entity_id") ||
           source_id
 
@@ -50,7 +52,9 @@ defmodule Hueworks.Import.Identifiers do
 
     case source do
       :ha ->
-        Normalize.fetch(metadata, :entity_id) ||
+        Normalize.fetch(metadata, :unique_id) ||
+          Normalize.fetch(metadata, "unique_id") ||
+          Normalize.fetch(metadata, :entity_id) ||
           Normalize.fetch(metadata, "entity_id") ||
           source_id
 

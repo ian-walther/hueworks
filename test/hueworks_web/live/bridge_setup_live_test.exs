@@ -4,7 +4,21 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
   import Phoenix.LiveViewTest
 
   alias Hueworks.Repo
-  alias Hueworks.Schemas.{Bridge, BridgeImport}
+
+  alias Hueworks.Schemas.{
+    Bridge,
+    BridgeImport,
+    Group,
+    GroupLight,
+    Light,
+    LightState,
+    PicoButton,
+    PicoDevice,
+    Room,
+    Scene,
+    SceneComponent,
+    SceneComponentLight
+  }
 
   setup do
     previous = Application.get_env(:hueworks, :import_pipeline)
@@ -536,6 +550,681 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
 
     assert get_in(plan, [:groups, "group-3", "target_room_id"]) ==
              Integer.to_string(existing_room.id)
+  end
+
+  test "default reimport apply preserves an existing HA light left unlinked", %{conn: conn} do
+    hue_bridge =
+      %Bridge{}
+      |> Bridge.changeset(%{
+        type: :hue,
+        name: "Hue Bridge",
+        host: "10.0.0.231",
+        credentials: %{"api_key" => "key"},
+        import_complete: true,
+        enabled: true
+      })
+      |> Repo.insert!()
+
+    _hue_light =
+      %Light{}
+      |> Light.changeset(%{
+        name: "Hue Lamp",
+        source: :hue,
+        source_id: "1",
+        bridge_id: hue_bridge.id,
+        metadata: %{"identifiers" => %{"mac" => "aa:bb:cc"}}
+      })
+      |> Repo.insert!()
+
+    ha_bridge =
+      %Bridge{}
+      |> Bridge.changeset(%{
+        type: :ha,
+        name: "Home Assistant",
+        host: "10.0.0.232",
+        credentials: %{"token" => "token"},
+        import_complete: true,
+        enabled: true
+      })
+      |> Repo.insert!()
+
+    ha_light =
+      %Light{}
+      |> Light.changeset(%{
+        name: "HA Lamp",
+        source: :ha,
+        source_id: "light.hue_lamp",
+        bridge_id: ha_bridge.id,
+        canonical_light_id: nil,
+        metadata: %{},
+        normalized_json: %{
+          "source" => "ha",
+          "source_id" => "light.hue_lamp",
+          "metadata" => %{"entity_id" => "light.hue_lamp"}
+        }
+      })
+      |> Repo.insert!()
+
+    normalized = %{
+      rooms: [],
+      lights: [
+        %{
+          source: :ha,
+          source_id: "light.hue_lamp",
+          name: "HA Lamp",
+          room_source_id: nil,
+          capabilities: %{},
+          identifiers: %{"mac" => "aa:bb:cc"},
+          metadata: %{"entity_id" => "light.hue_lamp"}
+        }
+      ],
+      groups: [],
+      memberships: %{}
+    }
+
+    Application.put_env(:hueworks, :import_pipeline_payload, normalized)
+
+    {:ok, view, _html} = live(conn, "/config/bridge/#{ha_bridge.id}/setup?reimport=1")
+    render(view)
+
+    view
+    |> element("button[phx-click='apply_materialization']")
+    |> render_click()
+
+    assert Repo.get!(Light, ha_light.id).canonical_light_id == nil
+  end
+
+  test "default reimport apply preserves an existing HA group left unlinked", %{conn: conn} do
+    hue_bridge =
+      %Bridge{}
+      |> Bridge.changeset(%{
+        type: :hue,
+        name: "Hue Bridge",
+        host: "10.0.0.233",
+        credentials: %{"api_key" => "key"},
+        import_complete: true,
+        enabled: true
+      })
+      |> Repo.insert!()
+
+    hue_light =
+      %Light{}
+      |> Light.changeset(%{
+        name: "Hue Lamp",
+        source: :hue,
+        source_id: "1",
+        bridge_id: hue_bridge.id,
+        metadata: %{"identifiers" => %{"mac" => "aa:bb:cc"}}
+      })
+      |> Repo.insert!()
+
+    hue_group =
+      %Group{}
+      |> Group.changeset(%{
+        name: "Hue Group",
+        source: :hue,
+        source_id: "group-1",
+        bridge_id: hue_bridge.id
+      })
+      |> Repo.insert!()
+
+    Repo.insert!(%GroupLight{group_id: hue_group.id, light_id: hue_light.id})
+
+    ha_bridge =
+      %Bridge{}
+      |> Bridge.changeset(%{
+        type: :ha,
+        name: "Home Assistant",
+        host: "10.0.0.234",
+        credentials: %{"token" => "token"},
+        import_complete: true,
+        enabled: true
+      })
+      |> Repo.insert!()
+
+    ha_light =
+      %Light{}
+      |> Light.changeset(%{
+        name: "HA Lamp",
+        source: :ha,
+        source_id: "light.hue_lamp",
+        bridge_id: ha_bridge.id,
+        canonical_light_id: hue_light.id,
+        metadata: %{"identifiers" => %{"mac" => "aa:bb:cc"}},
+        normalized_json: %{
+          "source" => "ha",
+          "source_id" => "light.hue_lamp",
+          "metadata" => %{"entity_id" => "light.hue_lamp"}
+        }
+      })
+      |> Repo.insert!()
+
+    ha_group =
+      %Group{}
+      |> Group.changeset(%{
+        name: "HA Group",
+        source: :ha,
+        source_id: "group.hue",
+        bridge_id: ha_bridge.id,
+        canonical_group_id: nil,
+        normalized_json: %{
+          "source" => "ha",
+          "source_id" => "group.hue",
+          "metadata" => %{"entity_id" => "group.hue"}
+        }
+      })
+      |> Repo.insert!()
+
+    Repo.insert!(%GroupLight{group_id: ha_group.id, light_id: ha_light.id})
+
+    normalized = %{
+      rooms: [],
+      lights: [
+        %{
+          source: :ha,
+          source_id: "light.hue_lamp",
+          name: "HA Lamp",
+          room_source_id: nil,
+          capabilities: %{},
+          identifiers: %{"mac" => "aa:bb:cc"},
+          metadata: %{"entity_id" => "light.hue_lamp"}
+        }
+      ],
+      groups: [
+        %{
+          source: :ha,
+          source_id: "group.hue",
+          name: "HA Group",
+          room_source_id: nil,
+          type: "group",
+          capabilities: %{},
+          metadata: %{"entity_id" => "group.hue"}
+        }
+      ],
+      memberships: %{
+        group_lights: [
+          %{group_source_id: "group.hue", light_source_id: "light.hue_lamp"}
+        ]
+      }
+    }
+
+    Application.put_env(:hueworks, :import_pipeline_payload, normalized)
+
+    {:ok, view, _html} = live(conn, "/config/bridge/#{ha_bridge.id}/setup?reimport=1")
+    render(view)
+
+    view
+    |> element("button[phx-click='apply_materialization']")
+    |> render_click()
+
+    assert Repo.get!(Group, ha_group.id).canonical_group_id == nil
+  end
+
+  test "reimport duplicate resolution can be changed to import as real from the review UI", %{
+    conn: conn
+  } do
+    hue_bridge =
+      %Bridge{}
+      |> Bridge.changeset(%{
+        type: :hue,
+        name: "Hue Bridge",
+        host: "10.0.0.241",
+        credentials: %{"api_key" => "key"},
+        import_complete: true,
+        enabled: true
+      })
+      |> Repo.insert!()
+
+    %Light{}
+    |> Light.changeset(%{
+      name: "Hue Lamp",
+      source: :hue,
+      source_id: "1",
+      bridge_id: hue_bridge.id,
+      metadata: %{"identifiers" => %{"mac" => "aa:bb:cc"}}
+    })
+    |> Repo.insert!()
+
+    ha_bridge =
+      %Bridge{}
+      |> Bridge.changeset(%{
+        type: :ha,
+        name: "Home Assistant",
+        host: "10.0.0.242",
+        credentials: %{"token" => "token"},
+        import_complete: true,
+        enabled: true
+      })
+      |> Repo.insert!()
+
+    normalized = %{
+      rooms: [],
+      lights: [
+        %{
+          source: :ha,
+          source_id: "light.hue_lamp",
+          name: "HA Lamp",
+          room_source_id: nil,
+          capabilities: %{},
+          identifiers: %{"mac" => "aa:bb:cc"},
+          metadata: %{"unique_id" => "ha-hue-lamp"}
+        }
+      ],
+      groups: [],
+      memberships: %{}
+    }
+
+    Application.put_env(:hueworks, :import_pipeline_payload, normalized)
+
+    {:ok, view, _html} = live(conn, "/config/bridge/#{ha_bridge.id}/setup?reimport=1")
+    render(view)
+
+    view
+    |> form(
+      "form[phx-change='set_entity_resolution'][data-type='lights'][data-source-id='light.hue_lamp']",
+      %{
+        "type" => "lights",
+        "source_id" => "light.hue_lamp",
+        "resolution" => "import_real"
+      }
+    )
+    |> render_change()
+
+    assert get_in(get_assign(view, :plan), [
+             :lights,
+             "light.hue_lamp",
+             "resolution"
+           ]) == "import_real"
+  end
+
+  test "reimport missing entity resolution can disable an existing entity from the review UI", %{
+    conn: conn
+  } do
+    bridge =
+      %Bridge{}
+      |> Bridge.changeset(%{
+        type: :ha,
+        name: "Home Assistant",
+        host: "10.0.0.243",
+        credentials: %{"token" => "token"},
+        import_complete: true,
+        enabled: true
+      })
+      |> Repo.insert!()
+
+    light =
+      %Light{}
+      |> Light.changeset(%{
+        name: "Missing Light",
+        source: :ha,
+        source_id: "light.missing",
+        bridge_id: bridge.id,
+        external_id: "light.missing",
+        normalized_json: %{
+          "source" => "ha",
+          "source_id" => "light.missing",
+          "name" => "Missing Light",
+          "metadata" => %{"entity_id" => "light.missing"}
+        }
+      })
+      |> Repo.insert!()
+
+    Application.put_env(:hueworks, :import_pipeline_payload, %{
+      rooms: [],
+      lights: [],
+      groups: [],
+      memberships: %{}
+    })
+
+    {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/setup?reimport=1")
+    render(view)
+
+    view
+    |> form(
+      "form[phx-change='set_entity_resolution'][data-type='lights'][data-source-id='light.missing']",
+      %{
+        "type" => "lights",
+        "source_id" => "light.missing",
+        "resolution" => "disable"
+      }
+    )
+    |> render_change()
+
+    view
+    |> element("button[phx-click='apply_materialization']")
+    |> render_click()
+
+    refute Repo.reload!(light).enabled
+  end
+
+  test "stale reimport resolution errors refresh the review with a human message", %{conn: conn} do
+    bridge =
+      %Bridge{}
+      |> Bridge.changeset(%{
+        type: :ha,
+        name: "Home Assistant",
+        host: "10.0.0.244",
+        credentials: %{"token" => "token"},
+        import_complete: true,
+        enabled: true
+      })
+      |> Repo.insert!()
+
+    light =
+      %Light{}
+      |> Light.changeset(%{
+        name: "Missing Light",
+        source: :ha,
+        source_id: "light.missing",
+        bridge_id: bridge.id,
+        external_id: "light.missing",
+        normalized_json: %{
+          "source" => "ha",
+          "source_id" => "light.missing",
+          "name" => "Missing Light",
+          "metadata" => %{"entity_id" => "light.missing"}
+        }
+      })
+      |> Repo.insert!()
+
+    Application.put_env(:hueworks, :import_pipeline_payload, %{
+      rooms: [],
+      lights: [],
+      groups: [],
+      memberships: %{}
+    })
+
+    {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/setup?reimport=1")
+    render(view)
+
+    view
+    |> form(
+      "form[phx-change='set_entity_resolution'][data-type='lights'][data-source-id='light.missing']",
+      %{
+        "type" => "lights",
+        "source_id" => "light.missing",
+        "resolution" => "disable"
+      }
+    )
+    |> render_change()
+
+    light
+    |> Ecto.Changeset.change(
+      external_id: "changed-after-review",
+      normalized_json: %{
+        "source" => "ha",
+        "source_id" => "light.missing",
+        "name" => "Missing Light",
+        "metadata" => %{"entity_id" => "changed-after-review"}
+      }
+    )
+    |> Repo.update!()
+
+    html =
+      view
+      |> element("button[phx-click='apply_materialization']")
+      |> render_click()
+
+    assert html =~ "review is out of date"
+    refute html =~ "{:stale_resolution"
+    assert get_assign(view, :import_error) =~ "review is out of date"
+
+    assert get_in(get_assign(view, :plan), [
+             :lights,
+             "light.missing",
+             "expected_external_id"
+           ]) == "changed-after-review"
+  end
+
+  test "default reimport apply preserves existing entities and scene references when upstream omits them",
+       %{conn: conn} do
+    bridge =
+      %Bridge{}
+      |> Bridge.changeset(%{
+        type: :ha,
+        name: "Home Assistant",
+        host: "10.0.0.235",
+        credentials: %{"token" => "token"},
+        import_complete: true,
+        enabled: true
+      })
+      |> Repo.insert!()
+
+    room = Repo.insert!(%Room{name: "Existing Room"})
+
+    light =
+      %Light{}
+      |> Light.changeset(%{
+        name: "Existing Light",
+        source: :ha,
+        source_id: "light.existing",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        external_id: "light.existing",
+        normalized_json: %{
+          "source" => "ha",
+          "source_id" => "light.existing",
+          "metadata" => %{"entity_id" => "light.existing"}
+        }
+      })
+      |> Repo.insert!()
+
+    group =
+      %Group{}
+      |> Group.changeset(%{
+        name: "Existing Group",
+        source: :ha,
+        source_id: "group.existing",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        external_id: "group.existing",
+        normalized_json: %{
+          "source" => "ha",
+          "source_id" => "group.existing",
+          "metadata" => %{"entity_id" => "group.existing"}
+        }
+      })
+      |> Repo.insert!()
+
+    group_light = Repo.insert!(%GroupLight{group_id: group.id, light_id: light.id})
+    scene = Repo.insert!(%Scene{name: "Existing Scene", room_id: room.id})
+    light_state = Repo.insert!(%LightState{name: "Existing State", type: :manual})
+    component = Repo.insert!(%SceneComponent{scene_id: scene.id, light_state_id: light_state.id})
+
+    scene_component_light =
+      Repo.insert!(%SceneComponentLight{scene_component_id: component.id, light_id: light.id})
+
+    normalized = %{rooms: [], lights: [], groups: [], memberships: %{}}
+    Application.put_env(:hueworks, :import_pipeline_payload, normalized)
+
+    {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/setup?reimport=1")
+    render(view)
+
+    view
+    |> element("button[phx-click='apply_materialization']")
+    |> render_click()
+
+    assert Repo.get(Light, light.id)
+    assert Repo.get(Group, group.id)
+    assert Repo.get(GroupLight, group_light.id)
+    assert Repo.get(SceneComponentLight, scene_component_light.id)
+  end
+
+  test "default reimport apply on a caseta bridge preserves pico devices and buttons", %{
+    conn: conn
+  } do
+    bridge =
+      %Bridge{}
+      |> Bridge.changeset(%{
+        type: :caseta,
+        name: "Caseta Bridge",
+        host: "10.0.0.236",
+        credentials: %{"cert_path" => "cert.pem", "key_path" => "key.pem"},
+        import_complete: true,
+        enabled: true
+      })
+      |> Repo.insert!()
+
+    _light =
+      %Light{}
+      |> Light.changeset(%{
+        name: "Caseta Lamp",
+        source: :caseta,
+        source_id: "zone-1",
+        bridge_id: bridge.id,
+        external_id: "caseta-device-1",
+        metadata: %{"device_id" => "caseta-device-1"},
+        normalized_json: %{
+          "source" => "caseta",
+          "source_id" => "zone-1",
+          "metadata" => %{"device_id" => "caseta-device-1"}
+        }
+      })
+      |> Repo.insert!()
+
+    pico_device =
+      %PicoDevice{}
+      |> PicoDevice.changeset(%{
+        bridge_id: bridge.id,
+        source_id: "pico-1",
+        name: "Bedside Pico",
+        display_name: "Custom Pico Name",
+        hardware_profile: "pico_3brl",
+        enabled: true,
+        metadata: %{"room_override" => true}
+      })
+      |> Repo.insert!()
+
+    pico_button =
+      %PicoButton{}
+      |> PicoButton.changeset(%{
+        pico_device_id: pico_device.id,
+        source_id: "button-1",
+        button_number: 2,
+        slot_index: 0,
+        action_type: "scene"
+      })
+      |> Repo.insert!()
+
+    normalized = %{
+      rooms: [],
+      lights: [
+        %{
+          source: :caseta,
+          source_id: "zone-1",
+          name: "Caseta Lamp",
+          room_source_id: nil,
+          capabilities: %{},
+          identifiers: %{},
+          metadata: %{"device_id" => "caseta-device-1"}
+        }
+      ],
+      groups: [],
+      memberships: %{}
+    }
+
+    Application.put_env(:hueworks, :import_pipeline_payload, normalized)
+
+    {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/setup?reimport=1")
+    render(view)
+
+    view
+    |> element("button[phx-click='apply_materialization']")
+    |> render_click()
+
+    assert Repo.get(PicoDevice, pico_device.id)
+    assert Repo.get(PicoButton, pico_button.id)
+  end
+
+  test "default reimport apply of a hue bridge does not relink HA lights on other bridges", %{
+    conn: conn
+  } do
+    hue_bridge =
+      %Bridge{}
+      |> Bridge.changeset(%{
+        type: :hue,
+        name: "Hue Bridge",
+        host: "10.0.0.237",
+        credentials: %{"api_key" => "key"},
+        import_complete: true,
+        enabled: true
+      })
+      |> Repo.insert!()
+
+    _hue_light =
+      %Light{}
+      |> Light.changeset(%{
+        name: "Hue Lamp",
+        source: :hue,
+        source_id: "1",
+        bridge_id: hue_bridge.id,
+        external_id: "aa:bb:cc-1",
+        metadata: %{"uniqueid" => "aa:bb:cc-1", "identifiers" => %{"mac" => "aa:bb:cc"}},
+        normalized_json: %{
+          "source" => "hue",
+          "source_id" => "1",
+          "identifiers" => %{"mac" => "aa:bb:cc"},
+          "metadata" => %{"uniqueid" => "aa:bb:cc-1"}
+        }
+      })
+      |> Repo.insert!()
+
+    ha_bridge =
+      %Bridge{}
+      |> Bridge.changeset(%{
+        type: :ha,
+        name: "Home Assistant",
+        host: "10.0.0.238",
+        credentials: %{"token" => "token"},
+        import_complete: true,
+        enabled: true
+      })
+      |> Repo.insert!()
+
+    ha_light =
+      %Light{}
+      |> Light.changeset(%{
+        name: "HA Lamp",
+        source: :ha,
+        source_id: "light.hue_lamp",
+        bridge_id: ha_bridge.id,
+        canonical_light_id: nil,
+        metadata: %{"identifiers" => %{"mac" => "aa:bb:cc"}},
+        normalized_json: %{
+          "source" => "ha",
+          "source_id" => "light.hue_lamp",
+          "metadata" => %{"entity_id" => "light.hue_lamp"}
+        }
+      })
+      |> Repo.insert!()
+
+    normalized = %{
+      rooms: [],
+      lights: [
+        %{
+          source: :hue,
+          source_id: "1",
+          name: "Hue Lamp",
+          room_source_id: nil,
+          capabilities: %{},
+          identifiers: %{"mac" => "aa:bb:cc"},
+          metadata: %{"uniqueid" => "aa:bb:cc-1"}
+        }
+      ],
+      groups: [],
+      memberships: %{}
+    }
+
+    Application.put_env(:hueworks, :import_pipeline_payload, normalized)
+
+    {:ok, view, _html} = live(conn, "/config/bridge/#{hue_bridge.id}/setup?reimport=1")
+    render(view)
+
+    view
+    |> element("button[phx-click='apply_materialization']")
+    |> render_click()
+
+    assert Repo.get!(Light, ha_light.id).canonical_light_id == nil
   end
 
   defp setup_import_view(conn, opts) do

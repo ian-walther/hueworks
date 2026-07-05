@@ -2,6 +2,7 @@ defmodule Hueworks.Import.Pipeline do
   @moduledoc false
 
   alias Hueworks.Repo
+  alias Hueworks.Bridges
   alias Hueworks.Schemas.Bridge
   alias Hueworks.Schemas.BridgeImport
   alias Hueworks.Import.{Normalize, Plan}
@@ -24,6 +25,8 @@ defmodule Hueworks.Import.Pipeline do
             imported_at: DateTime.utc_now() |> DateTime.truncate(:second)
           })
           |> Repo.insert()
+
+        Bridges.prune_imports_for_bridge(bridge.id)
 
         bridge_import
       end)

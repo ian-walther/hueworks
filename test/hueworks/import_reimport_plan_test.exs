@@ -1,7 +1,9 @@
 defmodule Hueworks.Import.ReimportPlanTest do
-  use ExUnit.Case, async: true
+  use Hueworks.DataCase, async: false
 
-  alias Hueworks.Import.ReimportPlan
+  alias Hueworks.Import.{NormalizeFromDb, ReimportPlan}
+  alias Hueworks.Repo
+  alias Hueworks.Schemas.{Bridge, Group, GroupLight, Light}
 
   test "build marks existing entries as selected and new as unchecked" do
     normalized_import = %{
@@ -52,16 +54,240 @@ defmodule Hueworks.Import.ReimportPlanTest do
     assert plan.rooms["room-1"]["target_room_id"] == "1"
   end
 
-  test "deletions include missing and unchecked existing entries" do
+  test "build selects HA wrapper light duplicates by default and filters HueWorks exports" do
+    hue_bridge = insert_bridge(:hue)
+
+    hue_light =
+      insert_light(hue_bridge, %{
+        source: :hue,
+        source_id: "1",
+        metadata: %{"identifiers" => %{"mac" => "aa:bb:cc"}}
+      })
+
     normalized_import = %{
       rooms: [],
       lights: [
         %{
-          source: :hue,
-          source_id: "light-1",
-          name: "Lamp",
+          source: :ha,
+          source_id: "light.hue_lamp",
+          name: "Hue Lamp via HA",
+          identifiers: %{"mac" => "aa:bb:cc"},
+          metadata: %{"unique_id" => "ha-hue-lamp"}
+        },
+        %{
+          source: :ha,
+          source_id: "light.hueworks_light_#{hue_light.id}_switch",
+          name: "HueWorks Export",
           identifiers: %{},
-          metadata: %{"uniqueid" => "hue-1"}
+          metadata: %{"unique_id" => "hueworks_light_#{hue_light.id}_switch"}
+        }
+      ],
+      groups: [],
+      memberships: %{}
+    }
+
+    %{plan: plan, statuses: statuses, normalized: normalized} =
+      ReimportPlan.build(normalized_import, %{lights: [], groups: []}, [])
+
+    assert plan.lights["light.hue_lamp"] == %{
+             "selected" => true,
+             "resolution" => "import_hidden_duplicate"
+           }
+
+    assert statuses.lights["light.hue_lamp"] == :duplicate
+    refute Map.has_key?(plan.lights, "light.hueworks_light_#{hue_light.id}_switch")
+
+    refute Enum.any?(
+             normalized["lights"],
+             &(&1["source_id"] == "light.hueworks_light_#{hue_light.id}_switch")
+           )
+  end
+
+  test "build selects HA wrapper group duplicates by default after member canonicalization" do
+    hue_bridge = insert_bridge(:hue)
+
+    hue_light =
+      insert_light(hue_bridge, %{
+        source: :hue,
+        source_id: "1",
+        metadata: %{"identifiers" => %{"mac" => "aa:bb:cc"}}
+      })
+
+    hue_group = insert_group(hue_bridge, %{source: :hue, source_id: "2"})
+    Repo.insert!(%GroupLight{group_id: hue_group.id, light_id: hue_light.id})
+
+    normalized_import = %{
+      rooms: [],
+      lights: [
+        %{
+          source: :ha,
+          source_id: "light.hue_lamp",
+          name: "Hue Lamp via HA",
+          identifiers: %{"mac" => "aa:bb:cc"},
+          metadata: %{"unique_id" => "ha-hue-lamp"}
+        }
+      ],
+      groups: [
+        %{
+          source: :ha,
+          source_id: "light.hue_group",
+          name: "Hue Group via HA",
+          type: "group",
+          capabilities: %{},
+          metadata: %{"members" => ["light.hue_lamp"]}
+        }
+      ],
+      memberships: %{}
+    }
+
+    %{plan: plan, statuses: statuses} =
+      ReimportPlan.build(normalized_import, %{lights: [], groups: []}, [])
+
+    assert plan.groups["light.hue_group"] == %{
+             "selected" => true,
+             "resolution" => "import_hidden_duplicate"
+           }
+
+    assert statuses.groups["light.hue_group"] == :duplicate
+  end
+
+  test "build selects HA wrapper group duplicates when member lights already exist as hidden duplicates" do
+    hue_bridge = insert_bridge(:hue)
+
+    hue_light =
+      insert_light(hue_bridge, %{
+        source: :hue,
+        source_id: "1",
+        metadata: %{"identifiers" => %{"mac" => "aa:bb:cc"}}
+      })
+
+    hue_group = insert_group(hue_bridge, %{source: :hue, source_id: "2"})
+    Repo.insert!(%GroupLight{group_id: hue_group.id, light_id: hue_light.id})
+
+    ha_bridge = insert_bridge(:ha)
+
+    insert_light(ha_bridge, %{
+      source: :ha,
+      source_id: "light.hue_lamp",
+      external_id: "ha-hue-lamp",
+      canonical_light_id: hue_light.id,
+      enabled: false,
+      room_id: nil,
+      normalized_json: %{
+        "source" => "ha",
+        "source_id" => "light.hue_lamp",
+        "metadata" => %{"unique_id" => "ha-hue-lamp"}
+      }
+    })
+
+    normalized_import = %{
+      rooms: [],
+      lights: [
+        %{
+          source: :ha,
+          source_id: "light.hue_lamp",
+          name: "Hue Lamp via HA",
+          identifiers: %{},
+          metadata: %{"unique_id" => "ha-hue-lamp"}
+        }
+      ],
+      groups: [
+        %{
+          source: :ha,
+          source_id: "light.hue_group",
+          name: "Hue Group via HA",
+          type: "group",
+          capabilities: %{},
+          metadata: %{"members" => ["light.hue_lamp"]}
+        }
+      ],
+      memberships: %{}
+    }
+
+    %{plan: plan, statuses: statuses} =
+      ReimportPlan.build(normalized_import, NormalizeFromDb.normalize(ha_bridge), [])
+
+    assert plan.groups["light.hue_group"] == %{
+             "selected" => true,
+             "resolution" => "import_hidden_duplicate"
+           }
+
+    assert statuses.groups["light.hue_group"] == :duplicate
+  end
+
+  test "build selects HA wrapper group duplicates when member lights already exist as visible linked entities" do
+    hue_bridge = insert_bridge(:hue)
+
+    hue_light =
+      insert_light(hue_bridge, %{
+        source: :hue,
+        source_id: "1",
+        metadata: %{"identifiers" => %{"mac" => "aa:bb:cc"}}
+      })
+
+    hue_group = insert_group(hue_bridge, %{source: :hue, source_id: "2"})
+    Repo.insert!(%GroupLight{group_id: hue_group.id, light_id: hue_light.id})
+
+    ha_bridge = insert_bridge(:ha)
+
+    insert_light(ha_bridge, %{
+      source: :ha,
+      source_id: "light.hue_lamp",
+      external_id: "ha-hue-lamp",
+      canonical_light_id: hue_light.id,
+      enabled: true,
+      normalized_json: %{
+        "source" => "ha",
+        "source_id" => "light.hue_lamp",
+        "metadata" => %{"unique_id" => "ha-hue-lamp"}
+      }
+    })
+
+    normalized_import = %{
+      rooms: [],
+      lights: [
+        %{
+          source: :ha,
+          source_id: "light.hue_lamp",
+          name: "Hue Lamp via HA",
+          identifiers: %{},
+          metadata: %{"unique_id" => "ha-hue-lamp"}
+        }
+      ],
+      groups: [
+        %{
+          source: :ha,
+          source_id: "light.hue_group",
+          name: "Hue Group via HA",
+          type: "group",
+          capabilities: %{},
+          metadata: %{"members" => ["light.hue_lamp"]}
+        }
+      ],
+      memberships: %{}
+    }
+
+    %{plan: plan, statuses: statuses} =
+      ReimportPlan.build(normalized_import, NormalizeFromDb.normalize(ha_bridge), [])
+
+    assert plan.groups["light.hue_group"] == %{
+             "selected" => true,
+             "resolution" => "import_hidden_duplicate"
+           }
+
+    assert statuses.groups["light.hue_group"] == :duplicate
+  end
+
+  test "build surfaces source id and stable identifier conflicts as ambiguous identity" do
+    normalized_import = %{
+      rooms: [],
+      lights: [
+        %{
+          source: :caseta,
+          source_id: "zone-2",
+          name: "Same Physical Light",
+          identifiers: %{},
+          metadata: %{"device_id" => "caseta-device-1"}
         }
       ],
       groups: [],
@@ -71,18 +297,26 @@ defmodule Hueworks.Import.ReimportPlanTest do
     normalized_db = %{
       rooms: [],
       lights: [
-        %{"source" => "hue", "source_id" => "light-1", "metadata" => %{"uniqueid" => "hue-1"}},
-        %{"source" => "hue", "source_id" => "light-2", "metadata" => %{"uniqueid" => "hue-2"}}
+        %{
+          "source" => "caseta",
+          "source_id" => "zone-1",
+          "metadata" => %{"device_id" => "caseta-device-1"}
+        },
+        %{
+          "source" => "caseta",
+          "source_id" => "zone-2",
+          "metadata" => %{"device_id" => "caseta-device-2"}
+        }
       ],
       groups: [],
       memberships: %{}
     }
 
-    plan = %{lights: %{"light-1" => false}, groups: %{}, rooms: %{}}
+    %{plan: plan, statuses: statuses} =
+      ReimportPlan.build(normalized_import, normalized_db, [])
 
-    deletions = ReimportPlan.deletions(plan, normalized_import, normalized_db)
-
-    assert Enum.sort(deletions.lights) == ["hue-1", "hue-2"]
+    assert statuses.lights["zone-2"] == :ambiguous_identity
+    assert plan.lights["zone-2"] == %{"selected" => false, "resolution" => "keep_separate"}
   end
 
   test "build uses HA entity_id as stable identifier" do
@@ -153,5 +387,50 @@ defmodule Hueworks.Import.ReimportPlanTest do
 
     assert plan.lights["zone-1"] == true
     assert statuses.lights["zone-1"] == :existing
+  end
+
+  defp insert_bridge(type) do
+    %Bridge{}
+    |> Bridge.changeset(%{
+      type: type,
+      name: "#{type} Bridge",
+      host: "10.0.0.#{System.unique_integer([:positive])}",
+      credentials: %{},
+      enabled: true,
+      import_complete: true
+    })
+    |> Repo.insert!()
+  end
+
+  defp insert_light(bridge, attrs) do
+    defaults = %{
+      name: "Light",
+      display_name: "Light",
+      source: bridge.type,
+      source_id: "light-#{System.unique_integer([:positive])}",
+      bridge_id: bridge.id,
+      enabled: true,
+      metadata: %{}
+    }
+
+    %Light{}
+    |> Light.changeset(Map.merge(defaults, attrs))
+    |> Repo.insert!()
+  end
+
+  defp insert_group(bridge, attrs) do
+    defaults = %{
+      name: "Group",
+      display_name: "Group",
+      source: bridge.type,
+      source_id: "group-#{System.unique_integer([:positive])}",
+      bridge_id: bridge.id,
+      enabled: true,
+      metadata: %{}
+    }
+
+    %Group{}
+    |> Group.changeset(Map.merge(defaults, attrs))
+    |> Repo.insert!()
   end
 end

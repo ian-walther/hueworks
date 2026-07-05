@@ -1,7 +1,7 @@
 <div class="hw-shell">
   <div class="hw-topbar">
     <div>
-      <h1 class="hw-title">Setup Bridge</h1>
+      <h1 class="hw-title"><%= if @reimport, do: "Reimport Bridge", else: "Setup Bridge" %></h1>
       <p class="hw-subtitle">
         Configure import for <%= @bridge.name %> (<%= @bridge.host %>).
       </p>
@@ -13,7 +13,20 @@
   <%= if @normalized do %>
     <section class="hw-panel">
       <div class="hw-panel-header">
-        <h2>Selection</h2>
+        <h2><%= if @reimport, do: "Review Import", else: "Selection" %></h2>
+        <%= if @reimport do %>
+          <p class="hw-muted">
+            Existing entities refresh bridge-owned facts. Missing entities are kept by default.
+            Duplicate Home Assistant wrappers import as hidden bookkeeping rows.
+          </p>
+          <div class="hw-meta">
+            Existing: <%= summary_count(@reimport_summary, :existing) %>
+            · New: <%= summary_count(@reimport_summary, :new) %>
+            · Duplicates: <%= summary_count(@reimport_summary, :duplicate) %>
+            · Missing: <%= summary_count(@reimport_summary, :missing) %>
+            · Ambiguous: <%= summary_count(@reimport_summary, :ambiguous_identity) %>
+          </div>
+        <% end %>
         <div class="hw-row-actions">
           <button class="hw-button" type="button" phx-click="toggle_all" phx-value-action="check">
             Check All
@@ -21,6 +34,26 @@
           <button class="hw-button" type="button" phx-click="toggle_all" phx-value-action="uncheck">
             Uncheck All
           </button>
+          <%= if @reimport do %>
+            <button
+              class="hw-button"
+              type="button"
+              phx-click="bulk_resolution"
+              phx-value-status="new"
+              phx-value-resolution="import"
+            >
+              Import All New
+            </button>
+            <button
+              class="hw-button"
+              type="button"
+              phx-click="bulk_resolution"
+              phx-value-status="missing"
+              phx-value-resolution="disable"
+            >
+              Disable All Missing
+            </button>
+          <% end %>
         </div>
       </div>
     </section>
@@ -162,8 +195,35 @@
                     <%= if light_status == :existing do %>
                       <span class="hw-muted">(already imported)</span>
                     <% end %>
+                    <%= if light_status == :duplicate do %>
+                      <span class="hw-muted">(duplicate; imports hidden)</span>
+                    <% end %>
                     <%= if light_status == :missing do %>
-                      <span class="hw-muted">(no longer present)</span>
+                      <span class="hw-muted">(missing upstream; kept)</span>
+                    <% end %>
+                    <%= if light_status == :ambiguous_identity do %>
+                      <span class="hw-muted">(ambiguous identity; kept separate)</span>
+                    <% end %>
+                    <%= if resolution_controls?(@reimport, light_status) do %>
+                      <form
+                        phx-change="set_entity_resolution"
+                        class="hw-inline-form"
+                        data-type="lights"
+                        data-source-id={light_id}
+                      >
+                        <input type="hidden" name="type" value="lights" />
+                        <input type="hidden" name="source_id" value={light_id} />
+                        <select class="hw-select" name="resolution">
+                          <%= for {label, value} <- resolution_options(light_status) do %>
+                            <option
+                              value={value}
+                              selected={entity_resolution(@plan, :lights, light_id) == value}
+                            >
+                              <%= label %>
+                            </option>
+                          <% end %>
+                        </select>
+                      </form>
                     <% end %>
                   </label>
                 <% end %>
@@ -222,8 +282,35 @@
                     <%= if group_status == :existing do %>
                       <span class="hw-muted">(already imported)</span>
                     <% end %>
+                    <%= if group_status == :duplicate do %>
+                      <span class="hw-muted">(duplicate; imports hidden)</span>
+                    <% end %>
                     <%= if group_status == :missing do %>
-                      <span class="hw-muted">(no longer present)</span>
+                      <span class="hw-muted">(missing upstream; kept)</span>
+                    <% end %>
+                    <%= if group_status == :ambiguous_identity do %>
+                      <span class="hw-muted">(ambiguous identity; kept separate)</span>
+                    <% end %>
+                    <%= if resolution_controls?(@reimport, group_status) do %>
+                      <form
+                        phx-change="set_entity_resolution"
+                        class="hw-inline-form"
+                        data-type="groups"
+                        data-source-id={group_id}
+                      >
+                        <input type="hidden" name="type" value="groups" />
+                        <input type="hidden" name="source_id" value={group_id} />
+                        <select class="hw-select" name="resolution">
+                          <%= for {label, value} <- resolution_options(group_status) do %>
+                            <option
+                              value={value}
+                              selected={entity_resolution(@plan, :groups, group_id) == value}
+                            >
+                              <%= label %>
+                            </option>
+                          <% end %>
+                        </select>
+                      </form>
                     <% end %>
                   </label>
                 <% end %>
@@ -304,8 +391,35 @@
                     <%= if light_status == :existing do %>
                       <span class="hw-muted">(already imported)</span>
                     <% end %>
+                    <%= if light_status == :duplicate do %>
+                      <span class="hw-muted">(duplicate; imports hidden)</span>
+                    <% end %>
                     <%= if light_status == :missing do %>
-                      <span class="hw-muted">(no longer present)</span>
+                      <span class="hw-muted">(missing upstream; kept)</span>
+                    <% end %>
+                    <%= if light_status == :ambiguous_identity do %>
+                      <span class="hw-muted">(ambiguous identity; kept separate)</span>
+                    <% end %>
+                    <%= if resolution_controls?(@reimport, light_status) do %>
+                      <form
+                        phx-change="set_entity_resolution"
+                        class="hw-inline-form"
+                        data-type="lights"
+                        data-source-id={light_id}
+                      >
+                        <input type="hidden" name="type" value="lights" />
+                        <input type="hidden" name="source_id" value={light_id} />
+                        <select class="hw-select" name="resolution">
+                          <%= for {label, value} <- resolution_options(light_status) do %>
+                            <option
+                              value={value}
+                              selected={entity_resolution(@plan, :lights, light_id) == value}
+                            >
+                              <%= label %>
+                            </option>
+                          <% end %>
+                        </select>
+                      </form>
                     <% end %>
                     <form
                       phx-change="set_entity_room"
@@ -384,8 +498,35 @@
                     <%= if group_status == :existing do %>
                       <span class="hw-muted">(already imported)</span>
                     <% end %>
+                    <%= if group_status == :duplicate do %>
+                      <span class="hw-muted">(duplicate; imports hidden)</span>
+                    <% end %>
                     <%= if group_status == :missing do %>
-                      <span class="hw-muted">(no longer present)</span>
+                      <span class="hw-muted">(missing upstream; kept)</span>
+                    <% end %>
+                    <%= if group_status == :ambiguous_identity do %>
+                      <span class="hw-muted">(ambiguous identity; kept separate)</span>
+                    <% end %>
+                    <%= if resolution_controls?(@reimport, group_status) do %>
+                      <form
+                        phx-change="set_entity_resolution"
+                        class="hw-inline-form"
+                        data-type="groups"
+                        data-source-id={group_id}
+                      >
+                        <input type="hidden" name="type" value="groups" />
+                        <input type="hidden" name="source_id" value={group_id} />
+                        <select class="hw-select" name="resolution">
+                          <%= for {label, value} <- resolution_options(group_status) do %>
+                            <option
+                              value={value}
+                              selected={entity_resolution(@plan, :groups, group_id) == value}
+                            >
+                              <%= label %>
+                            </option>
+                          <% end %>
+                        </select>
+                      </form>
                     <% end %>
                     <form
                       phx-change="set_entity_room"
@@ -421,7 +562,7 @@
         <h2>Materialize</h2>
       </div>
       <button class="hw-button" type="button" phx-click="apply_materialization">
-        Apply Materialization
+        <%= if @reimport, do: "Apply Reimport", else: "Apply Materialization" %>
       </button>
     </section>
   <% end %>

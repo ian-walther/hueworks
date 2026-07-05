@@ -44,7 +44,10 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
       metadata: %{}
     }
 
-    Repo.insert!(struct(Light, Map.merge(defaults, attrs)))
+    attrs = Map.merge(defaults, attrs)
+    attrs = Map.put(attrs, :display_name, Map.get(attrs, :display_name) || attrs.name)
+
+    Repo.insert!(struct(Light, attrs))
   end
 
   defp insert_group(room, bridge, attrs) do
@@ -57,7 +60,10 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
       metadata: %{}
     }
 
-    Repo.insert!(struct(Group, Map.merge(defaults, attrs)))
+    attrs = Map.merge(defaults, attrs)
+    attrs = Map.put(attrs, :display_name, Map.get(attrs, :display_name) || attrs.name)
+
+    Repo.insert!(struct(Group, attrs))
   end
 
   defp insert_group_light(group, light) do

@@ -55,7 +55,8 @@ defmodule Hueworks.Schemas.Light do
       :external_id,
       :normalized_json
     ])
-    |> validate_required([:name, :source, :source_id, :bridge_id])
+    |> put_default_display_name()
+    |> validate_required([:name, :display_name, :source, :source_id, :bridge_id])
     |> validate_change(:canonical_light_id, fn :canonical_light_id, canonical_light_id ->
       if light.id && canonical_light_id == light.id do
         [canonical_light_id: "cannot reference itself"]
@@ -65,6 +66,19 @@ defmodule Hueworks.Schemas.Light do
     end)
     |> validate_actual_kelvin_source()
     |> unique_constraint([:bridge_id, :source_id])
+  end
+
+  defp put_default_display_name(changeset) do
+    case get_field(changeset, :display_name) do
+      value when is_binary(value) and value != "" ->
+        changeset
+
+      _ ->
+        case get_field(changeset, :name) do
+          name when is_binary(name) and name != "" -> put_change(changeset, :display_name, name)
+          _ -> changeset
+        end
+    end
   end
 
   defp validate_actual_kelvin_source(changeset) do

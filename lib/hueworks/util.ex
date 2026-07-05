@@ -1,6 +1,8 @@
 defmodule Hueworks.Util do
   @moduledoc false
 
+  alias Hueworks.Schemas.{Group, Light}
+
   def clamp(value, min, max) when is_number(value) do
     value |> max(min) |> min(max)
   end
@@ -18,6 +20,9 @@ defmodule Hueworks.Util do
   end
 
   def normalize_display_name(_display_name), do: nil
+
+  def display_name(%Light{display_name: display_name}), do: display_name
+  def display_name(%Group{display_name: display_name}), do: display_name
 
   def display_name(%{display_name: display_name, name: name}) when is_binary(name) do
     display_name || name

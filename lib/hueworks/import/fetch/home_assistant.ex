@@ -380,6 +380,7 @@ defmodule Hueworks.Import.Fetch.HomeAssistant do
       %{
         entity_id: entity["entity_id"],
         name: entity["name"] || entity["original_name"],
+        unique_id: entity["unique_id"],
         platform: entity["platform"],
         members: members
       }

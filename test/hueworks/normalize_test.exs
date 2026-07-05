@@ -144,6 +144,38 @@ defmodule Hueworks.Import.NormalizeTest do
     assert Enum.map(normalized.lights, & &1.source_id) == ["light.real_kitchen_light"]
   end
 
+  test "normalizes Home Assistant blank names to stable fallbacks" do
+    raw = %{
+      "areas" => [],
+      "device_registry" => [],
+      "light_entities" => [
+        %{
+          "entity_id" => "light.front_porch_lights",
+          "name" => "",
+          "friendly_name" => "",
+          "platform" => "switch_as_x",
+          "supported_color_modes" => []
+        }
+      ],
+      "group_entities" => [
+        %{
+          "entity_id" => "light.blank_group",
+          "name" => "",
+          "platform" => "group",
+          "members" => []
+        }
+      ],
+      "light_states" => %{},
+      "zha_groups" => []
+    }
+
+    bridge = %Bridge{id: 6, type: :ha, name: "HA", host: "10.0.0.6"}
+    normalized = Normalize.normalize(bridge, raw)
+
+    assert [%{name: "light.front_porch_lights"}] = normalized.lights
+    assert [%{name: "light.blank_group"}] = normalized.groups
+  end
+
   test "normalizes Caseta raw data into rooms and lights" do
     raw = load_fixture("caseta_raw.json")
 

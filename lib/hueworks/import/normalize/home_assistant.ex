@@ -51,10 +51,12 @@ defmodule Hueworks.Import.Normalize.HomeAssistant do
       lights_raw
       |> Enum.reduce({[], []}, fn light, {lights_acc, groups_acc} ->
         name =
-          Normalize.fetch(light, :name) ||
-            Normalize.fetch(light, :friendly_name) ||
-            Normalize.fetch(light, :entity_id) ||
+          first_present([
+            Normalize.fetch(light, :name),
+            Normalize.fetch(light, :friendly_name),
+            Normalize.fetch(light, :entity_id),
             "HA Light"
+          ])
 
         device_area_id =
           Normalize.fetch(light, :device_id)
@@ -135,13 +137,20 @@ defmodule Hueworks.Import.Normalize.HomeAssistant do
         %{
           source: :ha,
           source_id: Normalize.fetch(group, :entity_id),
-          name: Normalize.fetch(group, :name) || Normalize.fetch(group, :entity_id) || "HA Group",
+          name:
+            first_present([
+              Normalize.fetch(group, :name),
+              Normalize.fetch(group, :entity_id),
+              "HA Group"
+            ]),
           classification: "ha_group",
           room_source_id: Normalize.fetch(group, :area_id) || room_source_id,
           type: "group",
           capabilities: capabilities,
           metadata: %{
             "platform" => Normalize.fetch(group, :platform),
+            "unique_id" => Normalize.fetch(group, :unique_id),
+            "entity_id" => Normalize.fetch(group, :entity_id),
             "members" => members
           }
         }
@@ -383,5 +392,19 @@ defmodule Hueworks.Import.Normalize.HomeAssistant do
       Map.get(entity_by_ieee, ieee, [])
     end)
     |> Enum.uniq()
+  end
+
+  defp first_present(values) do
+    Enum.find_value(values, fn
+      value when is_binary(value) ->
+        value = String.trim(value)
+        if value == "", do: nil, else: value
+
+      nil ->
+        nil
+
+      value ->
+        value
+    end)
   end
 end

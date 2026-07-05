@@ -1,12 +1,13 @@
 defmodule HueworksWeb.BridgeSetupLive do
   use Phoenix.LiveView
+  import Ecto.Query, only: [from: 2]
 
   alias Hueworks.Repo
-  alias Hueworks.Schemas.Bridge
-  alias Hueworks.Schemas.Room
   alias Hueworks.Bridges
+  alias Hueworks.Schemas.Bridge
+  alias Hueworks.Schemas.{Group, Light, Room}
   alias Hueworks.Util
-  alias Hueworks.Import.{Link, Materialize, Normalize, NormalizeFromDb, Plan, ReimportPlan}
+  alias Hueworks.Import.{Materialize, Normalize, NormalizeFromDb, Plan, ReimportPlan}
   import Hueworks.Import.Normalize, only: [fetch: 2]
 
   def mount(%{"id" => id} = params, _session, socket) do
@@ -14,26 +15,37 @@ defmodule HueworksWeb.BridgeSetupLive do
     rooms = Repo.all(Room)
     reimport = Map.get(params, "reimport") == "1"
 
-    if connected?(socket) do
-      send(self(), :import_configuration)
-    end
+    if not reimport and imported_bridge?(bridge) do
+      {:ok, redirect(socket, to: "/config/bridge/#{bridge.id}/setup?reimport=1")}
+    else
+      if connected?(socket) do
+        send(self(), :import_configuration)
+      end
 
-    {:ok,
-     assign(socket,
-       bridge: bridge,
-       bridge_import: nil,
-       import_status: :idle,
-       import_error: nil,
-       import_blob: nil,
-       normalized: nil,
-       normalized_display: nil,
-       normalized_import: nil,
-       normalized_db: nil,
-       plan: nil,
-       reimport: reimport,
-       reimport_statuses: %{},
-       rooms: rooms
-     )}
+      {:ok,
+       assign(socket,
+         bridge: bridge,
+         bridge_import: nil,
+         import_status: :idle,
+         import_error: nil,
+         import_blob: nil,
+         normalized: nil,
+         normalized_display: nil,
+         normalized_import: nil,
+         normalized_db: nil,
+         plan: nil,
+         reimport: reimport,
+         reimport_statuses: %{},
+         reimport_summary: %{},
+         rooms: rooms
+       )}
+    end
+  end
+
+  defp imported_bridge?(bridge) do
+    bridge.import_complete or
+      Repo.exists?(from(l in Light, where: l.bridge_id == ^bridge.id)) or
+      Repo.exists?(from(g in Group, where: g.bridge_id == ^bridge.id))
   end
 
   def handle_event("toggle_light", %{"id" => source_id}, socket) do
@@ -46,6 +58,14 @@ defmodule HueworksWeb.BridgeSetupLive do
 
   def handle_event("toggle_all", %{"action" => action}, socket) do
     {:noreply, apply_bulk_toggle(socket, action)}
+  end
+
+  def handle_event(
+        "bulk_resolution",
+        %{"status" => status, "resolution" => resolution},
+        socket
+      ) do
+    {:noreply, apply_bulk_resolution(socket, status, resolution)}
   end
 
   def handle_event("toggle_room", %{"room_id" => room_id, "action" => action}, socket) do
@@ -92,15 +112,22 @@ defmodule HueworksWeb.BridgeSetupLive do
     {:noreply, assign(socket, plan: plan)}
   end
 
+  def handle_event(
+        "set_entity_resolution",
+        %{"type" => type, "source_id" => source_id, "resolution" => resolution},
+        socket
+      ) do
+    plan = put_entity_resolution(socket.assigns.plan, type, source_id, resolution)
+    {:noreply, assign(socket, plan: plan)}
+  end
+
   def handle_event("apply_materialization", _params, socket) do
     plan = socket.assigns.plan || %{}
     normalized = socket.assigns.normalized_import || %{}
     bridge_import = socket.assigns.bridge_import
 
     with {:ok, reviewed} <- update_review_blob(bridge_import, plan),
-         :ok <- maybe_delete_entities(socket, plan),
          :ok <- Materialize.materialize(socket.assigns.bridge, normalized, plan),
-         :ok <- Link.apply(),
          {:ok, applied} <- mark_applied(reviewed),
          {:ok, bridge} <- mark_bridge_complete(socket.assigns.bridge) do
       {:noreply,
@@ -109,10 +136,7 @@ defmodule HueworksWeb.BridgeSetupLive do
        |> push_navigate(to: "/config")}
     else
       {:error, reason} ->
-        {:noreply,
-         socket
-         |> assign(import_status: :error, import_error: inspect(reason))
-         |> put_notice(:error, inspect(reason))}
+        {:noreply, handle_apply_error(socket, reason)}
     end
   end
 
@@ -162,7 +186,8 @@ defmodule HueworksWeb.BridgeSetupLive do
         normalized_display: reimport.normalized,
         normalized_db: normalized_db,
         plan: reimport.plan,
-        reimport_statuses: reimport.statuses
+        reimport_statuses: reimport.statuses,
+        reimport_summary: reimport_summary(reimport.statuses)
       )
     else
       socket
@@ -233,9 +258,19 @@ defmodule HueworksWeb.BridgeSetupLive do
   end
 
   defp mark_applied(bridge_import) do
-    bridge_import
-    |> Hueworks.Schemas.BridgeImport.changeset(%{status: :applied})
-    |> Repo.update(stale_error_field: :status)
+    result =
+      bridge_import
+      |> Hueworks.Schemas.BridgeImport.changeset(%{status: :applied})
+      |> Repo.update(stale_error_field: :status)
+
+    case result do
+      {:ok, applied} ->
+        Bridges.prune_imports_for_bridge(applied.bridge_id)
+        {:ok, applied}
+
+      error ->
+        error
+    end
   end
 
   defp mark_bridge_complete(bridge) do
@@ -244,18 +279,45 @@ defmodule HueworksWeb.BridgeSetupLive do
     |> Repo.update(stale_error_field: :import_complete)
   end
 
-  defp maybe_delete_entities(%{assigns: %{reimport: true, bridge: bridge}} = socket, plan) do
-    normalized_import = socket.assigns.normalized_import || %{}
-    normalized_db = socket.assigns.normalized_db || %{}
-    deletions = ReimportPlan.deletions(plan, normalized_import, normalized_db)
+  defp handle_apply_error(socket, reason) do
+    message = apply_error_message(reason)
 
-    case Bridges.delete_unchecked_entities(bridge, deletions.lights, deletions.groups) do
-      {:ok, _} -> :ok
-      {:error, reason} -> {:error, reason}
+    socket
+    |> maybe_refresh_reimport_review(reason)
+    |> assign(import_status: :error, import_error: message)
+    |> put_notice(:error, message)
+  end
+
+  defp maybe_refresh_reimport_review(socket, reason) do
+    if stale_review_reason?(reason) do
+      refresh_reimport_plan(socket)
+    else
+      socket
     end
   end
 
-  defp maybe_delete_entities(_socket, _plan), do: :ok
+  defp stale_review_reason?({:duplicate_classification_changed, _type, _source_id}), do: true
+  defp stale_review_reason?({:invalid_duplicate, _type, _source_id}), do: true
+  defp stale_review_reason?({:stale_resolution, _type, _source_id}), do: true
+  defp stale_review_reason?(_reason), do: false
+
+  defp apply_error_message({:duplicate_classification_changed, type, source_id}) do
+    "This reimport review is out of date for #{entity_reference(type, source_id)} because duplicate classification changed. The review has been refreshed; please re-check your selections."
+  end
+
+  defp apply_error_message({:invalid_duplicate, type, source_id}) do
+    "The duplicate resolution for #{entity_reference(type, source_id)} is no longer valid. The review has been refreshed; please re-check your selections."
+  end
+
+  defp apply_error_message({:stale_resolution, type, source_id}) do
+    "This reimport review is out of date for #{entity_reference(type, source_id)}. The review has been refreshed; please re-check your selections."
+  end
+
+  defp apply_error_message(reason), do: inspect(reason)
+
+  defp entity_reference(type, source_id) do
+    "#{Atom.to_string(type)} #{source_id}"
+  end
 
   defp normalized_entries(normalized, key) do
     Normalize.fetch(normalized, key) || []
@@ -276,8 +338,44 @@ defmodule HueworksWeb.BridgeSetupLive do
   end
 
   defp reimport_disabled?(statuses, key, source_id) do
-    reimport_status(statuses, key, source_id) == :missing
+    reimport_status(statuses, key, source_id) in [:missing, :ambiguous_identity]
   end
+
+  defp resolution_controls?(reimport, status),
+    do: reimport and status in [:duplicate, :missing, :ambiguous_identity]
+
+  defp resolution_options(:duplicate) do
+    [
+      {"Import hidden duplicate", "import_hidden_duplicate"},
+      {"Import as real entity", "import_real"},
+      {"Do not import", "do_not_import"}
+    ]
+  end
+
+  defp resolution_options(:missing) do
+    [
+      {"Keep", "keep"},
+      {"Disable", "disable"},
+      {"Delete", "delete"}
+    ]
+  end
+
+  defp resolution_options(:ambiguous_identity), do: [{"Keep separate", "keep_separate"}]
+  defp resolution_options(_status), do: []
+
+  defp reimport_summary(statuses) do
+    statuses
+    |> Enum.flat_map(fn
+      {key, values} when key in [:lights, "lights", :groups, "groups"] and is_map(values) ->
+        Map.values(values)
+
+      _ ->
+        []
+    end)
+    |> Enum.frequencies()
+  end
+
+  defp summary_count(summary, status), do: Map.get(summary || %{}, status, 0)
 
   defp apply_bulk_toggle(socket, value) do
     plan = socket.assigns.plan || %{}
@@ -334,6 +432,35 @@ defmodule HueworksWeb.BridgeSetupLive do
     |> then(&assign(socket, plan: &1))
   end
 
+  defp apply_bulk_resolution(socket, status, resolution) do
+    status = normalize_status(status)
+    plan = socket.assigns.plan || %{}
+    statuses = socket.assigns.reimport_statuses || %{}
+
+    plan
+    |> put_bulk_resolution(:lights, Normalize.fetch(statuses, :lights) || %{}, status, resolution)
+    |> put_bulk_resolution(:groups, Normalize.fetch(statuses, :groups) || %{}, status, resolution)
+    |> then(&assign(socket, plan: &1))
+  end
+
+  defp put_bulk_resolution(plan, key, statuses, status, resolution) do
+    ids =
+      statuses
+      |> Enum.filter(fn {_source_id, entity_status} -> entity_status == status end)
+      |> Enum.map(fn {source_id, _entity_status} -> source_id end)
+
+    Enum.reduce(ids, plan, fn source_id, acc ->
+      put_entity_resolution(acc, Atom.to_string(key), source_id, resolution)
+    end)
+  end
+
+  defp normalize_status("new"), do: :new
+  defp normalize_status("missing"), do: :missing
+  defp normalize_status("duplicate"), do: :duplicate
+  defp normalize_status("ambiguous_identity"), do: :ambiguous_identity
+  defp normalize_status(status) when is_atom(status), do: status
+  defp normalize_status(_status), do: nil
+
   defp put_room_actions(plan, room_ids, action, normalized, rooms) do
     plan = plan || %{}
     plan_rooms = Normalize.fetch(plan, :rooms) || %{}
@@ -373,6 +500,27 @@ defmodule HueworksWeb.BridgeSetupLive do
         current
         |> selection_map()
         |> Map.put("target_room_id", blank_to_nil(target_room_id))
+
+      Map.put(plan, key, Map.put(map, source_id, updated))
+    else
+      plan
+    end
+  end
+
+  defp put_entity_resolution(plan, type, source_id, resolution) do
+    key = if type == "groups", do: :groups, else: :lights
+    source_id = Normalize.normalize_source_id(source_id)
+    plan = plan || %{}
+    map = Normalize.fetch(plan, key) || %{}
+
+    if is_binary(source_id) do
+      current = Map.get(map, source_id, true)
+
+      updated =
+        current
+        |> selection_map()
+        |> Map.put("resolution", resolution)
+        |> Map.put("selected", resolution_selected?(resolution))
 
       Map.put(plan, key, Map.put(map, source_id, updated))
     else
@@ -532,6 +680,20 @@ defmodule HueworksWeb.BridgeSetupLive do
     end
   end
 
+  defp entity_resolution(plan, key, source_id) do
+    source_id = Normalize.normalize_source_id(source_id)
+    map = Normalize.fetch(plan, key) || %{}
+
+    case source_id do
+      nil ->
+        nil
+
+      _ ->
+        Map.get(map, source_id, %{})
+        |> Normalize.fetch(:resolution)
+    end
+  end
+
   defp room_action(plan, source_id) do
     source_id = Normalize.normalize_source_id(source_id)
     rooms = Normalize.fetch(plan, :rooms) || %{}
@@ -582,6 +744,9 @@ defmodule HueworksWeb.BridgeSetupLive do
 
   defp selection_map(map) when is_map(map), do: map
   defp selection_map(_value), do: %{"selected" => true}
+
+  defp resolution_selected?(resolution),
+    do: resolution in ["import", "import_real", "import_hidden_duplicate"]
 
   defp import_flash_info(%{status: status, imported_at: imported_at}) do
     "Configuration loaded into memory. Import status: #{status}. Imported at: #{imported_at}."

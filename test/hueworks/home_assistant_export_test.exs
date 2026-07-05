@@ -174,6 +174,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
     light =
       Repo.insert!(%Light{
         name: "Kitchen Task",
+        display_name: "Kitchen Task",
         source: :hue,
         source_id: "17",
         bridge_id:
@@ -198,6 +199,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
     group =
       Repo.insert!(%Group{
         name: "Kitchen Pendants",
+        display_name: "Kitchen Pendants",
         source: :ha,
         source_id: "light.kitchen_pendants",
         bridge_id:

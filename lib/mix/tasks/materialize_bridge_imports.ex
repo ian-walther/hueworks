@@ -39,8 +39,13 @@ defmodule Mix.Tasks.MaterializeBridgeImports do
     normalized = payload["normalized"] || %{}
 
     with {:ok, bridge} <- find_bridge(bridge_data) do
-      Materialize.materialize(bridge, normalized)
-      Mix.shell().info("Materialized #{path}")
+      case Materialize.materialize(bridge, normalized) do
+        :ok ->
+          Mix.shell().info("Materialized #{path}")
+
+        {:error, reason} ->
+          Mix.shell().error("Skipped #{path}: #{inspect(reason)}")
+      end
     end
   rescue
     error -> Mix.shell().error("Failed to materialize #{path}: #{Exception.message(error)}")

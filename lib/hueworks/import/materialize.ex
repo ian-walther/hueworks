@@ -4,18 +4,39 @@ defmodule Hueworks.Import.Materialize do
   import Ecto.Query, only: [from: 2]
 
   alias Hueworks.Repo
-  alias Hueworks.Import.{Identifiers, Normalize, NormalizeJson, Plan}
+  alias Hueworks.Import.{Duplicates, Identifiers, Normalize, NormalizeJson, Plan, ReimportApply}
   alias Hueworks.Util
   alias Hueworks.Schemas.{Group, GroupLight, Light, Room}
 
   def materialize(bridge, normalized) do
-    materialize(bridge, normalized, Plan.build_default(normalized))
+    if imported_bridge?(bridge) do
+      {:error, :reimport_requires_review}
+    else
+      materialize(bridge, normalized, Plan.build_default(normalized))
+    end
   end
 
   def materialize(bridge, normalized, plan) do
+    if imported_bridge?(bridge) do
+      ReimportApply.apply(bridge, normalized, plan)
+    else
+      materialize_initial(bridge, normalized, plan)
+    end
+  end
+
+  defp imported_bridge?(bridge) do
+    bridge.import_complete or bridge_has_entities?(bridge.id)
+  end
+
+  defp bridge_has_entities?(bridge_id) do
+    Repo.exists?(from(l in Light, where: l.bridge_id == ^bridge_id)) or
+      Repo.exists?(from(g in Group, where: g.bridge_id == ^bridge_id))
+  end
+
+  defp materialize_initial(bridge, normalized, plan) do
     rooms = Normalize.fetch(normalized, :rooms) || []
-    groups = Normalize.fetch(normalized, :groups) || []
-    lights = Normalize.fetch(normalized, :lights) || []
+    groups = (Normalize.fetch(normalized, :groups) || []) |> Duplicates.reject_hueworks_exported()
+    lights = (Normalize.fetch(normalized, :lights) || []) |> Duplicates.reject_hueworks_exported()
     memberships = Normalize.fetch(normalized, :memberships) || %{}
 
     plan_rooms = Normalize.fetch(plan, :rooms) || %{}
@@ -26,11 +47,12 @@ defmodule Hueworks.Import.Materialize do
     lights = filter_entities(lights, plan_lights)
     groups = filter_entities(groups, plan_groups)
     memberships = filter_memberships(memberships, plan_lights, plan_groups)
+    duplicate_light_targets = Duplicates.light_targets(lights)
 
-    light_map = upsert_lights(bridge, lights, room_map, plan_lights)
-    group_map = upsert_groups(bridge, groups, room_map, plan_groups)
+    light_result = upsert_lights(bridge, lights, room_map, plan_lights, duplicate_light_targets)
+    group_map = upsert_groups(bridge, groups, room_map, plan_groups, light_result)
 
-    upsert_group_lights(memberships, light_map, group_map)
+    upsert_group_lights(memberships, light_result.source_id_to_db_id, group_map)
     infer_group_rooms(group_map)
 
     :ok
@@ -89,10 +111,12 @@ defmodule Hueworks.Import.Materialize do
     end)
   end
 
-  defp upsert_lights(bridge, lights, room_map, plan_lights) do
+  defp upsert_lights(bridge, lights, room_map, plan_lights, duplicate_targets) do
     bridge_id = bridge.id
 
-    Enum.reduce(lights, %{}, fn light, acc ->
+    initial = %{source_id_to_db_id: %{}, source_id_to_canonical_db_id: %{}}
+
+    Enum.reduce(lights, initial, fn light, acc ->
       source_id = Normalize.normalize_source_id(Normalize.fetch(light, :source_id))
 
       if is_binary(source_id) do
@@ -114,6 +138,15 @@ defmodule Hueworks.Import.Materialize do
           normalized_json: NormalizeJson.to_map(light)
         }
 
+        canonical_light_id = Map.get(duplicate_targets, source_id)
+
+        attrs =
+          if is_integer(canonical_light_id) do
+            hidden_duplicate_light_attrs(attrs, canonical_light_id)
+          else
+            attrs
+          end
+
         record =
           case Repo.get_by(Light, bridge_id: bridge_id, source_id: source_id) do
             nil ->
@@ -127,14 +160,31 @@ defmodule Hueworks.Import.Materialize do
               |> Repo.update!()
           end
 
-        Map.put(acc, source_id, record.id)
+        canonical_id = canonical_light_id || record.canonical_light_id || record.id
+
+        %{
+          acc
+          | source_id_to_db_id: Map.put(acc.source_id_to_db_id, source_id, record.id),
+            source_id_to_canonical_db_id:
+              Map.put(acc.source_id_to_canonical_db_id, source_id, canonical_id)
+        }
       else
         acc
       end
     end)
   end
 
-  defp upsert_groups(bridge, groups, room_map, plan_groups) do
+  defp hidden_duplicate_light_attrs(attrs, canonical_light_id) do
+    Map.merge(attrs, %{
+      room_id: nil,
+      enabled: false,
+      ha_export_mode: :none,
+      homekit_export_mode: :none,
+      canonical_light_id: canonical_light_id
+    })
+  end
+
+  defp upsert_groups(bridge, groups, room_map, plan_groups, light_result) do
     bridge_id = bridge.id
 
     Enum.reduce(groups, %{}, fn group, acc ->
@@ -159,6 +209,15 @@ defmodule Hueworks.Import.Materialize do
           normalized_json: NormalizeJson.to_map(group)
         }
 
+        attrs =
+          case Duplicates.group_target(group, light_result.source_id_to_canonical_db_id) do
+            canonical_group_id when is_integer(canonical_group_id) ->
+              hidden_duplicate_group_attrs(attrs, canonical_group_id)
+
+            _ ->
+              attrs
+          end
+
         record =
           case Repo.get_by(Group, bridge_id: bridge_id, source_id: source_id) do
             nil ->
@@ -177,6 +236,16 @@ defmodule Hueworks.Import.Materialize do
         acc
       end
     end)
+  end
+
+  defp hidden_duplicate_group_attrs(attrs, canonical_group_id) do
+    Map.merge(attrs, %{
+      room_id: nil,
+      enabled: false,
+      ha_export_mode: :none,
+      homekit_export_mode: :none,
+      canonical_group_id: canonical_group_id
+    })
   end
 
   defp upsert_group_lights(memberships, light_map, group_map) do

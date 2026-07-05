@@ -36,6 +36,7 @@ defmodule Hueworks.ContextsTest do
   defp insert_light(bridge, attrs) do
     defaults = %{
       name: "Light",
+      display_name: "Light",
       source: :hue,
       source_id: "1",
       bridge_id: bridge.id,
@@ -49,6 +50,7 @@ defmodule Hueworks.ContextsTest do
   defp insert_group(bridge, attrs) do
     defaults = %{
       name: "Group",
+      display_name: "Group",
       source: :hue,
       source_id: "g1",
       bridge_id: bridge.id,
@@ -127,7 +129,7 @@ defmodule Hueworks.ContextsTest do
         actual_max_kelvin: 5000
       })
 
-    assert updated.display_name == nil
+    assert updated.display_name == "Light"
     assert updated.actual_min_kelvin == 2200
     assert updated.actual_max_kelvin == 5000
   end
@@ -213,7 +215,7 @@ defmodule Hueworks.ContextsTest do
 
     {:ok, updated} = Groups.update_display_name(group, %{display_name: "  ", room_id: room.id})
 
-    assert updated.display_name == nil
+    assert updated.display_name == "Group"
     assert Repo.get!(Light, light.id).room_id == room.id
   end
 
@@ -348,6 +350,24 @@ defmodule Hueworks.ContextsTest do
 
     assert Bridges.list_imports_for_bridge(bridge, limit: 1)
            |> Enum.map(& &1.id) == [newest.id]
+  end
+
+  test "Bridges.prune_imports_for_bridge keeps the five newest imports" do
+    bridge = insert_bridge(%{host: "10.0.0.18"})
+
+    imports =
+      for minute <- 0..6 do
+        insert_bridge_import(bridge, %{
+          imported_at: DateTime.add(~U[2026-03-19 12:00:00Z], minute, :minute)
+        })
+      end
+
+    Bridges.prune_imports_for_bridge(bridge)
+
+    remaining_ids = Bridges.list_imports_for_bridge(bridge) |> Enum.map(& &1.id)
+    expected_ids = imports |> Enum.drop(2) |> Enum.reverse() |> Enum.map(& &1.id)
+
+    assert remaining_ids == expected_ids
   end
 
   test "Bridges.delete_entities removes bridge-owned entities and resets import_complete" do

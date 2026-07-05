@@ -4,7 +4,7 @@ defmodule Hueworks.HomeAssistant.Export.Messages.Discovery do
   alias Hueworks.ActiveScenes
   alias Hueworks.HomeAssistant.Export.Messages.State
   alias Hueworks.HomeAssistant.Export.Messages.Topics
-  alias Hueworks.Schemas.{PresenceInput, Room, Scene}
+  alias Hueworks.Schemas.{Group, Light, PresenceInput, Room, Scene}
 
   def discovery_payload(%Scene{} = scene, config) do
     room_name = room_name(scene.room)
@@ -192,6 +192,8 @@ defmodule Hueworks.HomeAssistant.Export.Messages.Discovery do
 
   defp scene_name(%Scene{} = scene), do: scene.display_name || scene.name
 
+  defp entity_name(%Light{display_name: display_name}), do: display_name
+  defp entity_name(%Group{display_name: display_name}), do: display_name
   defp entity_name(entity), do: entity.display_name || entity.name
 
   defp presence_input_name(%PresenceInput{} = input), do: input.name
