@@ -62,8 +62,6 @@ defmodule Hueworks.HomeKit.ValueStore do
   defp entity_on?(kind, id) do
     case entity_state(kind, id) do
       %{power: :on} -> true
-      %{"power" => "on"} -> true
-      %{"power" => :on} -> true
       _ -> false
     end
   end
@@ -71,7 +69,6 @@ defmodule Hueworks.HomeKit.ValueStore do
   defp entity_brightness(kind, id) do
     case entity_state(kind, id) do
       %{brightness: brightness} when is_number(brightness) -> clamp_brightness(brightness)
-      %{"brightness" => brightness} when is_number(brightness) -> clamp_brightness(brightness)
       _ -> 100
     end
   end

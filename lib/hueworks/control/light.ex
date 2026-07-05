@@ -16,21 +16,9 @@ defmodule Hueworks.Control.Light do
     Z2MClient
   }
 
-  def on(light, opts \\ %{}), do: dispatch(light, :on, normalize_apply_opts(opts))
-  def off(light, opts \\ %{}), do: dispatch(light, :off, normalize_apply_opts(opts))
-
   def set_state(light, desired, opts \\ %{}) when is_map(desired) do
     dispatch(light, {:set_state, desired}, normalize_apply_opts(opts))
   end
-
-  def set_brightness(light, level, opts \\ %{}),
-    do: dispatch(light, {:brightness, level}, normalize_apply_opts(opts))
-
-  def set_color_temp(light, kelvin, opts \\ %{}),
-    do: dispatch(light, {:color_temp, kelvin}, normalize_apply_opts(opts))
-
-  def set_color(light, hs, opts \\ %{}),
-    do: dispatch(light, {:color, hs}, normalize_apply_opts(opts))
 
   defp dispatch(%{source: :hue} = light, action, apply_opts) do
     with {:ok, host, api_key} <- HueBridge.credentials_for(light),

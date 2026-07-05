@@ -16,4 +16,24 @@ defmodule Hueworks.Import.NormalizeJsonTest do
              "list" => ["one", %{"two" => 2}, ["three", "four"]]
            }
   end
+
+  test "preserves JSON boolean and nil values" do
+    input = %{
+      capabilities: %{
+        brightness: true,
+        color: false,
+        color_temp: nil
+      },
+      members: [nil, true, false]
+    }
+
+    assert NormalizeJson.to_map(input) == %{
+             "capabilities" => %{
+               "brightness" => true,
+               "color" => false,
+               "color_temp" => nil
+             },
+             "members" => [nil, true, false]
+           }
+  end
 end

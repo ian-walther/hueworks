@@ -28,7 +28,8 @@ defmodule Hueworks.Control.PlannerTest do
              type: :light,
              id: 1,
              bridge_id: 10,
-             desired: %{power: :on}
+             desired: %{power: :on},
+             light_ids: [1]
            }
   end
 
@@ -145,36 +146,6 @@ defmodule Hueworks.Control.PlannerTest do
     assert [
              %{type: :group, id: 99, bridge_id: 10, desired: ^desired}
            ] = Planner.plan_snapshot(snapshot, diff)
-  end
-
-  test "plan_direct builds per-light actions from diff without room context" do
-    room = Repo.insert!(%Room{name: "Direct"})
-
-    bridge =
-      insert_bridge!(%{
-        name: "Hue",
-        type: :hue,
-        host: "bridge-direct",
-        credentials: %{}
-      })
-
-    light_a = insert_light(room, bridge, "A")
-    light_b = insert_light(room, bridge, "B")
-
-    desired = %{power: :on, brightness: 55}
-
-    diff = %{
-      {:light, light_a.id} => desired,
-      {"light", light_b.id} => desired,
-      {:group, 999} => %{power: :off}
-    }
-
-    actions = Planner.plan_direct(diff)
-
-    assert Enum.sort_by(actions, & &1.id) == [
-             %{type: :light, id: light_a.id, bridge_id: bridge.id, desired: desired},
-             %{type: :light, id: light_b.id, bridge_id: bridge.id, desired: desired}
-           ]
   end
 
   test "plan_room attaches global transition apply_opts to actions" do
@@ -543,12 +514,12 @@ defmodule Hueworks.Control.PlannerTest do
 
     table_action =
       Enum.find(actions, fn action ->
-        action.type == :group and (action.desired[:kelvin] || action.desired["kelvin"]) == 2200
+        action.type == :group and Map.get(action.desired, :kelvin) == 2200
       end)
 
     ceiling_action =
       Enum.find(actions, fn action ->
-        action.type == :group and (action.desired[:kelvin] || action.desired["kelvin"]) == 2000
+        action.type == :group and Map.get(action.desired, :kelvin) == 2000
       end)
 
     assert table_action
@@ -684,15 +655,13 @@ defmodule Hueworks.Control.PlannerTest do
 
     temp_action =
       Enum.find(actions, fn action ->
-        action.type == :group and (action.desired[:kelvin] || action.desired["kelvin"]) == 2600
+        action.type == :group and Map.get(action.desired, :kelvin) == 2600
       end)
 
     dim_action =
       Enum.find(actions, fn action ->
         action.type == :group and
-          not Map.has_key?(action.desired, :kelvin) and not Map.has_key?(action.desired, "kelvin") and
-          not Map.has_key?(action.desired, :temperature) and
-          not Map.has_key?(action.desired, "temperature")
+          not Map.has_key?(action.desired, :kelvin)
       end)
 
     assert temp_action
@@ -722,11 +691,11 @@ defmodule Hueworks.Control.PlannerTest do
     assert Enum.any?(actions, &(&1.type == :group))
 
     assert Enum.any?(actions, fn action ->
-             (action.desired[:kelvin] || action.desired["kelvin"]) == 2202
+             Map.get(action.desired, :kelvin) == 2202
            end)
 
     assert Enum.any?(actions, fn action ->
-             (action.desired[:kelvin] || action.desired["kelvin"]) == 2000
+             Map.get(action.desired, :kelvin) == 2000
            end)
 
     group_lights =
@@ -744,7 +713,7 @@ defmodule Hueworks.Control.PlannerTest do
 
     actual_kelvin_by_light =
       Enum.reduce(actions, %{}, fn action, acc ->
-        kelvin = action.desired[:kelvin] || action.desired["kelvin"]
+        kelvin = action.desired[:kelvin]
 
         cond do
           is_nil(kelvin) ->
@@ -834,7 +803,7 @@ defmodule Hueworks.Control.PlannerTest do
 
     kelvins =
       clamped_actions
-      |> Enum.map(fn action -> action.desired[:kelvin] || action.desired["kelvin"] end)
+      |> Enum.map(fn action -> action.desired[:kelvin] end)
       |> Enum.sort()
 
     assert kelvins == [2000, 2000, 2000, 2000, 2202]

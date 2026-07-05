@@ -48,7 +48,7 @@ defmodule Hueworks.Kelvin do
       min_kelvin = extended_min_kelvin(entity)
       max_kelvin = extended_boundary_kelvin(entity)
 
-      if is_number(min_kelvin) and is_number(max_kelvin) and max_kelvin > min_kelvin do
+      if max_kelvin > min_kelvin do
         {round(min_kelvin), round(max_kelvin)}
       else
         nil
@@ -235,10 +235,6 @@ defmodule Hueworks.Kelvin do
       rescue
         ArgumentError -> nil
       end
-  end
-
-  defp get_nested(map, key) when is_map(map) and is_atom(key) do
-    Map.get(map, key)
   end
 
   defp get_nested(_map, _key), do: nil

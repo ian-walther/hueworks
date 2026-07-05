@@ -102,6 +102,40 @@ defmodule HueworksWeb.LightStateEditorLiveTest do
     assert LightState.persisted_config(updated)["temperature"] == 3200
   end
 
+  test "manual editor protects dirty persisted edits but not clean state", %{conn: conn} do
+    {:ok, state} =
+      Scenes.create_manual_light_state("Soft", %{"brightness" => "40", "temperature" => "2700"})
+
+    {:ok, view, _html} = live(conn, "/config/light-states/#{state.id}/edit")
+
+    refute has_element?(view, "#light-state-back-to-config[data-confirm]")
+    assert has_element?(view, "#light-state-revert[disabled]")
+
+    view
+    |> form("form[phx-change='update_form']", %{
+      "name" => "Soft Updated",
+      "mode" => "temperature",
+      "brightness" => "65",
+      "temperature" => "3200"
+    })
+    |> render_change()
+
+    assert has_element?(view, "#light-state-back-to-config[data-confirm*='unsaved changes']")
+    assert has_element?(view, "#light-state-revert[data-confirm*='discard unsaved changes']")
+    refute has_element?(view, "#light-state-revert[disabled]")
+
+    render_submit(view, "save", %{
+      "name" => "Soft Updated",
+      "mode" => "temperature",
+      "brightness" => "65",
+      "temperature" => "3200",
+      "save_action" => "save"
+    })
+
+    refute has_element?(view, "#light-state-back-to-config[data-confirm]")
+    assert has_element?(view, "#light-state-revert[disabled]")
+  end
+
   test "edit editor renders atom-keyed manual color config values", %{conn: conn} do
     state =
       Repo.insert!(%LightState{
@@ -324,6 +358,41 @@ defmodule HueworksWeb.LightStateEditorLiveTest do
     assert LightState.persisted_config(updated)["max_color_temp"] == 5000
   end
 
+  test "circadian editor marks config edits dirty but preview-only edits clean", %{conn: conn} do
+    {:ok, state} =
+      Scenes.create_light_state("Circadian Existing", :circadian, %{
+        "min_brightness" => "30",
+        "max_brightness" => "100",
+        "min_color_temp" => "2000",
+        "max_color_temp" => "5500",
+        "brightness_mode" => "tanh"
+      })
+
+    {:ok, view, _html} = live(conn, "/config/light-states/#{state.id}/edit")
+
+    view
+    |> form("form[phx-change='update_form']", %{
+      "preview_date" => "2026-03-08",
+      "preview_timezone" => "America/New_York",
+      "preview_latitude" => "40.712800",
+      "preview_longitude" => "-74.006000"
+    })
+    |> render_change()
+
+    refute has_element?(view, "#light-state-back-to-config[data-confirm]")
+    assert has_element?(view, "#light-state-revert[disabled]")
+
+    view
+    |> form("form[phx-change='update_form']", %{
+      "brightness_mode" => "linear"
+    })
+    |> render_change()
+
+    assert has_element?(view, "#light-state-back-to-config[data-confirm*='unsaved changes']")
+    assert has_element?(view, "#light-state-revert[data-confirm*='discard unsaved changes']")
+    refute has_element?(view, "#light-state-revert[disabled]")
+  end
+
   test "save keeps a new light state in the editor on its edit route", %{conn: conn} do
     {:ok, view, _html} = live(conn, "/config/light-states/new/manual")
 
@@ -365,6 +434,9 @@ defmodule HueworksWeb.LightStateEditorLiveTest do
       view
       |> element("button[phx-click='revert']")
       |> render_click()
+
+    assert has_element?(view, "#light-state-revert[disabled]")
+    refute has_element?(view, "#light-state-back-to-config[data-confirm]")
 
     assert html =~ ~s(value="Revert Me")
     assert html =~ ~s(name="brightness")

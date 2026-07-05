@@ -82,6 +82,11 @@ defmodule Hueworks.HomeAssistant.Export.Sync do
     PresenceInputSync.publish_one(publish_fun, input_id, config)
   end
 
+  def publish_presence_inputs_for_room(publish_fun, room_id, config)
+      when is_function(publish_fun, 3) and is_integer(room_id) do
+    PresenceInputSync.publish_room(publish_fun, room_id, config)
+  end
+
   def unpublish_entity(publish_fun, kind, id, config)
       when is_function(publish_fun, 3) and kind in [:light, :group] and is_integer(id) do
     EntitySync.unpublish_one(publish_fun, kind, id, config)

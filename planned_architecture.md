@@ -52,6 +52,8 @@ Rules:
 - Upstream callers may choose intent and enqueue policy, but should not own bridge dispatch sequencing.
 - Cross-bridge timing and no-popcorning behavior belongs here, not in scene builders or LiveViews.
 - Runtime traces should survive crossing queue/executor boundaries.
+- Commit each desired-state transaction atomically. Planned actions must carry the desired-state revisions of the snapshot that produced them.
+- Never dispatch an action whose covered desired-state revisions are stale. Replan its covered lights from current desired and physical state so group optimization cannot strand an unchanged member or overwrite a newer intent.
 
 ## Agent Rules
 
@@ -74,6 +76,29 @@ Rules:
 - Convert bounded internal concepts into structs, embedded schemas, or typed domain helpers as early as practical.
 - Do not spread mixed atom/string key handling through downstream domain code.
 - If multiple modules parse the same vocabulary, extract a boundary module before adding more branches.
+
+### Context APIs Own Persistence Invariants
+
+Rules:
+- Treat UI validation and filtered selectors as affordances, not enforcement.
+- Enforce topology and persistence invariants in the owning context path so every caller receives the same validation.
+- Route specialized update functions through the same validated mutation path instead of maintaining parallel rule copies.
+- Commit multi-row topology changes in one database transaction, then run external integration effects only after a successful commit.
+
+### Fan Out Integration Effects After Commit
+
+Rules:
+- When one committed domain change has multiple optional integration consumers, publish a domain event instead of making the domain mutation depend directly on every integration.
+- Broadcast only after persistence succeeds. Subscriber failure must not turn a committed domain mutation into an apparent rollback.
+- Keep subscribers independently restartable and safe to refresh from current domain state.
+- Synchronous integration effects are acceptable when ordering is part of the domain contract; keep those exceptions explicit and tested.
+
+### Preserve The Runtime And Domain File Split
+
+Rules:
+- Keep supervised runtime processes and infrastructure under `lib/hueworks_app`; keep domain/application APIs and pure transformations under `lib/hueworks`.
+- Runtime modules may retain the `Hueworks.*` namespace when they implement domain runtime behavior. Reserve `HueworksApp.*` for infrastructure such as the runtime cache.
+- Do not move a module based on namespace alone; placement follows whether it owns supervised runtime state or domain behavior.
 
 ### Keep Semantics Above Hardware, Hardware Below Semantics
 
@@ -114,6 +139,17 @@ Rules:
 - For mixed-bridge reliability bugs, first capture the desired-state diff, planner output, dispatch timing, observed updates, and convergence retries before adding new upstream control concepts.
 - Apply lineage or revision tracking is acceptable if it improves causality and convergence decisions, but it must not become a second target-state model.
 
+### Keep The Deployment Boundary Private
+
+HueWorks is a trusted-LAN appliance, not a public web service. Network reachability is deliberately the authorization boundary.
+
+Rules:
+- Do not expose HueWorks to the public Internet under any circumstances. Do not port-forward it, publish it through a public tunnel, or place it on a network reachable by untrusted clients.
+- Application authentication is intentionally absent. Every client that can reach the web endpoint is trusted to inspect configuration, control devices, upload credentials, and perform confirmed destructive operations.
+- Plain HTTP is supported inside the isolated trusted LAN. `PHX_SCHEME=https` describes a private TLS-terminating reverse proxy when one is used; it does not make HueWorks' listener serve TLS.
+- CSRF protection, secure browser headers, and WebSocket origin checks remain required defense in depth, but they are not authentication or substitutes for network isolation.
+- Any future remote or public-access use case requires a new, system-wide security design before exposure, including authentication, authorization, TLS, session/cookie policy, secret handling, and abuse controls. Do not evolve into that posture incrementally while the private-appliance assumptions remain active.
+
 ### Planning Docs Are Forward-Looking
 
 Rules:
@@ -132,8 +168,8 @@ Rules:
 
 ## Relationship To Other Docs
 
-- `/Users/ianwalther/code/hueworks/planning/refactoring.md` contains actionable refactor targets.
-- `/Users/ianwalther/code/hueworks/planning/import-resync.md` contains the active reimport/idempotency product backlog.
+- `/Users/ianwalther/code/hueworks/planning/audit/` contains the completed audit's durable scope conclusions and leave-alone decisions.
+- `/Users/ianwalther/code/hueworks/planning/import-resync.md` contains the reimport review-UI backlog.
 - `/Users/ianwalther/code/hueworks/hueworks_todo.md` contains prioritized future work.
 
 If those docs drift from these principles, update the more specific doc first unless the principle itself is intentionally changing.

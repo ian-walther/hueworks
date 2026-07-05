@@ -894,7 +894,108 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
     |> element("button[phx-click='apply_materialization']")
     |> render_click()
 
+    view
+    |> element("button[phx-click='apply_materialization'][phx-value-confirmed='true']")
+    |> render_click()
+
     refute Repo.reload!(light).enabled
+  end
+
+  test "destructive reimport resolutions show dependent scene and group references before applying",
+       %{conn: conn} do
+    bridge =
+      %Bridge{}
+      |> Bridge.changeset(%{
+        type: :ha,
+        name: "Home Assistant",
+        host: "10.0.0.245",
+        credentials: %{"token" => "token"},
+        import_complete: true,
+        enabled: true
+      })
+      |> Repo.insert!()
+
+    room = Repo.insert!(%Room{name: "Office"})
+
+    light =
+      %Light{}
+      |> Light.changeset(%{
+        name: "Missing Light",
+        source: :ha,
+        source_id: "light.missing",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        external_id: "light.missing",
+        normalized_json: %{
+          "source" => "ha",
+          "source_id" => "light.missing",
+          "name" => "Missing Light",
+          "metadata" => %{"entity_id" => "light.missing"}
+        }
+      })
+      |> Repo.insert!()
+
+    group =
+      %Group{}
+      |> Group.changeset(%{
+        name: "Existing Group",
+        source: :ha,
+        source_id: "group.existing",
+        bridge_id: bridge.id,
+        room_id: room.id
+      })
+      |> Repo.insert!()
+
+    group_light = Repo.insert!(%GroupLight{group_id: group.id, light_id: light.id})
+    scene = Repo.insert!(%Scene{name: "Existing Scene", room_id: room.id})
+    light_state = Repo.insert!(%LightState{name: "Existing State", type: :manual})
+    component = Repo.insert!(%SceneComponent{scene_id: scene.id, light_state_id: light_state.id})
+
+    scene_component_light =
+      Repo.insert!(%SceneComponentLight{scene_component_id: component.id, light_id: light.id})
+
+    Application.put_env(:hueworks, :import_pipeline_payload, %{
+      rooms: [],
+      lights: [],
+      groups: [],
+      memberships: %{}
+    })
+
+    {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/setup?reimport=1")
+    render(view)
+
+    view
+    |> form(
+      "form[phx-change='set_entity_resolution'][data-type='lights'][data-source-id='light.missing']",
+      %{
+        "type" => "lights",
+        "source_id" => "light.missing",
+        "resolution" => "delete"
+      }
+    )
+    |> render_change()
+
+    html =
+      view
+      |> element("button[phx-click='apply_materialization']")
+      |> render_click()
+
+    assert html =~ "Confirm destructive reimport changes"
+    assert html =~ "Missing Light"
+    assert html =~ "Delete"
+    assert html =~ "Existing Scene"
+    assert html =~ "Existing Group"
+    assert Repo.get(Light, light.id)
+    assert Repo.get(SceneComponentLight, scene_component_light.id)
+    assert Repo.get(GroupLight, group_light.id)
+
+    view
+    |> element("button[phx-click='apply_materialization'][phx-value-confirmed='true']")
+    |> render_click()
+
+    refute Repo.get(Light, light.id)
+    refute Repo.get(SceneComponentLight, scene_component_light.id)
+    refute Repo.get(GroupLight, group_light.id)
   end
 
   test "stale reimport resolution errors refresh the review with a human message", %{conn: conn} do
@@ -960,9 +1061,13 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
     )
     |> Repo.update!()
 
+    view
+    |> element("button[phx-click='apply_materialization']")
+    |> render_click()
+
     html =
       view
-      |> element("button[phx-click='apply_materialization']")
+      |> element("button[phx-click='apply_materialization'][phx-value-confirmed='true']")
       |> render_click()
 
     assert html =~ "review is out of date"

@@ -7,10 +7,10 @@ defmodule HueworksWeb.PicoConfigLiveTest do
   alias Hueworks.Repo
   alias Hueworks.Scenes
   alias Hueworks.Schemas.PicoButton.ActionConfig, as: StoredActionConfig
-  alias Hueworks.Schemas.{Group, GroupLight, Light, PicoButton, PicoDevice, Room}
+  alias Hueworks.Schemas.{Group, GroupLight, Light, PicoButton, PicoDevice, Room, Scene}
 
-  defmodule CasetaPicoFetcherStub do
-    def fetch_for_bridge(_bridge) do
+  defmodule CasetaPicoPayload do
+    def raw do
       %{
         lights: [
           %{zone_id: "42", area_id: "100", name: "Main Floor / Overhead"}
@@ -56,16 +56,36 @@ defmodule HueworksWeb.PicoConfigLiveTest do
     end
   end
 
+  defmodule CasetaPicoFetcherStub do
+    def fetch_for_bridge(_bridge), do: CasetaPicoPayload.raw()
+  end
+
+  defmodule BlockingCasetaPicoFetcherStub do
+    def fetch_for_bridge(_bridge) do
+      test_pid = Application.fetch_env!(:hueworks, :pico_config_live_test_pid)
+      send(test_pid, {:pico_sync_started, self()})
+
+      receive do
+        :finish_pico_sync -> CasetaPicoPayload.raw()
+      after
+        1_000 -> raise "timed out waiting for pico sync"
+      end
+    end
+  end
+
+  defmodule ExitingCasetaPicoFetcherStub do
+    def fetch_for_bridge(_bridge), do: exit(:pico_sync_crashed)
+  end
+
   setup do
-    previous = Application.get_env(:hueworks, :caseta_pico_fetcher)
+    previous_fetcher = Application.get_env(:hueworks, :caseta_pico_fetcher)
+    previous_test_pid = Application.get_env(:hueworks, :pico_config_live_test_pid)
+
     Application.put_env(:hueworks, :caseta_pico_fetcher, CasetaPicoFetcherStub)
 
     on_exit(fn ->
-      if previous do
-        Application.put_env(:hueworks, :caseta_pico_fetcher, previous)
-      else
-        Application.delete_env(:hueworks, :caseta_pico_fetcher)
-      end
+      restore_app_env(:hueworks, :caseta_pico_fetcher, previous_fetcher)
+      restore_app_env(:hueworks, :pico_config_live_test_pid, previous_test_pid)
     end)
 
     :ok
@@ -184,6 +204,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
     assert html =~ "No Picos synced yet."
 
     render_click(element(view, "button[phx-click='sync_picos']"))
+    render_async(view)
 
     _other_device =
       Repo.insert!(%PicoDevice{
@@ -287,6 +308,89 @@ defmodule HueworksWeb.PicoConfigLiveTest do
            } = PicoButton.action_config_struct(assigned)
 
     assert control_group_ids == [control_group["id"]]
+  end
+
+  test "pico sync runs asynchronously and keeps the page responsive", %{conn: conn} do
+    Application.put_env(:hueworks, :caseta_pico_fetcher, BlockingCasetaPicoFetcherStub)
+    Application.put_env(:hueworks, :pico_config_live_test_pid, self())
+
+    bridge =
+      insert_bridge!(%{
+        type: :caseta,
+        name: "Caseta",
+        host: "10.0.0.626",
+        credentials: %{"cert_path" => "a", "key_path" => "b", "cacert_path" => "c"},
+        enabled: true,
+        import_complete: true
+      })
+
+    {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/picos")
+
+    html = render_click(element(view, "button[phx-click='sync_picos']"))
+
+    assert html =~ "Syncing Picos"
+    assert html =~ ~s(id="pico-sync-button")
+    assert html =~ "disabled"
+    assert_receive {:pico_sync_started, sync_pid}
+
+    render_click(element(view, "#pico-start-detect"))
+    assert render(view) =~ "Detect mode active. Press a Pico button to open that Pico."
+
+    send(sync_pid, :finish_pico_sync)
+
+    html = render_async(view)
+    assert html =~ "Picos synced."
+    assert html =~ "Main Floor Pico"
+  end
+
+  test "pico sync crashes are reported without killing the page", %{conn: conn} do
+    Application.put_env(:hueworks, :caseta_pico_fetcher, ExitingCasetaPicoFetcherStub)
+
+    bridge =
+      insert_bridge!(%{
+        type: :caseta,
+        name: "Caseta",
+        host: "10.0.0.627",
+        credentials: %{"cert_path" => "a", "key_path" => "b", "cacert_path" => "c"},
+        enabled: true,
+        import_complete: true
+      })
+
+    {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/picos")
+
+    render_click(element(view, "button[phx-click='sync_picos']"))
+
+    html = render_async(view)
+    assert html =~ "Pico sync failed"
+    assert html =~ "Pico Config"
+  end
+
+  test "pico sync ignores stale completions after page state is superseded", %{conn: conn} do
+    Application.put_env(:hueworks, :caseta_pico_fetcher, BlockingCasetaPicoFetcherStub)
+    Application.put_env(:hueworks, :pico_config_live_test_pid, self())
+
+    bridge =
+      insert_bridge!(%{
+        type: :caseta,
+        name: "Caseta",
+        host: "10.0.0.628",
+        credentials: %{"cert_path" => "a", "key_path" => "b", "cacert_path" => "c"},
+        enabled: true,
+        import_complete: true
+      })
+
+    {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/picos")
+
+    render_click(element(view, "button[phx-click='sync_picos']"))
+    assert_receive {:pico_sync_started, sync_pid}
+
+    render_patch(view, "/config/bridge/#{bridge.id}/picos")
+    send(sync_pid, :finish_pico_sync)
+
+    html = render_async(view)
+    assert html =~ "Sync Picos"
+    refute html =~ "Picos synced."
+    refute html =~ "Main Floor Pico"
   end
 
   test "selecting control group lights adds them immediately", %{conn: conn} do
@@ -1002,9 +1106,14 @@ defmodule HueworksWeb.PicoConfigLiveTest do
 
     html = render(view)
     assert html =~ "pico-clear-room-scope"
-    assert html =~ "Clear"
+    assert html =~ "Clear Config"
     assert html =~ ~s(id="pico-room-id")
     assert html =~ ~s(id="pico-clear-room-scope")
+
+    assert has_element?(
+             view,
+             "#pico-clear-room-scope[data-confirm*='removes all control groups and button bindings']"
+           )
 
     view
     |> element("#pico-clear-room-scope")
@@ -1015,7 +1124,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
 
     assert updated.room_id == auto_room.id
     assert render(view) =~ "pico-clear-room-scope"
-    assert render(view) =~ "Clear"
+    assert render(view) =~ "Clear Config"
     assert render(view) =~ "Pico config cleared."
     assert updated_button.action_type == nil
 
@@ -1045,6 +1154,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
     {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/picos")
 
     render_click(element(view, "button[phx-click='sync_picos']"))
+    render_async(view)
     assert render(view) =~ "Main Floor Pico"
 
     render_click(element(view, "#pico-start-detect"))
@@ -1154,6 +1264,11 @@ defmodule HueworksWeb.PicoConfigLiveTest do
 
     assert render(view) =~ "Clone From Another Pico"
     assert render(view) =~ "Source Pico"
+
+    assert has_element?(
+             view,
+             "#pico-clone-config[data-confirm*='current room, control groups, and button bindings will be replaced']"
+           )
 
     view
     |> form("#pico-clone-source-form", %{"id" => Integer.to_string(source.id)})
@@ -1409,6 +1524,13 @@ defmodule HueworksWeb.PicoConfigLiveTest do
     })
     |> render_change()
 
+    view
+    |> form("#pico-binding-editor-form", %{"action" => "off", "target_ids" => ["group-a"]})
+    |> render_change()
+
+    assert has_element?(view, "#pico-binding-target-groups input[value='group-a'][checked]")
+    refute has_element?(view, "#pico-binding-target-groups input[value='group-b'][checked]")
+
     render_click(element(view, "#pico-start-button-learning"))
 
     Phoenix.PubSub.broadcast(
@@ -1418,7 +1540,120 @@ defmodule HueworksWeb.PicoConfigLiveTest do
     )
 
     assert render(view) =~ "Assigned action to the pressed Pico button."
-    assert render(view) =~ "Toggle Overhead + Lamps"
+    assert render(view) =~ "Turn Off Overhead"
+  end
+
+  test "binding editor can clear the final selected control group", %{conn: conn} do
+    room = Repo.insert!(%Room{name: "Office"})
+
+    bridge =
+      insert_bridge!(%{
+        type: :caseta,
+        name: "Caseta",
+        host: "10.0.0.663",
+        credentials: %{"cert_path" => "a", "key_path" => "b", "cacert_path" => "c"},
+        enabled: true,
+        import_complete: true
+      })
+
+    device =
+      Repo.insert!(%PicoDevice{
+        bridge_id: bridge.id,
+        room_id: room.id,
+        source_id: "clear-checkbox-pico",
+        name: "Clear Checkbox Pico",
+        hardware_profile: "5_button",
+        metadata: %{
+          "room_override" => true,
+          "control_groups" => [
+            %{"id" => "group-a", "name" => "Overhead", "group_ids" => [], "light_ids" => []}
+          ]
+        }
+      })
+
+    insert_pico_button(%{
+      pico_device_id: device.id,
+      source_id: "b1",
+      button_number: 2,
+      slot_index: 0,
+      enabled: true
+    })
+
+    {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/picos/#{device.id}")
+
+    view
+    |> form("#pico-binding-editor-form", %{
+      "action" => "toggle",
+      "target_ids" => ["group-a"]
+    })
+    |> render_change()
+
+    assert has_element?(view, "#pico-binding-target-groups input[value='group-a'][checked]")
+
+    render_change(view, "update_binding_editor", %{"action" => "toggle"})
+
+    refute has_element?(view, "#pico-binding-target-groups input[value='group-a'][checked]")
+
+    render_click(element(view, "#pico-start-button-learning"))
+
+    assert render(view) =~ "Choose an action and a target before starting button learning."
+  end
+
+  test "binding editor restores selected control groups after scene-mode round trip", %{
+    conn: conn
+  } do
+    room = Repo.insert!(%Room{name: "Office"})
+    _scene = Repo.insert!(%Scene{name: "Evening", room_id: room.id, metadata: %{}})
+
+    bridge =
+      insert_bridge!(%{
+        type: :caseta,
+        name: "Caseta",
+        host: "10.0.0.664",
+        credentials: %{"cert_path" => "a", "key_path" => "b", "cacert_path" => "c"},
+        enabled: true,
+        import_complete: true
+      })
+
+    device =
+      Repo.insert!(%PicoDevice{
+        bridge_id: bridge.id,
+        room_id: room.id,
+        source_id: "round-trip-checkbox-pico",
+        name: "Round Trip Checkbox Pico",
+        hardware_profile: "5_button",
+        metadata: %{
+          "room_override" => true,
+          "control_groups" => [
+            %{"id" => "group-a", "name" => "Overhead", "group_ids" => [], "light_ids" => []},
+            %{"id" => "group-b", "name" => "Lamps", "group_ids" => [], "light_ids" => []}
+          ]
+        }
+      })
+
+    {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/picos/#{device.id}")
+
+    view
+    |> form("#pico-binding-editor-form", %{
+      "action" => "toggle",
+      "target_ids" => ["group-a"]
+    })
+    |> render_change()
+
+    assert has_element?(view, "#pico-binding-target-groups input[value='group-a'][checked]")
+
+    view
+    |> form("#pico-binding-editor-form", %{"action" => "activate_scene"})
+    |> render_change()
+
+    assert has_element?(view, "#pico-binding-scene-container")
+
+    view
+    |> form("#pico-binding-editor-form", %{"action" => "toggle"})
+    |> render_change()
+
+    assert has_element?(view, "#pico-binding-target-groups input[value='group-a'][checked]")
+    refute has_element?(view, "#pico-binding-target-groups input[value='group-b'][checked]")
   end
 
   test "discovered buttons can be assigned manually from the current binding editor state", %{
@@ -1534,6 +1769,11 @@ defmodule HueworksWeb.PicoConfigLiveTest do
     assert render(view) =~ "Overhead"
     assert render(view) =~ "Toggle Overhead"
 
+    assert has_element?(
+             view,
+             "button[phx-click='delete_control_group'][phx-value-id='group-a'][data-confirm*='dependent button bindings']"
+           )
+
     view
     |> element("button[phx-click='delete_control_group'][phx-value-id='group-a']")
     |> render_click()
@@ -1597,6 +1837,11 @@ defmodule HueworksWeb.PicoConfigLiveTest do
     {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/picos/#{device.id}")
 
     assert render(view) =~ "Activate Scene Movie Night"
+
+    assert has_element?(
+             view,
+             "button[phx-click='clear_button_binding'][phx-value-id='#{button.id}'][data-confirm*='Button 2']"
+           )
 
     view
     |> element("button[phx-click='clear_button_binding'][phx-value-id='#{button.id}']")

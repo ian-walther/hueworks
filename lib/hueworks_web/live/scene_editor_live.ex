@@ -1,25 +1,13 @@
 defmodule HueworksWeb.SceneEditorLive do
   use Phoenix.LiveView
 
-  import Ecto.Query, only: [from: 2]
-
   alias Hueworks.ActiveScenes
+  alias Hueworks.Groups
   alias Hueworks.Repo
   alias Hueworks.Rooms
   alias Hueworks.Scenes
   alias Hueworks.Scenes.Builder
-  alias Hueworks.Schemas.GroupLight
-
-  @blank_component %{
-    id: 1,
-    name: "Component 1",
-    light_ids: [],
-    group_ids: [],
-    light_state_id: nil,
-    embedded_manual_config: nil,
-    light_defaults: %{},
-    light_presence_inputs: %{}
-  }
+  alias HueworksWeb.SceneBuilderComponent.Component
 
   def mount(_params, _session, socket) do
     if connected?(socket) do
@@ -33,7 +21,7 @@ defmodule HueworksWeb.SceneEditorLive do
        scene_mode: :new,
        scene_id: nil,
        scene_name: "",
-       scene_components: [@blank_component],
+       scene_components: [Component.new()],
        scene_builder: nil,
        scene_room_lights: [],
        scene_room_groups: [],
@@ -94,30 +82,24 @@ defmodule HueworksWeb.SceneEditorLive do
   end
 
   def handle_event("toggle_scene_activation", _params, socket) do
-    case Scenes.get_scene(socket.assigns.scene_id) do
-      nil ->
+    case Scenes.toggle_activation(socket.assigns.scene_id, :scene_editor) do
+      {:ok, :deactivated, _scene} ->
+        {:noreply,
+         socket
+         |> assign(active_scene_id: nil)
+         |> put_flash(:info, "Scene deactivated.")}
+
+      {:ok, :activated, scene, _diff, _updated} ->
+        {:noreply,
+         socket
+         |> assign(active_scene_id: scene.id)
+         |> put_flash(:info, "Scene activated.")}
+
+      {:error, :not_found} ->
         {:noreply, push_navigate(socket, to: "/rooms")}
 
-      scene ->
-        if socket.assigns.active_scene_id == scene.id do
-          :ok = ActiveScenes.clear_for_room(scene.room_id)
-
-          {:noreply,
-           socket
-           |> assign(active_scene_id: nil)
-           |> put_flash(:info, "Scene deactivated.")}
-        else
-          with {:ok, _active} <- ActiveScenes.set_active(scene),
-               {:ok, _diff, _updated} <- Scenes.activate_scene(scene.id) do
-            {:noreply,
-             socket
-             |> assign(active_scene_id: scene.id)
-             |> put_flash(:info, "Scene activated.")}
-          else
-            _ ->
-              {:noreply, put_scene_error(socket, "Unable to activate scene.")}
-          end
-        end
+      {:error, _reason} ->
+        {:noreply, put_scene_error(socket, "Unable to activate scene.")}
     end
   end
 
@@ -145,7 +127,7 @@ defmodule HueworksWeb.SceneEditorLive do
         push_navigate(socket, to: "/rooms")
 
       {:ok, room, nil} ->
-        assign_new_scene(socket, room, "", [@blank_component])
+        assign_new_scene(socket, room, "", [Component.new()])
 
       {:ok, room, scene} ->
         assign_new_scene(
@@ -353,38 +335,10 @@ defmodule HueworksWeb.SceneEditorLive do
       scene
       |> Repo.preload(scene_components: [:lights, :light_state, :scene_component_lights])
 
-    components =
-      Enum.map(scene.scene_components, fn component ->
-        light_defaults =
-          component.scene_component_lights
-          |> Enum.reduce(%{}, fn join, acc ->
-            Map.put(acc, join.light_id, join.default_power)
-          end)
-
-        light_presence_inputs =
-          component.scene_component_lights
-          |> Enum.reduce(%{}, fn join, acc ->
-            if join.presence_input_id do
-              Map.put(acc, join.light_id, join.presence_input_id)
-            else
-              acc
-            end
-          end)
-
-        %{
-          id: component.id,
-          name: component.name || "Component",
-          light_ids: Enum.map(component.lights, & &1.id),
-          group_ids: [],
-          light_state_id: if(component.light_state_id, do: to_string(component.light_state_id)),
-          embedded_manual_config: component.embedded_manual_config,
-          light_defaults: light_defaults,
-          light_presence_inputs: light_presence_inputs
-        }
-      end)
+    components = Enum.map(scene.scene_components, &Component.from_saved/1)
 
     case components do
-      [] -> [@blank_component]
+      [] -> [Component.new()]
       _ -> components
     end
   end
@@ -398,18 +352,7 @@ defmodule HueworksWeb.SceneEditorLive do
         room = Repo.preload(room, [:lights, :groups, :presence_inputs])
         groups = room.groups
         group_ids = Enum.map(groups, & &1.id)
-
-        group_light_map =
-          Repo.all(
-            from(gl in GroupLight,
-              where: gl.group_id in ^group_ids,
-              select: {gl.group_id, gl.light_id}
-            )
-          )
-          |> Enum.group_by(
-            fn {group_id, _light_id} -> group_id end,
-            fn {_group_id, light_id} -> light_id end
-          )
+        group_light_map = Groups.light_ids_by_group(group_ids)
 
         groups_with_lights =
           Enum.map(groups, fn group ->

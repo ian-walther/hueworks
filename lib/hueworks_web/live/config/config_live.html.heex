@@ -309,11 +309,17 @@
                 Duplicate
               </button>
               <button
-                class="hw-button"
+                class={["hw-button", entry.usage_count == 0 && "hw-delete-button"]}
                 type="button"
                 phx-click="delete_light_state"
                 phx-value-id={entry.state.id}
                 disabled={entry.usage_count > 0}
+                data-confirm={
+                  if entry.usage_count == 0,
+                    do:
+                      "Delete #{HueworksWeb.ConfigLive.state_label(entry.state)}? This cannot be undone.",
+                    else: nil
+                }
               >
                 Delete
               </button>
@@ -359,6 +365,7 @@
                 type="button"
                 phx-click="delete_entities"
                 phx-value-id={bridge.id}
+                data-confirm="This removes all imported lights, groups, and Picos for this bridge, including their scene assignments."
               >
                 Delete Entities
               </button>
@@ -368,6 +375,7 @@
                 type="button"
                 phx-click="delete_bridge"
                 phx-value-id={bridge.id}
+                data-confirm="This removes the bridge configuration. This cannot be undone."
               >
                 Delete Bridge
               </button>

@@ -133,11 +133,20 @@
             Proceed
           </button>
         <% else %>
-          <button type="button" class="hw-button hw-button-on" phx-click="test_bridge">
-            Test Connection
+          <button
+            type="button"
+            class="hw-button hw-button-on"
+            phx-click="test_bridge"
+            disabled={@test_status == :testing}
+          >
+            <%= if @test_status == :testing, do: "Testing...", else: "Test Connection" %>
           </button>
         <% end %>
       </div>
+
+      <%= if @test_status == :testing do %>
+        <p class="hw-muted">Testing connection...</p>
+      <% end %>
 
       <%= if @test_status == :ok do %>
         <p class="hw-muted">Connection verified.</p>

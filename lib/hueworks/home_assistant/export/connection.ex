@@ -3,6 +3,8 @@ defmodule Hueworks.HomeAssistant.Export.Connection do
 
   require Logger
 
+  alias Hueworks.Mqtt.Options, as: MqttOptions
+
   def start(client_id, server_pid, config, topic_filters) when is_pid(server_pid) do
     start_opts =
       [
@@ -10,7 +12,7 @@ defmodule Hueworks.HomeAssistant.Export.Connection do
         handler: {Hueworks.HomeAssistant.Export.Handler, [server_pid, client_id, topic_filters]},
         server: {Tortoise.Transport.Tcp, host: String.to_charlist(config.host), port: config.port}
       ]
-      |> maybe_put_auth(config)
+      |> MqttOptions.put_auth(config)
 
     case supervisor_module().start_child(start_opts) do
       {:ok, pid} ->
@@ -49,19 +51,6 @@ defmodule Hueworks.HomeAssistant.Export.Connection do
 
   def alive?(pid) when is_pid(pid), do: Process.alive?(pid)
   def alive?(_pid), do: false
-
-  defp maybe_put_auth(opts, %{username: username, password: password}) when is_binary(username) do
-    opts
-    |> Keyword.put(:user_name, username)
-    |> maybe_put_password(password)
-  end
-
-  defp maybe_put_auth(opts, _config), do: opts
-
-  defp maybe_put_password(opts, password) when is_binary(password),
-    do: Keyword.put(opts, :password, password)
-
-  defp maybe_put_password(opts, _password), do: opts
 
   defp tortoise_module do
     case Application.get_env(:hueworks, :ha_export_tortoise_module) do

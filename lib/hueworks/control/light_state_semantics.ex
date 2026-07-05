@@ -7,6 +7,7 @@ defmodule Hueworks.Control.LightStateSemantics do
   @type state_map :: map()
   @type comparison_opts :: keyword()
   @type xy_value :: float() | nil
+  @canonical_state_keys [:power, :brightness, :kelvin, :x, :y]
 
   @spec diff_state(state_map(), state_map(), comparison_opts()) :: state_map()
 
@@ -15,7 +16,7 @@ defmodule Hueworks.Control.LightStateSemantics do
   def diff_state(actual, desired, opts) when is_map(actual) and is_map(desired) do
     desired
     |> Enum.reduce(%{}, fn {key, value}, acc ->
-      if values_equal?(key, value, value_or_alias(actual, key), opts) do
+      if values_equal?(key, value, Map.get(actual, key), opts) do
         acc
       else
         Map.put(acc, key, value)
@@ -31,7 +32,7 @@ defmodule Hueworks.Control.LightStateSemantics do
   def diverging_keys(expected, actual, opts) when is_map(expected) and is_map(actual) do
     expected
     |> Enum.reduce([], fn {key, expected_value}, acc ->
-      if values_equal?(key, expected_value, value_or_alias(actual, key), opts) do
+      if values_equal?(key, expected_value, Map.get(actual, key), opts) do
         acc
       else
         [key | acc]
@@ -45,23 +46,26 @@ defmodule Hueworks.Control.LightStateSemantics do
     |> Map.keys()
   end
 
-  @spec value_or_alias(state_map(), term()) :: term() | nil
-  def value_or_alias(state, key) when is_map(state) do
-    key_aliases(key)
-    |> Enum.find_value(fn alias_key ->
-      if Map.has_key?(state, alias_key) do
-        {:ok, Map.get(state, alias_key)}
-      else
-        nil
+  @spec normalize_keys(state_map()) :: state_map()
+  def normalize_keys(state) when is_map(state) do
+    unknown =
+      Enum.reduce(state, %{}, fn {key, value}, acc ->
+        if canonical_state_key(key) do
+          acc
+        else
+          Map.put(acc, key, value)
+        end
+      end)
+
+    Enum.reduce(@canonical_state_keys, unknown, fn key, acc ->
+      case fetch_alias(state, key) do
+        {:ok, value} -> Map.put(acc, key, normalize_canonical_value(key, value))
+        :error -> acc
       end
     end)
-    |> case do
-      {:ok, value} -> value
-      _ -> nil
-    end
   end
 
-  def value_or_alias(_state, _key), do: nil
+  def normalize_keys(_state), do: %{}
 
   def key_aliases(:kelvin), do: [:kelvin, "kelvin", :temperature, "temperature"]
   def key_aliases("kelvin"), do: [:kelvin, "kelvin", :temperature, "temperature"]
@@ -81,7 +85,7 @@ defmodule Hueworks.Control.LightStateSemantics do
 
   def values_equal?(_key, desired, actual, _opts) when desired == actual, do: true
 
-  def values_equal?(key, desired, actual, opts) when key in [:brightness, "brightness"] do
+  def values_equal?(:brightness, desired, actual, opts) do
     tolerance = Keyword.get(opts, :brightness_tolerance, 0)
 
     case {Util.to_number(desired), Util.to_number(actual)} do
@@ -91,13 +95,12 @@ defmodule Hueworks.Control.LightStateSemantics do
     end
   end
 
-  def values_equal?(key, desired, actual, opts)
-      when key in [:kelvin, "kelvin", :temperature, "temperature"] do
+  def values_equal?(:kelvin, desired, actual, opts) do
     tolerance = Keyword.get(opts, :temperature_mired_tolerance, 0)
     Kelvin.equivalent_temperature?(desired, actual, mired_tolerance: tolerance)
   end
 
-  def values_equal?(key, desired, actual, opts) when key in [:x, "x", :y, "y"] do
+  def values_equal?(key, desired, actual, opts) when key in [:x, :y] do
     tolerance = Keyword.get(opts, :xy_tolerance, 0.005)
 
     case {Util.to_number(desired), Util.to_number(actual)} do
@@ -120,39 +123,21 @@ defmodule Hueworks.Control.LightStateSemantics do
 
   @spec x_value(state_map()) :: xy_value()
   def x_value(desired) when is_map(desired) do
-    desired
-    |> Enum.reduce_while(nil, fn
-      {key, value}, _acc when key in [:x, "x"] -> {:halt, Util.to_number(value)}
-      _entry, acc -> {:cont, acc}
-    end)
-    |> normalize_xy_value()
+    desired |> Map.get(:x) |> Util.to_number() |> normalize_xy_value()
   end
 
   def x_value(_desired), do: nil
 
   @spec y_value(state_map()) :: xy_value()
   def y_value(desired) when is_map(desired) do
-    desired
-    |> Enum.reduce_while(nil, fn
-      {key, value}, _acc when key in [:y, "y"] -> {:halt, Util.to_number(value)}
-      _entry, acc -> {:cont, acc}
-    end)
-    |> normalize_xy_value()
+    desired |> Map.get(:y) |> Util.to_number() |> normalize_xy_value()
   end
 
   def y_value(_desired), do: nil
 
   @spec kelvin_value(state_map()) :: integer() | nil
   def kelvin_value(desired) when is_map(desired) do
-    desired
-    |> Enum.find_value(fn
-      {key, value} when key in [:kelvin, "kelvin", :temperature, "temperature"] ->
-        Util.to_number(value)
-
-      _ ->
-        nil
-    end)
-    |> case do
+    case desired |> Map.get(:kelvin) |> Util.to_number() do
       nil -> nil
       value -> round(value)
     end
@@ -160,27 +145,58 @@ defmodule Hueworks.Control.LightStateSemantics do
 
   def kelvin_value(_desired), do: nil
 
+  @spec brightness_value(state_map()) :: term() | nil
+  def brightness_value(desired) when is_map(desired), do: Map.get(desired, :brightness)
+  def brightness_value(_desired), do: nil
+
+  @spec power_value(state_map()) :: :on | :off | term() | nil
+  def power_value(desired) when is_map(desired), do: Map.get(desired, :power)
+  def power_value(_desired), do: nil
+
   @spec supports_temp?(state_map()) :: boolean()
   def supports_temp?(light) when is_map(light) do
-    Map.get(light, :supports_temp) == true or Map.get(light, "supports_temp") == true
+    Map.get(light, :supports_temp) == true
   end
 
   def supports_temp?(_light), do: false
 
   @spec supports_color?(state_map()) :: boolean()
   def supports_color?(light) when is_map(light) do
-    Map.get(light, :supports_color) == true or Map.get(light, "supports_color") == true
+    Map.get(light, :supports_color) == true
   end
 
   def supports_color?(_light), do: false
+
+  @spec merge_state(state_map(), state_map()) :: state_map()
+  def merge_state(current, incoming) when is_map(current) and is_map(incoming) do
+    current = normalize_keys(current)
+    incoming = normalize_keys(incoming)
+
+    current
+    |> harmonize_color_and_temperature(incoming)
+    |> Map.merge(incoming)
+  end
+
+  def merge_state(current, _incoming) when is_map(current), do: normalize_keys(current)
+  def merge_state(_current, incoming) when is_map(incoming), do: normalize_keys(incoming)
+  def merge_state(_current, _incoming), do: %{}
+
+  @spec normalize_power_off(state_map()) :: state_map()
+  def normalize_power_off(state) when is_map(state) do
+    state = normalize_keys(state)
+
+    case power_value(state) do
+      :off -> drop_light_levels(state)
+      _ -> state
+    end
+  end
+
+  def normalize_power_off(state), do: state
 
   @spec drop_kelvin(state_map()) :: state_map()
   def drop_kelvin(desired) when is_map(desired) do
     desired
     |> Map.delete(:kelvin)
-    |> Map.delete("kelvin")
-    |> Map.delete(:temperature)
-    |> Map.delete("temperature")
   end
 
   def drop_kelvin(desired), do: desired
@@ -189,64 +205,96 @@ defmodule Hueworks.Control.LightStateSemantics do
   def drop_xy(desired) when is_map(desired) do
     desired
     |> Map.delete(:x)
-    |> Map.delete("x")
     |> Map.delete(:y)
-    |> Map.delete("y")
   end
 
   def drop_xy(desired), do: desired
 
+  @spec drop_light_levels(state_map()) :: state_map()
+  def drop_light_levels(desired) when is_map(desired) do
+    desired
+    |> Map.delete(:brightness)
+    |> drop_kelvin()
+    |> drop_xy()
+  end
+
+  def drop_light_levels(desired), do: desired
+
+  defp harmonize_color_and_temperature(attrs, incoming_attrs)
+       when is_map(attrs) and is_map(incoming_attrs) do
+    cond do
+      incoming_has_xy?(incoming_attrs) ->
+        drop_kelvin(attrs)
+
+      incoming_has_kelvin?(incoming_attrs) ->
+        drop_xy(attrs)
+
+      true ->
+        attrs
+    end
+  end
+
+  defp harmonize_color_and_temperature(attrs, _incoming_attrs), do: attrs
+
+  defp incoming_has_xy?(attrs) when is_map(attrs) do
+    Map.has_key?(attrs, :x) or Map.has_key?(attrs, :y)
+  end
+
+  defp incoming_has_kelvin?(attrs) when is_map(attrs) do
+    Map.has_key?(attrs, :kelvin)
+  end
+
+  defp fetch_alias(state, key) do
+    key_aliases(key)
+    |> Enum.reduce_while(:error, fn alias_key, _acc ->
+      if Map.has_key?(state, alias_key) do
+        {:halt, {:ok, Map.get(state, alias_key)}}
+      else
+        {:cont, :error}
+      end
+    end)
+  end
+
+  defp canonical_state_key(:power), do: :power
+  defp canonical_state_key("power"), do: :power
+  defp canonical_state_key(:brightness), do: :brightness
+  defp canonical_state_key("brightness"), do: :brightness
+  defp canonical_state_key(:kelvin), do: :kelvin
+  defp canonical_state_key("kelvin"), do: :kelvin
+  defp canonical_state_key(:temperature), do: :kelvin
+  defp canonical_state_key("temperature"), do: :kelvin
+  defp canonical_state_key(:x), do: :x
+  defp canonical_state_key("x"), do: :x
+  defp canonical_state_key(:y), do: :y
+  defp canonical_state_key("y"), do: :y
+  defp canonical_state_key(_key), do: nil
+
+  defp normalize_canonical_value(:power, value), do: normalize_power_value(value)
+  defp normalize_canonical_value(_key, value), do: value
+
+  defp normalize_power_value("on"), do: :on
+  defp normalize_power_value("ON"), do: :on
+  defp normalize_power_value(true), do: :on
+  defp normalize_power_value("off"), do: :off
+  defp normalize_power_value("OFF"), do: :off
+  defp normalize_power_value(false), do: :off
+  defp normalize_power_value(value), do: value
+
   @spec put_kelvin(state_map(), integer()) :: state_map()
   def put_kelvin(desired, clamped_kelvin) when is_map(desired) do
-    keys =
-      desired
-      |> Map.keys()
-      |> Enum.filter(&(&1 in [:kelvin, "kelvin", :temperature, "temperature"]))
-
-    desired = drop_kelvin(desired)
-
-    case keys do
-      [] ->
-        Map.put(desired, :kelvin, clamped_kelvin)
-
-      _ ->
-        Enum.reduce(keys, desired, fn key, acc ->
-          Map.put(acc, key, clamped_kelvin)
-        end)
-    end
+    desired
+    |> drop_kelvin()
+    |> Map.put(:kelvin, clamped_kelvin)
   end
 
   def put_kelvin(desired, _clamped_kelvin), do: desired
 
   @spec put_xy(state_map(), number(), number()) :: state_map()
   def put_xy(desired, x, y) when is_map(desired) do
-    keys =
-      desired
-      |> Map.keys()
-      |> Enum.filter(&(&1 in [:x, "x", :y, "y"]))
-
-    desired = drop_xy(desired)
-
-    case keys do
-      [] ->
-        desired
-        |> Map.put(:x, x)
-        |> Map.put(:y, y)
-
-      _ ->
-        desired =
-          Enum.reduce(keys, desired, fn key, acc ->
-            cond do
-              key in [:x, "x"] -> Map.put(acc, key, x)
-              key in [:y, "y"] -> Map.put(acc, key, y)
-              true -> acc
-            end
-          end)
-
-        desired
-        |> Map.put_new(:x, x)
-        |> Map.put_new(:y, y)
-    end
+    desired
+    |> drop_xy()
+    |> Map.put(:x, x)
+    |> Map.put(:y, y)
   end
 
   def put_xy(desired, _x, _y), do: desired

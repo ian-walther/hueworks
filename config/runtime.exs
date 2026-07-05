@@ -84,8 +84,30 @@ if config_env() == :prod do
   host = System.get_env("PHX_HOST") || "localhost"
   port = String.to_integer(System.get_env("PORT") || "4000")
 
+  scheme =
+    System.get_env("PHX_SCHEME", "http")
+    |> String.downcase()
+    |> case do
+      value when value in ["http", "https"] -> value
+      value -> raise "PHX_SCHEME must be http or https, got: #{inspect(value)}"
+    end
+
+  default_url_port = if scheme == "https", do: 443, else: port
+
+  url_port =
+    case System.get_env("PHX_URL_PORT") do
+      nil ->
+        default_url_port
+
+      value ->
+        case String.trim(value) do
+          "" -> default_url_port
+          normalized -> String.to_integer(normalized)
+        end
+    end
+
   config :hueworks, HueworksWeb.Endpoint,
-    url: [host: host, port: 443, scheme: "https"],
+    url: [host: host, port: url_port, scheme: scheme],
     http: [ip: {0, 0, 0, 0, 0, 0, 0, 0}, port: port],
     secret_key_base: secret_key_base
 end

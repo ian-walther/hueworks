@@ -25,6 +25,58 @@ defmodule Hueworks.Import.JsonHandlingTest do
     assert output =~ "Failed to materialize"
   end
 
+  test "normalize task rejects unsupported bridge type without creating atoms" do
+    source = "unsupported_normalize_#{System.unique_integer([:positive])}"
+
+    path =
+      temp_json_file("unsupported-normalize.json", %{
+        "bridge" => %{"id" => 1, "type" => source, "name" => "Bad", "host" => "bad.local"},
+        "raw" => %{},
+        "fetched_at" => "2026-01-01T00:00:00Z"
+      })
+
+    output =
+      capture_io(:stderr, fn ->
+        Mix.Tasks.NormalizeBridgeImports.run([path])
+      end)
+
+    assert output =~ "Unsupported bridge type: #{source}"
+    assert_raise ArgumentError, fn -> String.to_existing_atom(source) end
+  end
+
+  test "materialize task prints missing bridge errors" do
+    path =
+      temp_json_file("missing-bridge-materialize.json", %{
+        "bridge" => %{"host" => "missing.local", "type" => "hue"},
+        "normalized" => %{"rooms" => [], "lights" => [], "groups" => [], "memberships" => %{}}
+      })
+
+    output =
+      capture_io(:stderr, fn ->
+        Mix.Tasks.MaterializeBridgeImports.run([path])
+      end)
+
+    assert output =~ "No bridge found for missing.local (hue)"
+  end
+
+  test "materialize task rejects unsupported bridge type without creating atoms" do
+    source = "unsupported_materialize_#{System.unique_integer([:positive])}"
+
+    path =
+      temp_json_file("unsupported-materialize.json", %{
+        "bridge" => %{"host" => "missing.local", "type" => source},
+        "normalized" => %{"rooms" => [], "lights" => [], "groups" => [], "memberships" => %{}}
+      })
+
+    output =
+      capture_io(:stderr, fn ->
+        Mix.Tasks.MaterializeBridgeImports.run([path])
+      end)
+
+    assert output =~ "Unsupported bridge type: #{source}"
+    assert_raise ArgumentError, fn -> String.to_existing_atom(source) end
+  end
+
   defp temp_file(name, contents) do
     base = System.tmp_dir!()
     path = Path.join(base, "hueworks_#{name}")
@@ -35,5 +87,9 @@ defmodule Hueworks.Import.JsonHandlingTest do
     end)
 
     path
+  end
+
+  defp temp_json_file(name, payload) do
+    temp_file(name, Jason.encode!(payload))
   end
 end

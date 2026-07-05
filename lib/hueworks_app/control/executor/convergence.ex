@@ -14,7 +14,7 @@ defmodule Hueworks.Control.Executor.Convergence do
   def handle_verification(action, state, append_fun)
       when is_function(append_fun, 2) do
     now = state.now_fn.(:millisecond)
-    recovery_actions = recovery_actions_for(action, now)
+    recovery_actions = recovery_actions_for(action, now, %{}, 1)
 
     case recovery_actions do
       [] ->
@@ -33,14 +33,21 @@ defmodule Hueworks.Control.Executor.Convergence do
     end
   end
 
-  defp recovery_actions_for(action, now) do
+  def stale_recovery_actions(action, state) do
+    dispatched_revisions = Map.get(state, :dispatched_revisions, %{})
+
+    state.now_fn.(:millisecond)
+    |> then(&recovery_actions_for(action, &1, dispatched_revisions, 0))
+  end
+
+  defp recovery_actions_for(action, now, dispatched_revisions, attempts_increment) do
     case action_target_context(action) do
       {:ok, room_id, light_ids} ->
-        diff = current_desired_diff(light_ids)
+        diff = current_desired_diff(light_ids, dispatched_revisions)
 
         room_id
         |> Planner.plan_room(diff, trace: Trace.action_trace(action))
-        |> Enum.map(&decorate_recovery_action(&1, action, now))
+        |> Enum.map(&decorate_recovery_action(&1, action, now, attempts_increment))
 
       :error ->
         []
@@ -69,21 +76,23 @@ defmodule Hueworks.Control.Executor.Convergence do
 
   defp action_target_context(_action), do: :error
 
-  defp current_desired_diff(light_ids) do
+  defp current_desired_diff(light_ids, dispatched_revisions) do
     Enum.reduce(light_ids, %{}, fn light_id, acc ->
+      key = {:light, light_id}
       desired = DesiredState.get(:light, light_id) || %{}
+      revision = DesiredState.revision(:light, light_id)
 
-      if desired == %{} do
+      if desired == %{} or Map.get(dispatched_revisions, key) == revision do
         acc
       else
-        Map.put(acc, {:light, light_id}, desired)
+        Map.put(acc, key, desired)
       end
     end)
   end
 
-  defp decorate_recovery_action(recovery_action, action, now) do
+  defp decorate_recovery_action(recovery_action, action, now, attempts_increment) do
     recovery_action
-    |> Map.put(:attempts, action.attempts + 1)
+    |> Map.put(:attempts, Map.get(action, :attempts, 0) + attempts_increment)
     |> Map.put(:not_before, now)
     |> Map.put(:enqueued_at_ms, now)
     |> Trace.copy_trace_metadata(action)

@@ -3,6 +3,7 @@ defmodule Hueworks.Import.NormalizeFromDb do
 
   import Ecto.Query, only: [from: 2]
 
+  alias Hueworks.Import.Normalize
   alias Hueworks.Repo
   alias Hueworks.Schemas.{Bridge, Group, GroupLight, Light}
 
@@ -10,10 +11,12 @@ defmodule Hueworks.Import.NormalizeFromDb do
     lights =
       Repo.all(from(l in Light, where: l.bridge_id == ^bridge.id, select: l.normalized_json))
       |> Enum.filter(&is_map/1)
+      |> Enum.map(&normalize_cached_entry/1)
 
     groups =
       Repo.all(from(g in Group, where: g.bridge_id == ^bridge.id, select: g.normalized_json))
       |> Enum.filter(&is_map/1)
+      |> Enum.map(&normalize_cached_entry/1)
 
     memberships = %{
       group_lights: group_lights(bridge.id),
@@ -63,4 +66,20 @@ defmodule Hueworks.Import.NormalizeFromDb do
 
   defp get_source_id(%{"source_id" => source_id}) when is_binary(source_id), do: source_id
   defp get_source_id(_value), do: nil
+
+  defp normalize_cached_entry(entry) do
+    entry
+    |> normalize_cached_capabilities("capabilities")
+    |> normalize_cached_capabilities(:capabilities)
+  end
+
+  defp normalize_cached_capabilities(entry, key) do
+    case Map.fetch(entry, key) do
+      {:ok, capabilities} ->
+        Map.put(entry, key, Normalize.normalize_cached_capabilities(capabilities))
+
+      :error ->
+        entry
+    end
+  end
 end

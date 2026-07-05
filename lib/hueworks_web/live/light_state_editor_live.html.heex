@@ -7,7 +7,18 @@
       </p>
     </div>
     <div class="hw-actions">
-      <a class="hw-button hw-button-off" href="/config">Back to Config</a>
+      <a
+        id="light-state-back-to-config"
+        class="hw-button hw-button-off"
+        href="/config"
+        data-confirm={
+          if @dirty,
+            do: "You have unsaved changes. Back to Config will discard them.",
+            else: nil
+        }
+      >
+        Back to Config
+      </a>
     </div>
   </div>
 
@@ -738,7 +749,16 @@
       <% end %>
 
       <div class="hw-modal-actions">
-        <button type="button" class="hw-button hw-button-off" phx-click="revert">Revert</button>
+        <button
+          id="light-state-revert"
+          type="button"
+          class="hw-button hw-button-off"
+          phx-click="revert"
+          disabled={!@dirty}
+          data-confirm={if @dirty, do: "Revert and discard unsaved changes?", else: nil}
+        >
+          Revert
+        </button>
         <button type="submit" class="hw-button hw-button-off" name="save_action" value="save">Save</button>
         <button type="submit" class="hw-button hw-button-on" name="save_action" value="save_and_return">Save and Return</button>
       </div>

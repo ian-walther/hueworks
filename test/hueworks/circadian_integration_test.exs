@@ -203,7 +203,8 @@ defmodule Hueworks.CircadianIntegrationTest do
     lower_payload =
       Jason.encode!(Z2MPayload.action_payload({:set_state, desired}, fixture.z2m_lower))
 
-    off_payload = Jason.encode!(Z2MPayload.action_payload(:off, fixture.z2m_upper))
+    off_payload =
+      Jason.encode!(Z2MPayload.action_payload({:set_state, %{power: :off}}, fixture.z2m_upper))
 
     {:ok, _state} =
       Z2MHandler.handle_message(
@@ -250,7 +251,8 @@ defmodule Hueworks.CircadianIntegrationTest do
     lower_payload =
       Jason.encode!(Z2MPayload.action_payload({:set_state, desired}, fixture.z2m_lower))
 
-    off_payload = Jason.encode!(Z2MPayload.action_payload(:off, fixture.z2m_upper))
+    off_payload =
+      Jason.encode!(Z2MPayload.action_payload({:set_state, %{power: :off}}, fixture.z2m_upper))
 
     group_payload =
       Jason.encode!(Z2MPayload.action_payload({:set_state, desired}, fixture.z2m_group))
@@ -738,7 +740,8 @@ defmodule Hueworks.CircadianIntegrationTest do
     lower_payload =
       Jason.encode!(Z2MPayload.action_payload({:set_state, desired}, fixture.z2m_lower))
 
-    off_payload = Jason.encode!(Z2MPayload.action_payload(:off, fixture.z2m_upper))
+    off_payload =
+      Jason.encode!(Z2MPayload.action_payload({:set_state, %{power: :off}}, fixture.z2m_upper))
 
     group_payload =
       Jason.encode!(Z2MPayload.action_payload({:set_state, desired}, fixture.z2m_group))

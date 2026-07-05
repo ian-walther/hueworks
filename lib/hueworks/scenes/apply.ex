@@ -23,7 +23,7 @@ defmodule Hueworks.Scenes.Apply do
           opts
           |> Keyword.put(:preserve_power_latches, false)
           |> Keyword.put(:force_apply, true)
-          |> Keyword.put_new(:enqueue_mode, :append)
+          |> Keyword.put_new(:enqueue_mode, :replace_targets)
         )
     end
   end
@@ -49,7 +49,7 @@ defmodule Hueworks.Scenes.Apply do
 
     preserve_power_latches = intent_opts.preserve_power_latches
     force_apply = Keyword.get(opts, :force_apply, false)
-    enqueue_mode = Keyword.get(opts, :enqueue_mode, :replace)
+    enqueue_mode = Keyword.get(opts, :enqueue_mode, :replace_targets)
 
     trace =
       opts

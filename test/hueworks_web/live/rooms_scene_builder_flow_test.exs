@@ -5,6 +5,7 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
   import Phoenix.LiveViewTest
 
   alias Hueworks.Repo
+  alias Hueworks.ActiveScenes
   alias Hueworks.Control.DesiredState
 
   alias Hueworks.Schemas.{
@@ -124,6 +125,11 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
     input = Repo.get!(PresenceInput, input.id)
     assert input.name == "Sitting Area"
     assert render(view) =~ ~s(value="Sitting Area")
+
+    assert has_element?(
+             view,
+             "#presence-input-#{input.id} button[phx-click='delete_presence_input'][data-confirm]"
+           )
 
     view
     |> element("#presence-input-#{input.id} button[phx-click='delete_presence_input']")
@@ -848,6 +854,30 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
 
     refute has_element?(view, "form[phx-submit='save_scene']")
     assert has_element?(view, "button[phx-click='save_scene']")
+  end
+
+  test "scene editor activation publishes a single active scene update", %{conn: conn} do
+    room = insert_room()
+
+    scene =
+      Repo.insert!(%Scene{
+        name: "Evening",
+        room_id: room.id,
+        metadata: %{}
+      })
+
+    Phoenix.PubSub.subscribe(Hueworks.PubSub, ActiveScenes.topic())
+
+    {:ok, view, _html} = live(conn, "/rooms/#{room.id}/scenes/#{scene.id}/edit")
+
+    view
+    |> element("#scene-toggle-activation", "Activate")
+    |> render_click()
+
+    assert_receive {:active_scene_updated, room_id, scene_id}, 100
+    assert room_id == room.id
+    assert scene_id == scene.id
+    refute_receive {:active_scene_updated, ^room_id, ^scene_id}, 50
   end
 
   defp scene_component_fingerprint(scene_id) do

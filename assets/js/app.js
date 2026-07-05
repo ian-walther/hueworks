@@ -95,11 +95,16 @@ Hooks.TempSlider = {
   }
 }
 
+let bufferedColorDispatches = new Map()
+
+function bufferedColorDispatchKey(element) {
+  let { type, id, hueInputId, saturationInputId } = element.dataset
+  return [type, id, hueInputId, saturationInputId].join(":")
+}
+
 function bindBufferedColorSlider(hook, formatter) {
   hook.dragging = false
   hook.localValue = hook.el.value
-
-  let timeout = null
 
   let syncOutput = (value) => {
     let outputId = hook.el.dataset.outputId
@@ -131,7 +136,14 @@ function bindBufferedColorSlider(hook, formatter) {
   }
 
   hook._bufferedColorSliderCleanup = () => {
-    clearTimeout(timeout)
+    let dispatchKey = bufferedColorDispatchKey(hook.el)
+    let pending = bufferedColorDispatches.get(dispatchKey)
+
+    if (pending && pending.hook === hook) {
+      clearTimeout(pending.timeout)
+      bufferedColorDispatches.delete(dispatchKey)
+    }
+
     document.removeEventListener("mouseup", endDrag)
     document.removeEventListener("touchend", endDrag)
   }
@@ -150,11 +162,21 @@ function bindBufferedColorSlider(hook, formatter) {
     hook.localValue = value
     syncOutput(value)
 
-    clearTimeout(timeout)
-    timeout = setTimeout(() => {
+    let dispatchKey = bufferedColorDispatchKey(hook.el)
+    let previous = bufferedColorDispatches.get(dispatchKey)
+    if (previous) clearTimeout(previous.timeout)
+
+    let pending = { hook, timeout: null }
+    pending.timeout = setTimeout(() => {
       let { hue, saturation } = currentColorValues()
       hook.pushEvent("set_color", { type, id, hue, saturation })
+
+      if (bufferedColorDispatches.get(dispatchKey) === pending) {
+        bufferedColorDispatches.delete(dispatchKey)
+      }
     }, 200)
+
+    bufferedColorDispatches.set(dispatchKey, pending)
   })
 
   hook.updated = () => {

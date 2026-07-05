@@ -1,6 +1,7 @@
 defmodule Hueworks.HomeAssistant.Export.Commands do
   @moduledoc false
 
+  alias Hueworks.Control.LightStateSemantics
   alias Hueworks.Control.State
   alias Hueworks.HomeAssistant.Export.Messages
 
@@ -75,56 +76,8 @@ defmodule Hueworks.HomeAssistant.Export.Commands do
   end
 
   def merge_export_state(current, incoming) when is_map(current) and is_map(incoming) do
-    current
-    |> harmonize_color_and_temperature(incoming)
-    |> Map.merge(incoming)
+    LightStateSemantics.merge_state(current, incoming)
   end
-
-  defp harmonize_color_and_temperature(attrs, incoming_attrs)
-       when is_map(attrs) and is_map(incoming_attrs) do
-    cond do
-      incoming_has_xy?(incoming_attrs) ->
-        drop_kelvin(attrs)
-
-      incoming_has_kelvin?(incoming_attrs) ->
-        drop_xy(attrs)
-
-      true ->
-        attrs
-    end
-  end
-
-  defp harmonize_color_and_temperature(attrs, _incoming_attrs), do: attrs
-
-  defp drop_kelvin(attrs) do
-    attrs
-    |> Map.delete(:kelvin)
-    |> Map.delete("kelvin")
-    |> Map.delete(:temperature)
-    |> Map.delete("temperature")
-  end
-
-  defp drop_xy(attrs) do
-    attrs
-    |> Map.delete(:x)
-    |> Map.delete("x")
-    |> Map.delete(:y)
-    |> Map.delete("y")
-  end
-
-  defp incoming_has_xy?(attrs) when is_map(attrs) do
-    Map.has_key?(attrs, :x) or Map.has_key?(attrs, "x") or Map.has_key?(attrs, :y) or
-      Map.has_key?(attrs, "y")
-  end
-
-  defp incoming_has_xy?(_attrs), do: false
-
-  defp incoming_has_kelvin?(attrs) when is_map(attrs) do
-    Map.has_key?(attrs, :kelvin) or Map.has_key?(attrs, "kelvin") or
-      Map.has_key?(attrs, :temperature) or Map.has_key?(attrs, "temperature")
-  end
-
-  defp incoming_has_kelvin?(_attrs), do: false
 
   defp maybe_put(payload, _key, nil), do: payload
   defp maybe_put(payload, key, value), do: Map.put(payload, key, value)

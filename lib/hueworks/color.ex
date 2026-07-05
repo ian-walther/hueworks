@@ -171,7 +171,6 @@ defmodule Hueworks.Color do
   defp normalize_hue(hue), do: hue
 
   defp round_float(value) when is_float(value), do: Float.round(value, 4)
-  defp round_float(value), do: value
 
   defp kelvin_to_rgb(kelvin) do
     temperature = kelvin / 100.0

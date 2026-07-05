@@ -145,6 +145,14 @@ mix seed_bridges
 
 Caseta credential files uploaded through the UI are stored under `priv/credentials/caseta/` by default. You can override the root with `CREDENTIALS_ROOT`.
 
+## Security boundary
+
+HueWorks is deliberately an unauthenticated trusted-LAN appliance. Any client that can reach the web endpoint can control devices, inspect configuration, upload credentials, and perform confirmed destructive operations.
+
+Never expose HueWorks to the public Internet. Do not port-forward it, publish it through a public tunnel, or make it reachable from an untrusted network or VLAN. Plain HTTP is supported only inside the isolated trusted LAN. An optional private HTTPS reverse proxy may set `PHX_SCHEME=https` and `PHX_URL_PORT`, but those settings describe the browser-facing canonical URL; HueWorks itself still listens over HTTP.
+
+CSRF protection and WebSocket origin checks remain enabled as defense in depth, but they are not authentication. A future remote-access use case requires a new security design before any exposure, including authentication, authorization, TLS, session policy, and secret handling.
+
 ## Docker
 
 For a fresh deployment:
@@ -154,6 +162,8 @@ cp .env.example .env
 mkdir -p data credentials
 
 # set SECRET_KEY_BASE and PHX_HOST in .env
+# direct Compose access uses PHX_SCHEME=http; set https only behind TLS termination
+# set PHX_URL_PORT when the public proxy port is not the scheme default
 # create or copy secrets.json into the repo root
 
 docker compose up -d
@@ -163,6 +173,7 @@ What startup does:
 
 - runs release migrations automatically
 - seeds bridges from `secrets.json` on first boot if present
+- leaves bridge bootstrap unmarked when `secrets.json` is absent, so adding it and restarting retries the seed
 - starts the Phoenix server on port `4000`
 
 Persistent data:
@@ -212,15 +223,21 @@ mix ecto.reset
 # seed bridge rows from secrets.json
 mix seed_bridges
 
-# bridge import pipeline
+# legacy/offline bridge import file tools
 mix export_bridge_imports
 mix normalize_bridge_imports
 mix materialize_bridge_imports
-mix link_bridge_imports
+
+Manual bridge reimport through the web UI is the supported application workflow. The file tasks are retained for offline inspection and recovery workflows only.
 
 # database backup helpers
+# Creates a consistent SQLite snapshot beside the configured DB.
 mix backup_db
-mix restore_db
+
+# Stop any running HueWorks service before restore. Restore validates the backup,
+# keeps the source backup, and creates a *_pre_restore_* recovery snapshot first.
+mix restore_db --force
+mix restore_db --force --backup /path/to/hueworks_YYYYMMDDTHHMMSS.db
 
 # quality
 mix test

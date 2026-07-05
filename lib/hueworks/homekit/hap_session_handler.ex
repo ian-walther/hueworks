@@ -34,5 +34,12 @@ defmodule Hueworks.HomeKit.HAPSessionHandler do
     {:noreply, {socket, state}}
   end
 
-  def handle_info(message, state), do: Bandit.HTTP1.Handler.handle_info(message, state)
+  @impl GenServer
+  def handle_info({:plug_conn, :sent}, state) do
+    Bandit.HTTP1.Handler.handle_info({:plug_conn, :sent}, state)
+  end
+
+  def handle_info({:EXIT, pid, :normal}, state) when is_pid(pid) do
+    Bandit.HTTP1.Handler.handle_info({:EXIT, pid, :normal}, state)
+  end
 end

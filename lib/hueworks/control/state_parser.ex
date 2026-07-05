@@ -152,14 +152,8 @@ defmodule Hueworks.Control.StateParser do
       has_any_temp_attrs?(attrs) ->
         %{}
 
-      is_tuple(xy) and z2m_color_mode(attrs) in ["xy", "hs", "rgb", "rgbw", "rgbww"] ->
-        xy_map(xy)
-
-      is_tuple(xy) ->
-        xy_map(xy)
-
       true ->
-        %{}
+        xy_map(xy)
     end
   end
 
@@ -224,11 +218,11 @@ defmodule Hueworks.Control.StateParser do
         %{kelvin: round(extended_xy_kelvin)}
 
       is_number(attrs["color_temp_kelvin"]) ->
-        parse_low_extended_kelvin(round(attrs["color_temp_kelvin"]), entity)
+        parse_ha_color_temp(round(attrs["color_temp_kelvin"]), attrs, entity)
 
       is_number(attrs["color_temp"]) and attrs["color_temp"] > 0 ->
         kelvin = round(1_000_000 / attrs["color_temp"])
-        parse_low_extended_kelvin(kelvin, entity)
+        parse_ha_color_temp(kelvin, attrs, entity)
 
       true ->
         %{}
@@ -286,7 +280,7 @@ defmodule Hueworks.Control.StateParser do
 
       is_number(attrs["color_temp"]) and attrs["color_temp"] > 0 and attrs["color_temp"] <= 1000 ->
         kelvin = round(1_000_000 / attrs["color_temp"])
-        parse_low_extended_kelvin(kelvin, entity)
+        parse_z2m_mired_color_temp(kelvin, attrs, entity)
 
       is_number(attrs["color_temp"]) and attrs["color_temp"] > 1000 ->
         parse_z2m_direct_kelvin(round(attrs["color_temp"]), attrs, entity)
@@ -297,19 +291,48 @@ defmodule Hueworks.Control.StateParser do
   end
 
   defp parse_z2m_direct_kelvin(kelvin, attrs, entity) when is_number(kelvin) do
-    case Kelvin.map_extended_reported_floor(entity, kelvin) do
-      mapped when is_number(mapped) ->
-        %{kelvin: mapped}
+    if explicit_z2m_reported_floor?(attrs, entity, kelvin) do
+      %{kelvin: Kelvin.map_from_event(entity, kelvin)}
+    else
+      case Kelvin.map_extended_reported_floor(entity, kelvin) do
+        mapped when is_number(mapped) ->
+          %{kelvin: mapped}
 
-      nil ->
-        cond do
-          preserve_z2m_direct_low_kelvin?(attrs, entity, kelvin) ->
-            %{kelvin: kelvin}
-
-          true ->
-            %{kelvin: Kelvin.map_from_event(entity, kelvin)}
-        end
+        _ ->
+          parse_z2m_direct_kelvin_without_floor_mapping(kelvin, attrs, entity)
+      end
     end
+  end
+
+  defp parse_z2m_direct_kelvin_without_floor_mapping(kelvin, attrs, entity) do
+    if preserve_z2m_direct_low_kelvin?(attrs, entity, kelvin) do
+      %{kelvin: kelvin}
+    else
+      %{kelvin: Kelvin.map_from_event(entity, kelvin)}
+    end
+  end
+
+  defp parse_ha_color_temp(kelvin, attrs, entity) when is_number(kelvin) do
+    if ha_color_mode(attrs) == "color_temp" do
+      %{kelvin: Kelvin.map_from_event(entity, kelvin)}
+    else
+      parse_low_extended_kelvin(kelvin, entity)
+    end
+  end
+
+  defp parse_z2m_mired_color_temp(kelvin, attrs, entity) when is_number(kelvin) do
+    if z2m_color_mode(attrs) == "color_temp" do
+      %{kelvin: Kelvin.map_from_event(entity, kelvin)}
+    else
+      parse_low_extended_kelvin(kelvin, entity)
+    end
+  end
+
+  defp explicit_z2m_reported_floor?(attrs, entity, kelvin) do
+    reported_min = entity_field(entity, :reported_min_kelvin)
+
+    z2m_color_mode(attrs) == "color_temp" and is_number(reported_min) and
+      abs(kelvin - reported_min) <= 25
   end
 
   defp preserve_z2m_direct_low_kelvin?(attrs, entity, kelvin) when is_number(kelvin) do
@@ -440,6 +463,12 @@ defmodule Hueworks.Control.StateParser do
     mode = attrs["color_mode"] || attrs[:color_mode]
     if is_binary(mode), do: mode, else: nil
   end
+
+  defp entity_field(entity, key) when is_map(entity) do
+    Map.get(entity, key) || Map.get(entity, Atom.to_string(key))
+  end
+
+  defp entity_field(_entity, _key), do: nil
 
   defp z2m_direct_kelvin(attrs) when is_map(attrs) do
     cond do

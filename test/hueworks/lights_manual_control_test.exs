@@ -154,6 +154,66 @@ defmodule Hueworks.LightsManualControlTest do
              ManualControl.apply_updates(room.id, [123], %{brightness: 40})
   end
 
+  test "manual updates preserve queued work for other rooms on the same bridge", %{
+    executor_server: executor_server
+  } do
+    queued_room = Repo.insert!(%Room{name: "Queued Room"})
+    manual_room = Repo.insert!(%Room{name: "Manual Room"})
+
+    bridge =
+      insert_bridge!(%{
+        name: "Shared Hue Bridge",
+        type: :hue,
+        host: "192.168.1.93",
+        credentials: %{"api_key" => "test"}
+      })
+
+    queued_light =
+      Repo.insert!(%Light{
+        name: "Queued Lamp",
+        source: :hue,
+        source_id: "queued-lamp",
+        bridge_id: bridge.id,
+        room_id: queued_room.id,
+        enabled: true,
+        supports_temp: true,
+        reported_min_kelvin: 2000,
+        reported_max_kelvin: 6500
+      })
+
+    manual_light =
+      Repo.insert!(%Light{
+        name: "Manual Lamp",
+        source: :hue,
+        source_id: "manual-lamp",
+        bridge_id: bridge.id,
+        room_id: manual_room.id,
+        enabled: true,
+        supports_temp: true,
+        reported_min_kelvin: 2000,
+        reported_max_kelvin: 6500
+      })
+
+    queued_action = %{
+      type: :light,
+      id: queued_light.id,
+      bridge_id: bridge.id,
+      desired: %{power: :on},
+      trace_room_id: queued_room.id,
+      not_before: System.monotonic_time(:millisecond) + 60_000
+    }
+
+    assert :ok = Executor.enqueue([queued_action], server: executor_server, mode: :append)
+
+    _ = DesiredState.put(:light, manual_light.id, %{power: :off})
+    _ = State.put(:light, manual_light.id, %{power: :off})
+
+    assert {:ok, _diff} =
+             ManualControl.apply_updates(manual_room.id, [manual_light.id], %{power: :on})
+
+    assert queued_targets(executor_server, bridge.id) |> Enum.member?({:light, queued_light.id})
+  end
+
   defp drain_executor(server, attempts \\ 5)
 
   defp drain_executor(_server, 0), do: :ok
@@ -181,5 +241,14 @@ defmodule Hueworks.LightsManualControlTest do
       Process.sleep(10)
       wait_for_action_count(actions_agent, expected_count, attempts - 1)
     end
+  end
+
+  defp queued_targets(server, bridge_id) do
+    server
+    |> :sys.get_state()
+    |> Map.fetch!(:queues)
+    |> Map.get(bridge_id, :queue.new())
+    |> :queue.to_list()
+    |> Enum.map(fn action -> {action.type, action.id} end)
   end
 end

@@ -6,20 +6,11 @@ This file should stay short. If a future idea is not likely to be acted on soon,
 
 ## Now
 
-### Reimport Idempotency
+### Reimport Review UX
 Reference: `planning/import-resync.md`
 
-- [ ] Replace the legacy checkbox-shaped reimport review page with explicit diff and resolution controls.
-- [ ] Add dependency disclosure and confirmation UI for destructive disable/delete resolutions.
-- [ ] Make bridge-owned auto-refresh details inspectable without presenting them as decisions.
-
-### Control Architecture Refactor
-Reference: `planning/refactoring.md`
-
-- [ ] Extract scene-component power-policy parsing/resolution into a single domain policy API.
-- [ ] Centralize duplicated state-map normalization used by physical state, desired state, and HA export command handling.
-- [ ] Split scene-builder state into smaller typed surfaces for membership, embedded manual state, and per-light policy state.
-- [ ] Preserve existing behavior with characterization tests before changing semantics.
+- [ ] Replace the remaining new-entity checkboxes with explicit `Do Not Import` / `Import` controls and show current HueWorks versus bridge values where a decision is required.
+- [ ] Show collapsed, inspectable bridge-owned auto-refresh details plus summary counts for unchanged, auto-refreshed, and membership-warning items without presenting them as decisions.
 
 ## Experience Backlog
 
@@ -35,16 +26,7 @@ Reference: `planning/homekit-control-quality.md`
 - [ ] Improve HomeKit behavior beyond reliable on/off control.
 - [ ] Define the expected user experience for brightness/color control when no HueWorks scene is active.
 
-## Maintenance Backlog
-
-### Test Coverage Audit
-Reference: `planning/test-coverage-audit.md`
-
-- [ ] Audit current test coverage against the code that has changed since the last deliberate coverage pass.
-- [ ] Identify meaningful behavior, regression, and integration gaps before adding new tests.
-
 ## Concrete Runtime Gaps
 
 - [ ] Implement Caseta group dispatch in `Hueworks.Control.Group`.
-- [ ] Resolve the HA group fan-out edge case noted in `lib/hueworks_app/subscription/home_assistant_event_stream/connection.ex`.
-- [ ] Add regression tests for both runtime gaps above.
+- [ ] Add a regression test for the runtime gap above.

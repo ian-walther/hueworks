@@ -8,6 +8,7 @@ defmodule Hueworks.HomeKitTest do
   alias Hueworks.HomeKit.AccessoryGraph
   alias Hueworks.HomeKit.Bridge, as: HomeKitBridge
   alias Hueworks.HomeKit.Config, as: HomeKitConfig
+  alias Hueworks.HomeKit.HAPSessionHandler
   alias Hueworks.HomeKit.ValueStore
   alias Hueworks.Lights
   alias Hueworks.Repo
@@ -445,6 +446,18 @@ defmodule Hueworks.HomeKitTest do
              |> Hueworks.HomeKit.HAPSessionTransport.decrypt_if_needed()
   end
 
+  test "homekit HAP session handler delegates sent notifications to Bandit" do
+    state = hap_session_state(4_321)
+
+    assert {:noreply, ^state} = HAPSessionHandler.handle_info({:plug_conn, :sent}, state)
+  end
+
+  test "homekit HAP session handler delegates normal child exits to Bandit" do
+    state = hap_session_state(4_322)
+
+    assert {:noreply, ^state} = HAPSessionHandler.handle_info({:EXIT, self(), :normal}, state)
+  end
+
   test "bridge restarts HAP child when exposed entity topology changes" do
     original_hap_module = Application.get_env(:hueworks, :homekit_hap_module)
     original_pairing_state_module = Application.get_env(:hueworks, :homekit_pairing_state_module)
@@ -489,6 +502,38 @@ defmodule Hueworks.HomeKitTest do
 
     HomeKit.reload()
     refute_receive {:hap_started, _names}
+  end
+
+  test "bridge reloads from scene domain events when scene exposure is enabled" do
+    original_hap_module = Application.get_env(:hueworks, :homekit_hap_module)
+    original_pairing_state_module = Application.get_env(:hueworks, :homekit_pairing_state_module)
+    original_sink = Application.get_env(:hueworks, :homekit_test_sink)
+
+    Application.put_env(:hueworks, :homekit_hap_module, __MODULE__.HAPStub)
+    Application.put_env(:hueworks, :homekit_pairing_state_module, __MODULE__.PairedStub)
+    Application.put_env(:hueworks, :homekit_test_sink, self())
+
+    on_exit(fn ->
+      restore_app_env(:hueworks, :homekit_hap_module, original_hap_module)
+      restore_app_env(:hueworks, :homekit_pairing_state_module, original_pairing_state_module)
+      restore_app_env(:hueworks, :homekit_test_sink, original_sink)
+    end)
+
+    {:ok, _settings} =
+      AppSettings.upsert_global(%{
+        latitude: 40.0,
+        longitude: -75.0,
+        timezone: "America/New_York",
+        homekit_scenes_enabled: true
+      })
+
+    room = Repo.insert!(%Room{name: "Kitchen"})
+
+    start_supervised!({HomeKitBridge, []})
+    refute_receive {:hap_started, _names}
+
+    assert {:ok, _scene} = Scenes.create_scene(%{name: "Dinner", room_id: room.id})
+    assert_receive {:hap_started, ["Dinner"]}
   end
 
   test "bridge defers child accessories until after HomeKit pairing completes" do
@@ -588,6 +633,18 @@ defmodule Hueworks.HomeKitTest do
       credentials: %{api_key: "key"},
       enabled: true
     })
+  end
+
+  defp hap_session_state(read_timeout) do
+    socket = %ThousandIsland.Socket{
+      socket: :test_socket,
+      transport_module: __MODULE__.Transport,
+      read_timeout: read_timeout,
+      silent_terminate_on_error: false,
+      span: nil
+    }
+
+    {socket, %{}}
   end
 
   defp drain_executor(server, attempts \\ 5)

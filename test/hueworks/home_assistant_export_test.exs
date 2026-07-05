@@ -5,6 +5,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
   alias Hueworks.AppSettings
   alias Hueworks.Control.DesiredState
   alias Hueworks.Control.State
+  alias Hueworks.Groups
   alias Hueworks.HomeAssistant.Export.Config
   alias Hueworks.HomeAssistant.Export
   alias Hueworks.HomeAssistant.Export.ServerState
@@ -12,6 +13,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
   alias Hueworks.HomeAssistant.Export.Messages.{CommandTarget, RoomSceneOption}
   alias Hueworks.PresenceInputs
   alias Hueworks.Repo
+  alias Hueworks.Scenes
   alias Hueworks.Schemas.{AppSetting, Group, GroupLight, Light, PresenceInput, Room, Scene}
 
   setup do
@@ -450,6 +452,52 @@ defmodule Hueworks.HomeAssistant.ExportTest do
     assert state_payload == "All Auto"
   end
 
+  test "scene CRUD domain events refresh exported scene and room topics" do
+    put_export_settings(%{
+      ha_export_scenes_enabled: true,
+      ha_export_room_selects_enabled: true,
+      ha_export_mqtt_host: "mqtt.local",
+      ha_export_mqtt_port: 1883,
+      ha_export_discovery_prefix: "homeassistant"
+    })
+
+    room = Repo.insert!(%Room{name: "Main Floor"})
+
+    Export.reload()
+    _ = :sys.get_state(Export)
+    send(Export, {:mqtt_connected, Export.client_id()})
+    _ = :sys.get_state(Export)
+    drain_published_messages()
+
+    assert {:ok, scene} = Scenes.create_scene(%{name: "Dinner", room_id: room.id})
+    _ = :sys.get_state(Export)
+
+    {_client_id, _topic, scene_payload} =
+      assert_publish("homeassistant/scene/hueworks_scene_#{scene.id}/config")
+
+    assert Jason.decode!(scene_payload)["name"] == "Dinner"
+
+    {_client_id, _topic, select_payload} =
+      assert_publish("homeassistant/select/hueworks_room_scene_select_#{room.id}/config")
+
+    assert Jason.decode!(select_payload)["options"] == ["Manual", "Dinner"]
+
+    drain_published_messages()
+
+    assert {:ok, _deleted} = Scenes.delete_scene(scene)
+    _ = :sys.get_state(Export)
+
+    {_client_id, _topic, tombstone_payload} =
+      assert_publish("homeassistant/scene/hueworks_scene_#{scene.id}/config")
+
+    assert tombstone_payload == ""
+
+    {_client_id, _topic, refreshed_select_payload} =
+      assert_publish("homeassistant/select/hueworks_room_scene_select_#{room.id}/config")
+
+    assert refreshed_select_payload == ""
+  end
+
   test "publishes exported lights and groups when connected" do
     put_export_settings(%{
       ha_export_lights_enabled: true,
@@ -650,7 +698,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
     _ = :sys.get_state(Export)
     drain_published_messages()
 
-    State.put(:light, light.id, %{power: :on, brightness: 55, kelvin: 3200})
+    State.put(:light, light.id, %{"power" => "ON", "brightness" => 55, "temperature" => 3200})
 
     {_client_id, _topic, payload} =
       assert_publish("hueworks/ha_export/lights/#{light.id}/light/state")
@@ -800,6 +848,75 @@ defmodule Hueworks.HomeAssistant.ExportTest do
     assert decoded["state"] == "ON"
     assert decoded["brightness"] == 100
     assert decoded["color_temp"] == 4000
+  end
+
+  test "moving a group room republishes moved exported subgroups and lights" do
+    put_export_settings(%{
+      ha_export_lights_enabled: true,
+      ha_export_mqtt_host: "mqtt.local",
+      ha_export_discovery_prefix: "homeassistant"
+    })
+
+    old_room = Repo.insert!(%Room{name: "Old Room"})
+    new_room = Repo.insert!(%Room{name: "New Room"})
+    bridge = insert_bridge!(%{name: "Hue", type: :hue, host: "hue.local", credentials: %{}})
+
+    light_a =
+      Repo.insert!(%Light{
+        name: "Desk Lamp",
+        source: :hue,
+        source_id: "1",
+        bridge_id: bridge.id,
+        room_id: old_room.id,
+        ha_export_mode: :switch
+      })
+
+    light_b =
+      Repo.insert!(%Light{
+        name: "Corner Lamp",
+        source: :hue,
+        source_id: "2",
+        bridge_id: bridge.id,
+        room_id: old_room.id,
+        ha_export_mode: :switch
+      })
+
+    parent_group =
+      Repo.insert!(%Group{
+        name: "Office Lights",
+        source: :hue,
+        source_id: "parent",
+        bridge_id: bridge.id,
+        room_id: old_room.id,
+        ha_export_mode: :switch
+      })
+
+    child_group =
+      Repo.insert!(%Group{
+        name: "Desk Lights",
+        source: :hue,
+        source_id: "child",
+        bridge_id: bridge.id,
+        room_id: old_room.id,
+        ha_export_mode: :switch
+      })
+
+    Repo.insert!(%GroupLight{group_id: parent_group.id, light_id: light_a.id})
+    Repo.insert!(%GroupLight{group_id: parent_group.id, light_id: light_b.id})
+    Repo.insert!(%GroupLight{group_id: child_group.id, light_id: light_a.id})
+
+    Export.reload()
+    _ = :sys.get_state(Export)
+    send(Export, {:mqtt_connected, Export.client_id()})
+    _ = :sys.get_state(Export)
+    drain_published_messages()
+
+    assert {:ok, _updated} = Groups.update_display_name(parent_group, %{room_id: new_room.id})
+
+    assert_entity_room(:group, parent_group.id, new_room)
+    assert_entity_room(:group, child_group.id, new_room)
+    assert_entity_room(:light, light_a.id, new_room)
+    assert_entity_room(:light, light_b.id, new_room)
   end
 
   test "json light color command republishes optimistic xy state immediately" do
@@ -1088,6 +1205,20 @@ defmodule Hueworks.HomeAssistant.ExportTest do
       0 ->
         :ok
     end
+  end
+
+  defp assert_entity_room(kind, id, %Room{} = room) when kind in [:light, :group] do
+    topic = "hueworks/ha_export/#{kind}s/#{id}/attributes"
+
+    {_client_id, _topic, payload} =
+      assert_publish(topic, fn payload ->
+        attributes = Jason.decode!(payload)
+        attributes["hueworks_room_id"] == room.id and attributes["room_name"] == room.name
+      end)
+
+    attributes = Jason.decode!(payload)
+    assert attributes["hueworks_room_id"] == room.id
+    assert attributes["room_name"] == room.name
   end
 
   defmodule TortoiseStub do

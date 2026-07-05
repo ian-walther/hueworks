@@ -3,12 +3,9 @@ defmodule Hueworks.Import.Fetch.Z2M do
   Fetch Zigbee2MQTT snapshot data over MQTT for import.
   """
 
+  alias Hueworks.Control.Z2MConfig
   alias Hueworks.Import.Fetch.Common
-  alias Hueworks.Schemas.Bridge
-  alias Hueworks.Util
 
-  @default_port 1883
-  @default_base_topic "zigbee2mqtt"
   @snapshot_timeout 8_000
 
   def fetch do
@@ -44,15 +41,7 @@ defmodule Hueworks.Import.Fetch.Z2M do
   end
 
   defp config_for_bridge(bridge) do
-    credentials = Bridge.credentials_struct(bridge)
-
-    %{
-      host: bridge.host,
-      port: normalize_port(credentials.broker_port),
-      username: normalize_optional(credentials.username),
-      password: normalize_optional(credentials.password),
-      base_topic: normalize_base_topic(credentials.base_topic)
-    }
+    Z2MConfig.for_bridge(bridge)
   end
 
   defp required_topics(base_topic), do: [devices_topic(base_topic), groups_topic(base_topic)]
@@ -74,7 +63,7 @@ defmodule Hueworks.Import.Fetch.Z2M do
           {Tortoise.Transport.Tcp, host: String.to_charlist(config.host), port: config.port},
         subscriptions: Enum.map(subscribe_topics, &{&1, 0})
       ]
-      |> maybe_put_auth(config)
+      |> Keyword.merge(Z2MConfig.tortoise_auth_opts(config))
 
     with {:ok, pid} <- Tortoise.Supervisor.start_child(start_opts) do
       try do
@@ -163,19 +152,6 @@ defmodule Hueworks.Import.Fetch.Z2M do
     end
   end
 
-  defp maybe_put_auth(opts, %{username: username, password: password}) when is_binary(username) do
-    opts
-    |> Keyword.put(:user_name, username)
-    |> maybe_put_password(password)
-  end
-
-  defp maybe_put_auth(opts, _config), do: opts
-
-  defp maybe_put_password(opts, password) when is_binary(password),
-    do: Keyword.put(opts, :password, password)
-
-  defp maybe_put_password(opts, _password), do: opts
-
   defp deadline, do: System.monotonic_time(:millisecond) + @snapshot_timeout
 
   defp normalize_device_payload(payload) when is_list(payload), do: payload
@@ -185,29 +161,6 @@ defmodule Hueworks.Import.Fetch.Z2M do
   defp normalize_group_payload(payload) when is_list(payload), do: payload
   defp normalize_group_payload(%{"groups" => groups}) when is_list(groups), do: groups
   defp normalize_group_payload(_payload), do: []
-
-  defp normalize_port(nil), do: @default_port
-
-  defp normalize_port(value) do
-    case Util.parse_optional_integer(value) do
-      port when is_integer(port) and port > 0 and port <= 65_535 -> port
-      _ -> @default_port
-    end
-  end
-
-  defp normalize_optional(value) when is_binary(value) do
-    value = String.trim(value)
-    if value == "", do: nil, else: value
-  end
-
-  defp normalize_optional(_value), do: nil
-
-  defp normalize_base_topic(value) when is_binary(value) do
-    value = String.trim(value)
-    if value == "", do: @default_base_topic, else: value
-  end
-
-  defp normalize_base_topic(_value), do: @default_base_topic
 
   defp format_error({:error, reason}), do: format_error(reason)
   defp format_error(reason) when is_binary(reason), do: reason

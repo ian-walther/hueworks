@@ -1,5 +1,5 @@
 defmodule Hueworks.Import.Fetch.CommonTest do
-  use Hueworks.DataCase, async: true
+  use Hueworks.DataCase, async: false
 
   alias Hueworks.Import.Fetch.Common
 

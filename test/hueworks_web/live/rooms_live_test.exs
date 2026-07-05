@@ -56,6 +56,11 @@ defmodule HueworksWeb.RoomsLiveTest do
 
     {:ok, view, _html} = live(conn, "/rooms")
 
+    assert has_element?(
+             view,
+             "#room-#{room.id} button[phx-click='delete_room'][data-confirm]"
+           )
+
     view
     |> element("#room-#{room.id} button[phx-click='delete_room']")
     |> render_click()
@@ -70,11 +75,28 @@ defmodule HueworksWeb.RoomsLiveTest do
 
     {:ok, view, _html} = live(conn, "/rooms")
 
+    assert has_element?(
+             view,
+             "#room-#{room.id} button[phx-click='delete_scene'][phx-value-id='#{scene.id}'][data-confirm]"
+           )
+
     view
     |> element("#room-#{room.id} button[phx-click='delete_scene'][phx-value-id='#{scene.id}']")
     |> render_click()
 
     refute Scenes.get_scene(scene.id)
     refute render(view) =~ "Evening"
+  end
+
+  test "room actions ignore malformed ids without crashing", %{conn: conn} do
+    {:ok, view, _html} = live(conn, "/rooms")
+    ref = Process.monitor(view.pid)
+
+    render_click(view, "open_edit", %{"id" => "not-an-id"})
+    render_click(view, "delete_scene", %{"id" => "not-an-id"})
+    render_click(view, "delete_room", %{"id" => "not-an-id"})
+
+    refute_received {:DOWN, ^ref, :process, _pid, _reason}
+    assert render(view) =~ "Rooms"
   end
 end

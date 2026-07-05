@@ -3,7 +3,8 @@ import Config
 config :hueworks, Hueworks.Repo,
   database: Path.expand("../hueworks_test.db", __DIR__),
   pool: Ecto.Adapters.SQL.Sandbox,
-  pool_size: 10
+  pool_size: 10,
+  busy_timeout: 10_000
 
 config :hueworks, HueworksWeb.Endpoint,
   http: [ip: {127, 0, 0, 1}, port: 4002],
@@ -17,3 +18,5 @@ config :hueworks, :circadian_poll_enabled, false
 config :hueworks, :circadian_poll_interval_ms, 60_000
 config :hueworks, :ha_export_runtime_enabled, false
 config :hueworks, :homekit_runtime_enabled, false
+
+config :tzdata, :autoupdate, :disabled

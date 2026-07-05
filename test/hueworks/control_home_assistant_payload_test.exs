@@ -21,7 +21,11 @@ defmodule Hueworks.Control.HomeAssistantPayloadTest do
     entity = %{source_id: "light.kitchen", extended_kelvin_range: false}
 
     assert {"turn_off", payload} =
-             HomeAssistantPayload.action_payload(:off, entity, %{transition_ms: 500})
+             HomeAssistantPayload.action_payload(
+               {:set_state, %{power: :off}},
+               entity,
+               %{transition_ms: 500}
+             )
 
     assert payload == %{"entity_id" => "light.kitchen", "transition" => 0.5}
   end
@@ -54,10 +58,10 @@ defmodule Hueworks.Control.HomeAssistantPayloadTest do
     }
 
     assert {"turn_on", low_payload} =
-             HomeAssistantPayload.action_payload({:color_temp, 2500}, entity, %{})
+             HomeAssistantPayload.action_payload({:set_state, %{kelvin: 2500}}, entity, %{})
 
     assert {"turn_on", high_payload} =
-             HomeAssistantPayload.action_payload({:color_temp, 3200}, entity, %{})
+             HomeAssistantPayload.action_payload({:set_state, %{kelvin: 3200}}, entity, %{})
 
     assert is_list(low_payload["xy_color"])
     refute Map.has_key?(low_payload, "color_temp_kelvin")

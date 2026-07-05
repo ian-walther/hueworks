@@ -49,13 +49,38 @@ defmodule Hueworks.Import.Normalize do
     {reported_min_kelvin, reported_max_kelvin} = shared_reported_kelvin_range(members)
 
     %{
-      brightness: Enum.any?(members, & &1.brightness),
-      color: Enum.any?(members, & &1.color),
-      color_temp: Enum.any?(members, & &1.color_temp),
+      brightness: Enum.any?(members, &(fetch(&1, :brightness) |> truthy?())),
+      color: Enum.any?(members, &(fetch(&1, :color) |> truthy?())),
+      color_temp: Enum.any?(members, &(fetch(&1, :color_temp) |> truthy?())),
       reported_kelvin_min: reported_min_kelvin,
       reported_kelvin_max: reported_max_kelvin
     }
   end
+
+  def truthy?(value) when value in [false, nil, "false", "nil"], do: false
+  def truthy?(_value), do: true
+
+  def normalize_cached_capabilities(capabilities) when is_map(capabilities) do
+    capabilities
+    |> Enum.map(fn {key, value} -> {key, normalize_cached_capability_value(value)} end)
+    |> Map.new()
+  end
+
+  def normalize_cached_capabilities(capabilities), do: capabilities
+
+  defp normalize_cached_capability_value("true"), do: true
+  defp normalize_cached_capability_value("false"), do: false
+  defp normalize_cached_capability_value("nil"), do: nil
+
+  defp normalize_cached_capability_value(value) when is_list(value) do
+    Enum.map(value, &normalize_cached_capability_value/1)
+  end
+
+  defp normalize_cached_capability_value(value) when is_map(value) do
+    normalize_cached_capabilities(value)
+  end
+
+  defp normalize_cached_capability_value(value), do: value
 
   def min_reported_kelvin([]), do: nil
 

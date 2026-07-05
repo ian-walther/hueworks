@@ -21,5 +21,6 @@ defmodule Hueworks.Schemas.ActiveScene do
       :power_overrides
     ])
     |> validate_required([:room_id, :scene_id])
+    |> unique_constraint(:room_id)
   end
 end

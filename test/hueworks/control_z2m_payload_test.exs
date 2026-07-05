@@ -36,13 +36,13 @@ defmodule Hueworks.Control.Z2MPayloadTest do
     assert Z2MPayload.action_payload({:set_state, %{}}, %{}) == :ignore
   end
 
-  test "brightness and color_temp actions include power on" do
-    assert Z2MPayload.action_payload({:brightness, 100}, %{}) == %{
+  test "brightness-only and kelvin-only set_state payloads include power on" do
+    assert Z2MPayload.action_payload({:set_state, %{brightness: 100}}, %{}) == %{
              "state" => "ON",
              "brightness" => 254
            }
 
-    assert Z2MPayload.action_payload({:color_temp, 2000}, %{}) == %{
+    assert Z2MPayload.action_payload({:set_state, %{kelvin: 2000}}, %{}) == %{
              "state" => "ON",
              "color_temp" => 500
            }
@@ -58,7 +58,7 @@ defmodule Hueworks.Control.Z2MPayloadTest do
       reported_max_kelvin: 6500
     }
 
-    payload = Z2MPayload.action_payload({:color_temp, 2000}, entity)
+    payload = Z2MPayload.action_payload({:set_state, %{kelvin: 2000}}, entity)
 
     assert payload["state"] == "ON"
     assert is_map(payload["color"])
@@ -94,7 +94,7 @@ defmodule Hueworks.Control.Z2MPayloadTest do
       reported_max_kelvin: 6329
     }
 
-    payload = Z2MPayload.action_payload({:color_temp, 3000}, entity)
+    payload = Z2MPayload.action_payload({:set_state, %{kelvin: 3000}}, entity)
 
     assert payload["state"] == "ON"
     assert payload["color_temp"] == 442
@@ -140,8 +140,8 @@ defmodule Hueworks.Control.Z2MPayloadTest do
       reported_max_kelvin: 6500
     }
 
-    low_payload = Z2MPayload.action_payload({:color_temp, 2500}, entity)
-    high_payload = Z2MPayload.action_payload({:color_temp, 3200}, entity)
+    low_payload = Z2MPayload.action_payload({:set_state, %{kelvin: 2500}}, entity)
+    high_payload = Z2MPayload.action_payload({:set_state, %{kelvin: 3200}}, entity)
 
     assert is_map(low_payload["color"])
     refute Map.has_key?(low_payload, "color_temp")

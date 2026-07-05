@@ -3,6 +3,8 @@ defmodule Hueworks.HomeAssistant.Export do
 
   use GenServer
 
+  alias Hueworks.ActiveScenes
+  alias Hueworks.DomainEvents
   alias Hueworks.HomeAssistant.Export.Connection
   alias Hueworks.HomeAssistant.Export.ServerState
   alias Hueworks.HomeAssistant.Export.Lifecycle
@@ -162,6 +164,8 @@ defmodule Hueworks.HomeAssistant.Export do
   @impl true
   def init(_state) do
     PubSub.subscribe(Hueworks.PubSub, "control_state")
+    PubSub.subscribe(Hueworks.PubSub, ActiveScenes.topic())
+    PubSub.subscribe(Hueworks.PubSub, DomainEvents.topic())
     {:ok, ServerState.new(), {:continue, :configure}}
   end
 
@@ -197,11 +201,45 @@ defmodule Hueworks.HomeAssistant.Export do
     {:noreply, Lifecycle.handle_control_state(kind, id, state, &publish/3)}
   end
 
+  def handle_info({:active_scene_updated, room_id, _scene_id}, state) when is_integer(room_id) do
+    {:noreply, handle_sync(state, {:refresh_room_select, room_id})}
+  end
+
+  def handle_info({:scene_saved, %Scene{id: scene_id, room_id: room_id}}, state) do
+    state =
+      state
+      |> handle_sync({:refresh_scene, scene_id})
+      |> handle_sync({:refresh_room, room_id})
+
+    {:noreply, state}
+  end
+
+  def handle_info({:scene_deleted, %Scene{id: scene_id, room_id: room_id}}, state) do
+    state =
+      state
+      |> handle_sync({:remove_scene, scene_id})
+      |> handle_sync({:refresh_room, room_id})
+
+    {:noreply, state}
+  end
+
+  def handle_info({:presence_input_changed, %PresenceInput{id: input_id}}, state) do
+    {:noreply, handle_sync(state, {:refresh_presence_input, input_id})}
+  end
+
+  def handle_info({:presence_input_deleted, input_id}, state) when is_integer(input_id) do
+    {:noreply, handle_sync(state, {:remove_presence_input, input_id})}
+  end
+
   def handle_info(_message, state), do: {:noreply, state}
 
   defp configure(state) do
     state
     |> Lifecycle.configure(export_config(), client_id(), &publish/3)
+  end
+
+  defp handle_sync(state, message) do
+    Lifecycle.handle_cast(message, state, &publish/3)
   end
 
   defp publish(topic, payload, opts) do

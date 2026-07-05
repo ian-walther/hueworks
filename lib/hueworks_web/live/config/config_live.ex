@@ -1,6 +1,8 @@
 defmodule HueworksWeb.ConfigLive do
   use Phoenix.LiveView
 
+  import HueworksWeb.Notices
+
   alias Hueworks.AppSettings
   alias Hueworks.Bridges
   alias Hueworks.HomeAssistant.Export, as: HomeAssistantExport
@@ -8,7 +10,8 @@ defmodule HueworksWeb.ConfigLive do
   alias Hueworks.HomeKit.Config, as: HomeKitBridgeConfig
   alias Hueworks.Repo
   alias Hueworks.Scenes
-  alias Hueworks.Schemas.{Bridge, LightState}
+  alias Hueworks.Scenes.LightStates
+  alias Hueworks.Schemas.Bridge
 
   def mount(_params, _session, socket) do
     app_setting = AppSettings.get_global()
@@ -147,42 +150,44 @@ defmodule HueworksWeb.ConfigLive do
   end
 
   def handle_event("save_ha_export", params, socket) do
-    attrs = %{
-      ha_export_scenes_enabled:
-        parse_boolean_param(
+    attrs =
+      %{
+        ha_export_scenes_enabled:
+          parse_boolean_param(
+            Map.get(
+              params,
+              "ha_export_scenes_enabled",
+              socket.assigns.ha_export_scenes_enabled
+            )
+          ),
+        ha_export_room_selects_enabled:
+          parse_boolean_param(
+            Map.get(
+              params,
+              "ha_export_room_selects_enabled",
+              socket.assigns.ha_export_room_selects_enabled
+            )
+          ),
+        ha_export_lights_enabled:
+          parse_boolean_param(
+            Map.get(params, "ha_export_lights_enabled", socket.assigns.ha_export_lights_enabled)
+          ),
+        ha_export_mqtt_host:
+          Map.get(params, "ha_export_mqtt_host", socket.assigns.ha_export_mqtt_host),
+        ha_export_mqtt_port:
+          Map.get(params, "ha_export_mqtt_port", socket.assigns.ha_export_mqtt_port),
+        ha_export_mqtt_username:
+          Map.get(params, "ha_export_mqtt_username", socket.assigns.ha_export_mqtt_username),
+        ha_export_mqtt_password:
+          Map.get(params, "ha_export_mqtt_password", socket.assigns.ha_export_mqtt_password),
+        ha_export_discovery_prefix:
           Map.get(
             params,
-            "ha_export_scenes_enabled",
-            socket.assigns.ha_export_scenes_enabled
+            "ha_export_discovery_prefix",
+            socket.assigns.ha_export_discovery_prefix
           )
-        ),
-      ha_export_room_selects_enabled:
-        parse_boolean_param(
-          Map.get(
-            params,
-            "ha_export_room_selects_enabled",
-            socket.assigns.ha_export_room_selects_enabled
-          )
-        ),
-      ha_export_lights_enabled:
-        parse_boolean_param(
-          Map.get(params, "ha_export_lights_enabled", socket.assigns.ha_export_lights_enabled)
-        ),
-      ha_export_mqtt_host:
-        Map.get(params, "ha_export_mqtt_host", socket.assigns.ha_export_mqtt_host),
-      ha_export_mqtt_port:
-        Map.get(params, "ha_export_mqtt_port", socket.assigns.ha_export_mqtt_port),
-      ha_export_mqtt_username:
-        Map.get(params, "ha_export_mqtt_username", socket.assigns.ha_export_mqtt_username),
-      ha_export_mqtt_password:
-        Map.get(params, "ha_export_mqtt_password", socket.assigns.ha_export_mqtt_password),
-      ha_export_discovery_prefix:
-        Map.get(
-          params,
-          "ha_export_discovery_prefix",
-          socket.assigns.ha_export_discovery_prefix
-        )
-    }
+      }
+      |> keep_existing_ha_export_password_on_blank()
 
     case AppSettings.upsert_global(attrs) do
       {:ok, app_setting} ->
@@ -380,7 +385,7 @@ defmodule HueworksWeb.ConfigLive do
   end
 
   defp list_bridges do
-    Repo.all(Bridge)
+    Bridges.list_bridges()
   end
 
   defp list_light_states do
@@ -409,17 +414,11 @@ defmodule HueworksWeb.ConfigLive do
   defp format_integer(value) when is_integer(value), do: Integer.to_string(value)
   defp format_integer(_value), do: "0"
 
-  defp put_notice(socket, :info, message) when is_binary(message) do
-    socket
-    |> clear_flash(:error)
-    |> put_flash(:info, message)
+  defp keep_existing_ha_export_password_on_blank(%{ha_export_mqtt_password: ""} = attrs) do
+    Map.delete(attrs, :ha_export_mqtt_password)
   end
 
-  defp put_notice(socket, :error, message) when is_binary(message) do
-    socket
-    |> clear_flash(:info)
-    |> put_flash(:error, message)
-  end
+  defp keep_existing_ha_export_password_on_blank(attrs), do: attrs
 
   defp parse_boolean_param(value) when value in [true, false], do: value
   defp parse_boolean_param("true"), do: true
@@ -464,15 +463,5 @@ defmodule HueworksWeb.ConfigLive do
 
   defp normalize_timezone(_value), do: nil
 
-  def state_label(%{type: :circadian, name: name}), do: "#{name} (circadian)"
-
-  def state_label(%{type: :manual, name: name, config: config}) do
-    suffix =
-      case LightState.manual_mode(config) do
-        :color -> "manual color"
-        _ -> "manual temp"
-      end
-
-    "#{name} (#{suffix})"
-  end
+  def state_label(state), do: LightStates.editor_label(state)
 end

@@ -85,10 +85,7 @@ defmodule Hueworks.Schemas.LightState.Config do
 
       {:error, errors} ->
         Enum.reduce(errors, change(%__MODULE__{}), fn {field, message}, acc ->
-          case existing_atom_or(field) do
-            atom when is_atom(atom) -> add_error(acc, atom, message)
-            _ -> add_error(acc, :base, "#{field} #{message}")
-          end
+          add_error(acc, existing_atom_or(field), message)
         end)
     end
   end

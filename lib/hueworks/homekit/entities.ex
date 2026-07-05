@@ -3,7 +3,7 @@ defmodule Hueworks.HomeKit.Entities do
 
   import Ecto.Query, only: [from: 2]
 
-  alias Hueworks.Groups
+  alias Hueworks.ControlTargets
   alias Hueworks.Repo
   alias Hueworks.Schemas.{Group, Light, Room, Scene}
 
@@ -42,41 +42,9 @@ defmodule Hueworks.HomeKit.Entities do
     )
   end
 
-  def fetch_entity(:light, id) when is_integer(id) do
-    Repo.one(
-      from(l in Light,
-        where: l.id == ^id and is_nil(l.canonical_light_id)
-      )
-    )
-    |> Repo.preload(:room)
-  end
+  defdelegate fetch_entity(kind, id), to: ControlTargets
 
-  def fetch_entity(:group, id) when is_integer(id) do
-    Repo.one(
-      from(g in Group,
-        where: g.id == ^id and is_nil(g.canonical_group_id)
-      )
-    )
-    |> Repo.preload([:room, :lights])
-  end
-
-  def fetch_entity(_kind, _id), do: nil
-
-  def control_target(:light, id) when is_integer(id) do
-    case fetch_entity(:light, id) do
-      %Light{} = light -> {light.room_id, [light.id]}
-      _ -> nil
-    end
-  end
-
-  def control_target(:group, id) when is_integer(id) do
-    case fetch_entity(:group, id) do
-      %Group{} = group -> {group.room_id, Groups.member_light_ids(group.id)}
-      _ -> nil
-    end
-  end
-
-  def control_target(_kind, _id), do: nil
+  defdelegate control_target(kind, id), to: ControlTargets
 
   def fetch_scene(id) when is_integer(id) do
     Repo.get(Scene, id)

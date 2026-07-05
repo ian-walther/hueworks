@@ -35,6 +35,7 @@
                   class="hw-edit-button hw-delete-button"
                   phx-click="delete_room"
                   phx-value-id={room.id}
+                  data-confirm="Delete this room and its scenes?"
                   aria-label="Delete room"
                 >
                   <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -116,6 +117,7 @@
                         class="hw-edit-button hw-delete-button"
                         phx-click="delete_scene"
                         phx-value-id={scene.id}
+                        data-confirm="Delete this scene?"
                         aria-label="Delete scene"
                       >
                         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -158,6 +160,7 @@
                       class="hw-edit-button hw-delete-button"
                       phx-click="delete_presence_input"
                       phx-value-id={input.id}
+                      data-confirm="Delete this presence input?"
                       aria-label="Delete presence input"
                     >
                       ×

@@ -216,7 +216,7 @@ defmodule HueworksWeb.LightsLive.Actions do
 
   defp toggle_action(state_map, id) do
     case Map.get(state_map, id, %{}) do
-      %{power: power} when power in [:on, "on", true] -> :off
+      %{power: :on} -> :off
       _ -> :on
     end
   end

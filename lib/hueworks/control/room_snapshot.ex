@@ -28,12 +28,21 @@ defmodule Hueworks.Control.RoomSnapshot do
         )
       )
 
+    desired_snapshot =
+      room_lights
+      |> Enum.map(&{:light, &1.id})
+      |> DesiredState.snapshot()
+
     %{
       room_id: room_id,
       room_lights: room_lights,
       desired_by_light:
         Map.new(room_lights, fn light ->
-          {light.id, DesiredState.get(:light, light.id)}
+          {light.id, Map.get(desired_snapshot.states, {:light, light.id})}
+        end),
+      desired_revisions_by_light:
+        Map.new(room_lights, fn light ->
+          {light.id, Map.fetch!(desired_snapshot.revisions, {:light, light.id})}
         end),
       physical_by_light:
         Map.new(room_lights, fn light ->

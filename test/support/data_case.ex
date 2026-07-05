@@ -23,6 +23,7 @@ defmodule Hueworks.DataCase do
     pid = Ecto.Adapters.SQL.Sandbox.start_owner!(Hueworks.Repo, shared: not tags[:async])
     :ok = HueworksApp.Cache.flush_all()
     clear_ets(:hueworks_desired_state)
+    clear_ets(:hueworks_desired_state_revisions)
     clear_ets(:hueworks_control_state)
     on_exit(fn -> Ecto.Adapters.SQL.Sandbox.stop_owner(pid) end)
   end

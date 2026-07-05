@@ -30,6 +30,7 @@ defmodule Hueworks.AppSettings do
           base_attrs
           |> Map.merge(updates)
           |> Map.put(:scope, @global_scope)
+          |> HaExportConfig.finalize_enabled(attrs)
 
         result =
           case Repo.get_by(AppSetting, scope: @global_scope) do

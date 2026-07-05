@@ -9,14 +9,16 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.Connection do
 
   alias Hueworks.ExternalScenes
   alias Hueworks.HomeAssistant.Host
-  alias Hueworks.Control.State
+  alias Hueworks.Control.{DesiredState, GroupState, State}
   alias Hueworks.Control.StateParser
   alias Hueworks.Repo
   alias Hueworks.Schemas.Group
   alias Hueworks.Schemas.Light
   alias Hueworks.Schemas.Bridge
 
-  def start_link(bridge) do
+  @refresh_interval_ms 2_000
+
+  def start_link(bridge, websockex \\ WebSockex) do
     url = "ws://#{Host.normalize(bridge.host)}/api/websocket"
     token = Bridge.credentials_struct(bridge).token
 
@@ -24,27 +26,28 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.Connection do
       Logger.warning("HA events missing token for #{bridge.name} (#{bridge.host})")
       {:error, :missing_token}
     else
-      lights = load_lights(bridge.id)
-      {groups, group_members} = load_groups(bridge.id, lights)
-
       state = %{
         bridge: bridge,
         token: token,
         next_id: 1,
-        subscribed: false,
-        state_changed_subscribed: false,
-        call_service_subscribed: false,
-        lights: lights,
-        groups: groups,
-        group_members: group_members
+        pending_subscriptions: ["state_changed", "call_service"],
+        lights: %{},
+        groups: %{},
+        group_members: %{},
+        last_refresh_at: 0
       }
 
-      WebSockex.start_link(url, __MODULE__, state)
+      websockex.start_link(url, __MODULE__, state, async: true)
     end
   end
 
   @impl true
   def handle_connect(_conn, state) do
+    lights = load_lights(state.bridge.id)
+    {groups, group_members} = load_groups(state.bridge.id, lights)
+
+    state = %{state | lights: lights, groups: groups, group_members: group_members}
+
     {:ok, state}
   end
 
@@ -56,17 +59,16 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.Connection do
         {:reply, {:text, Jason.encode!(auth)}, state}
 
       {:ok, %{"type" => "auth_ok"}} ->
-        subscribe_events(state, "state_changed")
+        subscribe_next_event_type(state)
 
       {:ok, %{"type" => "result", "success" => true}} ->
-        maybe_subscribe_next_event_type(state)
+        subscribe_next_event_type(state)
 
       {:ok, %{"type" => "result"}} ->
         {:ok, state}
 
       {:ok, %{"type" => "event", "event" => event}} ->
-        handle_event(event, state)
-        {:ok, state}
+        {:ok, handle_event(event, state)}
 
       {:ok, _payload} ->
         {:ok, state}
@@ -76,49 +78,45 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.Connection do
     end
   end
 
+  defp subscribe_next_event_type(%{pending_subscriptions: [event_type | rest]} = state) do
+    state = %{state | pending_subscriptions: rest}
+    subscribe_events(state, event_type)
+  end
+
+  defp subscribe_next_event_type(state), do: {:ok, state}
+
   defp subscribe_events(state, event_type) do
     {id, state} = next_id(state)
     payload = %{"id" => id, "type" => "subscribe_events", "event_type" => event_type}
-    {:reply, {:text, Jason.encode!(payload)}, %{state | subscribed: true}}
+    {:reply, {:text, Jason.encode!(payload)}, state}
   end
-
-  defp maybe_subscribe_next_event_type(%{state_changed_subscribed: false} = state) do
-    state = %{state | state_changed_subscribed: true}
-    subscribe_events(state, "call_service")
-  end
-
-  defp maybe_subscribe_next_event_type(%{call_service_subscribed: false} = state) do
-    {:ok, %{state | call_service_subscribed: true}}
-  end
-
-  defp maybe_subscribe_next_event_type(state), do: {:ok, state}
 
   defp handle_event(%{"event_type" => "state_changed", "data" => data}, state) do
     entity_id = data["entity_id"]
     new_state = data["new_state"]
 
     if is_binary(entity_id) and is_map(new_state) do
+      state = maybe_refresh_indexes(state, entity_id)
+
       case Map.get(state.lights, entity_id) do
         nil ->
           case Map.get(state.groups, entity_id) do
             nil ->
-              :ok
+              state
 
             group ->
               state_update = build_ha_state(new_state, group)
               State.put(:group, group.id, state_update)
-
-              # TODO: HA group fan-out has known edge cases with template entities; revisit after HA templates are removed.
-              state.group_members
-              |> Map.get(entity_id, [])
-              |> Enum.each(fn light_id ->
-                State.put(:light, light_id, state_update)
-              end)
+              update_group_members_from_group_state(state, entity_id, group.id, state_update)
+              state
           end
 
         light ->
           State.put(:light, light.id, build_ha_state(new_state, light))
+          state
       end
+    else
+      state
     end
   end
 
@@ -127,12 +125,64 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.Connection do
       data
       |> scene_entity_ids_from_service_data()
       |> then(&ExternalScenes.activate_home_assistant_scenes(state.bridge.id, &1))
+    end
+
+    state
+  end
+
+  defp handle_event(_event, state), do: state
+
+  defp maybe_refresh_indexes(state, entity_id) do
+    if Map.has_key?(state.lights, entity_id) or Map.has_key?(state.groups, entity_id) do
+      state
     else
-      :ok
+      refresh_indexes_if_due(state)
     end
   end
 
-  defp handle_event(_event, _state), do: :ok
+  defp refresh_indexes_if_due(state) do
+    now = System.monotonic_time(:millisecond)
+    last_refresh_at = Map.get(state, :last_refresh_at)
+
+    if refresh_due?(now, last_refresh_at) do
+      lights = load_lights(state.bridge.id)
+      {groups, group_members} = load_groups(state.bridge.id, lights)
+
+      %{
+        state
+        | lights: lights,
+          groups: groups,
+          group_members: group_members,
+          last_refresh_at: now
+      }
+    else
+      state
+    end
+  end
+
+  defp refresh_due?(_now, last_refresh_at) when last_refresh_at in [nil, 0], do: true
+  defp refresh_due?(now, last_refresh_at), do: now - last_refresh_at > @refresh_interval_ms
+
+  defp update_group_members_from_group_state(state, entity_id, group_id, state_update) do
+    light_ids = Map.get(state.group_members, entity_id, [])
+
+    Enum.each(light_ids, fn light_id ->
+      State.put(
+        :light,
+        light_id,
+        GroupState.member_attrs_from_group(
+          state_update,
+          DesiredState.get(:light, light_id),
+          State.get(:light, light_id)
+        )
+      )
+    end)
+
+    case GroupState.derive_from_light_ids(light_ids) do
+      derived when derived != %{} -> State.put(:group, group_id, derived)
+      _ -> :ok
+    end
+  end
 
   defp scene_entity_ids_from_service_data(%{"service_data" => service_data})
        when is_map(service_data) do

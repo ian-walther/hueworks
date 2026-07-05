@@ -2,6 +2,7 @@ defmodule Hueworks.AppSettingsTest do
   use Hueworks.DataCase, async: false
 
   alias Hueworks.AppSettings
+  alias Hueworks.AppSettings.HaExportConfig
   alias Hueworks.Repo
   alias Hueworks.Schemas.AppSetting
 
@@ -45,6 +46,45 @@ defmodule Hueworks.AppSettingsTest do
     assert settings.ha_export_scenes_enabled == false
     assert settings.ha_export_room_selects_enabled == false
     assert settings.ha_export_lights_enabled == true
+  end
+
+  test "derives legacy ha_export_enabled from final merged partial toggle updates" do
+    {:ok, _settings} =
+      AppSettings.upsert_global(%{
+        latitude: 40.7128,
+        longitude: -74.0060,
+        timezone: "America/New_York",
+        ha_export_scenes_enabled: true,
+        ha_export_room_selects_enabled: false,
+        ha_export_lights_enabled: true,
+        ha_export_mqtt_host: "mqtt.local",
+        ha_export_discovery_prefix: "homeassistant"
+      })
+
+    {:ok, settings} = AppSettings.upsert_global(%{ha_export_lights_enabled: false})
+
+    assert settings.ha_export_enabled == true
+    assert settings.ha_export_scenes_enabled == true
+    assert settings.ha_export_room_selects_enabled == false
+    assert settings.ha_export_lights_enabled == false
+
+    {:ok, settings} =
+      AppSettings.upsert_global(%{
+        ha_export_scenes_enabled: false,
+        ha_export_room_selects_enabled: false
+      })
+
+    assert settings.ha_export_enabled == false
+    assert settings.ha_export_scenes_enabled == false
+    assert settings.ha_export_room_selects_enabled == false
+    assert settings.ha_export_lights_enabled == false
+
+    {:ok, settings} = AppSettings.upsert_global(%{ha_export_room_selects_enabled: true})
+
+    assert settings.ha_export_enabled == true
+    assert settings.ha_export_scenes_enabled == false
+    assert settings.ha_export_room_selects_enabled == true
+    assert settings.ha_export_lights_enabled == false
   end
 
   test "returns a changeset error for invalid solar inputs and preserves current values" do
@@ -91,5 +131,10 @@ defmodule Hueworks.AppSettingsTest do
     settings = AppSettings.get_global()
     assert settings.ha_export_mqtt_port == 1883
     assert settings.ha_export_mqtt_host == "mqtt.local"
+  end
+
+  test "HA export config treats explicitly blank password as nil for programmatic callers" do
+    assert {:ok, %{ha_export_mqtt_password: nil}} =
+             HaExportConfig.normalize(%{ha_export_mqtt_password: ""})
   end
 end

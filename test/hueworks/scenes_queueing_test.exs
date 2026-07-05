@@ -322,6 +322,84 @@ defmodule Hueworks.ScenesQueueingTest do
     assert second_action.id == sibling_id
   end
 
+  test "scene activation replaces stale queued actions for the same light", %{
+    actions_agent: actions_agent,
+    executor_server: executor_server
+  } do
+    bridge =
+      insert_bridge!(%{
+        name: "Hue Bridge",
+        type: :hue,
+        host: "192.168.1.17",
+        credentials: %{"api_key" => "test"}
+      })
+
+    room = Repo.insert!(%Room{name: "Office"})
+
+    light =
+      Repo.insert!(%Light{
+        name: "Office Lamp",
+        display_name: "Office Lamp",
+        source: :hue,
+        source_id: "office-lamp",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        supports_temp: true,
+        reported_min_kelvin: 2000,
+        reported_max_kelvin: 6500
+      })
+
+    state =
+      insert_light_state!(%{
+        name: "Office Bright",
+        type: :manual,
+        config: %{"brightness" => "80", "temperature" => "3000"}
+      })
+
+    scene =
+      Repo.insert!(%Scene{
+        name: "Office Work",
+        room_id: room.id,
+        metadata: %{}
+      })
+
+    component =
+      Repo.insert!(%SceneComponent{
+        name: "Office Component",
+        scene_id: scene.id,
+        light_state_id: state.id,
+        metadata: %{}
+      })
+
+    Repo.insert!(%SceneComponentLight{
+      scene_component_id: component.id,
+      light_id: light.id
+    })
+
+    reset_states_for_lights([light.id])
+
+    stale_action = %{
+      type: :light,
+      id: light.id,
+      bridge_id: bridge.id,
+      desired: %{power: :off, brightness: 1},
+      trace_room_id: room.id,
+      not_before: System.monotonic_time(:millisecond) + 60_000
+    }
+
+    assert :ok = Executor.enqueue([stale_action], server: executor_server, mode: :append)
+    assert %{queues: %{bridge.id => 1}} == Executor.stats(executor_server) |> Map.take([:queues])
+
+    assert {:ok, _diff, _updated} = Scenes.activate_scene(scene.id)
+
+    drain_executor(executor_server)
+
+    assert [action] = Agent.get(actions_agent, & &1)
+    assert action.id == light.id
+    assert action.desired.power == :on
+    assert action.desired.brightness == 80
+  end
+
   defp drain_executor(server, attempts \\ 5)
 
   defp drain_executor(_server, 0), do: :ok

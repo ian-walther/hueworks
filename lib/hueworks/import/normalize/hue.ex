@@ -47,7 +47,6 @@ defmodule Hueworks.Import.Normalize.Hue do
           capabilities: capabilities,
           identifiers: %{"mac" => Normalize.fetch(light, :mac)},
           metadata: %{
-            "bridge_host" => bridge.host,
             "uniqueid" => Normalize.fetch(light, :uniqueid),
             "modelid" => Normalize.fetch(light, :modelid),
             "productname" => Normalize.fetch(light, :productname),
@@ -82,7 +81,6 @@ defmodule Hueworks.Import.Normalize.Hue do
           type: normalized_type,
           capabilities: capabilities,
           metadata: %{
-            "bridge_host" => bridge.host,
             "type" => group_type
           }
         }

@@ -18,6 +18,14 @@ defmodule Hueworks.Bridges do
     SceneComponentLight
   }
 
+  def list_bridges do
+    Repo.all(Bridge)
+  end
+
+  def imported?(%Bridge{} = bridge) do
+    bridge.import_complete or bridge_has_entities?(bridge.id)
+  end
+
   def latest_import(%Bridge{id: bridge_id}), do: latest_import(bridge_id)
 
   def latest_import(bridge_id) when is_integer(bridge_id) do
@@ -210,5 +218,10 @@ defmodule Hueworks.Bridges do
         select: g.id
       )
     )
+  end
+
+  defp bridge_has_entities?(bridge_id) do
+    Repo.exists?(from(l in Light, where: l.bridge_id == ^bridge_id)) or
+      Repo.exists?(from(g in Group, where: g.bridge_id == ^bridge_id))
   end
 end

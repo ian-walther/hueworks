@@ -10,6 +10,7 @@ defmodule Hueworks.Scenes do
   alias Hueworks.Scenes.Components
   alias Hueworks.Scenes.LightStates
   alias Hueworks.Scenes.Persistence
+  alias Hueworks.ActiveScenes
   alias Hueworks.Repo
   alias Hueworks.Schemas.Scene
 
@@ -72,19 +73,13 @@ defmodule Hueworks.Scenes do
     LightStates.duplicate(id)
   end
 
-  @spec delete_light_state(integer(), keyword()) :: :ok | {:error, term()}
-  def delete_light_state(id, opts \\ []) do
-    _scene_id = Keyword.get(opts, :scene_id)
-
+  @spec delete_light_state(integer()) :: :ok | {:error, term()}
+  def delete_light_state(id) do
     LightStates.delete(id)
   end
 
   def create_manual_light_state(name, config \\ %{}),
     do: create_light_state(name, :manual, config)
-
-  def update_manual_light_state(id, attrs), do: update_light_state(id, attrs)
-  def duplicate_manual_light_state(id), do: duplicate_light_state(id)
-  def delete_manual_light_state(id, opts \\ []), do: delete_light_state(id, opts)
 
   def create_scene(attrs) do
     Persistence.create(attrs)
@@ -117,6 +112,30 @@ defmodule Hueworks.Scenes do
   def activate_scene(scene_id, opts \\ []) when is_integer(scene_id) do
     SceneApply.activate_scene(scene_id, opts)
   end
+
+  def toggle_activation(scene_id, trace_source) when is_integer(scene_id) do
+    case get_scene(scene_id) do
+      nil ->
+        {:error, :not_found}
+
+      %Scene{} = scene ->
+        case ActiveScenes.get_for_room(scene.room_id) do
+          %{scene_id: ^scene_id} ->
+            :ok = ActiveScenes.clear_for_room(scene.room_id)
+            {:ok, :deactivated, scene}
+
+          current_active ->
+            trace = activation_trace(scene, current_active, trace_source)
+
+            case activate_scene(scene_id, trace: trace) do
+              {:ok, diff, updated} -> {:ok, :activated, scene, diff, updated}
+              {:error, reason} -> {:error, reason}
+            end
+        end
+    end
+  end
+
+  def toggle_activation(_scene_id, _trace_source), do: {:error, :invalid_args}
 
   @spec apply_scene(struct(), keyword()) :: scene_apply_result()
   def apply_scene(%Scene{} = scene, opts \\ []) do
@@ -151,18 +170,19 @@ defmodule Hueworks.Scenes do
   def recompute_active_circadian_lights(_room_id, _light_ids, _opts),
     do: {:error, :invalid_args}
 
-  # Temporary compatibility wrappers while callers migrate to the clearer
-  # "recompute" naming.
-  def reapply_active_scene_lights(room_id, light_ids, opts \\ []) do
-    recompute_active_scene_lights(room_id, light_ids, opts)
-  end
-
-  def reapply_active_circadian_lights(room_id, light_ids, opts \\ []) do
-    recompute_active_circadian_lights(room_id, light_ids, opts)
-  end
-
   @spec replace_scene_components(struct(), list(map())) :: :ok | {:error, term()}
   def replace_scene_components(%Scene{} = scene, components) when is_list(components) do
     Components.replace(scene, components)
+  end
+
+  defp activation_trace(scene, current_active, source) do
+    %{
+      trace_id: "scene-toggle-#{scene.room_id}-#{System.unique_integer([:positive])}",
+      source: to_string(source),
+      room_id: scene.room_id,
+      previous_scene_id: Map.get(current_active || %{}, :scene_id),
+      scene_id: scene.id,
+      started_at_ms: System.monotonic_time(:millisecond)
+    }
   end
 end

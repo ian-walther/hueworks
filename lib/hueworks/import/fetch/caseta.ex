@@ -3,12 +3,10 @@ defmodule Hueworks.Import.Fetch.Caseta do
   Fetch minimal Lutron Caseta data needed for import.
   """
 
-  @bridge_port 8081
-
   require Logger
 
+  alias Hueworks.Control.CasetaLeap
   alias Hueworks.Import.Fetch.Common
-  alias Hueworks.Schemas.Bridge
 
   def fetch do
     :caseta
@@ -23,7 +21,7 @@ defmodule Hueworks.Import.Fetch.Caseta do
 
   defp fetch_snapshot(bridge, log?) do
     {:ok, socket} = connect(bridge)
-    :ssl.setopts(socket, [{:active, false}, {:packet, :line}])
+    :ok = CasetaLeap.set_socket_opts(:ssl, socket, active: false, packet: :line)
 
     if log? do
       Logger.info("Fetching Lutron devices...")
@@ -58,31 +56,12 @@ defmodule Hueworks.Import.Fetch.Caseta do
   end
 
   defp connect(bridge) do
-    credentials = Bridge.credentials_struct(bridge)
-    cert_path = credentials.cert_path
-    key_path = credentials.key_path
-    cacert_path = credentials.cacert_path
-
-    if Enum.any?([cert_path, key_path, cacert_path], &Common.invalid_credential?/1) do
-      raise "Missing Caseta TLS credentials for bridge #{bridge.name} (#{bridge.host})"
-    end
-
-    ssl_opts = [
-      certfile: cert_path,
-      keyfile: key_path,
-      cacertfile: cacert_path,
-      verify: :verify_none,
-      versions: [:"tlsv1.2"]
-    ]
-
-    case :ssl.connect(
-           String.to_charlist(bridge.host),
-           @bridge_port,
-           ssl_opts,
-           5000
-         ) do
+    case CasetaLeap.connect(bridge) do
       {:ok, socket} ->
         {:ok, socket}
+
+      {:error, :missing_credentials} ->
+        raise "Missing Caseta TLS credentials for bridge #{bridge.name} (#{bridge.host})"
 
       {:error, reason} ->
         Logger.warning("Lutron connection failed: #{inspect(reason)}")
@@ -102,30 +81,20 @@ defmodule Hueworks.Import.Fetch.Caseta do
         %{"Url" => url}
       end
 
-    message =
-      Jason.encode!(%{
-        "CommuniqueType" => "ReadRequest",
-        "Header" => header
-      })
+    request = %{
+      "CommuniqueType" => "ReadRequest",
+      "Header" => header
+    }
 
-    :ssl.send(socket, message <> "\r\n")
+    with :ok <- CasetaLeap.send_request(:ssl, socket, request),
+         {:ok, decoded} <- read_until_match(socket, url, timeout) do
+      responses = acc ++ [decoded]
 
-    case read_until_match(
-           socket,
-           fn decoded ->
-             get_in(decoded, ["Header", "Url"]) == url and
-               not is_nil(get_in(decoded, ["Header", "StatusCode"]))
-           end,
-           timeout
-         ) do
-      {:ok, decoded} ->
-        responses = acc ++ [decoded]
-
-        case next_paging(decoded) do
-          nil -> finalize_responses(responses)
-          next -> read_endpoint(socket, url, timeout, next, responses)
-        end
-
+      case next_paging(decoded) do
+        nil -> finalize_responses(responses)
+        next -> read_endpoint(socket, url, timeout, next, responses)
+      end
+    else
       {:error, reason} ->
         Logger.warning("Failed to read #{url}: #{inspect(reason)}")
         %{error: inspect(reason), responses: acc}
@@ -189,57 +158,8 @@ defmodule Hueworks.Import.Fetch.Caseta do
     end)
   end
 
-  defp read_until_match(socket, predicate, timeout) do
-    deadline = System.monotonic_time(:millisecond) + timeout
-    do_read_until_match(socket, predicate, deadline)
-  end
-
-  defp do_read_until_match(socket, predicate, deadline) do
-    remaining = max(0, deadline - System.monotonic_time(:millisecond))
-
-    if remaining == 0 do
-      {:error, :timeout}
-    else
-      case :ssl.recv(socket, 0, remaining) do
-        {:ok, data} ->
-          case decode_line(data) do
-            {:ok, decoded} ->
-              if predicate.(decoded) do
-                {:ok, decoded}
-              else
-                do_read_until_match(socket, predicate, deadline)
-              end
-
-            {:error, :invalid} ->
-              do_read_until_match(socket, predicate, deadline)
-          end
-
-        {:error, :timeout} ->
-          {:error, :timeout}
-
-        {:error, reason} ->
-          {:error, reason}
-      end
-    end
-  end
-
-  defp decode_line(data) do
-    line =
-      data
-      |> IO.iodata_to_binary()
-      |> String.trim()
-
-    if line == "" do
-      {:error, :invalid}
-    else
-      case Jason.decode(line) do
-        {:ok, decoded} ->
-          {:ok, decoded}
-
-        {:error, _reason} ->
-          {:error, :invalid}
-      end
-    end
+  defp read_until_match(socket, url, timeout) do
+    CasetaLeap.read_until_match(socket, url, timeout, :message)
   end
 
   defp lutron_lights(devices) do

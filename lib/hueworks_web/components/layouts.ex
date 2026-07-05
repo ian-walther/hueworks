@@ -63,34 +63,4 @@ defmodule HueworksWeb.Layouts do
     </div>
     """
   end
-
-  attr(:flash, :map, default: nil)
-  attr(:info, :string, default: nil)
-  attr(:error, :string, default: nil)
-  attr(:class, :string, default: nil)
-
-  def floating_flash_group(assigns) do
-    info = assigns.info || (assigns.flash && Phoenix.Flash.get(assigns.flash, :info))
-    error = assigns.error || (assigns.flash && Phoenix.Flash.get(assigns.flash, :error))
-
-    assigns =
-      assigns
-      |> assign(:info_message, info)
-      |> assign(:error_message, error)
-
-    ~H"""
-    <div
-      :if={@info_message || @error_message}
-      class={["hw-flash-stack", @class]}
-      aria-live="polite"
-    >
-      <div :if={@info_message} class="hw-flash-bar hw-flash-bar-info" role="status">
-        <span><%= @info_message %></span>
-      </div>
-      <div :if={@error_message} class="hw-flash-bar hw-flash-bar-error" role="alert">
-        <span><%= @error_message %></span>
-      </div>
-    </div>
-    """
-  end
 end

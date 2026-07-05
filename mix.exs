@@ -8,6 +8,7 @@ defmodule Hueworks.MixProject do
       elixir: "~> 1.19",
       licenses: ["PolyForm-Noncommercial-1.0.0"],
       elixirc_paths: elixirc_paths(Mix.env()),
+      elixirc_options: elixirc_options(Mix.env()),
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
       deps: deps()
@@ -16,6 +17,9 @@ defmodule Hueworks.MixProject do
 
   defp elixirc_paths(:test), do: ["lib", "test/support"]
   defp elixirc_paths(_), do: ["lib"]
+
+  defp elixirc_options(:test), do: [warnings_as_errors: true]
+  defp elixirc_options(_env), do: []
 
   # Run "mix help compile.app" to learn about applications.
   def application do
@@ -29,8 +33,8 @@ defmodule Hueworks.MixProject do
   defp deps do
     [
       # Database
-      {:ecto_sql, "~> 3.11"},
-      {:ecto_sqlite3, "~> 0.15"},
+      {:ecto_sql, "~> 3.14"},
+      {:ecto_sqlite3, "~> 0.24"},
 
       # HTTP clients
       {:httpoison, "~> 2.2"},
@@ -44,17 +48,12 @@ defmodule Hueworks.MixProject do
       {:tzdata, "~> 1.1"},
 
       # Phoenix for web UI
-      {:phoenix, "~> 1.7"},
+      {:phoenix, "~> 1.7.24"},
       {:phoenix_live_view, "~> 0.20"},
       {:phoenix_html, "~> 4.0"},
-      {:plug_cowboy, "~> 2.7"},
-      {:bandit, "~> 1.0"},
+      {:bandit, "~> 1.12"},
       {:esbuild, "~> 0.8", runtime: Mix.env() == :dev},
       {:tailwind, "~> 0.2", runtime: Mix.env() == :dev},
-
-      # Telemetry
-      {:telemetry_metrics, "~> 1.0"},
-      {:telemetry_poller, "~> 1.0"},
 
       # Development
       {:phoenix_live_reload, "~> 1.4", only: :dev},
@@ -75,7 +74,8 @@ defmodule Hueworks.MixProject do
         "tailwind hueworks --minify",
         "esbuild hueworks --minify",
         "phx.digest"
-      ]
+      ],
+      test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"]
     ]
   end
 end

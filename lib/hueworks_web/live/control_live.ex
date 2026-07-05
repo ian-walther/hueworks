@@ -1,18 +1,15 @@
 defmodule HueworksWeb.ControlLive do
   use Phoenix.LiveView
 
-  import Ecto.Query, only: [from: 2]
+  import HueworksWeb.Notices
 
   alias Hueworks.ActiveScenes
-  alias Hueworks.Control.State
   alias Hueworks.Groups
   alias Hueworks.Groups.Topology
   alias Hueworks.Lights
   alias Hueworks.Lights.ManualControl
-  alias Hueworks.Repo
   alias Hueworks.Rooms
   alias Hueworks.Scenes
-  alias Hueworks.Schemas.GroupLight
   alias Hueworks.Util
   alias HueworksWeb.LightsLive.Actions
   alias HueworksWeb.LightsLive.DisplayState
@@ -36,8 +33,6 @@ defmodule HueworksWeb.ControlLive do
 
   @impl true
   def handle_event("refresh", _params, socket) do
-    State.bootstrap()
-
     {:noreply,
      socket
      |> assign(control_assigns())
@@ -46,18 +41,8 @@ defmodule HueworksWeb.ControlLive do
 
   def handle_event("toggle_scene", %{"id" => id}, socket) do
     with scene_id when is_integer(scene_id) <- Util.parse_id(id),
-         %{} = scene <- Scenes.get_scene(scene_id) do
-      case ActiveScenes.get_for_room(scene.room_id) do
-        %{scene_id: ^scene_id} ->
-          _ = ActiveScenes.clear_for_room(scene.room_id)
-
-        current_active ->
-          _ =
-            Scenes.activate_scene(scene_id,
-              trace: scene_activation_trace(scene.room_id, current_active, scene_id)
-            )
-      end
-
+         {:ok, _action, _scene} <-
+           normalize_toggle_result(Scenes.toggle_activation(scene_id, :control_live)) do
       {:noreply,
        socket
        |> assign(active_scene_by_room: active_scene_by_room())
@@ -671,26 +656,12 @@ defmodule HueworksWeb.ControlLive do
 
   defp attach_group_light_ids(groups) do
     group_ids = Enum.map(groups, & &1.id)
-    light_ids_by_group = light_ids_by_group(group_ids)
+    light_ids_by_group = Groups.light_ids_by_group(group_ids)
 
     Enum.map(groups, fn group ->
       group
       |> Map.from_struct()
       |> Map.put(:light_ids, Map.get(light_ids_by_group, group.id, []))
-    end)
-  end
-
-  defp light_ids_by_group([]), do: %{}
-
-  defp light_ids_by_group(group_ids) do
-    Repo.all(
-      from(gl in GroupLight,
-        where: gl.group_id in ^group_ids,
-        select: {gl.group_id, gl.light_id}
-      )
-    )
-    |> Enum.group_by(fn {group_id, _light_id} -> group_id end, fn {_group_id, light_id} ->
-      light_id
     end)
   end
 
@@ -745,20 +716,14 @@ defmodule HueworksWeb.ControlLive do
     end
   end
 
-  defp scene_activation_trace(room_id, current_active, scene_id) do
-    %{
-      trace_id: "control-scene-#{room_id}-#{System.unique_integer([:positive])}",
-      source: "control_live.scene",
-      room_id: room_id,
-      previous_scene_id: Map.get(current_active || %{}, :scene_id),
-      scene_id: scene_id,
-      started_at_ms: System.monotonic_time(:millisecond)
-    }
-  end
-
   defp parse_power_action("on"), do: :on
   defp parse_power_action("off"), do: :off
   defp parse_power_action(_action), do: nil
+
+  defp normalize_toggle_result({:ok, :activated, scene, _diff, _updated}),
+    do: {:ok, :activated, scene}
+
+  defp normalize_toggle_result(result), do: result
 
   defp manual_adjustment_request(
          "set_brightness",
@@ -832,30 +797,6 @@ defmodule HueworksWeb.ControlLive do
     Presentation.manual_adjustment_locked?(assigns.active_scene_by_room, target.room_id)
   end
 
-  defp maybe_put_status_flash(socket) do
-    case socket.assigns[:status] do
-      status when is_binary(status) ->
-        socket
-        |> assign(:status, nil)
-        |> put_notice(:info, status)
-
-      _ ->
-        socket
-    end
-  end
-
-  defp put_notice(socket, :info, message) when is_binary(message) do
-    socket
-    |> clear_flash(:error)
-    |> put_flash(:info, message)
-  end
-
-  defp put_notice(socket, :error, message) when is_binary(message) do
-    socket
-    |> clear_flash(:info)
-    |> put_flash(:error, message)
-  end
-
   defp power_button_class(state_map, id) do
     if powered_on?(state_map, id), do: "hw-button hw-button-on", else: "hw-button hw-button-off"
   end
@@ -872,11 +813,11 @@ defmodule HueworksWeb.ControlLive do
     end
   end
 
-  defp known_power?(power), do: power in [:on, :off, "on", "off", true, false]
+  defp known_power?(power), do: power in [:on, :off]
 
   defp powered_on?(state_map, id) do
     case Map.get(state_map, id, %{}) do
-      %{power: power} when power in [:on, "on", true] -> true
+      %{power: :on} -> true
       _ -> false
     end
   end

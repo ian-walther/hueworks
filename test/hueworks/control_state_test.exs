@@ -39,6 +39,20 @@ defmodule Hueworks.Control.StateTest do
     refute Map.has_key?(state, :y)
   end
 
+  test "physical power off keeps last-known levels" do
+    _ = State.put(:light, 10_004, %{power: :on, brightness: 60, kelvin: 3100})
+    _ = State.put(:light, 10_004, %{power: :off})
+
+    assert State.get(:light, 10_004) == %{power: :off, brightness: 60, kelvin: 3100}
+  end
+
+  test "put canonicalizes state keys at the physical-state boundary" do
+    assert State.put(:light, 10_006, %{"power" => "off", "brightness" => 25}) == %{
+             power: :off,
+             brightness: 25
+           }
+  end
+
   test "bootstrap does not return until bootstrap modules finish" do
     ref = make_ref()
 
