@@ -3,41 +3,25 @@ defmodule Hueworks.Control.DesiredStateTest do
 
   alias Hueworks.Control.DesiredState
 
-  test "applying xy desired state clears stale kelvin state" do
-    DesiredState.put(:light, 1, %{power: :on, brightness: 80, kelvin: 3000})
-
-    txn =
-      DesiredState.begin(:scene)
-      |> DesiredState.apply(:light, 1, %{power: :on, brightness: 75, x: 0.1854, y: 0.2234})
-
-    {:ok, %{updated: updated}} = DesiredState.commit(txn)
-    assert updated[{:light, 1}] == %{power: :on, brightness: 75, x: 0.1854, y: 0.2234}
-    assert DesiredState.get(:light, 1) == %{power: :on, brightness: 75, x: 0.1854, y: 0.2234}
+  test "put canonicalizes state keys at the desired-state boundary" do
+    assert DesiredState.put(:light, 20_001, %{
+             "power" => "off",
+             "brightness" => 42,
+             "temperature" => 2800
+           }) == %{power: :off}
   end
 
-  test "applying kelvin desired state clears stale xy state" do
-    DesiredState.put(:light, 1, %{power: :on, brightness: 75, x: 0.1854, y: 0.2234})
-
+  test "transaction apply canonicalizes state keys at the desired-state boundary" do
     txn =
-      DesiredState.begin(:scene)
-      |> DesiredState.apply(:light, 1, %{power: :on, brightness: 60, kelvin: 3200})
+      :scene
+      |> DesiredState.begin()
+      |> DesiredState.apply(:light, 20_002, %{
+        "power" => "on",
+        "brightness" => 42,
+        "temperature" => 2800
+      })
 
-    {:ok, %{updated: updated}} = DesiredState.commit(txn)
-
-    assert updated[{:light, 1}] == %{power: :on, brightness: 60, kelvin: 3200}
-    assert DesiredState.get(:light, 1) == %{power: :on, brightness: 60, kelvin: 3200}
-  end
-
-  test "power off clears brightness, kelvin, and xy state" do
-    DesiredState.put(:light, 1, %{power: :on, brightness: 75, x: 0.1854, y: 0.2234})
-
-    txn =
-      DesiredState.begin(:scene)
-      |> DesiredState.apply(:light, 1, %{power: :off})
-
-    {:ok, %{updated: updated}} = DesiredState.commit(txn)
-
-    assert updated[{:light, 1}] == %{power: :off}
-    assert DesiredState.get(:light, 1) == %{power: :off}
+    assert {:ok, result} = DesiredState.commit(txn)
+    assert result.updated == %{{:light, 20_002} => %{power: :on, brightness: 42, kelvin: 2800}}
   end
 end

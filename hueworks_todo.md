@@ -16,7 +16,6 @@ Reference: `planning/import-resync.md`
 ### Control Architecture Refactor
 Reference: `planning/refactoring.md` and `planning/audit/`
 
-- [ ] Point HA export optimistic-state handling at the shared state-map normalization helper.
 - [ ] Split scene-builder state into smaller typed surfaces for membership, embedded manual state, and per-light policy state.
 - [ ] Preserve existing behavior with characterization tests before changing semantics.
 

@@ -25,13 +25,13 @@ Context: the reimport backend (commit `0ed7be5`) is fresh and implements the `pl
 - Guardrails: `link_test.exs` and `import_identifiers_test.exs` characterize current matching; port assertions rather than rewriting them.
 - Effort: M
 
-### IM-5: Fetch layer re-implements transports already flagged in chunks 1–2
-- Severity: medium
+### IM-5 (residual): Z2M import fetcher still carries its own connection-config normalization
+- Severity: low
 - Type: refactor
-- Where: [fetch/caseta.ex:78-215](../../lib/hueworks/import/fetch/caseta.ex) (a THIRD LEAP `read_until_match`/connect implementation, after `CasetaClient` and the subscription connection), [fetch/z2m.ex:45-80](../../lib/hueworks/import/fetch/z2m.ex) (a FOURTH copy of the Z2M port/base-topic/auth config normalization), [fetch/common.ex](../../lib/hueworks/import/fetch/common.ex) (`invalid_credential?/1` — fourth copy)
-- Decision: this is additional scope for already-decided extractions, not a new design: when `CasetaLeap` (SI-3 + CP-8) and `Z2MConfig` (CP-9) land, migrate the import fetchers onto them in the same change or immediately after, and move `invalid_credential?` into the shared credentials path those modules use. Update SI-3/CP-9 scope notes accordingly rather than treating this finding separately.
+- Where: [fetch/z2m.ex](../../lib/hueworks/import/fetch/z2m.ex) (`normalize_port`/`normalize_base_topic`/auth opts — the last copy now that `Z2MConfig` and `Mqtt.Options` exist; the Caseta half of this finding landed with the `CasetaLeap` migration)
+- Decision: migrate `fetch/z2m.ex`'s `config_for_bridge` onto `Hueworks.Control.Z2MConfig.for_bridge/1` + `Hueworks.Mqtt.Options.put_auth/2` and delete the private copies. Check whether `Fetch.Common.invalid_credential?/1` still has callers afterwards; delete if not.
 - Guardrails: `test/hueworks/import/fetch/common_test.exs` plus the existing import pipeline tests; fetchers are `rescue`-wrapped at the Pipeline boundary, so behavior-preserving extraction is low-risk.
-- Effort: S (incremental on SI-3/CP-9)
+- Effort: S
 
 ### IM-6: import-resync.md still describes the implemented reimport backend as future work
 - Severity: medium
@@ -78,5 +78,5 @@ Context: the reimport backend (commit `0ed7be5`) is fresh and implements the `pl
 
 1. IM-8 residual (completes the characterization net — unblocks IM-2)
 2. IM-2 (dedupe + display_name decision, once netted)
-3. IM-4; IM-5's Caseta part rides along with SI-3, and its Z2M part is a small `Z2MConfig` migration that can go anytime
+3. IM-4; IM-5 residual (small `Z2MConfig`/`Mqtt.Options` migration, can go anytime)
 4. IM-6 last (doc reconciliation against the now-demonstrable test suite)

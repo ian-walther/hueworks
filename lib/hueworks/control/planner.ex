@@ -265,11 +265,7 @@ defmodule Hueworks.Control.Planner do
   defp normalize_light_ids(_light_ids), do: []
 
   defp explicit_off_intent?(desired) when is_map(desired) do
-    case Map.get(desired, :power) || Map.get(desired, "power") do
-      :off -> true
-      "off" -> true
-      _ -> false
-    end
+    Map.get(desired, :power) == :off
   end
 
   defp log_light_decisions(

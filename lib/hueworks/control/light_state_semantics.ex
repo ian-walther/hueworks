@@ -7,6 +7,7 @@ defmodule Hueworks.Control.LightStateSemantics do
   @type state_map :: map()
   @type comparison_opts :: keyword()
   @type xy_value :: float() | nil
+  @canonical_state_keys [:power, :brightness, :kelvin, :x, :y]
 
   @spec diff_state(state_map(), state_map(), comparison_opts()) :: state_map()
 
@@ -62,6 +63,27 @@ defmodule Hueworks.Control.LightStateSemantics do
   end
 
   def value_or_alias(_state, _key), do: nil
+
+  @spec normalize_keys(state_map()) :: state_map()
+  def normalize_keys(state) when is_map(state) do
+    unknown =
+      Enum.reduce(state, %{}, fn {key, value}, acc ->
+        if canonical_state_key(key) do
+          acc
+        else
+          Map.put(acc, key, value)
+        end
+      end)
+
+    Enum.reduce(@canonical_state_keys, unknown, fn key, acc ->
+      case fetch_alias(state, key) do
+        {:ok, value} -> Map.put(acc, key, normalize_canonical_value(key, value))
+        :error -> acc
+      end
+    end)
+  end
+
+  def normalize_keys(_state), do: %{}
 
   def key_aliases(:kelvin), do: [:kelvin, "kelvin", :temperature, "temperature"]
   def key_aliases("kelvin"), do: [:kelvin, "kelvin", :temperature, "temperature"]
@@ -165,15 +187,9 @@ defmodule Hueworks.Control.LightStateSemantics do
 
   @spec power_value(state_map()) :: :on | :off | term() | nil
   def power_value(desired) do
-    case value_or_alias(desired, :power) do
-      "on" -> :on
-      "ON" -> :on
-      true -> :on
-      "off" -> :off
-      "OFF" -> :off
-      false -> :off
-      value -> value
-    end
+    desired
+    |> value_or_alias(:power)
+    |> normalize_power_value()
   end
 
   @spec supports_temp?(state_map()) :: boolean()
@@ -192,17 +208,22 @@ defmodule Hueworks.Control.LightStateSemantics do
 
   @spec merge_state(state_map(), state_map()) :: state_map()
   def merge_state(current, incoming) when is_map(current) and is_map(incoming) do
+    current = normalize_keys(current)
+    incoming = normalize_keys(incoming)
+
     current
     |> harmonize_color_and_temperature(incoming)
     |> Map.merge(incoming)
   end
 
-  def merge_state(current, _incoming) when is_map(current), do: current
-  def merge_state(_current, incoming) when is_map(incoming), do: incoming
+  def merge_state(current, _incoming) when is_map(current), do: normalize_keys(current)
+  def merge_state(_current, incoming) when is_map(incoming), do: normalize_keys(incoming)
   def merge_state(_current, _incoming), do: %{}
 
   @spec normalize_power_off(state_map()) :: state_map()
   def normalize_power_off(state) when is_map(state) do
+    state = normalize_keys(state)
+
     case power_value(state) do
       :off -> drop_light_levels(state)
       _ -> state
@@ -269,6 +290,42 @@ defmodule Hueworks.Control.LightStateSemantics do
     Map.has_key?(attrs, :kelvin) or Map.has_key?(attrs, "kelvin") or
       Map.has_key?(attrs, :temperature) or Map.has_key?(attrs, "temperature")
   end
+
+  defp fetch_alias(state, key) do
+    key_aliases(key)
+    |> Enum.reduce_while(:error, fn alias_key, _acc ->
+      if Map.has_key?(state, alias_key) do
+        {:halt, {:ok, Map.get(state, alias_key)}}
+      else
+        {:cont, :error}
+      end
+    end)
+  end
+
+  defp canonical_state_key(:power), do: :power
+  defp canonical_state_key("power"), do: :power
+  defp canonical_state_key(:brightness), do: :brightness
+  defp canonical_state_key("brightness"), do: :brightness
+  defp canonical_state_key(:kelvin), do: :kelvin
+  defp canonical_state_key("kelvin"), do: :kelvin
+  defp canonical_state_key(:temperature), do: :kelvin
+  defp canonical_state_key("temperature"), do: :kelvin
+  defp canonical_state_key(:x), do: :x
+  defp canonical_state_key("x"), do: :x
+  defp canonical_state_key(:y), do: :y
+  defp canonical_state_key("y"), do: :y
+  defp canonical_state_key(_key), do: nil
+
+  defp normalize_canonical_value(:power, value), do: normalize_power_value(value)
+  defp normalize_canonical_value(_key, value), do: value
+
+  defp normalize_power_value("on"), do: :on
+  defp normalize_power_value("ON"), do: :on
+  defp normalize_power_value(true), do: :on
+  defp normalize_power_value("off"), do: :off
+  defp normalize_power_value("OFF"), do: :off
+  defp normalize_power_value(false), do: :off
+  defp normalize_power_value(value), do: value
 
   @spec put_kelvin(state_map(), integer()) :: state_map()
   def put_kelvin(desired, clamped_kelvin) when is_map(desired) do

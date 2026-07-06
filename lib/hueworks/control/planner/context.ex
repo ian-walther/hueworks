@@ -48,7 +48,6 @@ defmodule Hueworks.Control.Planner.Context do
     |> Map.keys()
     |> Enum.flat_map(fn
       {:light, id} when is_integer(id) -> [id]
-      {"light", id} when is_integer(id) -> [id]
       _ -> []
     end)
     |> Enum.filter(&MapSet.member?(room_light_ids, &1))

@@ -11,9 +11,10 @@ defmodule Hueworks.PresenceInputs do
 
   require Logger
 
-  alias Hueworks.HomeAssistant.Export, as: HomeAssistantExport
+  alias Hueworks.DomainEvents
   alias Hueworks.Repo
   alias Hueworks.Scenes
+  alias Hueworks.HomeAssistant.Export, as: HomeAssistantExport
   alias Hueworks.Schemas.PresenceInput
 
   def list_for_room(room_id) when is_integer(room_id) do
@@ -37,7 +38,7 @@ defmodule Hueworks.PresenceInputs do
     |> Repo.insert()
     |> case do
       {:ok, input} ->
-        HomeAssistantExport.refresh_presence_input(input.id)
+        DomainEvents.presence_input_changed(input)
         {:ok, input}
 
       other ->
@@ -51,7 +52,7 @@ defmodule Hueworks.PresenceInputs do
     |> Repo.update()
     |> case do
       {:ok, updated} ->
-        HomeAssistantExport.refresh_presence_input(updated.id)
+        DomainEvents.presence_input_changed(updated)
         {:ok, updated}
 
       other ->
@@ -64,7 +65,7 @@ defmodule Hueworks.PresenceInputs do
 
     case Repo.delete(input) do
       {:ok, deleted} ->
-        HomeAssistantExport.remove_presence_input(input_id)
+        DomainEvents.presence_input_deleted(input_id)
         {:ok, deleted}
 
       other ->

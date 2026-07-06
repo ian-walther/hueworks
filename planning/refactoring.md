@@ -18,14 +18,6 @@ In particular:
 
 Note: this doc's remaining items are being absorbed into the audit backlog in `planning/audit/` (see `00-plan.md`); new refactor targets belong there.
 
-### 2) Centralize State-Map Normalization (residual)
-Remaining smell:
-- HA export command handling still merges optimistic state with its own copy of the kelvin/xy harmonization instead of `Hueworks.Control.LightStateSemantics.merge_state/2` (see `planning/audit/01-control-plane.md` parked notes; scoped for the chunk 5 audit).
-
-Guardrails:
-- preserve current atom-keyed public behavior
-- keep external payload parsing at integration boundaries
-
 ### 3) Split Scene Builder State
 Current smell:
 - `lib/hueworks_web/live/scene_builder_component/state.ex` combines component membership, embedded manual config, nested group presentation, and per-light power policy state.

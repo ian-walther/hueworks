@@ -491,6 +491,38 @@ defmodule Hueworks.HomeKitTest do
     refute_receive {:hap_started, _names}
   end
 
+  test "bridge reloads from scene domain events when scene exposure is enabled" do
+    original_hap_module = Application.get_env(:hueworks, :homekit_hap_module)
+    original_pairing_state_module = Application.get_env(:hueworks, :homekit_pairing_state_module)
+    original_sink = Application.get_env(:hueworks, :homekit_test_sink)
+
+    Application.put_env(:hueworks, :homekit_hap_module, __MODULE__.HAPStub)
+    Application.put_env(:hueworks, :homekit_pairing_state_module, __MODULE__.PairedStub)
+    Application.put_env(:hueworks, :homekit_test_sink, self())
+
+    on_exit(fn ->
+      restore_app_env(:hueworks, :homekit_hap_module, original_hap_module)
+      restore_app_env(:hueworks, :homekit_pairing_state_module, original_pairing_state_module)
+      restore_app_env(:hueworks, :homekit_test_sink, original_sink)
+    end)
+
+    {:ok, _settings} =
+      AppSettings.upsert_global(%{
+        latitude: 40.0,
+        longitude: -75.0,
+        timezone: "America/New_York",
+        homekit_scenes_enabled: true
+      })
+
+    room = Repo.insert!(%Room{name: "Kitchen"})
+
+    start_supervised!({HomeKitBridge, []})
+    refute_receive {:hap_started, _names}
+
+    assert {:ok, _scene} = Scenes.create_scene(%{name: "Dinner", room_id: room.id})
+    assert_receive {:hap_started, ["Dinner"]}
+  end
+
   test "bridge defers child accessories until after HomeKit pairing completes" do
     original_hap_module = Application.get_env(:hueworks, :homekit_hap_module)
     original_pairing_state_module = Application.get_env(:hueworks, :homekit_pairing_state_module)

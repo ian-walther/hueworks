@@ -68,6 +68,7 @@ defmodule Hueworks.Control.State do
   @impl true
   def handle_call({:ensure, type, id, defaults}, _from, state) do
     key = {type, id}
+    defaults = LightStateSemantics.normalize_keys(defaults)
 
     case :ets.lookup(@table, key) do
       [{_key, current}] ->

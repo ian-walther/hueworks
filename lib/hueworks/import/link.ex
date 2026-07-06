@@ -3,6 +3,7 @@ defmodule Hueworks.Import.Link do
 
   import Ecto.Query, only: [from: 2]
 
+  alias Hueworks.Import.IdentifierIndex
   alias Hueworks.Repo
   alias Hueworks.Schemas.{Bridge, Group, GroupLight, Light}
 
@@ -29,29 +30,7 @@ defmodule Hueworks.Import.Link do
         )
       )
 
-    mac_index =
-      Enum.reduce(non_ha_lights, %{}, fn light, acc ->
-        case identifier(light, "mac") do
-          nil -> acc
-          mac -> Map.update(acc, mac, [light.id], &[light.id | &1])
-        end
-      end)
-
-    serial_index =
-      Enum.reduce(non_ha_lights, %{}, fn light, acc ->
-        case identifier(light, "serial") do
-          nil -> acc
-          serial -> Map.update(acc, serial, [light.id], &[light.id | &1])
-        end
-      end)
-
-    ieee_index =
-      Enum.reduce(non_ha_lights, %{}, fn light, acc ->
-        case identifier(light, "ieee") do
-          nil -> acc
-          ieee -> Map.update(acc, ieee, [light.id], &[light.id | &1])
-        end
-      end)
+    indexes = IdentifierIndex.build(non_ha_lights)
 
     Repo.all(
       from(l in Light,
@@ -59,7 +38,7 @@ defmodule Hueworks.Import.Link do
       )
     )
     |> Enum.each(fn light ->
-      canonical_id = canonical_light_for(light, mac_index, serial_index, ieee_index)
+      canonical_id = canonical_light_for(light, indexes)
 
       if is_integer(canonical_id) do
         light
@@ -71,21 +50,11 @@ defmodule Hueworks.Import.Link do
     end)
   end
 
-  defp canonical_light_for(light, mac_index, serial_index, ieee_index) do
-    mac = identifier(light, "mac")
-    serial = identifier(light, "serial")
-    ieee = identifier(light, "ieee")
-
-    unique_match(mac_index, mac) ||
-      unique_match(serial_index, serial) ||
-      unique_match(ieee_index, ieee)
-  end
-
-  defp unique_match(index, key) do
-    case if(is_binary(key), do: Map.get(index, key, []), else: []) |> Enum.uniq() do
-      [id] -> id
-      _ -> nil
-    end
+  defp canonical_light_for(light, indexes) do
+    ["mac", "serial", "ieee"]
+    |> Enum.find_value(fn key ->
+      IdentifierIndex.unique_match(indexes, key, IdentifierIndex.metadata_identifier(light, key))
+    end)
   end
 
   defp link_ha_groups(bridge_id) do
@@ -151,12 +120,4 @@ defmodule Hueworks.Import.Link do
       Map.update(acc, group_id, MapSet.new([light_id]), &MapSet.put(&1, light_id))
     end)
   end
-
-  defp identifier(%Light{metadata: metadata}, key) when is_map(metadata) do
-    identifiers = metadata["identifiers"] || %{}
-    value = identifiers[key]
-    if is_binary(value) and value != "", do: value, else: nil
-  end
-
-  defp identifier(_light, _key), do: nil
 end

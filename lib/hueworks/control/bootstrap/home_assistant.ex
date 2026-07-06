@@ -11,32 +11,41 @@ defmodule Hueworks.Control.Bootstrap.HomeAssistant do
   alias Hueworks.Control.State
 
   def run do
-    bridge = Repo.one(from(b in Bridge, where: b.type == :ha and b.enabled == true))
+    Bridge
+    |> where_enabled_home_assistant()
+    |> Repo.all()
+    |> Enum.each(&bootstrap_bridge/1)
 
-    if bridge do
-      token = Bridge.credentials_struct(bridge).token
+    :ok
+  end
 
-      if is_binary(token) and token != "" do
-        lights_by_id = Indexes.lights_by_source_id(bridge.id, :ha)
-        groups_by_id = Indexes.groups_by_source_id(bridge.id, :ha)
-        states = fetch_ha_states(bridge.host, token)
+  defp where_enabled_home_assistant(queryable) do
+    from(b in queryable, where: b.type == :ha and b.enabled == true)
+  end
 
-        Enum.each(states, fn state ->
-          entity_id = state["entity_id"]
-          attrs = state["attributes"] || %{}
-          current = build_ha_state(state["state"], attrs, entity_id, lights_by_id, groups_by_id)
+  defp bootstrap_bridge(%Bridge{} = bridge) do
+    token = Bridge.credentials_struct(bridge).token
 
-          case Map.get(lights_by_id, entity_id) do
-            nil -> :ok
-            db_light -> State.put(:light, db_light.id, current)
-          end
+    if is_binary(token) and token != "" do
+      lights_by_id = Indexes.lights_by_source_id(bridge.id, :ha)
+      groups_by_id = Indexes.groups_by_source_id(bridge.id, :ha)
+      states = fetch_ha_states(bridge.host, token)
 
-          case Map.get(groups_by_id, entity_id) do
-            nil -> :ok
-            db_group -> State.put(:group, db_group.id, current)
-          end
-        end)
-      end
+      Enum.each(states, fn state ->
+        entity_id = state["entity_id"]
+        attrs = state["attributes"] || %{}
+        current = build_ha_state(state["state"], attrs, entity_id, lights_by_id, groups_by_id)
+
+        case Map.get(lights_by_id, entity_id) do
+          nil -> :ok
+          db_light -> State.put(:light, db_light.id, current)
+        end
+
+        case Map.get(groups_by_id, entity_id) do
+          nil -> :ok
+          db_group -> State.put(:group, db_group.id, current)
+        end
+      end)
     end
   end
 

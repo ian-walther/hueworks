@@ -103,7 +103,7 @@ defmodule Hueworks.Control.GroupState do
   end
 
   defp fetch_value(state, key) when is_map(state) and is_atom(key) do
-    Map.get(state, key) || Map.get(state, Atom.to_string(key))
+    Map.get(state, key)
   end
 
   defp fetch_value(_state, _key), do: nil
@@ -134,12 +134,11 @@ defmodule Hueworks.Control.GroupState do
   defp explicit_power?(state, expected_power) when expected_power in [:on, :off] do
     case state do
       %{power: power} -> normalize_power(power) == expected_power
-      %{"power" => power} -> normalize_power(power) == expected_power
       _ -> false
     end
   end
 
-  defp normalize_power(power) when power in [:on, "on", "ON", true], do: :on
-  defp normalize_power(power) when power in [:off, "off", "OFF", false], do: :off
+  defp normalize_power(:on), do: :on
+  defp normalize_power(:off), do: :off
   defp normalize_power(_power), do: nil
 end

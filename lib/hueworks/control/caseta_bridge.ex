@@ -1,6 +1,7 @@
 defmodule Hueworks.Control.CasetaBridge do
   @moduledoc false
 
+  alias Hueworks.Control.CasetaLeap
   alias Hueworks.Repo
   alias Hueworks.Schemas.Bridge
   alias HueworksApp.Cache
@@ -25,29 +26,11 @@ defmodule Hueworks.Control.CasetaBridge do
         {:error, :bridge_not_found}
 
       bridge ->
-        credentials = Bridge.credentials_struct(bridge)
-        cert_path = credentials.cert_path
-        key_path = credentials.key_path
-        cacert_path = credentials.cacert_path
-
-        if Enum.any?([cert_path, key_path, cacert_path], &invalid_credential?/1) do
-          {:error, :missing_credentials}
-        else
-          {:ok, bridge.host,
-           [
-             certfile: cert_path,
-             keyfile: key_path,
-             cacertfile: cacert_path,
-             # Lutron LEAP bridges use client cert auth with self-signed LAN certs.
-             verify: :verify_none,
-             versions: [:"tlsv1.2"]
-           ]}
+        case CasetaLeap.ssl_opts_for(bridge) do
+          {:ok, ssl_opts} -> {:ok, bridge.host, ssl_opts}
+          {:error, reason} -> {:error, reason}
         end
     end
-  end
-
-  defp invalid_credential?(value) do
-    not is_binary(value) or value == "" or value == "CHANGE_ME"
   end
 
   defp credentials_cache_ttl_ms do

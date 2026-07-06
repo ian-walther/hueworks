@@ -5,6 +5,7 @@ defmodule Hueworks.HomeKit.Bridge do
   require Logger
 
   alias Hueworks.ActiveScenes
+  alias Hueworks.DomainEvents
   alias Hueworks.HomeKit.AccessoryGraph
   alias Phoenix.PubSub
 
@@ -35,6 +36,7 @@ defmodule Hueworks.HomeKit.Bridge do
   def init(_opts) do
     PubSub.subscribe(Hueworks.PubSub, @control_topic)
     PubSub.subscribe(Hueworks.PubSub, ActiveScenes.topic())
+    PubSub.subscribe(Hueworks.PubSub, DomainEvents.topic())
     schedule_pairing_watchdog()
 
     {:ok,
@@ -85,6 +87,10 @@ defmodule Hueworks.HomeKit.Bridge do
     |> Enum.each(fn {_key, token} -> notify_change_token(token) end)
 
     {:noreply, state}
+  end
+
+  def handle_info({event, _scene}, state) when event in [:scene_saved, :scene_deleted] do
+    {:noreply, rebuild(state)}
   end
 
   def handle_info(:pairing_watchdog, state) do

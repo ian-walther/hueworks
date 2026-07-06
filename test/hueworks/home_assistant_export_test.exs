@@ -12,6 +12,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
   alias Hueworks.HomeAssistant.Export.Messages.{CommandTarget, RoomSceneOption}
   alias Hueworks.PresenceInputs
   alias Hueworks.Repo
+  alias Hueworks.Scenes
   alias Hueworks.Schemas.{AppSetting, Group, GroupLight, Light, PresenceInput, Room, Scene}
 
   setup do
@@ -448,6 +449,52 @@ defmodule Hueworks.HomeAssistant.ExportTest do
       assert_publish("hueworks/ha_export/rooms/#{room.id}/scene/state")
 
     assert state_payload == "All Auto"
+  end
+
+  test "scene CRUD domain events refresh exported scene and room topics" do
+    put_export_settings(%{
+      ha_export_scenes_enabled: true,
+      ha_export_room_selects_enabled: true,
+      ha_export_mqtt_host: "mqtt.local",
+      ha_export_mqtt_port: 1883,
+      ha_export_discovery_prefix: "homeassistant"
+    })
+
+    room = Repo.insert!(%Room{name: "Main Floor"})
+
+    Export.reload()
+    _ = :sys.get_state(Export)
+    send(Export, {:mqtt_connected, Export.client_id()})
+    _ = :sys.get_state(Export)
+    drain_published_messages()
+
+    assert {:ok, scene} = Scenes.create_scene(%{name: "Dinner", room_id: room.id})
+    _ = :sys.get_state(Export)
+
+    {_client_id, _topic, scene_payload} =
+      assert_publish("homeassistant/scene/hueworks_scene_#{scene.id}/config")
+
+    assert Jason.decode!(scene_payload)["name"] == "Dinner"
+
+    {_client_id, _topic, select_payload} =
+      assert_publish("homeassistant/select/hueworks_room_scene_select_#{room.id}/config")
+
+    assert Jason.decode!(select_payload)["options"] == ["Manual", "Dinner"]
+
+    drain_published_messages()
+
+    assert {:ok, _deleted} = Scenes.delete_scene(scene)
+    _ = :sys.get_state(Export)
+
+    {_client_id, _topic, tombstone_payload} =
+      assert_publish("homeassistant/scene/hueworks_scene_#{scene.id}/config")
+
+    assert tombstone_payload == ""
+
+    {_client_id, _topic, refreshed_select_payload} =
+      assert_publish("homeassistant/select/hueworks_room_scene_select_#{room.id}/config")
+
+    assert refreshed_select_payload == ""
   end
 
   test "publishes exported lights and groups when connected" do

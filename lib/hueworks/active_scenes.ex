@@ -5,7 +5,6 @@ defmodule Hueworks.ActiveScenes do
 
   import Ecto.Query, only: [from: 2]
 
-  alias Hueworks.HomeAssistant.Export, as: HomeAssistantExport
   alias Hueworks.Repo
   alias Hueworks.Schemas.{ActiveScene, Scene}
 
@@ -46,7 +45,6 @@ defmodule Hueworks.ActiveScenes do
 
     case result do
       {:ok, active_scene} ->
-        HomeAssistantExport.refresh_room_select(scene.room_id)
         broadcast(scene.room_id, scene.id)
         {:ok, active_scene}
 
@@ -57,7 +55,6 @@ defmodule Hueworks.ActiveScenes do
 
   def clear_for_room(room_id) do
     Repo.delete_all(from(a in ActiveScene, where: a.room_id == ^room_id))
-    HomeAssistantExport.refresh_room_select(room_id)
     broadcast(room_id, nil)
     :ok
   end
@@ -69,7 +66,6 @@ defmodule Hueworks.ActiveScenes do
     Repo.delete_all(from(a in ActiveScene, where: a.scene_id == ^scene_id))
 
     Enum.each(room_ids, fn room_id ->
-      HomeAssistantExport.refresh_room_select(room_id)
       broadcast(room_id, nil)
     end)
 

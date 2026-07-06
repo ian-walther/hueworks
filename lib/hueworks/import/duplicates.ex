@@ -3,7 +3,7 @@ defmodule Hueworks.Import.Duplicates do
 
   import Ecto.Query, only: [from: 2]
 
-  alias Hueworks.Import.{EntityMatch, Identifiers, Normalize, Source}
+  alias Hueworks.Import.{EntityMatch, IdentifierIndex, Identifiers, Normalize, Source}
   alias Hueworks.Repo
   alias Hueworks.Schemas.{Group, GroupLight, Light}
 
@@ -27,11 +27,7 @@ defmodule Hueworks.Import.Duplicates do
         )
       )
 
-    indexes = %{
-      "mac" => identifier_index(native_lights, "mac"),
-      "serial" => identifier_index(native_lights, "serial"),
-      "ieee" => identifier_index(native_lights, "ieee")
-    }
+    indexes = IdentifierIndex.build(native_lights)
 
     Enum.reduce(lights, %{}, fn light, acc ->
       if Source.normalize(Normalize.fetch(light, :source)) == :ha do
@@ -93,24 +89,14 @@ defmodule Hueworks.Import.Duplicates do
     end
   end
 
-  defp identifier_index(lights, key) do
-    Enum.reduce(lights, %{}, fn light, acc ->
-      case metadata_identifier(light, key) do
-        nil -> acc
-        value -> Map.update(acc, value, [light.id], &[light.id | &1])
-      end
-    end)
-  end
-
   defp unique_native_light_match(light, indexes) do
     ["mac", "serial", "ieee"]
     |> Enum.find_value(fn key ->
-      value = normalized_identifier(light, key)
-
-      case if(is_binary(value), do: Map.get(indexes[key], value, []), else: []) |> Enum.uniq() do
-        [id] -> id
-        _ -> nil
-      end
+      IdentifierIndex.unique_match(
+        indexes,
+        key,
+        IdentifierIndex.normalized_identifier(light, key)
+      )
     end)
   end
 
@@ -159,21 +145,7 @@ defmodule Hueworks.Import.Duplicates do
     end
   end
 
-  defp normalized_identifier(entity, key) do
-    identifiers = Normalize.fetch(entity, :identifiers) || %{}
-    value = Normalize.fetch(identifiers, key)
-    if is_binary(value) and value != "", do: value
-  end
-
   defp light_external_id(light), do: Identifiers.light_external_id(light)
-
-  defp metadata_identifier(%{metadata: metadata}, key) when is_map(metadata) do
-    identifiers = metadata["identifiers"] || metadata[:identifiers] || %{}
-    value = identifiers[key] || identifiers[String.to_atom(key)]
-    if is_binary(value) and value != "", do: value
-  end
-
-  defp metadata_identifier(_entity, _key), do: nil
 
   defp source_id(entity),
     do: entity |> Normalize.fetch(:source_id) |> Normalize.normalize_source_id()

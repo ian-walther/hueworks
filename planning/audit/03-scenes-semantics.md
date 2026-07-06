@@ -3,20 +3,11 @@
 Scope: `lib/hueworks/scenes/**`, `lib/hueworks/scenes.ex`, `lib/hueworks/circadian.ex`, `lib/hueworks/circadian/config.ex`, `lib/hueworks/circadian_preview.ex`, `lib/hueworks/presence_inputs.ex`, `lib/hueworks/external_scenes.ex`. (`scenes/apply.ex` and `active_scenes.ex` were read in chunk 1; their findings live there.)
 Status: complete (all files in scope read).
 
-Overall assessment: this layer is in better architectural shape than expected. Scene intent compiles cleanly into desired-state transactions (power policy now via the shared `Scenes.PowerPolicy` module), manual-power latch and force/follow semantics match planned_architecture.md, and `Circadian.Config` is the best boundary module in the codebase — it is the reference pattern for the normalize-at-boundaries work (CP-3). The remaining problem is that domain modules call integration runtimes inline (SC-2). Test coverage here is the strongest in the app (intent, components, builder, activation round-trip, queueing, presence, and circadian *reference-parity* suites).
+Overall assessment: this layer is in better architectural shape than expected. Scene intent compiles cleanly into desired-state transactions (power policy via the shared `Scenes.PowerPolicy` module), manual-power latch and force/follow semantics match planned_architecture.md, integration sync flows through `Hueworks.DomainEvents` rather than inline calls, and `Circadian.Config` is the best boundary module in the codebase — it is the reference pattern for the normalize-at-boundaries work (CP-3). Test coverage here is the strongest in the app (intent, components, builder, activation round-trip, queueing, presence, and circadian *reference-parity* suites). The only open finding is the deliberately deferred SC-5.
 
 Parked question resolved during this chunk: chunk 2's "verify external scene activation enters through normal paths" — confirmed: `ExternalScenes.activate_home_assistant_scene` resolves the mapping and calls `Scenes.activate_scene`. No parallel path. Nothing to do. (Finding IDs are stable; gaps in numbering mean the finding was implemented and removed.)
 
 ---
-
-### SC-2: Domain modules call integration runtimes inline
-- Severity: medium
-- Type: refactor
-- Where: [lib/hueworks/scenes/persistence.ex](../../lib/hueworks/scenes/persistence.ex) (`sync_upsert`/`sync_delete` calling `HomeAssistantExport.refresh_scene/refresh_room` + `HomeKit.reload`), [lib/hueworks/presence_inputs.ex:32-104](../../lib/hueworks/presence_inputs.ex) (`refresh_presence_input`/`remove_presence_input` on every CRUD), plus `ActiveScenes.set_active/clear_for_room/deactivate_scene` (chunk 1 parked item — absorbed here).
-- What: scene/presence CRUD in the pure domain layer dispatches directly into two optional integration runtimes. planned_architecture.md says integrations are optional layers entering through normal paths — the dependency arrow points the wrong way, and every new integration adds another inline call site.
-- Decision (direction decided, implementation blocked on chunk 5): introduce domain events on `Hueworks.PubSub` — `{:scene_saved, scene}`, `{:scene_deleted, scene}`, `{:active_scene_changed, room_id, scene_id}`, `{:presence_input_changed, input}` — published by these domain modules; the HA export and HomeKit runtimes subscribe and translate into their own refreshes. Do not implement until the chunk 5 audit confirms both runtimes' subscriber shape; the distillation doc will sequence it.
-- Guardrails: must keep the *synchronous* HA presence-input republish ordering in `set_occupied` (HA owns presence values; the republish-then-reapply order is load-bearing per README) — if ordering can't be preserved via events, presence stays synchronous and only scene/HomeKit sync moves.
-- Effort: M
 
 ### SC-5: Circadian.calculate recomputes solar events several times per call
 - Severity: low
@@ -44,10 +35,9 @@ Parked question resolved during this chunk: chunk 2's "verify external scene act
 
 ## Parked (noted early, belongs to later chunks)
 
-- Chunk 5: SC-2 stage 2 needs the HA export and HomeKit runtimes' internals (subscriber shape, refresh granularity) — confirm both can consume PubSub events without ordering regressions.
 - Chunk 6a: the scene-builder state split (refactoring.md item 3) is now unblocked — the policy vocabulary lives in `Scenes.PowerPolicy` and `scene_builder_component/state.ex` only delegates to it; re-scope the split during the 6a audit.
 - Distillation: name `Circadian.Config` as the boundary-module template when sequencing CP-3.
 
 ## Suggested Implementation Order (for cheap-model sessions)
 
-Both remaining findings are blocked/deferred: SC-2 waits on the chunk 5 audit, SC-5 on a real perf trigger. Nothing here is currently actionable.
+Nothing actionable: SC-5 stays deferred until a real perf trigger.

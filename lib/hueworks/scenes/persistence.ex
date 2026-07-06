@@ -1,8 +1,7 @@
 defmodule Hueworks.Scenes.Persistence do
   @moduledoc false
 
-  alias Hueworks.HomeAssistant.Export, as: HomeAssistantExport
-  alias Hueworks.HomeKit
+  alias Hueworks.DomainEvents
   alias Hueworks.Repo
   alias Hueworks.Schemas.Scene
 
@@ -27,28 +26,14 @@ defmodule Hueworks.Scenes.Persistence do
   end
 
   defp sync_upsert({:ok, scene}) do
-    scene
-    |> HomeAssistantExport.refresh_scene()
-
-    scene.room_id
-    |> HomeAssistantExport.refresh_room()
-
-    HomeKit.reload()
-
+    DomainEvents.scene_saved(scene)
     {:ok, scene}
   end
 
   defp sync_upsert(other), do: other
 
   defp sync_delete({:ok, scene}) do
-    scene
-    |> HomeAssistantExport.remove_scene()
-
-    scene.room_id
-    |> HomeAssistantExport.refresh_room()
-
-    HomeKit.reload()
-
+    DomainEvents.scene_deleted(scene)
     {:ok, scene}
   end
 

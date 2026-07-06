@@ -23,7 +23,23 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.ConnectionTest do
       :ets.delete_all_objects(:hueworks_control_state)
     end
 
+    Process.register(self(), :ha_connection_test_listener)
+
+    on_exit(fn ->
+      if Process.whereis(:ha_connection_test_listener) == self() do
+        Process.unregister(:ha_connection_test_listener)
+      end
+    end)
+
     :ok
+  end
+
+  defmodule FakeWebSockex do
+    def start_link(url, module, state, opts) do
+      listener = Process.whereis(:ha_connection_test_listener)
+      if listener, do: send(listener, {:websockex_start_link, url, module, state, opts})
+      {:ok, self()}
+    end
   end
 
   test "event handler maps extended xy HA updates to low kelvin values" do
@@ -59,9 +75,7 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.ConnectionTest do
       bridge: bridge,
       token: "token",
       next_id: 1,
-      subscribed: true,
-      state_changed_subscribed: true,
-      call_service_subscribed: true,
+      pending_subscriptions: [],
       lights: %{light.source_id => light},
       groups: %{},
       group_members: %{}
@@ -89,14 +103,71 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.ConnectionTest do
     assert State.get(:light, light.id) == %{power: :on, kelvin: 2000}
   end
 
+  test "start_link uses async websocket start and defers entity index loading" do
+    room = Repo.insert!(%Room{name: "Async HA"})
+
+    bridge =
+      insert_bridge!(%{
+        type: :ha,
+        name: "HA",
+        host: "10.0.0.86",
+        credentials: %{"token" => "token"},
+        enabled: true
+      })
+
+    _light =
+      Repo.insert!(%Light{
+        name: "Existing Lamp",
+        source: :ha,
+        source_id: "light.existing",
+        bridge_id: bridge.id,
+        room_id: room.id
+      })
+
+    assert {:ok, _pid} = Connection.start_link(bridge, FakeWebSockex)
+
+    assert_receive {:websockex_start_link, "ws://10.0.0.86:8123/api/websocket", Connection, state,
+                    opts}
+
+    assert Keyword.fetch!(opts, :async) == true
+    assert state.lights == %{}
+    assert state.groups == %{}
+    assert state.group_members == %{}
+  end
+
+  test "handle_connect loads HA entity indexes inside the connection process" do
+    room = Repo.insert!(%Room{name: "Connected HA"})
+
+    bridge =
+      insert_bridge!(%{
+        type: :ha,
+        name: "HA",
+        host: "10.0.0.87",
+        credentials: %{"token" => "token"},
+        enabled: true
+      })
+
+    light =
+      Repo.insert!(%Light{
+        name: "Connected Lamp",
+        source: :ha,
+        source_id: "light.connected",
+        bridge_id: bridge.id,
+        room_id: room.id
+      })
+
+    state = ha_state(bridge)
+
+    assert {:ok, connected_state} = Connection.handle_connect(:conn, state)
+    assert Map.fetch!(connected_state.lights, light.source_id).id == light.id
+  end
+
   test "auth_required replies with auth payload and auth_ok subscribes to state_changed then call_service" do
     state = %{
       bridge: %Bridge{name: "HA", host: "10.0.0.80"},
       token: "token-123",
       next_id: 1,
-      subscribed: false,
-      state_changed_subscribed: false,
-      call_service_subscribed: false,
+      pending_subscriptions: ["state_changed", "call_service"],
       lights: %{},
       groups: %{},
       group_members: %{}
@@ -107,7 +178,7 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.ConnectionTest do
 
     assert Jason.decode!(auth_json) == %{"type" => "auth", "access_token" => "token-123"}
 
-    assert {:reply, {:text, subscribe_json}, subscribed_state} =
+    assert {:reply, {:text, subscribe_json}, state_changed_state} =
              Connection.handle_frame({:text, Jason.encode!(%{"type" => "auth_ok"})}, state)
 
     assert Jason.decode!(subscribe_json) == %{
@@ -116,13 +187,13 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.ConnectionTest do
              "event_type" => "state_changed"
            }
 
-    assert subscribed_state.subscribed == true
-    assert subscribed_state.next_id == 2
+    assert state_changed_state.pending_subscriptions == ["call_service"]
+    assert state_changed_state.next_id == 2
 
     assert {:reply, {:text, call_service_json}, call_service_state} =
              Connection.handle_frame(
                {:text, Jason.encode!(%{"type" => "result", "success" => true})},
-               subscribed_state
+               state_changed_state
              )
 
     assert Jason.decode!(call_service_json) == %{
@@ -131,8 +202,92 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.ConnectionTest do
              "event_type" => "call_service"
            }
 
-    assert call_service_state.state_changed_subscribed == true
+    assert call_service_state.pending_subscriptions == []
     assert call_service_state.next_id == 3
+  end
+
+  test "state_changed refreshes indexes for newly imported HA lights and applies immediately" do
+    room = Repo.insert!(%Room{name: "Refresh Room"})
+
+    bridge =
+      insert_bridge!(%{
+        type: :ha,
+        name: "HA",
+        host: "10.0.0.84",
+        credentials: %{"token" => "token"},
+        enabled: true
+      })
+
+    state = ha_state(bridge)
+
+    light =
+      Repo.insert!(%Light{
+        name: "New Lamp",
+        source: :ha,
+        source_id: "light.new_lamp",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        supports_temp: true,
+        reported_min_kelvin: 2000,
+        reported_max_kelvin: 6500
+      })
+
+    payload = state_changed_payload(light.source_id, %{"state" => "on", "attributes" => %{}})
+
+    assert {:ok, refreshed_state} =
+             Connection.handle_frame({:text, Jason.encode!(payload)}, state)
+
+    assert State.get(:light, light.id) == %{power: :on}
+    assert Map.fetch!(refreshed_state.lights, light.source_id).id == light.id
+  end
+
+  test "state_changed index refresh is rate limited for unknown HA entities" do
+    room = Repo.insert!(%Room{name: "Refresh Limit Room"})
+
+    bridge =
+      insert_bridge!(%{
+        type: :ha,
+        name: "HA",
+        host: "10.0.0.85",
+        credentials: %{"token" => "token"},
+        enabled: true
+      })
+
+    first =
+      Repo.insert!(%Light{
+        name: "First Lamp",
+        source: :ha,
+        source_id: "light.first_lamp",
+        bridge_id: bridge.id,
+        room_id: room.id
+      })
+
+    state = ha_state(bridge)
+
+    first_payload =
+      state_changed_payload(first.source_id, %{"state" => "on", "attributes" => %{}})
+
+    assert {:ok, refreshed_state} =
+             Connection.handle_frame({:text, Jason.encode!(first_payload)}, state)
+
+    assert State.get(:light, first.id) == %{power: :on}
+
+    second =
+      Repo.insert!(%Light{
+        name: "Second Lamp",
+        source: :ha,
+        source_id: "light.second_lamp",
+        bridge_id: bridge.id,
+        room_id: room.id
+      })
+
+    second_payload =
+      state_changed_payload(second.source_id, %{"state" => "on", "attributes" => %{}})
+
+    assert {:ok, ^refreshed_state} =
+             Connection.handle_frame({:text, Jason.encode!(second_payload)}, refreshed_state)
+
+    assert State.get(:light, second.id) == nil
   end
 
   test "state_changed group events fan out state to member lights" do
@@ -185,9 +340,7 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.ConnectionTest do
       bridge: bridge,
       token: "token",
       next_id: 1,
-      subscribed: true,
-      state_changed_subscribed: true,
-      call_service_subscribed: true,
+      pending_subscriptions: [],
       lights: %{light_a.source_id => light_a, light_b.source_id => light_b},
       groups: %{group.source_id => group},
       group_members: %{group.source_id => [light_a.id, light_b.id]}
@@ -291,9 +444,7 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.ConnectionTest do
       bridge: bridge,
       token: "token",
       next_id: 1,
-      subscribed: true,
-      state_changed_subscribed: true,
-      call_service_subscribed: true,
+      pending_subscriptions: [],
       lights: %{
         desired_off.source_id => desired_off,
         physically_off.source_id => physically_off,
@@ -333,9 +484,7 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.ConnectionTest do
       bridge: %Bridge{name: "HA", host: "10.0.0.80"},
       token: "token",
       next_id: 1,
-      subscribed: false,
-      state_changed_subscribed: false,
-      call_service_subscribed: false,
+      pending_subscriptions: ["state_changed", "call_service"],
       lights: %{},
       groups: %{},
       group_members: %{}
@@ -379,9 +528,7 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.ConnectionTest do
       bridge: bridge,
       token: "token",
       next_id: 1,
-      subscribed: true,
-      state_changed_subscribed: true,
-      call_service_subscribed: true,
+      pending_subscriptions: [],
       lights: %{},
       groups: %{},
       group_members: %{}
@@ -402,5 +549,32 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.ConnectionTest do
     assert {:ok, ^state} = Connection.handle_frame({:text, Jason.encode!(payload)}, state)
     assert %ActiveScene{scene_id: scene_id} = ActiveScenes.get_for_room(room.id)
     assert scene_id == scene.id
+  end
+
+  defp ha_state(bridge, attrs \\ %{}) do
+    %{
+      bridge: bridge,
+      token: "token",
+      next_id: 1,
+      pending_subscriptions: [],
+      lights: %{},
+      groups: %{},
+      group_members: %{},
+      last_refresh_at: 0
+    }
+    |> Map.merge(attrs)
+  end
+
+  defp state_changed_payload(entity_id, new_state) do
+    %{
+      "type" => "event",
+      "event" => %{
+        "event_type" => "state_changed",
+        "data" => %{
+          "entity_id" => entity_id,
+          "new_state" => new_state
+        }
+      }
+    }
   end
 end

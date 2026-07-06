@@ -174,7 +174,7 @@ defmodule Hueworks.Control.Apply do
   defp count_power(actions, power) do
     Enum.count(actions, fn action ->
       desired = Map.get(action, :desired) || %{}
-      (Map.get(desired, :power) || Map.get(desired, "power")) == power
+      Map.get(desired, :power) == power
     end)
   end
 

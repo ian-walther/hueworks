@@ -3,6 +3,7 @@ defmodule Hueworks.Control.Z2MConfig do
 
   alias Hueworks.Schemas.Bridge
   alias Hueworks.Util
+  alias Hueworks.Mqtt.Options, as: MqttOptions
 
   @default_port 1883
   @default_base_topic "zigbee2mqtt"
@@ -21,8 +22,7 @@ defmodule Hueworks.Control.Z2MConfig do
   end
 
   def tortoise_auth_opts(%{username: username, password: password}) when is_binary(username) do
-    [user_name: username]
-    |> maybe_put_password(password)
+    MqttOptions.put_auth([], %{username: username, password: password})
   end
 
   def tortoise_auth_opts(_config), do: []
@@ -47,9 +47,4 @@ defmodule Hueworks.Control.Z2MConfig do
   end
 
   defp normalize_optional(_value), do: nil
-
-  defp maybe_put_password(opts, password) when is_binary(password),
-    do: Keyword.put(opts, :password, password)
-
-  defp maybe_put_password(opts, _password), do: opts
 end

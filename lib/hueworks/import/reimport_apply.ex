@@ -3,12 +3,11 @@ defmodule Hueworks.Import.ReimportApply do
 
   import Ecto.Query, only: [from: 2]
 
-  alias Hueworks.Import.{Duplicates, EntityMatch, Identifiers, Normalize, NormalizeJson, Source}
+  alias Hueworks.Import.{Duplicates, EntityAttrs, EntityMatch, Identifiers, Normalize, Rooms}
   alias Hueworks.HomeAssistant.Export, as: HomeAssistantExport
   alias Hueworks.HomeKit
   alias Hueworks.Repo
-  alias Hueworks.Schemas.{Group, GroupLight, Light, Room, SceneComponentLight}
-  alias Hueworks.Util
+  alias Hueworks.Schemas.{Group, GroupLight, Light, SceneComponentLight}
 
   def apply(bridge, normalized, plan) do
     case Repo.transaction(fn -> apply!(bridge, normalized, plan) end) do
@@ -133,7 +132,7 @@ defmodule Hueworks.Import.ReimportApply do
       source_id = source_id(room)
 
       if is_binary(source_id) and MapSet.member?(needed_room_source_ids, source_id) do
-        case upsert_room(room, Normalize.fetch(plan_rooms, source_id) || %{}) do
+        case Rooms.upsert(room, Normalize.fetch(plan_rooms, source_id) || %{}) do
           nil -> acc
           room_id -> Map.put(acc, source_id, room_id)
         end
@@ -141,40 +140,6 @@ defmodule Hueworks.Import.ReimportApply do
         acc
       end
     end)
-  end
-
-  defp upsert_room(room, plan) do
-    case Normalize.fetch(plan, :action) || "create" do
-      "skip" ->
-        nil
-
-      "merge" ->
-        plan
-        |> Normalize.fetch(:target_room_id)
-        |> Util.parse_optional_integer()
-        |> then(fn
-          nil -> nil
-          id -> if Repo.get(Room, id), do: id
-        end)
-
-      _ ->
-        name = Normalize.fetch(room, :name) || "Room"
-        normalized_name = Normalize.normalize_room_name(name)
-
-        case Repo.one(from(r in Room, where: fragment("lower(?)", r.name) == ^normalized_name)) do
-          nil ->
-            %Room{}
-            |> Room.changeset(%{
-              name: name,
-              metadata: %{"normalized_name" => normalized_name}
-            })
-            |> Repo.insert!()
-            |> Map.fetch!(:id)
-
-          room ->
-            room.id
-        end
-    end
   end
 
   defp apply_lights(bridge, lights, room_map, plan_lights, existing_lights, duplicate_targets) do
@@ -205,7 +170,11 @@ defmodule Hueworks.Import.ReimportApply do
                   target_id when is_integer(target_id) ->
                     if import_real_resolution?(plan_lights, source_id) do
                       record =
-                        insert_light!(bridge, light, room_id_for(light, room_map, plan_lights))
+                        insert_light!(
+                          bridge,
+                          light,
+                          Rooms.target_id_for(light, room_map, plan_lights)
+                        )
 
                       {record, record.id, false}
                     else
@@ -222,7 +191,11 @@ defmodule Hueworks.Import.ReimportApply do
                       Repo.rollback({:invalid_duplicate, :light, source_id})
                     else
                       record =
-                        insert_light!(bridge, light, room_id_for(light, room_map, plan_lights))
+                        insert_light!(
+                          bridge,
+                          light,
+                          Rooms.target_id_for(light, room_map, plan_lights)
+                        )
 
                       {record, record.id, false}
                     end
@@ -285,7 +258,7 @@ defmodule Hueworks.Import.ReimportApply do
                       {insert_group!(
                          bridge,
                          group,
-                         room_id_for(group, room_map, plan_groups),
+                         Rooms.target_id_for(group, room_map, plan_groups),
                          nil
                        ), false}
                     else
@@ -303,7 +276,7 @@ defmodule Hueworks.Import.ReimportApply do
                       {insert_group!(
                          bridge,
                          group,
-                         room_id_for(group, room_map, plan_groups),
+                         Rooms.target_id_for(group, room_map, plan_groups),
                          nil
                        ), false}
                     end
@@ -409,21 +382,15 @@ defmodule Hueworks.Import.ReimportApply do
 
   defp insert_light!(bridge, light, room_id) do
     %Light{}
-    |> Light.changeset(Map.put(light_attrs(bridge, light), :room_id, room_id))
+    |> Light.changeset(bridge |> EntityAttrs.light_attrs(light) |> Map.put(:room_id, room_id))
     |> Repo.insert!()
   end
 
   defp import_hidden_duplicate_light!(bridge, light, canonical_light_id) do
     attrs =
       bridge
-      |> light_attrs(light)
-      |> Map.merge(%{
-        room_id: nil,
-        enabled: false,
-        ha_export_mode: :none,
-        homekit_export_mode: :none,
-        canonical_light_id: canonical_light_id
-      })
+      |> EntityAttrs.light_attrs(light)
+      |> EntityAttrs.hidden_duplicate_overlay(canonical_light_id, :light)
 
     case Repo.get_by(Light, bridge_id: bridge.id, source_id: attrs.source_id) do
       nil ->
@@ -440,44 +407,19 @@ defmodule Hueworks.Import.ReimportApply do
 
   defp refresh_light!(bridge, existing, light) do
     existing
-    |> Light.changeset(bridge |> light_attrs(light) |> Map.delete(:display_name))
+    |> Light.changeset(EntityAttrs.light_attrs(bridge, light))
     |> Repo.update!()
-  end
-
-  defp light_attrs(bridge, light) do
-    capabilities = Normalize.fetch(light, :capabilities) || %{}
-    name = Normalize.fetch(light, :name) || "Light"
-
-    %{
-      name: name,
-      display_name: name,
-      source: Source.normalize(Normalize.fetch(light, :source)),
-      source_id: source_id(light),
-      bridge_id: bridge.id,
-      supports_color: capabilities |> Normalize.fetch(:color) |> Normalize.truthy?(),
-      supports_temp: capabilities |> Normalize.fetch(:color_temp) |> Normalize.truthy?(),
-      reported_min_kelvin: Normalize.fetch(capabilities, :reported_kelvin_min),
-      reported_max_kelvin: Normalize.fetch(capabilities, :reported_kelvin_max),
-      metadata: light_metadata(light, bridge.host),
-      external_id: Identifiers.light_external_id(light),
-      normalized_json: NormalizeJson.to_map(light)
-    }
   end
 
   defp insert_group!(bridge, group, room_id, canonical_group_id) do
     attrs =
       bridge
-      |> group_attrs(group)
+      |> EntityAttrs.group_attrs(group)
       |> Map.put(:room_id, room_id)
 
     attrs =
       if is_integer(canonical_group_id) do
-        Map.merge(attrs, %{
-          enabled: false,
-          ha_export_mode: :none,
-          homekit_export_mode: :none,
-          canonical_group_id: canonical_group_id
-        })
+        EntityAttrs.hidden_duplicate_overlay(attrs, canonical_group_id, :group)
       else
         attrs
       end
@@ -489,28 +431,8 @@ defmodule Hueworks.Import.ReimportApply do
 
   defp refresh_group!(bridge, existing, group) do
     existing
-    |> Group.changeset(bridge |> group_attrs(group) |> Map.delete(:display_name))
+    |> Group.changeset(EntityAttrs.group_attrs(bridge, group))
     |> Repo.update!()
-  end
-
-  defp group_attrs(bridge, group) do
-    capabilities = Normalize.fetch(group, :capabilities) || %{}
-    name = Normalize.fetch(group, :name) || "Group"
-
-    %{
-      name: name,
-      display_name: name,
-      source: Source.normalize(Normalize.fetch(group, :source)),
-      source_id: source_id(group),
-      bridge_id: bridge.id,
-      supports_color: capabilities |> Normalize.fetch(:color) |> Normalize.truthy?(),
-      supports_temp: capabilities |> Normalize.fetch(:color_temp) |> Normalize.truthy?(),
-      reported_min_kelvin: Normalize.fetch(capabilities, :reported_kelvin_min),
-      reported_max_kelvin: Normalize.fetch(capabilities, :reported_kelvin_max),
-      metadata: group_metadata(group, bridge.host),
-      external_id: Identifiers.group_external_id(group),
-      normalized_json: NormalizeJson.to_map(group)
-    }
   end
 
   defp delete_missing_hidden_duplicates(bridge, lights, groups) do
@@ -758,21 +680,6 @@ defmodule Hueworks.Import.ReimportApply do
     Repo.get_by(Group, bridge_id: bridge.id, source_id: source_id)
   end
 
-  defp room_id_for(entry, room_map, plan_map) do
-    source_id = source_id(entry)
-    plan_entry = if is_binary(source_id), do: Normalize.fetch(plan_map, source_id), else: nil
-
-    case plan_entry |> Normalize.fetch(:target_room_id) |> Util.parse_optional_integer() do
-      id when is_integer(id) ->
-        id
-
-      _ ->
-        entry
-        |> room_source_id()
-        |> then(&Map.get(room_map, &1))
-    end
-  end
-
   defp selected?(plan, source_id) when is_binary(source_id) do
     case Normalize.fetch(plan, source_id) do
       false -> false
@@ -824,20 +731,6 @@ defmodule Hueworks.Import.ReimportApply do
       Map.has_key?(entry, :selected) -> entry[:selected] != false
       true -> true
     end
-  end
-
-  defp light_metadata(light, bridge_host) do
-    base = Normalize.fetch(light, :metadata) || %{}
-    identifiers = Normalize.fetch(light, :identifiers) || %{}
-
-    base
-    |> Map.put("identifiers", identifiers)
-    |> Map.put_new("bridge_host", bridge_host)
-  end
-
-  defp group_metadata(group, bridge_host) do
-    (Normalize.fetch(group, :metadata) || %{})
-    |> Map.put_new("bridge_host", bridge_host)
   end
 
   defp source_id(entity),

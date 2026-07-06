@@ -5,17 +5,15 @@ defmodule Hueworks.Import.Materialize do
 
   alias Hueworks.Import.{
     Duplicates,
-    Identifiers,
+    EntityAttrs,
     Normalize,
-    NormalizeJson,
     Plan,
     ReimportApply,
-    Source
+    Rooms
   }
 
   alias Hueworks.Repo
-  alias Hueworks.Util
-  alias Hueworks.Schemas.{Group, GroupLight, Light, Room}
+  alias Hueworks.Schemas.{Group, GroupLight, Light}
 
   def materialize(bridge, normalized) do
     if imported_bridge?(bridge) do
@@ -70,50 +68,12 @@ defmodule Hueworks.Import.Materialize do
   defp upsert_rooms(rooms, plan_rooms) do
     Enum.reduce(rooms, %{}, fn room, acc ->
       source_id = Normalize.normalize_source_id(Normalize.fetch(room, :source_id))
-      name = Normalize.fetch(room, :name) || "Room"
-      normalized_name = Normalize.normalize_room_name(name)
-      plan = Normalize.fetch(plan_rooms, source_id) || %{}
-      action = Normalize.fetch(plan, :action) || "create"
 
-      room_record =
-        if is_binary(source_id) do
-          case action do
-            "skip" ->
-              nil
-
-            "merge" ->
-              target_room_id = Normalize.fetch(plan, :target_room_id)
-
-              case normalize_room_target_id(target_room_id) do
-                nil -> nil
-                id -> Repo.get(Room, id)
-              end
-
-            _ ->
-              existing =
-                Repo.one(
-                  from(r in Room,
-                    where: fragment("lower(?)", r.name) == ^normalized_name
-                  )
-                )
-
-              case existing do
-                nil ->
-                  %Room{}
-                  |> Room.changeset(%{
-                    name: name,
-                    metadata: %{"normalized_name" => normalized_name}
-                  })
-                  |> Repo.insert!()
-
-                room ->
-                  room
-              end
-          end
+      if is_binary(source_id) do
+        case Rooms.upsert(room, Normalize.fetch(plan_rooms, source_id) || %{}) do
+          nil -> acc
+          room_id -> Map.put(acc, source_id, room_id)
         end
-
-      if source_id && room_record do
-        Map.put(acc, source_id, room_record.id)
       else
         acc
       end
@@ -129,38 +89,16 @@ defmodule Hueworks.Import.Materialize do
       source_id = Normalize.normalize_source_id(Normalize.fetch(light, :source_id))
 
       if is_binary(source_id) do
-        attrs = %{
-          name: Normalize.fetch(light, :name) || "Light",
-          source: Source.normalize(Normalize.fetch(light, :source)),
-          source_id: source_id,
-          bridge_id: bridge_id,
-          room_id: room_id_for(light, room_map, plan_lights),
-          supports_color:
-            light
-            |> Normalize.fetch(:capabilities)
-            |> Kernel.||(%{})
-            |> Normalize.fetch(:color)
-            |> Normalize.truthy?(),
-          supports_temp:
-            light
-            |> Normalize.fetch(:capabilities)
-            |> Kernel.||(%{})
-            |> Normalize.fetch(:color_temp)
-            |> Normalize.truthy?(),
-          reported_min_kelvin:
-            Normalize.fetch(Normalize.fetch(light, :capabilities) || %{}, :reported_kelvin_min),
-          reported_max_kelvin:
-            Normalize.fetch(Normalize.fetch(light, :capabilities) || %{}, :reported_kelvin_max),
-          metadata: light_metadata(light, bridge.host),
-          external_id: Identifiers.light_external_id(light),
-          normalized_json: NormalizeJson.to_map(light)
-        }
+        attrs =
+          bridge
+          |> EntityAttrs.light_attrs(light)
+          |> Map.put(:room_id, Rooms.target_id_for(light, room_map, plan_lights))
 
         canonical_light_id = Map.get(duplicate_targets, source_id)
 
         attrs =
           if is_integer(canonical_light_id) do
-            hidden_duplicate_light_attrs(attrs, canonical_light_id)
+            EntityAttrs.hidden_duplicate_overlay(attrs, canonical_light_id, :light)
           else
             attrs
           end
@@ -192,16 +130,6 @@ defmodule Hueworks.Import.Materialize do
     end)
   end
 
-  defp hidden_duplicate_light_attrs(attrs, canonical_light_id) do
-    Map.merge(attrs, %{
-      room_id: nil,
-      enabled: false,
-      ha_export_mode: :none,
-      homekit_export_mode: :none,
-      canonical_light_id: canonical_light_id
-    })
-  end
-
   defp upsert_groups(bridge, groups, room_map, plan_groups, light_result) do
     bridge_id = bridge.id
 
@@ -209,37 +137,15 @@ defmodule Hueworks.Import.Materialize do
       source_id = Normalize.normalize_source_id(Normalize.fetch(group, :source_id))
 
       if is_binary(source_id) do
-        attrs = %{
-          name: Normalize.fetch(group, :name) || "Group",
-          source: Source.normalize(Normalize.fetch(group, :source)),
-          source_id: source_id,
-          bridge_id: bridge_id,
-          room_id: room_id_for(group, room_map, plan_groups),
-          supports_color:
-            group
-            |> Normalize.fetch(:capabilities)
-            |> Kernel.||(%{})
-            |> Normalize.fetch(:color)
-            |> Normalize.truthy?(),
-          supports_temp:
-            group
-            |> Normalize.fetch(:capabilities)
-            |> Kernel.||(%{})
-            |> Normalize.fetch(:color_temp)
-            |> Normalize.truthy?(),
-          reported_min_kelvin:
-            Normalize.fetch(Normalize.fetch(group, :capabilities) || %{}, :reported_kelvin_min),
-          reported_max_kelvin:
-            Normalize.fetch(Normalize.fetch(group, :capabilities) || %{}, :reported_kelvin_max),
-          metadata: group_metadata(group, bridge.host),
-          external_id: Identifiers.group_external_id(group),
-          normalized_json: NormalizeJson.to_map(group)
-        }
+        attrs =
+          bridge
+          |> EntityAttrs.group_attrs(group)
+          |> Map.put(:room_id, Rooms.target_id_for(group, room_map, plan_groups))
 
         attrs =
           case Duplicates.group_target(group, light_result.source_id_to_canonical_db_id) do
             canonical_group_id when is_integer(canonical_group_id) ->
-              hidden_duplicate_group_attrs(attrs, canonical_group_id)
+              EntityAttrs.hidden_duplicate_overlay(attrs, canonical_group_id, :group)
 
             _ ->
               attrs
@@ -263,16 +169,6 @@ defmodule Hueworks.Import.Materialize do
         acc
       end
     end)
-  end
-
-  defp hidden_duplicate_group_attrs(attrs, canonical_group_id) do
-    Map.merge(attrs, %{
-      room_id: nil,
-      enabled: false,
-      ha_export_mode: :none,
-      homekit_export_mode: :none,
-      canonical_group_id: canonical_group_id
-    })
   end
 
   defp upsert_group_lights(memberships, light_map, group_map) do
@@ -344,8 +240,6 @@ defmodule Hueworks.Import.Materialize do
     end)
   end
 
-  defp normalize_room_target_id(id), do: Util.parse_optional_integer(id)
-
   defp filter_memberships(memberships, plan_lights, plan_groups) do
     group_lights = Normalize.fetch(memberships, :group_lights) || []
 
@@ -373,37 +267,5 @@ defmodule Hueworks.Import.Materialize do
       nil -> true
       _ -> true
     end
-  end
-
-  defp room_id_for(entry, room_map, plan_map) do
-    source_id = Normalize.normalize_source_id(Normalize.fetch(entry, :source_id))
-    plan_entry = if is_binary(source_id), do: Normalize.fetch(plan_map, source_id), else: nil
-
-    case plan_entry |> Normalize.fetch(:target_room_id) |> normalize_room_target_id() do
-      room_id when is_integer(room_id) ->
-        room_id
-
-      _ ->
-        room_source_id = Normalize.normalize_source_id(Normalize.fetch(entry, :room_source_id))
-
-        case room_source_id do
-          nil -> nil
-          _ -> Map.get(room_map, room_source_id)
-        end
-    end
-  end
-
-  defp light_metadata(light, bridge_host) do
-    base = Normalize.fetch(light, :metadata) || %{}
-    identifiers = Normalize.fetch(light, :identifiers) || %{}
-
-    base
-    |> Map.put("identifiers", identifiers)
-    |> Map.put_new("bridge_host", bridge_host)
-  end
-
-  defp group_metadata(group, bridge_host) do
-    (Normalize.fetch(group, :metadata) || %{})
-    |> Map.put_new("bridge_host", bridge_host)
   end
 end
