@@ -5,31 +5,52 @@ defmodule Hueworks.Control.CasetaClient do
 
   @bridge_port 8081
 
-  def request(host, ssl_opts, payload) do
-    with {:ok, socket} <- :ssl.connect(String.to_charlist(host), @bridge_port, ssl_opts, 5000) do
-      :ssl.setopts(socket, active: false, packet: :line)
-      :ssl.send(socket, Jason.encode!(payload) <> "\r\n")
-      url = get_in(payload, ["Header", "Url"])
-      result = read_until_match(socket, url, 5000)
-      :ssl.close(socket)
+  def request(host, ssl_opts, payload, ssl_module \\ :ssl) do
+    with {:ok, socket} <-
+           ssl_module.connect(String.to_charlist(host), @bridge_port, ssl_opts, 5000) do
+      result = request_on_socket(ssl_module, socket, payload)
+      ssl_module.close(socket)
       result
     else
       {:error, reason} -> {:error, reason}
     end
   end
 
-  defp read_until_match(socket, url, timeout) do
-    deadline = System.monotonic_time(:millisecond) + timeout
-    do_read_until_match(socket, url, deadline)
+  defp request_on_socket(ssl_module, socket, payload) do
+    with :ok <- set_socket_opts(ssl_module, socket),
+         :ok <- send_payload(ssl_module, socket, payload) do
+      payload
+      |> get_in(["Header", "Url"])
+      |> then(&read_until_match(ssl_module, socket, &1, 5000))
+    end
   end
 
-  defp do_read_until_match(socket, url, deadline) do
+  defp set_socket_opts(ssl_module, socket) do
+    case ssl_module.setopts(socket, active: false, packet: :line) do
+      :ok -> :ok
+      {:error, reason} -> {:error, {:ssl_setopts, reason}}
+    end
+  end
+
+  defp send_payload(ssl_module, socket, payload) do
+    case ssl_module.send(socket, Jason.encode!(payload) <> "\r\n") do
+      :ok -> :ok
+      {:error, reason} -> {:error, {:ssl_send, reason}}
+    end
+  end
+
+  defp read_until_match(ssl_module, socket, url, timeout) do
+    deadline = System.monotonic_time(:millisecond) + timeout
+    do_read_until_match(ssl_module, socket, url, deadline)
+  end
+
+  defp do_read_until_match(ssl_module, socket, url, deadline) do
     remaining = max(0, deadline - System.monotonic_time(:millisecond))
 
     if remaining == 0 do
       {:error, :timeout}
     else
-      case :ssl.recv(socket, 0, remaining) do
+      case ssl_module.recv(socket, 0, remaining) do
         {:ok, data} ->
           data
           |> IO.iodata_to_binary()
@@ -58,7 +79,7 @@ defmodule Hueworks.Control.CasetaClient do
             end
           end)
           |> case do
-            :continue -> do_read_until_match(socket, url, deadline)
+            :continue -> do_read_until_match(ssl_module, socket, url, deadline)
             other -> other
           end
 

@@ -10,14 +10,14 @@ defmodule Hueworks.Scenes.Persistence do
     %Scene{}
     |> Scene.changeset(attrs)
     |> Repo.insert()
-    |> sync_create()
+    |> sync_upsert()
   end
 
   def update(%Scene{} = scene, attrs) when is_map(attrs) do
     scene
     |> Scene.changeset(attrs)
     |> Repo.update()
-    |> sync_update()
+    |> sync_upsert()
   end
 
   def delete(%Scene{} = scene) do
@@ -26,7 +26,7 @@ defmodule Hueworks.Scenes.Persistence do
     |> sync_delete()
   end
 
-  defp sync_create({:ok, scene}) do
+  defp sync_upsert({:ok, scene}) do
     scene
     |> HomeAssistantExport.refresh_scene()
 
@@ -38,21 +38,7 @@ defmodule Hueworks.Scenes.Persistence do
     {:ok, scene}
   end
 
-  defp sync_create(other), do: other
-
-  defp sync_update({:ok, scene}) do
-    scene
-    |> HomeAssistantExport.refresh_scene()
-
-    scene.room_id
-    |> HomeAssistantExport.refresh_room()
-
-    HomeKit.reload()
-
-    {:ok, scene}
-  end
-
-  defp sync_update(other), do: other
+  defp sync_upsert(other), do: other
 
   defp sync_delete({:ok, scene}) do
     scene

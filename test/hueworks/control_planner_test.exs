@@ -147,36 +147,6 @@ defmodule Hueworks.Control.PlannerTest do
            ] = Planner.plan_snapshot(snapshot, diff)
   end
 
-  test "plan_direct builds per-light actions from diff without room context" do
-    room = Repo.insert!(%Room{name: "Direct"})
-
-    bridge =
-      insert_bridge!(%{
-        name: "Hue",
-        type: :hue,
-        host: "bridge-direct",
-        credentials: %{}
-      })
-
-    light_a = insert_light(room, bridge, "A")
-    light_b = insert_light(room, bridge, "B")
-
-    desired = %{power: :on, brightness: 55}
-
-    diff = %{
-      {:light, light_a.id} => desired,
-      {"light", light_b.id} => desired,
-      {:group, 999} => %{power: :off}
-    }
-
-    actions = Planner.plan_direct(diff)
-
-    assert Enum.sort_by(actions, & &1.id) == [
-             %{type: :light, id: light_a.id, bridge_id: bridge.id, desired: desired},
-             %{type: :light, id: light_b.id, bridge_id: bridge.id, desired: desired}
-           ]
-  end
-
   test "plan_room attaches global transition apply_opts to actions" do
     Repo.insert!(%AppSetting{
       scope: "global",

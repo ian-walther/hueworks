@@ -32,6 +32,24 @@ defmodule Hueworks.Control.GroupState do
 
   def derive_from_states(_states, _expected_count), do: %{}
 
+  def member_attrs_from_group(%{power: :on} = attrs, desired_state, current_state) do
+    cond do
+      explicit_power?(desired_state, :on) ->
+        attrs
+
+      explicit_power?(desired_state, :off) ->
+        Map.put(attrs, :power, :off)
+
+      explicit_power?(current_state, :off) ->
+        Map.delete(attrs, :power)
+
+      true ->
+        attrs
+    end
+  end
+
+  def member_attrs_from_group(attrs, _desired_state, _current_state), do: attrs
+
   defp maybe_put_group_brightness(group_state, on_states) do
     on_states
     |> numeric_values(:brightness)
@@ -54,6 +72,8 @@ defmodule Hueworks.Control.GroupState do
       group_state
     end
   end
+
+  defp maybe_put_group_xy(%{kelvin: _kelvin} = group_state, _on_states), do: group_state
 
   defp maybe_put_group_xy(group_state, on_states) do
     x_values = numeric_values(on_states, :x)
@@ -110,6 +130,14 @@ defmodule Hueworks.Control.GroupState do
   end
 
   defp values_within?(_values, _tolerance), do: false
+
+  defp explicit_power?(state, expected_power) when expected_power in [:on, :off] do
+    case state do
+      %{power: power} -> normalize_power(power) == expected_power
+      %{"power" => power} -> normalize_power(power) == expected_power
+      _ -> false
+    end
+  end
 
   defp normalize_power(power) when power in [:on, "on", "ON", true], do: :on
   defp normalize_power(power) when power in [:off, "off", "OFF", false], do: :off

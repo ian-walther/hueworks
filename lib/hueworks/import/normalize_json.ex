@@ -17,6 +17,7 @@ defmodule Hueworks.Import.NormalizeJson do
 
   defp normalize_value(value) when is_map(value), do: to_map(value)
   defp normalize_value(value) when is_list(value), do: Enum.map(value, &normalize_value/1)
+  defp normalize_value(value) when value in [true, false, nil], do: value
   defp normalize_value(value) when is_atom(value), do: Atom.to_string(value)
   defp normalize_value(value), do: value
 

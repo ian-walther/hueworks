@@ -53,6 +53,7 @@ defmodule Hueworks.Subscription.HueEventStream.Connection do
              recv_timeout: :infinity,
              stream_to: self(),
              async: :once,
+             # Hue bridge SSE certs are self-signed on the LAN.
              hackney: [insecure: true]
            ) do
         {:ok, %HTTPoison.AsyncResponse{id: ref} = async_response} ->

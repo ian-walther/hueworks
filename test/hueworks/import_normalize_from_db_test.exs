@@ -72,4 +72,48 @@ defmodule Hueworks.Import.NormalizeFromDbTest do
              %{group_source_id: "group-1", light_source_id: "light-1"}
            ]
   end
+
+  test "normalizes legacy stringified JSON booleans in cached capabilities" do
+    bridge =
+      insert_bridge!(%{
+        type: :hue,
+        name: "Hue Bridge",
+        host: "10.0.0.220",
+        credentials: %{"api_key" => "key"},
+        import_complete: true,
+        enabled: true
+      })
+
+    %Light{}
+    |> Light.changeset(%{
+      name: "Desk Lamp",
+      source: :hue,
+      source_id: "light-1",
+      bridge_id: bridge.id,
+      metadata: %{},
+      normalized_json: %{
+        "source" => "hue",
+        "source_id" => "light-1",
+        "name" => "Desk Lamp",
+        "classification" => "light",
+        "capabilities" => %{
+          "brightness" => "true",
+          "color" => "false",
+          "color_temp" => "nil",
+          "reported_kelvin_min" => "nil"
+        }
+      }
+    })
+    |> Repo.insert!()
+
+    normalized = NormalizeFromDb.normalize(bridge)
+    light = Enum.find(normalized.lights, &(&1["source_id"] == "light-1"))
+
+    assert light["capabilities"] == %{
+             "brightness" => true,
+             "color" => false,
+             "color_temp" => nil,
+             "reported_kelvin_min" => nil
+           }
+  end
 end

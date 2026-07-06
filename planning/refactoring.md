@@ -16,33 +16,15 @@ In particular:
 
 ## Current Refactor Pass
 
-### 1) Extract Scene Power Policy Semantics
-Current smell:
-- `Default On`, `Default Off`, `Force On`, `Force Off`, and `Follow Presence` parsing/resolution is spread across scene intent, scene persistence, and scene-builder UI state.
+Note: this doc's remaining items are being absorbed into the audit backlog in `planning/audit/` (see `00-plan.md`); new refactor targets belong there.
 
-Target shape:
-- one domain module owns policy parsing, labels, defaulting, override behavior, and presence resolution
-- persistence and UI call that module rather than reimplementing the vocabulary
-- scene intent consumes already-normalized policy semantics
-
-Guardrails:
-- start with characterization tests for current behavior
-- do not change scene storage shape in this pass
-- do not weaken `force_on`, `force_off`, or `follow_presence` semantics while extracting
-
-### 2) Centralize State-Map Normalization
-Current smell:
-- physical state, desired state, and HA export command handling each know how to merge incoming state and drop stale kelvin/xy keys.
-
-Target shape:
-- one lower-level state semantics helper owns color/temperature harmonization
-- desired-state and physical-state writers call the same helper
-- HA export command handling uses the same helper for optimistic state
+### 2) Centralize State-Map Normalization (residual)
+Remaining smell:
+- HA export command handling still merges optimistic state with its own copy of the kelvin/xy harmonization instead of `Hueworks.Control.LightStateSemantics.merge_state/2` (see `planning/audit/01-control-plane.md` parked notes; scoped for the chunk 5 audit).
 
 Guardrails:
 - preserve current atom-keyed public behavior
 - keep external payload parsing at integration boundaries
-- avoid broad rewrites of state parser behavior in this pass
 
 ### 3) Split Scene Builder State
 Current smell:

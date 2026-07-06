@@ -3,7 +3,7 @@ defmodule Hueworks.Import.ReimportApply do
 
   import Ecto.Query, only: [from: 2]
 
-  alias Hueworks.Import.{Duplicates, EntityMatch, Identifiers, Normalize, NormalizeJson}
+  alias Hueworks.Import.{Duplicates, EntityMatch, Identifiers, Normalize, NormalizeJson, Source}
   alias Hueworks.HomeAssistant.Export, as: HomeAssistantExport
   alias Hueworks.HomeKit
   alias Hueworks.Repo
@@ -451,11 +451,11 @@ defmodule Hueworks.Import.ReimportApply do
     %{
       name: name,
       display_name: name,
-      source: normalize_source(Normalize.fetch(light, :source)),
+      source: Source.normalize(Normalize.fetch(light, :source)),
       source_id: source_id(light),
       bridge_id: bridge.id,
-      supports_color: !!Normalize.fetch(capabilities, :color),
-      supports_temp: !!Normalize.fetch(capabilities, :color_temp),
+      supports_color: capabilities |> Normalize.fetch(:color) |> Normalize.truthy?(),
+      supports_temp: capabilities |> Normalize.fetch(:color_temp) |> Normalize.truthy?(),
       reported_min_kelvin: Normalize.fetch(capabilities, :reported_kelvin_min),
       reported_max_kelvin: Normalize.fetch(capabilities, :reported_kelvin_max),
       metadata: light_metadata(light, bridge.host),
@@ -500,11 +500,11 @@ defmodule Hueworks.Import.ReimportApply do
     %{
       name: name,
       display_name: name,
-      source: normalize_source(Normalize.fetch(group, :source)),
+      source: Source.normalize(Normalize.fetch(group, :source)),
       source_id: source_id(group),
       bridge_id: bridge.id,
-      supports_color: !!Normalize.fetch(capabilities, :color),
-      supports_temp: !!Normalize.fetch(capabilities, :color_temp),
+      supports_color: capabilities |> Normalize.fetch(:color) |> Normalize.truthy?(),
+      supports_temp: capabilities |> Normalize.fetch(:color_temp) |> Normalize.truthy?(),
       reported_min_kelvin: Normalize.fetch(capabilities, :reported_kelvin_min),
       reported_max_kelvin: Normalize.fetch(capabilities, :reported_kelvin_max),
       metadata: group_metadata(group, bridge.host),
@@ -734,7 +734,9 @@ defmodule Hueworks.Import.ReimportApply do
     Enum.each(entries, fn {source_id, entry} ->
       expected_external_id = Normalize.fetch(entry, :expected_external_id)
 
-      if is_binary(expected_external_id) do
+      if not is_binary(expected_external_id) do
+        Repo.rollback({:missing_expected_external_id, type, source_id})
+      else
         case fetch_existing_for_resolution(bridge, type, source_id) do
           nil ->
             Repo.rollback({:stale_resolution, type, source_id})
@@ -843,18 +845,4 @@ defmodule Hueworks.Import.ReimportApply do
 
   defp room_source_id(entity),
     do: entity |> Normalize.fetch(:room_source_id) |> Normalize.normalize_source_id()
-
-  defp normalize_source(source) when is_atom(source), do: source
-
-  defp normalize_source(source) when is_binary(source) do
-    case source do
-      "hue" -> :hue
-      "ha" -> :ha
-      "caseta" -> :caseta
-      "z2m" -> :z2m
-      _ -> source
-    end
-  end
-
-  defp normalize_source(source), do: source
 end

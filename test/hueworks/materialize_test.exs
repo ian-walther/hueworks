@@ -1176,7 +1176,7 @@ defmodule Hueworks.Import.MaterializeTest do
 
   test "reimport auto-deletes missing hidden duplicate rows" do
     hue_bridge = insert_bridge(%{type: :hue, import_complete: true})
-    hue_light = insert_light(hue_bridge, %{source: :hue, source_id: "1"})
+    hue_light = insert_light(hue_bridge, %{source: :hue, source_id: "1", external_id: "hue-1"})
 
     ha_bridge = insert_bridge(%{type: :ha, import_complete: true, host: "10.0.0.54"})
 
@@ -1279,7 +1279,7 @@ defmodule Hueworks.Import.MaterializeTest do
 
   test "explicit reimport delete removes hidden duplicates that target a deleted canonical light" do
     hue_bridge = insert_bridge(%{type: :hue, import_complete: true})
-    hue_light = insert_light(hue_bridge, %{source: :hue, source_id: "1"})
+    hue_light = insert_light(hue_bridge, %{source: :hue, source_id: "1", external_id: "hue-1"})
 
     ha_bridge = insert_bridge(%{type: :ha, import_complete: true, host: "10.0.0.56"})
 
@@ -1293,7 +1293,12 @@ defmodule Hueworks.Import.MaterializeTest do
       })
 
     normalized = %{rooms: [], lights: [], groups: [], memberships: %{}}
-    plan = %{rooms: %{}, lights: %{"1" => %{"resolution" => "delete"}}, groups: %{}}
+
+    plan = %{
+      rooms: %{},
+      lights: %{"1" => %{"resolution" => "delete", "expected_external_id" => "hue-1"}},
+      groups: %{}
+    }
 
     :ok = Materialize.materialize(hue_bridge, normalized, plan)
 

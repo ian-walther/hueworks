@@ -1,6 +1,8 @@
 defmodule Hueworks.Control.Z2MClient do
   @moduledoc false
 
+  alias Hueworks.Control.Z2MConfig
+
   @connection_timeout 5_000
 
   def request(config, entity, payload) when is_map(config) and is_map(payload) do
@@ -38,7 +40,7 @@ defmodule Hueworks.Control.Z2MClient do
         handler: {Tortoise.Handler.Default, []},
         server: {Tortoise.Transport.Tcp, host: String.to_charlist(config.host), port: config.port}
       ]
-      |> maybe_put_auth(config)
+      |> Keyword.merge(Z2MConfig.tortoise_auth_opts(config))
 
     case supervisor_module().start_child(start_opts) do
       {:ok, _pid} ->
@@ -65,19 +67,6 @@ defmodule Hueworks.Control.Z2MClient do
       {:error, reason} -> {:error, reason}
     end
   end
-
-  defp maybe_put_auth(opts, %{username: username, password: password}) when is_binary(username) do
-    opts
-    |> Keyword.put(:user_name, username)
-    |> maybe_put_password(password)
-  end
-
-  defp maybe_put_auth(opts, _config), do: opts
-
-  defp maybe_put_password(opts, password) when is_binary(password),
-    do: Keyword.put(opts, :password, password)
-
-  defp maybe_put_password(opts, _password), do: opts
 
   defp tortoise_module do
     Application.get_env(:hueworks, :z2m_tortoise_module, Tortoise)

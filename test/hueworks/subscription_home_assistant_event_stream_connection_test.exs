@@ -1,8 +1,7 @@
 defmodule Hueworks.Subscription.HomeAssistantEventStream.ConnectionTest do
   use Hueworks.DataCase, async: false
 
-  alias Hueworks.Control.HomeAssistantPayload
-  alias Hueworks.Control.State
+  alias Hueworks.Control.{DesiredState, HomeAssistantPayload, State}
   alias Hueworks.ActiveScenes
   alias Hueworks.Repo
 
@@ -216,6 +215,117 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.ConnectionTest do
     assert State.get(:group, group.id) == %{power: :on, brightness: 50, kelvin: 2500}
     assert State.get(:light, light_a.id) == %{power: :on, brightness: 50, kelvin: 2500}
     assert State.get(:light, light_b.id) == %{power: :on, brightness: 50, kelvin: 2500}
+  end
+
+  test "state_changed group events preserve explicit member power state during fan-out" do
+    room = Repo.insert!(%Room{name: "Office"})
+
+    bridge =
+      insert_bridge!(%{
+        type: :ha,
+        name: "HA",
+        host: "10.0.0.83",
+        credentials: %{"token" => "token"},
+        enabled: true
+      })
+
+    desired_off =
+      Repo.insert!(%Light{
+        name: "Desired Off Lamp",
+        source: :ha,
+        source_id: "light.desired_off",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        supports_temp: true,
+        reported_min_kelvin: 2000,
+        reported_max_kelvin: 6500
+      })
+
+    physically_off =
+      Repo.insert!(%Light{
+        name: "Physically Off Lamp",
+        source: :ha,
+        source_id: "light.physically_off",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        supports_temp: true,
+        reported_min_kelvin: 2000,
+        reported_max_kelvin: 6500
+      })
+
+    desired_on =
+      Repo.insert!(%Light{
+        name: "Desired On Lamp",
+        source: :ha,
+        source_id: "light.desired_on",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        supports_temp: true,
+        reported_min_kelvin: 2000,
+        reported_max_kelvin: 6500
+      })
+
+    group =
+      Repo.insert!(%Group{
+        name: "Office Group",
+        source: :ha,
+        source_id: "light.office_group",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        metadata: %{
+          "members" => [
+            desired_off.source_id,
+            physically_off.source_id,
+            desired_on.source_id
+          ]
+        }
+      })
+
+    _ = State.put(:light, desired_off.id, %{power: :on})
+    _ = State.put(:light, physically_off.id, %{power: :off})
+    _ = State.put(:light, desired_on.id, %{power: :off})
+    _ = DesiredState.put(:light, desired_off.id, %{power: :off})
+    _ = DesiredState.put(:light, desired_on.id, %{power: :on})
+
+    state = %{
+      bridge: bridge,
+      token: "token",
+      next_id: 1,
+      subscribed: true,
+      state_changed_subscribed: true,
+      call_service_subscribed: true,
+      lights: %{
+        desired_off.source_id => desired_off,
+        physically_off.source_id => physically_off,
+        desired_on.source_id => desired_on
+      },
+      groups: %{group.source_id => group},
+      group_members: %{group.source_id => [desired_off.id, physically_off.id, desired_on.id]}
+    }
+
+    payload = %{
+      "type" => "event",
+      "event" => %{
+        "event_type" => "state_changed",
+        "data" => %{
+          "entity_id" => group.source_id,
+          "new_state" => %{
+            "state" => "on",
+            "attributes" => %{
+              "brightness" => 128,
+              "color_temp" => 400
+            }
+          }
+        }
+      }
+    }
+
+    assert {:ok, ^state} = Connection.handle_frame({:text, Jason.encode!(payload)}, state)
+
+    assert State.get(:light, desired_off.id).power == :off
+    assert State.get(:light, physically_off.id).power == :off
+    assert State.get(:light, desired_on.id).power == :on
+    assert State.get(:group, group.id) == %{power: :on, brightness: 50, kelvin: 2500}
   end
 
   test "invalid json frames are ignored" do

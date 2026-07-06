@@ -4,7 +4,7 @@ defmodule Hueworks.Scenes.Components do
   import Ecto.Query, only: [from: 2]
 
   alias Hueworks.Repo
-  alias Hueworks.Scenes.Intent
+  alias Hueworks.Scenes.PowerPolicy
   alias Hueworks.Schemas.LightState.ManualConfig
 
   alias Hueworks.Schemas.{
@@ -66,8 +66,8 @@ defmodule Hueworks.Scenes.Components do
       |> SceneComponentLight.changeset(%{
         scene_component_id: scene_component.id,
         light_id: light_id,
-        default_power: Intent.default_power_for_light(component, light_id),
-        presence_input_id: Intent.presence_input_for_light(component, light_id)
+        default_power: default_power_for_light(component, light_id),
+        presence_input_id: presence_input_for_light(component, light_id)
       })
       |> Repo.insert!()
     end)
@@ -81,6 +81,22 @@ defmodule Hueworks.Scenes.Components do
     |> case do
       {:ok, resolved_light_state} -> resolved_light_state.light_state
       _ -> nil
+    end
+  end
+
+  defp default_power_for_light(component, light_id) do
+    component
+    |> light_defaults()
+    |> light_default_lookup(light_id)
+    |> PowerPolicy.parse()
+  end
+
+  defp presence_input_for_light(component, light_id) do
+    if default_power_for_light(component, light_id) == :follow_presence do
+      component
+      |> presence_inputs()
+      |> light_default_lookup(light_id)
+      |> Hueworks.Util.parse_id()
     end
   end
 
@@ -176,6 +192,33 @@ defmodule Hueworks.Scenes.Components do
   end
 
   defp manual_color_mode?(_config), do: false
+
+  defp light_defaults(component) do
+    Map.get(component, :light_defaults) ||
+      Map.get(component, "light_defaults") ||
+      %{}
+  end
+
+  defp presence_inputs(component) do
+    Map.get(component, :light_presence_inputs) ||
+      Map.get(component, "light_presence_inputs") ||
+      %{}
+  end
+
+  defp light_default_lookup(defaults, light_id) when is_map(defaults) do
+    cond do
+      Map.has_key?(defaults, light_id) ->
+        Map.get(defaults, light_id)
+
+      Map.has_key?(defaults, to_string(light_id)) ->
+        Map.get(defaults, to_string(light_id))
+
+      true ->
+        nil
+    end
+  end
+
+  defp light_default_lookup(_defaults, _light_id), do: nil
 
   defp component_embedded_manual_config(component) do
     component

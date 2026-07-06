@@ -17,7 +17,7 @@ defmodule Hueworks.Control.HuePayloadTest do
   end
 
   test "off payload includes transitiontime when configured" do
-    assert HuePayload.action_payload(:off, %{transition_ms: 500}) == %{
+    assert HuePayload.action_payload({:set_state, %{power: :off}}, %{transition_ms: 500}) == %{
              "on" => false,
              "transitiontime" => 5
            }

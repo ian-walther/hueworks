@@ -119,7 +119,15 @@ defmodule Hueworks.Subscription.HueEventStream.Mapper do
       light_ids = Map.get(state.group_lights, group_id, [])
 
       Enum.each(light_ids, fn light_id ->
-        State.put(:light, light_id, member_attrs_from_group(attrs, light_id))
+        State.put(
+          :light,
+          light_id,
+          GroupState.member_attrs_from_group(
+            attrs,
+            DesiredState.get(:light, light_id),
+            State.get(:light, light_id)
+          )
+        )
       end)
 
       refresh_groups_for_lights(state, light_ids)
@@ -149,34 +157,4 @@ defmodule Hueworks.Subscription.HueEventStream.Mapper do
       _ -> :ok
     end
   end
-
-  defp member_attrs_from_group(%{power: :on} = attrs, light_id) do
-    cond do
-      explicit_power?(DesiredState.get(:light, light_id), :on) ->
-        attrs
-
-      explicit_power?(DesiredState.get(:light, light_id), :off) ->
-        Map.put(attrs, :power, :off)
-
-      explicit_power?(State.get(:light, light_id), :off) ->
-        Map.delete(attrs, :power)
-
-      true ->
-        attrs
-    end
-  end
-
-  defp member_attrs_from_group(attrs, _light_id), do: attrs
-
-  defp explicit_power?(state, expected_power) when expected_power in [:on, :off] do
-    case state do
-      %{power: power} -> normalize_power(power) == expected_power
-      %{"power" => power} -> normalize_power(power) == expected_power
-      _ -> false
-    end
-  end
-
-  defp normalize_power(power) when power in [:on, "on", "ON", true], do: :on
-  defp normalize_power(power) when power in [:off, "off", "OFF", false], do: :off
-  defp normalize_power(_power), do: nil
 end

@@ -14,21 +14,9 @@ defmodule Hueworks.Control.Group do
     Z2MClient
   }
 
-  def on(group, opts \\ %{}), do: dispatch(group, :on, normalize_apply_opts(opts))
-  def off(group, opts \\ %{}), do: dispatch(group, :off, normalize_apply_opts(opts))
-
   def set_state(group, desired, opts \\ %{}) when is_map(desired) do
     dispatch(group, {:set_state, desired}, normalize_apply_opts(opts))
   end
-
-  def set_brightness(group, level, opts \\ %{}),
-    do: dispatch(group, {:brightness, level}, normalize_apply_opts(opts))
-
-  def set_color_temp(group, kelvin, opts \\ %{}),
-    do: dispatch(group, {:color_temp, kelvin}, normalize_apply_opts(opts))
-
-  def set_color(group, hs, opts \\ %{}),
-    do: dispatch(group, {:color, hs}, normalize_apply_opts(opts))
 
   defp dispatch(%{source: :hue} = group, action, apply_opts) do
     with {:ok, host, api_key} <- HueBridge.credentials_for(group),

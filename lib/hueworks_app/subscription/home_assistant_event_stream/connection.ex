@@ -9,7 +9,7 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.Connection do
 
   alias Hueworks.ExternalScenes
   alias Hueworks.HomeAssistant.Host
-  alias Hueworks.Control.State
+  alias Hueworks.Control.{DesiredState, GroupState, State}
   alias Hueworks.Control.StateParser
   alias Hueworks.Repo
   alias Hueworks.Schemas.Group
@@ -107,13 +107,7 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.Connection do
             group ->
               state_update = build_ha_state(new_state, group)
               State.put(:group, group.id, state_update)
-
-              # TODO: HA group fan-out has known edge cases with template entities; revisit after HA templates are removed.
-              state.group_members
-              |> Map.get(entity_id, [])
-              |> Enum.each(fn light_id ->
-                State.put(:light, light_id, state_update)
-              end)
+              update_group_members_from_group_state(state, entity_id, group.id, state_update)
           end
 
         light ->
@@ -133,6 +127,27 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.Connection do
   end
 
   defp handle_event(_event, _state), do: :ok
+
+  defp update_group_members_from_group_state(state, entity_id, group_id, state_update) do
+    light_ids = Map.get(state.group_members, entity_id, [])
+
+    Enum.each(light_ids, fn light_id ->
+      State.put(
+        :light,
+        light_id,
+        GroupState.member_attrs_from_group(
+          state_update,
+          DesiredState.get(:light, light_id),
+          State.get(:light, light_id)
+        )
+      )
+    end)
+
+    case GroupState.derive_from_light_ids(light_ids) do
+      derived when derived != %{} -> State.put(:group, group_id, derived)
+      _ -> :ok
+    end
+  end
 
   defp scene_entity_ids_from_service_data(%{"service_data" => service_data})
        when is_map(service_data) do

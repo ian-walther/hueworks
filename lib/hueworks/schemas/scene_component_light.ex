@@ -2,9 +2,13 @@ defmodule Hueworks.Schemas.SceneComponentLight do
   use Ecto.Schema
   import Ecto.Changeset
 
+  alias Hueworks.Scenes.PowerPolicy
+
+  @power_policy_values PowerPolicy.values()
+
   schema "scene_component_lights" do
     field(:default_power, Ecto.Enum,
-      values: [:default_on, :default_off, :force_on, :force_off, :follow_presence],
+      values: @power_policy_values,
       default: :default_on
     )
 

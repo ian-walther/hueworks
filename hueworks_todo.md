@@ -14,10 +14,9 @@ Reference: `planning/import-resync.md`
 - [ ] Make bridge-owned auto-refresh details inspectable without presenting them as decisions.
 
 ### Control Architecture Refactor
-Reference: `planning/refactoring.md`
+Reference: `planning/refactoring.md` and `planning/audit/`
 
-- [ ] Extract scene-component power-policy parsing/resolution into a single domain policy API.
-- [ ] Centralize duplicated state-map normalization used by physical state, desired state, and HA export command handling.
+- [ ] Point HA export optimistic-state handling at the shared state-map normalization helper.
 - [ ] Split scene-builder state into smaller typed surfaces for membership, embedded manual state, and per-light policy state.
 - [ ] Preserve existing behavior with characterization tests before changing semantics.
 
@@ -46,5 +45,4 @@ Reference: `planning/test-coverage-audit.md`
 ## Concrete Runtime Gaps
 
 - [ ] Implement Caseta group dispatch in `Hueworks.Control.Group`.
-- [ ] Resolve the HA group fan-out edge case noted in `lib/hueworks_app/subscription/home_assistant_event_stream/connection.ex`.
-- [ ] Add regression tests for both runtime gaps above.
+- [ ] Add a regression test for the runtime gap above.

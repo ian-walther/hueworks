@@ -275,6 +275,7 @@ defmodule Hueworks.Subscription.CasetaEventStream.Connection do
         certfile: cert_path,
         keyfile: key_path,
         cacertfile: cacert_path,
+        # Lutron LEAP bridges use client cert auth with self-signed LAN certs.
         verify: :verify_none,
         versions: [:"tlsv1.2"]
       ]

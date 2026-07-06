@@ -3,17 +3,13 @@ defmodule Hueworks.Control.Planner do
   Plans optimized control actions from desired state diffs.
   """
 
-  import Ecto.Query, only: [from: 2]
-  require Logger
-
   alias Hueworks.DebugLogging
   alias Hueworks.Control.LightStateSemantics
   alias Hueworks.Control.Planner.Action
   alias Hueworks.Control.Planner.Context
   alias Hueworks.Control.RoomSnapshot
   alias Hueworks.Control.Transition
-  alias Hueworks.Repo
-  alias Hueworks.Schemas.Light
+
   @brightness_tolerance 2
   @temperature_physical_mired_tolerance 1
   @xy_tolerance 0.01
@@ -22,51 +18,6 @@ defmodule Hueworks.Control.Planner do
     room_id
     |> RoomSnapshot.load()
     |> plan_snapshot(diff, opts)
-  end
-
-  def plan_direct(diff, opts \\ []) when is_map(diff) do
-    apply_opts = action_apply_opts(opts)
-
-    light_ids =
-      diff
-      |> Map.keys()
-      |> Enum.flat_map(fn
-        {:light, id} when is_integer(id) -> [id]
-        {"light", id} when is_integer(id) -> [id]
-        _ -> []
-      end)
-      |> Enum.uniq()
-
-    bridge_by_light_id =
-      Repo.all(
-        from(l in Light,
-          where: l.id in ^light_ids,
-          select: {l.id, l.bridge_id}
-        )
-      )
-      |> Map.new()
-
-    diff
-    |> Enum.flat_map(fn
-      {{:light, id}, desired} when is_integer(id) and is_map(desired) ->
-        bridge_by_light_id
-        |> Map.get(id)
-        |> case do
-          nil -> []
-          bridge_id -> [Action.light(id, bridge_id, desired, apply_opts) |> Action.to_map()]
-        end
-
-      {{"light", id}, desired} when is_integer(id) and is_map(desired) ->
-        bridge_by_light_id
-        |> Map.get(id)
-        |> case do
-          nil -> []
-          bridge_id -> [Action.light(id, bridge_id, desired, apply_opts) |> Action.to_map()]
-        end
-
-      _ ->
-        []
-    end)
   end
 
   def plan_snapshot(snapshot, diff, opts \\ []) when is_map(snapshot) and is_map(diff) do
@@ -274,8 +225,6 @@ defmodule Hueworks.Control.Planner do
 
   defp desired_differs_from_physical_values?(_desired, _physical), do: true
 
-  defp action_apply_opts(opts), do: opts |> transition_ms() |> Transition.apply_opts()
-
   defp action_apply_opts(
          base_transition_ms,
          desired,
@@ -314,8 +263,6 @@ defmodule Hueworks.Control.Planner do
   defp normalize_light_ids(light_ids) when is_list(light_ids), do: light_ids
   defp normalize_light_ids(light_id) when is_integer(light_id), do: [light_id]
   defp normalize_light_ids(_light_ids), do: []
-
-  defp transition_ms(opts), do: Context.transition_ms(opts)
 
   defp explicit_off_intent?(desired) when is_map(desired) do
     case Map.get(desired, :power) || Map.get(desired, "power") do

@@ -72,19 +72,13 @@ defmodule Hueworks.Scenes do
     LightStates.duplicate(id)
   end
 
-  @spec delete_light_state(integer(), keyword()) :: :ok | {:error, term()}
-  def delete_light_state(id, opts \\ []) do
-    _scene_id = Keyword.get(opts, :scene_id)
-
+  @spec delete_light_state(integer()) :: :ok | {:error, term()}
+  def delete_light_state(id) do
     LightStates.delete(id)
   end
 
   def create_manual_light_state(name, config \\ %{}),
     do: create_light_state(name, :manual, config)
-
-  def update_manual_light_state(id, attrs), do: update_light_state(id, attrs)
-  def duplicate_manual_light_state(id), do: duplicate_light_state(id)
-  def delete_manual_light_state(id, opts \\ []), do: delete_light_state(id, opts)
 
   def create_scene(attrs) do
     Persistence.create(attrs)
@@ -150,16 +144,6 @@ defmodule Hueworks.Scenes do
 
   def recompute_active_circadian_lights(_room_id, _light_ids, _opts),
     do: {:error, :invalid_args}
-
-  # Temporary compatibility wrappers while callers migrate to the clearer
-  # "recompute" naming.
-  def reapply_active_scene_lights(room_id, light_ids, opts \\ []) do
-    recompute_active_scene_lights(room_id, light_ids, opts)
-  end
-
-  def reapply_active_circadian_lights(room_id, light_ids, opts \\ []) do
-    recompute_active_circadian_lights(room_id, light_ids, opts)
-  end
 
   @spec replace_scene_components(struct(), list(map())) :: :ok | {:error, term()}
   def replace_scene_components(%Scene{} = scene, components) when is_list(components) do

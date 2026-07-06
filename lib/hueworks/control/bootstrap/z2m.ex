@@ -3,14 +3,14 @@ defmodule Hueworks.Control.Bootstrap.Z2M do
 
   import Ecto.Query, only: [from: 2]
 
+  alias Hueworks.Control.GroupState
   alias Hueworks.Control.State
   alias Hueworks.Control.StateParser
+  alias Hueworks.Control.Z2MConfig
+  alias Hueworks.Control.Z2MTopology
   alias Hueworks.Repo
   alias Hueworks.Schemas.{Bridge, Group, Light}
-  alias Hueworks.Util
 
-  @default_port 1883
-  @default_base_topic "zigbee2mqtt"
   @connection_timeout 3_000
   @subscription_timeout 3_000
   @collect_timeout 2_000
@@ -22,7 +22,7 @@ defmodule Hueworks.Control.Bootstrap.Z2M do
   end
 
   defp bootstrap_bridge(%Bridge{} = bridge) do
-    indexes = load_indexes(bridge.id)
+    indexes = Z2MTopology.load_indexes(bridge.id)
 
     entities =
       Map.values(indexes.lights_by_source_id) ++ Map.values(indexes.groups_by_source_id)
@@ -30,7 +30,7 @@ defmodule Hueworks.Control.Bootstrap.Z2M do
     if entities == [] do
       :ok
     else
-      config = config_for_bridge(bridge)
+      config = Z2MConfig.for_bridge(bridge)
       client_id = client_id(bridge.id)
 
       start_opts =
@@ -41,7 +41,7 @@ defmodule Hueworks.Control.Bootstrap.Z2M do
             {Tortoise.Transport.Tcp, host: String.to_charlist(bridge.host), port: config.port},
           subscriptions: [{"#{config.base_topic}/#", 0}]
         ]
-        |> maybe_put_auth(config)
+        |> Keyword.merge(Z2MConfig.tortoise_auth_opts(config))
 
       with {:ok, pid} <- start_connection(start_opts),
            :ok <- await_connection(client_id),
@@ -131,7 +131,7 @@ defmodule Hueworks.Control.Bootstrap.Z2M do
       receive do
         {:z2m_bootstrap_msg, topic_levels, payload} ->
           with entity_source_id when is_binary(entity_source_id) <-
-                 entity_from_topic(topic_levels, base_levels),
+                 Z2MTopology.entity_from_topic(topic_levels, base_levels),
                {:ok, decoded} <- Jason.decode(IO.iodata_to_binary(payload)),
                true <- is_map(decoded) do
             apply_entity_state(entity_source_id, decoded, indexes)
@@ -150,13 +150,13 @@ defmodule Hueworks.Control.Bootstrap.Z2M do
     case Map.get(indexes.lights_by_source_id, entity_source_id) do
       %Light{} = light ->
         update = build_state(payload, light)
-        if update != %{}, do: State.put(:light, light.id, update, source: :bootstrap)
+        if update != %{}, do: State.put(:light, light.id, update)
 
       nil ->
         case Map.get(indexes.groups_by_source_id, entity_source_id) do
           %Group{} = group ->
             update = build_state(payload, group)
-            if update != %{}, do: State.put(:group, group.id, update, source: :bootstrap)
+            if update != %{}, do: State.put(:group, group.id, update)
 
           nil ->
             :ok
@@ -168,202 +168,26 @@ defmodule Hueworks.Control.Bootstrap.Z2M do
     StateParser.z2m_state(payload, entity)
   end
 
-  defp entity_from_topic(topic_levels, base_levels) do
-    if Enum.take(topic_levels, length(base_levels)) == base_levels do
-      rest = Enum.drop(topic_levels, length(base_levels))
-
-      cond do
-        rest == [] ->
-          nil
-
-        hd(rest) == "bridge" ->
-          nil
-
-        List.last(rest) in ["set", "get", "availability"] ->
-          nil
-
-        List.last(rest) == "state" and length(rest) > 1 ->
-          rest
-          |> Enum.drop(-1)
-          |> Enum.join("/")
-
-        true ->
-          Enum.join(rest, "/")
-      end
-    else
-      nil
-    end
-  end
-
-  defp load_indexes(bridge_id) do
-    lights =
-      Repo.all(
-        from(l in Light,
-          where:
-            l.bridge_id == ^bridge_id and l.source == :z2m and l.enabled == true and
-              is_nil(l.canonical_light_id)
-        )
-      )
-
-    groups =
-      Repo.all(
-        from(g in Group,
-          where:
-            g.bridge_id == ^bridge_id and g.source == :z2m and g.enabled == true and
-              is_nil(g.canonical_group_id)
-        )
-      )
-
-    lights_by_source_id =
-      Enum.reduce(lights, %{}, fn light, acc -> Map.put(acc, light.source_id, light) end)
-
-    groups_by_source_id =
-      Enum.reduce(groups, %{}, fn group, acc -> Map.put(acc, group.source_id, group) end)
-
-    group_member_lights =
-      Enum.reduce(groups, %{}, fn group, acc ->
-        members = get_in(group.metadata, ["members"]) || []
-
-        lights =
-          members
-          |> Enum.map(&Map.get(lights_by_source_id, to_string(&1)))
-          |> Enum.filter(&is_map/1)
-
-        Map.put(acc, group.source_id, lights)
-      end)
-
-    %{
-      lights_by_source_id: lights_by_source_id,
-      groups_by_source_id: groups_by_source_id,
-      group_member_lights: group_member_lights
-    }
-  end
-
   defp recompute_group_states(indexes) do
     Enum.each(Map.keys(indexes.group_member_lights), fn group_source_id ->
-      with %Group{id: group_id} <- Map.get(indexes.groups_by_source_id, group_source_id),
+      with %{id: group_id} <- Map.get(indexes.groups_by_source_id, group_source_id),
            lights when is_list(lights) <- Map.get(indexes.group_member_lights, group_source_id),
-           derived when derived != %{} <- derive_group_state(lights) do
-        State.put(:group, group_id, derived, source: :bootstrap)
+           derived when derived != %{} <- derive_group_state_from_members(lights) do
+        State.put(:group, group_id, derived)
       else
         _ -> :ok
       end
     end)
   end
 
-  defp derive_group_state(lights) when is_list(lights) do
+  defp derive_group_state_from_members(lights) when is_list(lights) do
     states =
       lights
       |> Enum.map(&State.get(:light, &1.id))
       |> Enum.reject(&is_nil/1)
 
-    on_states =
-      Enum.filter(states, fn
-        %{power: power} when power in [:on, "on", true] -> true
-        _ -> false
-      end)
-
-    base =
-      cond do
-        on_states != [] -> %{power: :on}
-        length(states) == length(lights) and states != [] -> %{power: :off}
-        true -> %{}
-      end
-
-    base
-    |> maybe_put_group_brightness(on_states)
-    |> maybe_put_group_kelvin(on_states)
+    GroupState.derive_from_states(states, length(lights))
   end
-
-  defp derive_group_state(_lights), do: %{}
-
-  defp maybe_put_group_brightness(group_state, on_states) do
-    brightness_values =
-      on_states
-      |> Enum.map(fn
-        %{brightness: brightness} when is_number(brightness) -> brightness
-        _ -> nil
-      end)
-      |> Enum.reject(&is_nil/1)
-
-    if brightness_values != [] and length(brightness_values) == length(on_states) do
-      Map.put(
-        group_state,
-        :brightness,
-        round(Enum.sum(brightness_values) / length(brightness_values))
-      )
-    else
-      group_state
-    end
-  end
-
-  defp maybe_put_group_kelvin(group_state, on_states) do
-    kelvin_values =
-      on_states
-      |> Enum.map(fn
-        %{kelvin: kelvin} when is_number(kelvin) -> kelvin
-        _ -> nil
-      end)
-      |> Enum.reject(&is_nil/1)
-
-    if kelvin_values != [] and length(kelvin_values) == length(on_states) do
-      min_k = Enum.min(kelvin_values)
-      max_k = Enum.max(kelvin_values)
-
-      if max_k - min_k <= 50 do
-        Map.put(group_state, :kelvin, round(Enum.sum(kelvin_values) / length(kelvin_values)))
-      else
-        group_state
-      end
-    else
-      group_state
-    end
-  end
-
-  defp config_for_bridge(bridge) do
-    credentials = Bridge.credentials_struct(bridge)
-
-    %{
-      base_topic: normalize_base_topic(credentials.base_topic),
-      port: normalize_port(credentials.broker_port),
-      username: normalize_optional(credentials.username),
-      password: normalize_optional(credentials.password)
-    }
-  end
-
-  defp normalize_base_topic(value) when is_binary(value) do
-    value = String.trim(value)
-    if value == "", do: @default_base_topic, else: value
-  end
-
-  defp normalize_base_topic(_value), do: @default_base_topic
-
-  defp normalize_port(value) do
-    case Util.parse_optional_integer(value) do
-      port when is_integer(port) and port > 0 and port <= 65_535 -> port
-      _ -> @default_port
-    end
-  end
-
-  defp normalize_optional(value) when is_binary(value) do
-    value = String.trim(value)
-    if value == "", do: nil, else: value
-  end
-
-  defp normalize_optional(_value), do: nil
-
-  defp maybe_put_auth(opts, %{username: username, password: password}) when is_binary(username) do
-    opts
-    |> Keyword.put(:user_name, username)
-    |> maybe_put_password(password)
-  end
-
-  defp maybe_put_auth(opts, _config), do: opts
-
-  defp maybe_put_password(opts, password) when is_binary(password),
-    do: Keyword.put(opts, :password, password)
-
-  defp maybe_put_password(opts, _password), do: opts
 
   defp client_id(bridge_id), do: "hwz2mb#{bridge_id}_#{System.unique_integer([:positive])}"
 

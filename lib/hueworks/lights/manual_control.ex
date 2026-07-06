@@ -19,7 +19,7 @@ defmodule Hueworks.Lights.ManualControl do
           DesiredState.apply(acc, :light, light_id, desired_update)
         end)
 
-      case ControlApply.commit_and_enqueue(txn, room_id) do
+      case ControlApply.commit_and_enqueue(txn, room_id, enqueue_mode: :replace_targets) do
         {:ok, %{plan_diff: plan_diff}} ->
           {:ok, plan_diff}
 

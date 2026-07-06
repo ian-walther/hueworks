@@ -3,8 +3,17 @@ defmodule Hueworks.Import.Materialize do
 
   import Ecto.Query, only: [from: 2]
 
+  alias Hueworks.Import.{
+    Duplicates,
+    Identifiers,
+    Normalize,
+    NormalizeJson,
+    Plan,
+    ReimportApply,
+    Source
+  }
+
   alias Hueworks.Repo
-  alias Hueworks.Import.{Duplicates, Identifiers, Normalize, NormalizeJson, Plan, ReimportApply}
   alias Hueworks.Util
   alias Hueworks.Schemas.{Group, GroupLight, Light, Room}
 
@@ -122,13 +131,22 @@ defmodule Hueworks.Import.Materialize do
       if is_binary(source_id) do
         attrs = %{
           name: Normalize.fetch(light, :name) || "Light",
-          source: normalize_source(Normalize.fetch(light, :source)),
+          source: Source.normalize(Normalize.fetch(light, :source)),
           source_id: source_id,
           bridge_id: bridge_id,
           room_id: room_id_for(light, room_map, plan_lights),
-          supports_color: !!Normalize.fetch(Normalize.fetch(light, :capabilities) || %{}, :color),
+          supports_color:
+            light
+            |> Normalize.fetch(:capabilities)
+            |> Kernel.||(%{})
+            |> Normalize.fetch(:color)
+            |> Normalize.truthy?(),
           supports_temp:
-            !!Normalize.fetch(Normalize.fetch(light, :capabilities) || %{}, :color_temp),
+            light
+            |> Normalize.fetch(:capabilities)
+            |> Kernel.||(%{})
+            |> Normalize.fetch(:color_temp)
+            |> Normalize.truthy?(),
           reported_min_kelvin:
             Normalize.fetch(Normalize.fetch(light, :capabilities) || %{}, :reported_kelvin_min),
           reported_max_kelvin:
@@ -193,13 +211,22 @@ defmodule Hueworks.Import.Materialize do
       if is_binary(source_id) do
         attrs = %{
           name: Normalize.fetch(group, :name) || "Group",
-          source: normalize_source(Normalize.fetch(group, :source)),
+          source: Source.normalize(Normalize.fetch(group, :source)),
           source_id: source_id,
           bridge_id: bridge_id,
           room_id: room_id_for(group, room_map, plan_groups),
-          supports_color: !!Normalize.fetch(Normalize.fetch(group, :capabilities) || %{}, :color),
+          supports_color:
+            group
+            |> Normalize.fetch(:capabilities)
+            |> Kernel.||(%{})
+            |> Normalize.fetch(:color)
+            |> Normalize.truthy?(),
           supports_temp:
-            !!Normalize.fetch(Normalize.fetch(group, :capabilities) || %{}, :color_temp),
+            group
+            |> Normalize.fetch(:capabilities)
+            |> Kernel.||(%{})
+            |> Normalize.fetch(:color_temp)
+            |> Normalize.truthy?(),
           reported_min_kelvin:
             Normalize.fetch(Normalize.fetch(group, :capabilities) || %{}, :reported_kelvin_min),
           reported_max_kelvin:
@@ -379,8 +406,4 @@ defmodule Hueworks.Import.Materialize do
     (Normalize.fetch(group, :metadata) || %{})
     |> Map.put_new("bridge_host", bridge_host)
   end
-
-  defp normalize_source(source) when is_atom(source), do: source
-  defp normalize_source(source) when is_binary(source), do: String.to_atom(source)
-  defp normalize_source(_source), do: nil
 end

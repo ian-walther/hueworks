@@ -160,6 +160,22 @@ defmodule Hueworks.Control.LightStateSemantics do
 
   def kelvin_value(_desired), do: nil
 
+  @spec brightness_value(state_map()) :: term() | nil
+  def brightness_value(desired), do: value_or_alias(desired, :brightness)
+
+  @spec power_value(state_map()) :: :on | :off | term() | nil
+  def power_value(desired) do
+    case value_or_alias(desired, :power) do
+      "on" -> :on
+      "ON" -> :on
+      true -> :on
+      "off" -> :off
+      "OFF" -> :off
+      false -> :off
+      value -> value
+    end
+  end
+
   @spec supports_temp?(state_map()) :: boolean()
   def supports_temp?(light) when is_map(light) do
     Map.get(light, :supports_temp) == true or Map.get(light, "supports_temp") == true
@@ -173,6 +189,27 @@ defmodule Hueworks.Control.LightStateSemantics do
   end
 
   def supports_color?(_light), do: false
+
+  @spec merge_state(state_map(), state_map()) :: state_map()
+  def merge_state(current, incoming) when is_map(current) and is_map(incoming) do
+    current
+    |> harmonize_color_and_temperature(incoming)
+    |> Map.merge(incoming)
+  end
+
+  def merge_state(current, _incoming) when is_map(current), do: current
+  def merge_state(_current, incoming) when is_map(incoming), do: incoming
+  def merge_state(_current, _incoming), do: %{}
+
+  @spec normalize_power_off(state_map()) :: state_map()
+  def normalize_power_off(state) when is_map(state) do
+    case power_value(state) do
+      :off -> drop_light_levels(state)
+      _ -> state
+    end
+  end
+
+  def normalize_power_off(state), do: state
 
   @spec drop_kelvin(state_map()) :: state_map()
   def drop_kelvin(desired) when is_map(desired) do
@@ -195,6 +232,43 @@ defmodule Hueworks.Control.LightStateSemantics do
   end
 
   def drop_xy(desired), do: desired
+
+  @spec drop_light_levels(state_map()) :: state_map()
+  def drop_light_levels(desired) when is_map(desired) do
+    desired
+    |> Map.delete(:brightness)
+    |> Map.delete("brightness")
+    |> drop_kelvin()
+    |> drop_xy()
+  end
+
+  def drop_light_levels(desired), do: desired
+
+  defp harmonize_color_and_temperature(attrs, incoming_attrs)
+       when is_map(attrs) and is_map(incoming_attrs) do
+    cond do
+      incoming_has_xy?(incoming_attrs) ->
+        drop_kelvin(attrs)
+
+      incoming_has_kelvin?(incoming_attrs) ->
+        drop_xy(attrs)
+
+      true ->
+        attrs
+    end
+  end
+
+  defp harmonize_color_and_temperature(attrs, _incoming_attrs), do: attrs
+
+  defp incoming_has_xy?(attrs) when is_map(attrs) do
+    Map.has_key?(attrs, :x) or Map.has_key?(attrs, "x") or Map.has_key?(attrs, :y) or
+      Map.has_key?(attrs, "y")
+  end
+
+  defp incoming_has_kelvin?(attrs) when is_map(attrs) do
+    Map.has_key?(attrs, :kelvin) or Map.has_key?(attrs, "kelvin") or
+      Map.has_key?(attrs, :temperature) or Map.has_key?(attrs, "temperature")
+  end
 
   @spec put_kelvin(state_map(), integer()) :: state_map()
   def put_kelvin(desired, clamped_kelvin) when is_map(desired) do

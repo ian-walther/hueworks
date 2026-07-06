@@ -28,7 +28,7 @@ defmodule Hueworks.Control.Bootstrap.Hue do
 
             db_light ->
               state = build_hue_light_state(light)
-              State.put(:light, db_light.id, state, source: :bootstrap)
+              State.put(:light, db_light.id, state)
           end
         end)
 
@@ -39,7 +39,7 @@ defmodule Hueworks.Control.Bootstrap.Hue do
 
             db_group ->
               state = build_hue_group_state(group)
-              State.put(:group, db_group.id, state, source: :bootstrap)
+              State.put(:group, db_group.id, state)
           end
         end)
       end

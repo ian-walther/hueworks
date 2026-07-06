@@ -6,7 +6,6 @@ defmodule Hueworks.Control.Executor do
   use GenServer
   require Logger
 
-  alias Hueworks.Control.Executor.Commands
   alias Hueworks.Control.Executor.Convergence
   alias Hueworks.Control.Executor.Trace
   alias Hueworks.Control.Group, as: ControlGroup
@@ -28,7 +27,7 @@ defmodule Hueworks.Control.Executor do
   def enqueue(actions, opts \\ []) when is_list(actions) do
     if enabled?() do
       server = Keyword.get(opts, :server, default_server())
-      mode = Keyword.get(opts, :mode, :replace)
+      mode = Keyword.get(opts, :mode, :replace_targets)
       GenServer.call(server, {:enqueue, actions, mode})
     else
       {:ok, :disabled}
@@ -42,12 +41,6 @@ defmodule Hueworks.Control.Executor do
   def tick(server \\ nil, opts \\ []) do
     force = Keyword.get(opts, :force, false)
     GenServer.call(server || default_server(), {:tick, force})
-  end
-
-  @doc false
-  def commands_for_action(%{desired: desired}) when is_map(desired) do
-    %{desired: desired}
-    |> Commands.commands_for_action()
   end
 
   @impl true
@@ -151,7 +144,7 @@ defmodule Hueworks.Control.Executor do
         case mode do
           :append -> Enum.reduce(normalized, existing_queue, &:queue.in/2)
           :replace_targets -> replace_queued_targets(existing_queue, normalized)
-          _ -> Enum.reduce(normalized, :queue.new(), &:queue.in/2)
+          :replace -> Enum.reduce(normalized, :queue.new(), &:queue.in/2)
         end
 
       queues = Map.put(acc.queues, bridge_id, queue)
@@ -161,7 +154,7 @@ defmodule Hueworks.Control.Executor do
         case mode do
           :append -> :queue.is_empty(existing_queue)
           :replace_targets -> :queue.is_empty(existing_queue)
-          _ -> true
+          :replace -> true
         end
 
       last_sent =

@@ -17,3 +17,6 @@
 
 6. Reproduce bugs with a failing test before fixing them.
    For bug fixes and regressions, first add or identify a test that fails because of the bug, confirm the failure, and only then add the fix. After the fix, rerun the focused test and the full suite to confirm the red-green cycle.
+
+7. Preserve the runtime/domain file split.
+   `lib/hueworks_app` holds supervised runtime processes and infrastructure; `lib/hueworks` holds pure domain logic. Module namespaces generally remain `Hueworks.*` even when runtime modules live under `lib/hueworks_app`; `HueworksApp.*` is reserved for infrastructure such as the runtime cache.

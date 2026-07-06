@@ -7,7 +7,8 @@ defmodule Hueworks.Scenes.Intent do
   alias Hueworks.Color
   alias Hueworks.Circadian
   alias Hueworks.Control.DesiredState
-  alias Hueworks.Schemas.{LightState, PresenceInput, Scene}
+  alias Hueworks.Scenes.PowerPolicy
+  alias Hueworks.Schemas.{LightState, Scene}
 
   defmodule BuildOptions do
     @moduledoc false
@@ -100,7 +101,7 @@ defmodule Hueworks.Scenes.Intent do
             |> maybe_preserve_manual_power_latch(
               current_desired,
               preserve_power_latches and is_nil(power_override) and
-                not force_power_policy?(power_policy)
+                PowerPolicy.overridable?(power_policy)
             )
             |> maybe_apply_power_override(power_override, power_policy)
 
@@ -108,26 +109,6 @@ defmodule Hueworks.Scenes.Intent do
         end)
       end
     end)
-  end
-
-  def default_power_for_light(component, light_id) do
-    defaults =
-      Map.get(component, :light_defaults) ||
-        Map.get(component, "light_defaults") ||
-        %{}
-
-    defaults
-    |> light_default_lookup(light_id)
-    |> parse_default_power()
-  end
-
-  def presence_input_for_light(component, light_id) do
-    if default_power_for_light(component, light_id) == :follow_presence do
-      component
-      |> presence_inputs()
-      |> light_default_lookup(light_id)
-      |> Hueworks.Util.parse_id()
-    end
   end
 
   defp desired_from_light_state(%LightState{type: :manual, config: config}, _now) do
@@ -185,31 +166,17 @@ defmodule Hueworks.Scenes.Intent do
 
   defp maybe_apply_default_power(desired, %LightState{type: type}, power_policy, presence_input)
        when type in [:manual, :circadian] do
-    put_attr(desired, :power, resolve_power_policy(power_policy, presence_input))
+    put_attr(desired, :power, PowerPolicy.resolve(power_policy, presence_input))
   end
 
   defp maybe_apply_default_power(desired, _light_state, _power_policy, _presence_input),
     do: desired
 
-  defp resolve_power_policy(:default_on, _presence_input), do: :on
-  defp resolve_power_policy("default_on", _presence_input), do: :on
-  defp resolve_power_policy(:default_off, _presence_input), do: :off
-  defp resolve_power_policy("default_off", _presence_input), do: :off
-  defp resolve_power_policy(:force_on, _presence_input), do: :on
-  defp resolve_power_policy("force_on", _presence_input), do: :on
-  defp resolve_power_policy(:force_off, _presence_input), do: :off
-  defp resolve_power_policy("force_off", _presence_input), do: :off
-  defp resolve_power_policy(:follow_presence, %PresenceInput{occupied: true}), do: :on
-  defp resolve_power_policy("follow_presence", %PresenceInput{occupied: true}), do: :on
-  defp resolve_power_policy(:follow_presence, _presence_input), do: :off
-  defp resolve_power_policy("follow_presence", _presence_input), do: :off
-  defp resolve_power_policy(_unknown, _presence_input), do: :on
-
   defp component_default_power_map(component) do
     component
     |> Map.get(:scene_component_lights, [])
     |> Enum.reduce(%{}, fn join, acc ->
-      Map.put(acc, join.light_id, parse_default_power(join.default_power))
+      Map.put(acc, join.light_id, PowerPolicy.parse(join.default_power))
     end)
   end
 
@@ -217,7 +184,7 @@ defmodule Hueworks.Scenes.Intent do
     component
     |> Map.get(:scene_component_lights, [])
     |> Enum.reduce(%{}, fn join, acc ->
-      if parse_default_power(join.default_power) == :follow_presence do
+      if PowerPolicy.parse(join.default_power) == :follow_presence do
         Map.put(acc, join.light_id, join.presence_input)
       else
         acc
@@ -233,43 +200,6 @@ defmodule Hueworks.Scenes.Intent do
     else
       put_attr(attrs, key, value)
     end
-  end
-
-  defp light_default_lookup(defaults, light_id) when is_map(defaults) do
-    cond do
-      Map.has_key?(defaults, light_id) ->
-        Map.get(defaults, light_id)
-
-      Map.has_key?(defaults, to_string(light_id)) ->
-        Map.get(defaults, to_string(light_id))
-
-      true ->
-        nil
-    end
-  end
-
-  defp light_default_lookup(_defaults, _light_id), do: nil
-
-  defp parse_default_power(value) when value in [nil, true, "true", 1, "1", :on, "on"],
-    do: :default_on
-
-  defp parse_default_power(value) when value in [false, "false", 0, "0", :off, "off"],
-    do: :default_off
-
-  defp parse_default_power(value) when value in [:default_on, "default_on"], do: :default_on
-  defp parse_default_power(value) when value in [:default_off, "default_off"], do: :default_off
-  defp parse_default_power(value) when value in [:force_on, "force_on"], do: :force_on
-  defp parse_default_power(value) when value in [:force_off, "force_off"], do: :force_off
-
-  defp parse_default_power(value) when value in [:follow_presence, "follow_presence"],
-    do: :follow_presence
-
-  defp parse_default_power(_value), do: :default_on
-
-  defp presence_inputs(component) do
-    Map.get(component, :light_presence_inputs) ||
-      Map.get(component, "light_presence_inputs") ||
-      %{}
   end
 
   defp skip_component?(%{light_state: %LightState{type: :circadian}}, true), do: false
@@ -302,38 +232,24 @@ defmodule Hueworks.Scenes.Intent do
 
   defp maybe_apply_power_override(desired, nil, _power_policy), do: desired
 
-  defp maybe_apply_power_override(desired, _power, power_policy)
-       when power_policy in [
-              :force_on,
-              "force_on",
-              :force_off,
-              "force_off",
-              :follow_presence,
-              "follow_presence"
-            ],
-       do: desired
+  defp maybe_apply_power_override(desired, power, power_policy) do
+    if PowerPolicy.overridable?(power_policy) do
+      apply_power_override(desired, power)
+    else
+      desired
+    end
+  end
 
-  defp maybe_apply_power_override(desired, power, _power_policy) when power in [:on, :off],
+  defp apply_power_override(desired, power) when power in [:on, :off],
     do: put_attr(desired, :power, power)
 
-  defp maybe_apply_power_override(desired, "on", _power_policy),
+  defp apply_power_override(desired, "on"),
     do: put_attr(desired, :power, :on)
 
-  defp maybe_apply_power_override(desired, "off", _power_policy),
+  defp apply_power_override(desired, "off"),
     do: put_attr(desired, :power, :off)
 
-  defp maybe_apply_power_override(desired, _power, _power_policy), do: desired
-
-  defp force_power_policy?(policy),
-    do:
-      policy in [
-        :force_on,
-        "force_on",
-        :force_off,
-        "force_off",
-        :follow_presence,
-        "follow_presence"
-      ]
+  defp apply_power_override(desired, _power), do: desired
 
   defp explicit_off_intent?(state), do: power_value(state) == :off
 

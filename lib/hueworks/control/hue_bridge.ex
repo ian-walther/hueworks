@@ -8,29 +8,19 @@ defmodule Hueworks.Control.HueBridge do
   @cache_namespace :bridge_credentials
   @default_ttl_ms 10_000
 
-  def credentials_for(entity) do
-    case bridge_host(entity) do
-      nil ->
-        {:error, :missing_bridge_host}
-
-      host ->
-        Cache.get_or_load(
-          @cache_namespace,
-          {:hue, host},
-          fn -> load_credentials(host) end,
-          ttl_ms: credentials_cache_ttl_ms()
-        )
-    end
+  def credentials_for(%{bridge_id: bridge_id}) when is_integer(bridge_id) do
+    Cache.get_or_load(
+      @cache_namespace,
+      {:hue, bridge_id},
+      fn -> load_credentials(bridge_id) end,
+      ttl_ms: credentials_cache_ttl_ms()
+    )
   end
 
-  defp bridge_host(%{metadata: metadata}) when is_map(metadata) do
-    metadata["bridge_host"]
-  end
+  def credentials_for(_entity), do: {:error, :missing_bridge_id}
 
-  defp bridge_host(_entity), do: nil
-
-  defp load_credentials(host) do
-    case Repo.get_by(Bridge, type: :hue, host: host) do
+  defp load_credentials(bridge_id) do
+    case Repo.get(Bridge, bridge_id) do
       nil ->
         {:error, :bridge_not_found}
 
@@ -38,7 +28,7 @@ defmodule Hueworks.Control.HueBridge do
         api_key = Bridge.credentials_struct(bridge).api_key
 
         if is_binary(api_key) and api_key != "" do
-          {:ok, host, api_key}
+          {:ok, bridge.host, api_key}
         else
           {:error, :missing_api_key}
         end

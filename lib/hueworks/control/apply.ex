@@ -76,7 +76,7 @@ defmodule Hueworks.Control.Apply do
           {:ok, planner_result()} | {:error, {:invalid_room_id, integer()}}
   def plan_and_enqueue(room_id, diff, opts) when is_integer(room_id) and is_map(diff) do
     trace = Keyword.get(opts, :trace)
-    enqueue_mode = Keyword.get(opts, :enqueue_mode, :replace)
+    enqueue_mode = Keyword.get(opts, :enqueue_mode, :replace_targets)
 
     planner_started_ms = System.monotonic_time(:millisecond)
     plan = build_plan(room_id, diff, trace: trace)

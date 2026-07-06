@@ -3,7 +3,7 @@ defmodule Hueworks.Import.Duplicates do
 
   import Ecto.Query, only: [from: 2]
 
-  alias Hueworks.Import.{EntityMatch, Identifiers, Normalize}
+  alias Hueworks.Import.{EntityMatch, Identifiers, Normalize, Source}
   alias Hueworks.Repo
   alias Hueworks.Schemas.{Group, GroupLight, Light}
 
@@ -11,7 +11,7 @@ defmodule Hueworks.Import.Duplicates do
 
   def reject_hueworks_exported(entities) do
     Enum.reject(entities, fn entity ->
-      source = normalize_source(Normalize.fetch(entity, :source))
+      source = Source.normalize(Normalize.fetch(entity, :source))
       metadata = Normalize.fetch(entity, :metadata) || %{}
       unique_id = Normalize.fetch(metadata, :unique_id) || Normalize.fetch(metadata, "unique_id")
 
@@ -34,7 +34,7 @@ defmodule Hueworks.Import.Duplicates do
     }
 
     Enum.reduce(lights, %{}, fn light, acc ->
-      if normalize_source(Normalize.fetch(light, :source)) == :ha do
+      if Source.normalize(Normalize.fetch(light, :source)) == :ha do
         case unique_native_light_match(light, indexes) do
           nil -> acc
           id -> Map.put(acc, source_id(light), id)
@@ -81,7 +81,7 @@ defmodule Hueworks.Import.Duplicates do
   def existing_light_canonical_targets(_bridge_id, _lights), do: %{}
 
   def group_target(group, source_id_to_canonical_light_id) do
-    if normalize_source(Normalize.fetch(group, :source)) == :ha do
+    if Source.normalize(Normalize.fetch(group, :source)) == :ha do
       with {:ok, member_set} <- canonical_member_set(group, source_id_to_canonical_light_id),
            group_id when is_integer(group_id) <- unique_native_group_match(member_set) do
         group_id
@@ -177,18 +177,4 @@ defmodule Hueworks.Import.Duplicates do
 
   defp source_id(entity),
     do: entity |> Normalize.fetch(:source_id) |> Normalize.normalize_source_id()
-
-  defp normalize_source(source) when is_atom(source), do: source
-
-  defp normalize_source(source) when is_binary(source) do
-    case source do
-      "hue" -> :hue
-      "ha" -> :ha
-      "caseta" -> :caseta
-      "z2m" -> :z2m
-      _ -> source
-    end
-  end
-
-  defp normalize_source(source), do: source
 end
