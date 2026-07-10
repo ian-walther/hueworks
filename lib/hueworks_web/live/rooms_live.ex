@@ -5,6 +5,7 @@ defmodule HueworksWeb.RoomsLive do
   alias Hueworks.PresenceInputs
   alias Hueworks.Rooms
   alias Hueworks.Scenes
+  alias Hueworks.Util
 
   def mount(_params, _session, socket) do
     if connected?(socket) do
@@ -44,18 +45,18 @@ defmodule HueworksWeb.RoomsLive do
   end
 
   def handle_event("open_edit", %{"id" => id}, socket) do
-    case Rooms.get_room(String.to_integer(id)) do
-      nil ->
+    with room_id when is_integer(room_id) <- Util.parse_id(id),
+         %{} = room <- Rooms.get_room(room_id) do
+      {:noreply,
+       assign(socket,
+         modal_open: true,
+         edit_mode: :edit,
+         edit_room_id: room.id,
+         edit_name: Hueworks.Util.display_name(room)
+       )}
+    else
+      _ ->
         {:noreply, socket}
-
-      room ->
-        {:noreply,
-         assign(socket,
-           modal_open: true,
-           edit_mode: :edit,
-           edit_room_id: room.id,
-           edit_name: Hueworks.Util.display_name(room)
-         )}
     end
   end
 
@@ -64,7 +65,7 @@ defmodule HueworksWeb.RoomsLive do
   end
 
   def handle_event("open_scene_new", %{"id" => id}, socket) do
-    case Hueworks.Util.parse_id(id) do
+    case Util.parse_id(id) do
       nil ->
         {:noreply, socket}
 
@@ -74,53 +75,43 @@ defmodule HueworksWeb.RoomsLive do
   end
 
   def handle_event("open_scene_edit", %{"id" => id}, socket) do
-    case Scenes.get_scene(Hueworks.Util.parse_id(id)) do
-      nil ->
+    with scene_id when is_integer(scene_id) <- Util.parse_id(id),
+         %{} = scene <- Scenes.get_scene(scene_id) do
+      {:noreply, push_navigate(socket, to: "/rooms/#{scene.room_id}/scenes/#{scene.id}/edit")}
+    else
+      _ ->
         {:noreply, socket}
-
-      scene ->
-        {:noreply, push_navigate(socket, to: "/rooms/#{scene.room_id}/scenes/#{scene.id}/edit")}
     end
   end
 
   def handle_event("open_scene_clone", %{"id" => id}, socket) do
-    case Scenes.get_scene(Hueworks.Util.parse_id(id)) do
-      nil ->
+    with scene_id when is_integer(scene_id) <- Util.parse_id(id),
+         %{} = scene <- Scenes.get_scene(scene_id) do
+      {:noreply,
+       push_navigate(socket,
+         to: "/rooms/#{scene.room_id}/scenes/new?clone_scene_id=#{scene.id}"
+       )}
+    else
+      _ ->
         {:noreply, socket}
-
-      scene ->
-        {:noreply,
-         push_navigate(socket,
-           to: "/rooms/#{scene.room_id}/scenes/new?clone_scene_id=#{scene.id}"
-         )}
     end
   end
 
   def handle_event("delete_scene", %{"id" => id}, socket) do
-    case Scenes.get_scene(String.to_integer(id)) do
-      nil ->
+    with scene_id when is_integer(scene_id) <- Util.parse_id(id),
+         %{} = scene <- Scenes.get_scene(scene_id) do
+      _ = Scenes.delete_scene(scene)
+      {:noreply, refresh_rooms(socket)}
+    else
+      _ ->
         {:noreply, socket}
-
-      scene ->
-        _ = Scenes.delete_scene(scene)
-        {:noreply, refresh_rooms(socket)}
     end
   end
 
   def handle_event("activate_scene", %{"id" => id}, socket) do
-    with scene_id when is_integer(scene_id) <- Hueworks.Util.parse_id(id),
-         %{} = scene <- Scenes.get_scene(scene_id) do
-      case ActiveScenes.get_for_room(scene.room_id) do
-        %{scene_id: ^scene_id} ->
-          _ = ActiveScenes.clear_for_room(scene.room_id)
-
-        current_active ->
-          trace =
-            activation_trace(scene.room_id, Map.get(current_active || %{}, :scene_id), scene_id)
-
-          _ = Scenes.activate_scene(scene_id, trace: trace)
-      end
-
+    with scene_id when is_integer(scene_id) <- Util.parse_id(id),
+         {:ok, _action, _scene} <-
+           normalize_toggle_result(Scenes.toggle_activation(scene_id, :rooms_live)) do
       {:noreply, assign(socket, active_scene_assigns())}
     else
       _ ->
@@ -165,7 +156,7 @@ defmodule HueworksWeb.RoomsLive do
   end
 
   def handle_event("create_presence_input", %{"room_id" => room_id, "name" => name}, socket) do
-    with room_id when is_integer(room_id) <- Hueworks.Util.parse_id(room_id),
+    with room_id when is_integer(room_id) <- Util.parse_id(room_id),
          trimmed when trimmed != "" <- String.trim(name) do
       _ = PresenceInputs.create_input(room_id, %{name: trimmed, occupied: false, metadata: %{}})
       {:noreply, refresh_rooms(socket)}
@@ -175,7 +166,7 @@ defmodule HueworksWeb.RoomsLive do
   end
 
   def handle_event("update_presence_input", %{"input_id" => input_id, "name" => name}, socket) do
-    with input_id when is_integer(input_id) <- Hueworks.Util.parse_id(input_id),
+    with input_id when is_integer(input_id) <- Util.parse_id(input_id),
          trimmed when trimmed != "" <- String.trim(name),
          %{} = input <- PresenceInputs.get_input(input_id) do
       _ = PresenceInputs.update_input(input, %{name: trimmed})
@@ -186,7 +177,7 @@ defmodule HueworksWeb.RoomsLive do
   end
 
   def handle_event("delete_presence_input", %{"id" => input_id}, socket) do
-    with input_id when is_integer(input_id) <- Hueworks.Util.parse_id(input_id),
+    with input_id when is_integer(input_id) <- Util.parse_id(input_id),
          %{} = input <- PresenceInputs.get_input(input_id) do
       _ = PresenceInputs.delete_input(input)
       {:noreply, refresh_rooms(socket)}
@@ -196,13 +187,13 @@ defmodule HueworksWeb.RoomsLive do
   end
 
   def handle_event("delete_room", %{"id" => id}, socket) do
-    case Rooms.get_room(String.to_integer(id)) do
-      nil ->
+    with room_id when is_integer(room_id) <- Util.parse_id(id),
+         %{} = room <- Rooms.get_room(room_id) do
+      _ = Rooms.delete_room(room)
+      {:noreply, refresh_rooms(socket)}
+    else
+      _ ->
         {:noreply, socket}
-
-      room ->
-        _ = Rooms.delete_room(room)
-        {:noreply, refresh_rooms(socket)}
     end
   end
 
@@ -234,17 +225,6 @@ defmodule HueworksWeb.RoomsLive do
     }
   end
 
-  defp activation_trace(room_id, from_scene_id, to_scene_id) do
-    %{
-      trace_id: "scene-#{room_id}-#{System.unique_integer([:positive])}",
-      source: "rooms_live.activate_scene",
-      room_id: room_id,
-      from_scene_id: from_scene_id,
-      to_scene_id: to_scene_id,
-      started_at_ms: System.monotonic_time(:millisecond)
-    }
-  end
-
   defp put_active_scene(active_scene_by_room, room_id, scene_id) do
     active_scene_by_room = active_scene_by_room || %{}
 
@@ -253,4 +233,9 @@ defmodule HueworksWeb.RoomsLive do
       _ -> Map.delete(active_scene_by_room, room_id)
     end
   end
+
+  defp normalize_toggle_result({:ok, :activated, scene, _diff, _updated}),
+    do: {:ok, :activated, scene}
+
+  defp normalize_toggle_result(result), do: result
 end

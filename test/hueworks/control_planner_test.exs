@@ -513,12 +513,12 @@ defmodule Hueworks.Control.PlannerTest do
 
     table_action =
       Enum.find(actions, fn action ->
-        action.type == :group and (action.desired[:kelvin] || action.desired["kelvin"]) == 2200
+        action.type == :group and Map.get(action.desired, :kelvin) == 2200
       end)
 
     ceiling_action =
       Enum.find(actions, fn action ->
-        action.type == :group and (action.desired[:kelvin] || action.desired["kelvin"]) == 2000
+        action.type == :group and Map.get(action.desired, :kelvin) == 2000
       end)
 
     assert table_action
@@ -654,15 +654,13 @@ defmodule Hueworks.Control.PlannerTest do
 
     temp_action =
       Enum.find(actions, fn action ->
-        action.type == :group and (action.desired[:kelvin] || action.desired["kelvin"]) == 2600
+        action.type == :group and Map.get(action.desired, :kelvin) == 2600
       end)
 
     dim_action =
       Enum.find(actions, fn action ->
         action.type == :group and
-          not Map.has_key?(action.desired, :kelvin) and not Map.has_key?(action.desired, "kelvin") and
-          not Map.has_key?(action.desired, :temperature) and
-          not Map.has_key?(action.desired, "temperature")
+          not Map.has_key?(action.desired, :kelvin)
       end)
 
     assert temp_action
@@ -692,11 +690,11 @@ defmodule Hueworks.Control.PlannerTest do
     assert Enum.any?(actions, &(&1.type == :group))
 
     assert Enum.any?(actions, fn action ->
-             (action.desired[:kelvin] || action.desired["kelvin"]) == 2202
+             Map.get(action.desired, :kelvin) == 2202
            end)
 
     assert Enum.any?(actions, fn action ->
-             (action.desired[:kelvin] || action.desired["kelvin"]) == 2000
+             Map.get(action.desired, :kelvin) == 2000
            end)
 
     group_lights =
@@ -714,7 +712,7 @@ defmodule Hueworks.Control.PlannerTest do
 
     actual_kelvin_by_light =
       Enum.reduce(actions, %{}, fn action, acc ->
-        kelvin = action.desired[:kelvin] || action.desired["kelvin"]
+        kelvin = action.desired[:kelvin]
 
         cond do
           is_nil(kelvin) ->
@@ -804,7 +802,7 @@ defmodule Hueworks.Control.PlannerTest do
 
     kelvins =
       clamped_actions
-      |> Enum.map(fn action -> action.desired[:kelvin] || action.desired["kelvin"] end)
+      |> Enum.map(fn action -> action.desired[:kelvin] end)
       |> Enum.sort()
 
     assert kelvins == [2000, 2000, 2000, 2000, 2202]

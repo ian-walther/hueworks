@@ -27,24 +27,33 @@ defmodule Hueworks.Control.Z2MConfig do
 
   def tortoise_auth_opts(_config), do: []
 
-  defp normalize_base_topic(value) when is_binary(value) do
+  def normalize_base_topic(value) when is_binary(value) do
     value = String.trim(value)
     if value == "", do: @default_base_topic, else: value
   end
 
-  defp normalize_base_topic(_value), do: @default_base_topic
+  def normalize_base_topic(_value), do: @default_base_topic
 
-  defp normalize_port(value) do
-    case Util.parse_optional_integer(value) do
-      port when is_integer(port) and port > 0 and port <= 65_535 -> port
+  def normalize_port(value) do
+    case parse_port(value) do
+      port when is_integer(port) -> port
       _ -> @default_port
     end
   end
 
-  defp normalize_optional(value) when is_binary(value) do
+  def valid_port?(value), do: is_integer(parse_port(value))
+
+  def normalize_optional(value) when is_binary(value) do
     value = String.trim(value)
     if value == "", do: nil, else: value
   end
 
-  defp normalize_optional(_value), do: nil
+  def normalize_optional(_value), do: nil
+
+  defp parse_port(value) do
+    case Util.parse_optional_integer(value) do
+      port when is_integer(port) and port > 0 and port <= 65_535 -> port
+      _ -> nil
+    end
+  end
 end

@@ -697,7 +697,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
     _ = :sys.get_state(Export)
     drain_published_messages()
 
-    State.put(:light, light.id, %{power: :on, brightness: 55, kelvin: 3200})
+    State.put(:light, light.id, %{"power" => "ON", "brightness" => 55, "temperature" => 3200})
 
     {_client_id, _topic, payload} =
       assert_publish("hueworks/ha_export/lights/#{light.id}/light/state")

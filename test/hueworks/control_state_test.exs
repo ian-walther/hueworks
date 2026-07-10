@@ -46,12 +46,7 @@ defmodule Hueworks.Control.StateTest do
     assert State.get(:light, 10_004) == %{power: :off, brightness: 60, kelvin: 3100}
   end
 
-  test "put and ensure canonicalize state keys at the physical-state boundary" do
-    assert State.ensure(:light, 10_005, %{"power" => "ON", "temperature" => 2700}) == %{
-             power: :on,
-             kelvin: 2700
-           }
-
+  test "put canonicalizes state keys at the physical-state boundary" do
     assert State.put(:light, 10_006, %{"power" => "off", "brightness" => 25}) == %{
              power: :off,
              brightness: 25

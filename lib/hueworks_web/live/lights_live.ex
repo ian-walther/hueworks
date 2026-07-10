@@ -1,6 +1,8 @@
 defmodule HueworksWeb.LightsLive do
   use Phoenix.LiveView
 
+  import HueworksWeb.Notices
+
   alias HueworksWeb.LightsLive.ActionFlow
   alias HueworksWeb.LightsLive.EditFlow
   alias HueworksWeb.LightsLive.Editor
@@ -94,29 +96,5 @@ defmodule HueworksWeb.LightsLive do
       {:ok, updates} -> {:noreply, assign(socket, updates)}
       :ignore -> {:noreply, socket}
     end
-  end
-
-  defp maybe_put_status_flash(socket) do
-    case socket.assigns[:status] do
-      status when is_binary(status) ->
-        socket
-        |> assign(:status, nil)
-        |> put_notice(:info, status)
-
-      _ ->
-        socket
-    end
-  end
-
-  defp put_notice(socket, :info, message) when is_binary(message) do
-    socket
-    |> clear_flash(:error)
-    |> put_flash(:info, message)
-  end
-
-  defp put_notice(socket, :error, message) when is_binary(message) do
-    socket
-    |> clear_flash(:info)
-    |> put_flash(:error, message)
   end
 end

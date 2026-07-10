@@ -1,13 +1,23 @@
 defmodule HueworksWeb.BridgeSetupLive do
   use Phoenix.LiveView
-  import Ecto.Query, only: [from: 2]
+
+  import HueworksWeb.Notices
 
   alias Hueworks.Repo
   alias Hueworks.Bridges
+  alias Hueworks.Import
+
+  alias Hueworks.Import.{
+    DestructiveReview,
+    Normalize,
+    NormalizeFromDb,
+    Plan,
+    ReimportPlan,
+    ReviewPlan
+  }
+
+  alias Hueworks.Schemas.Room
   alias Hueworks.Schemas.Bridge
-  alias Hueworks.Schemas.{Group, Light, Room}
-  alias Hueworks.Util
-  alias Hueworks.Import.{Materialize, Normalize, NormalizeFromDb, Plan, ReimportPlan}
   import Hueworks.Import.Normalize, only: [fetch: 2]
 
   def mount(%{"id" => id} = params, _session, socket) do
@@ -15,7 +25,7 @@ defmodule HueworksWeb.BridgeSetupLive do
     rooms = Repo.all(Room)
     reimport = Map.get(params, "reimport") == "1"
 
-    if not reimport and imported_bridge?(bridge) do
+    if not reimport and Bridges.imported?(bridge) do
       {:ok, redirect(socket, to: "/config/bridge/#{bridge.id}/setup?reimport=1")}
     else
       if connected?(socket) do
@@ -37,23 +47,20 @@ defmodule HueworksWeb.BridgeSetupLive do
          reimport: reimport,
          reimport_statuses: %{},
          reimport_summary: %{},
+         destructive_confirmation: [],
          rooms: rooms
        )}
     end
   end
 
-  defp imported_bridge?(bridge) do
-    bridge.import_complete or
-      Repo.exists?(from(l in Light, where: l.bridge_id == ^bridge.id)) or
-      Repo.exists?(from(g in Group, where: g.bridge_id == ^bridge.id))
-  end
-
   def handle_event("toggle_light", %{"id" => source_id}, socket) do
-    {:noreply, update_plan(socket, :lights, source_id)}
+    plan = ReviewPlan.toggle_entity(socket.assigns.plan, :lights, source_id)
+    {:noreply, assign_plan(socket, plan)}
   end
 
   def handle_event("toggle_group", %{"id" => source_id}, socket) do
-    {:noreply, update_plan(socket, :groups, source_id)}
+    plan = ReviewPlan.toggle_entity(socket.assigns.plan, :groups, source_id)
+    {:noreply, assign_plan(socket, plan)}
   end
 
   def handle_event("toggle_all", %{"action" => action}, socket) do
@@ -81,8 +88,8 @@ defmodule HueworksWeb.BridgeSetupLive do
   end
 
   def handle_event("set_room_action", %{"room_id" => source_id, "action" => action}, socket) do
-    plan = put_room_plan(socket.assigns.plan, source_id, %{"action" => action})
-    {:noreply, assign(socket, plan: plan)}
+    plan = ReviewPlan.put_room(socket.assigns.plan, source_id, %{"action" => action})
+    {:noreply, assign_plan(socket, plan)}
   end
 
   def handle_event("import_configuration", _params, socket) do
@@ -95,12 +102,12 @@ defmodule HueworksWeb.BridgeSetupLive do
         socket
       ) do
     plan =
-      put_room_plan(socket.assigns.plan, source_id, %{
+      ReviewPlan.put_room(socket.assigns.plan, source_id, %{
         "action" => "merge",
         "target_room_id" => target_room_id
       })
 
-    {:noreply, assign(socket, plan: plan)}
+    {:noreply, assign_plan(socket, plan)}
   end
 
   def handle_event(
@@ -108,8 +115,8 @@ defmodule HueworksWeb.BridgeSetupLive do
         %{"type" => type, "source_id" => source_id, "target_room_id" => target_room_id},
         socket
       ) do
-    plan = put_entity_room_plan(socket.assigns.plan, type, source_id, target_room_id)
-    {:noreply, assign(socket, plan: plan)}
+    plan = ReviewPlan.put_entity_room(socket.assigns.plan, type, source_id, target_room_id)
+    {:noreply, assign_plan(socket, plan)}
   end
 
   def handle_event(
@@ -117,27 +124,44 @@ defmodule HueworksWeb.BridgeSetupLive do
         %{"type" => type, "source_id" => source_id, "resolution" => resolution},
         socket
       ) do
-    plan = put_entity_resolution(socket.assigns.plan, type, source_id, resolution)
-    {:noreply, assign(socket, plan: plan)}
+    plan = ReviewPlan.put_entity_resolution(socket.assigns.plan, type, source_id, resolution)
+    {:noreply, assign_plan(socket, plan)}
   end
 
-  def handle_event("apply_materialization", _params, socket) do
+  def handle_event("apply_materialization", params, socket) do
     plan = socket.assigns.plan || %{}
     normalized = socket.assigns.normalized_import || %{}
     bridge_import = socket.assigns.bridge_import
+    confirmed? = Map.get(params, "confirmed") == "true"
 
-    with {:ok, reviewed} <- update_review_blob(bridge_import, plan),
-         :ok <- Materialize.materialize(socket.assigns.bridge, normalized, plan),
-         {:ok, applied} <- mark_applied(reviewed),
-         {:ok, bridge} <- mark_bridge_complete(socket.assigns.bridge) do
-      {:noreply,
-       socket
-       |> assign(bridge_import: applied, import_status: :applied, bridge: bridge)
-       |> push_navigate(to: "/config")}
-    else
-      {:error, reason} ->
-        {:noreply, handle_apply_error(socket, reason)}
+    case destructive_confirmation(socket, plan, confirmed?) do
+      {:confirm, confirmation} ->
+        {:noreply,
+         socket
+         |> assign(destructive_confirmation: confirmation)
+         |> put_notice(:info, "Review and confirm destructive reimport changes before applying.")}
+
+      :apply ->
+        with {:ok, %{bridge_import: applied, bridge: bridge}} <-
+               Import.apply_review(socket.assigns.bridge, bridge_import, normalized, plan) do
+          {:noreply,
+           socket
+           |> assign(
+             bridge_import: applied,
+             import_status: :applied,
+             bridge: bridge,
+             destructive_confirmation: []
+           )
+           |> push_navigate(to: "/config")}
+        else
+          {:error, reason} ->
+            {:noreply, handle_apply_error(socket, reason)}
+        end
     end
+  end
+
+  def handle_event("cancel_destructive_confirmation", _params, socket) do
+    {:noreply, assign(socket, destructive_confirmation: [])}
   end
 
   def handle_info(:import_configuration, socket) do
@@ -209,7 +233,7 @@ defmodule HueworksWeb.BridgeSetupLive do
       plan =
         review_blob
         |> Kernel.||(Plan.build_default(normalized))
-        |> apply_room_merge_defaults(normalized, socket.assigns.rooms)
+        |> ReviewPlan.apply_room_merge_defaults(normalized, socket.assigns.rooms)
 
       assign(socket,
         normalized: normalized,
@@ -221,62 +245,17 @@ defmodule HueworksWeb.BridgeSetupLive do
     end
   end
 
-  defp update_plan(socket, type, source_id) do
-    source_id = Normalize.normalize_source_id(source_id)
-    plan = socket.assigns.plan || %{}
-    map = Normalize.fetch(plan, type) || %{}
+  defp assign_plan(socket, plan), do: assign(socket, plan: plan, destructive_confirmation: [])
 
-    if is_binary(source_id) do
-      current = Map.get(map, source_id, true)
-      updated = Map.put(map, source_id, toggle_selection(current))
-      assign(socket, plan: Map.put(plan, type, updated))
-    else
-      assign(socket, plan: plan)
+  defp destructive_confirmation(_socket, _plan, true), do: :apply
+
+  defp destructive_confirmation(%{assigns: %{reimport: false}}, _plan, _confirmed?), do: :apply
+
+  defp destructive_confirmation(socket, plan, _confirmed?) do
+    case DestructiveReview.summarize(socket.assigns.bridge, plan) do
+      [] -> :apply
+      confirmation -> {:confirm, confirmation}
     end
-  end
-
-  defp put_room_plan(plan, source_id, attrs) do
-    source_id = Normalize.normalize_source_id(source_id)
-    plan = plan || %{}
-    rooms = Normalize.fetch(plan, :rooms) || %{}
-
-    if is_binary(source_id) do
-      current = Map.get(rooms, source_id, %{})
-      updated = Map.merge(current, attrs)
-      Map.put(plan, :rooms, Map.put(rooms, source_id, updated))
-    else
-      plan
-    end
-  end
-
-  defp update_review_blob(nil, _plan), do: {:ok, nil}
-
-  defp update_review_blob(bridge_import, plan) do
-    bridge_import
-    |> Hueworks.Schemas.BridgeImport.changeset(%{review_blob: plan, status: :reviewed})
-    |> Repo.update(stale_error_field: :review_blob)
-  end
-
-  defp mark_applied(bridge_import) do
-    result =
-      bridge_import
-      |> Hueworks.Schemas.BridgeImport.changeset(%{status: :applied})
-      |> Repo.update(stale_error_field: :status)
-
-    case result do
-      {:ok, applied} ->
-        Bridges.prune_imports_for_bridge(applied.bridge_id)
-        {:ok, applied}
-
-      error ->
-        error
-    end
-  end
-
-  defp mark_bridge_complete(bridge) do
-    bridge
-    |> Bridge.changeset(%{import_complete: true})
-    |> Repo.update(stale_error_field: :import_complete)
   end
 
   defp handle_apply_error(socket, reason) do
@@ -378,272 +357,35 @@ defmodule HueworksWeb.BridgeSetupLive do
   defp summary_count(summary, status), do: Map.get(summary || %{}, status, 0)
 
   defp apply_bulk_toggle(socket, value) do
-    plan = socket.assigns.plan || %{}
     normalized = normalized_for_plan(socket)
-    rooms = normalized_entries(normalized, :rooms)
-    lights = normalized_entries(normalized, :lights)
-    groups = normalized_entries(normalized, :groups)
-    room_ids = entity_ids(rooms)
-    light_ids = entity_ids(lights)
-    group_ids = entity_ids(groups)
 
-    action = if value == "check", do: "check", else: "skip"
-    selected = value == "check"
-
-    plan
-    |> put_room_actions(room_ids, action, normalized, socket.assigns.rooms)
-    |> put_selection(:lights, light_ids, selected)
-    |> put_selection(:groups, group_ids, selected)
-    |> then(&assign(socket, plan: &1))
+    socket.assigns.plan
+    |> ReviewPlan.apply_bulk_toggle(normalized, socket.assigns.rooms, value)
+    |> then(&assign_plan(socket, &1))
   end
 
   defp apply_room_toggle(socket, room_id, value) do
-    plan = socket.assigns.plan || %{}
     normalized = normalized_for_plan(socket)
-    selected = value == "check"
-    action = if selected, do: "check", else: "skip"
 
-    light_ids = room_entity_ids(normalized, room_id, :lights)
-    group_ids = room_entity_ids(normalized, room_id, :groups)
-    room_ids = room_entity_ids(normalized, room_id, :rooms)
-
-    plan
-    |> put_room_actions(room_ids, action, normalized, socket.assigns.rooms)
-    |> put_selection(:lights, light_ids, selected)
-    |> put_selection(:groups, group_ids, selected)
-    |> then(&assign(socket, plan: &1))
+    socket.assigns.plan
+    |> ReviewPlan.apply_room_toggle(normalized, socket.assigns.rooms, room_id, value)
+    |> then(&assign_plan(socket, &1))
   end
 
   defp apply_room_section_toggle(socket, room_id, section, value) do
-    plan = socket.assigns.plan || %{}
     normalized = normalized_for_plan(socket)
-    selected = value == "check"
-    section_key = if section == "groups", do: :groups, else: :lights
 
-    ids =
-      if room_id == "unassigned" do
-        unassigned_entity_ids(normalized, section_key)
-      else
-        room_entity_ids(normalized, room_id, section_key)
-      end
-
-    plan
-    |> put_selection(section_key, ids, selected)
-    |> then(&assign(socket, plan: &1))
+    socket.assigns.plan
+    |> ReviewPlan.apply_room_section_toggle(normalized, room_id, section, value)
+    |> then(&assign_plan(socket, &1))
   end
 
   defp apply_bulk_resolution(socket, status, resolution) do
-    status = normalize_status(status)
-    plan = socket.assigns.plan || %{}
     statuses = socket.assigns.reimport_statuses || %{}
 
-    plan
-    |> put_bulk_resolution(:lights, Normalize.fetch(statuses, :lights) || %{}, status, resolution)
-    |> put_bulk_resolution(:groups, Normalize.fetch(statuses, :groups) || %{}, status, resolution)
-    |> then(&assign(socket, plan: &1))
-  end
-
-  defp put_bulk_resolution(plan, key, statuses, status, resolution) do
-    ids =
-      statuses
-      |> Enum.filter(fn {_source_id, entity_status} -> entity_status == status end)
-      |> Enum.map(fn {source_id, _entity_status} -> source_id end)
-
-    Enum.reduce(ids, plan, fn source_id, acc ->
-      put_entity_resolution(acc, Atom.to_string(key), source_id, resolution)
-    end)
-  end
-
-  defp normalize_status("new"), do: :new
-  defp normalize_status("missing"), do: :missing
-  defp normalize_status("duplicate"), do: :duplicate
-  defp normalize_status("ambiguous_identity"), do: :ambiguous_identity
-  defp normalize_status(status) when is_atom(status), do: status
-  defp normalize_status(_status), do: nil
-
-  defp put_room_actions(plan, room_ids, action, normalized, rooms) do
-    plan = plan || %{}
-    plan_rooms = Normalize.fetch(plan, :rooms) || %{}
-
-    updated =
-      Enum.reduce(room_ids, plan_rooms, fn room_id, acc ->
-        current = Map.get(acc, room_id, %{})
-        new_attrs = room_action_for(room_id, action, normalized, rooms)
-        Map.put(acc, room_id, Map.merge(current, new_attrs))
-      end)
-
-    Map.put(plan, :rooms, updated)
-  end
-
-  defp put_selection(plan, key, ids, selected) do
-    plan = plan || %{}
-    map = Normalize.fetch(plan, key) || %{}
-
-    updated =
-      Enum.reduce(ids, map, fn id, acc ->
-        Map.put(acc, id, merge_selection_value(Map.get(acc, id, true), selected))
-      end)
-
-    Map.put(plan, key, updated)
-  end
-
-  defp put_entity_room_plan(plan, type, source_id, target_room_id) do
-    key = if type == "groups", do: :groups, else: :lights
-    source_id = Normalize.normalize_source_id(source_id)
-    plan = plan || %{}
-    map = Normalize.fetch(plan, key) || %{}
-
-    if is_binary(source_id) do
-      current = Map.get(map, source_id, true)
-
-      updated =
-        current
-        |> selection_map()
-        |> Map.put("target_room_id", blank_to_nil(target_room_id))
-
-      Map.put(plan, key, Map.put(map, source_id, updated))
-    else
-      plan
-    end
-  end
-
-  defp put_entity_resolution(plan, type, source_id, resolution) do
-    key = if type == "groups", do: :groups, else: :lights
-    source_id = Normalize.normalize_source_id(source_id)
-    plan = plan || %{}
-    map = Normalize.fetch(plan, key) || %{}
-
-    if is_binary(source_id) do
-      current = Map.get(map, source_id, true)
-
-      updated =
-        current
-        |> selection_map()
-        |> Map.put("resolution", resolution)
-        |> Map.put("selected", resolution_selected?(resolution))
-
-      Map.put(plan, key, Map.put(map, source_id, updated))
-    else
-      plan
-    end
-  end
-
-  defp entity_ids(entries) do
-    entries
-    |> Enum.map(fn entry ->
-      entry
-      |> Normalize.fetch(:source_id)
-      |> Normalize.normalize_source_id()
-    end)
-    |> Enum.filter(&is_binary/1)
-  end
-
-  defp room_entity_ids(_normalized, room_id, :rooms) do
-    case Normalize.normalize_source_id(room_id) do
-      nil -> []
-      id -> [id]
-    end
-  end
-
-  defp room_entity_ids(normalized, room_id, type) when type in [:lights, :groups] do
-    room_key = Normalize.normalize_source_id(room_id)
-    entries = normalized_entries(normalized, type)
-
-    if is_binary(room_key) do
-      entries
-      |> Enum.reduce([], fn entry, acc ->
-        entry_room =
-          entry
-          |> Normalize.fetch(:room_source_id)
-          |> Normalize.normalize_source_id()
-
-        if entry_room == room_key do
-          case Normalize.normalize_source_id(Normalize.fetch(entry, :source_id)) do
-            nil -> acc
-            id -> [id | acc]
-          end
-        else
-          acc
-        end
-      end)
-      |> Enum.reverse()
-    else
-      []
-    end
-  end
-
-  defp unassigned_entity_ids(normalized, type) when type in [:lights, :groups] do
-    room_keys =
-      normalized_entries(normalized, :rooms)
-      |> Enum.map(fn room ->
-        room
-        |> Normalize.fetch(:source_id)
-        |> Normalize.normalize_source_id()
-      end)
-      |> Enum.filter(&is_binary/1)
-
-    normalized_entries(normalized, type)
-    |> Enum.reduce([], fn entry, acc ->
-      room_key =
-        entry
-        |> Normalize.fetch(:room_source_id)
-        |> Normalize.normalize_source_id()
-
-      if not is_binary(room_key) or not Enum.member?(room_keys, room_key) do
-        case Normalize.normalize_source_id(Normalize.fetch(entry, :source_id)) do
-          nil -> acc
-          id -> [id | acc]
-        end
-      else
-        acc
-      end
-    end)
-    |> Enum.reverse()
-  end
-
-  defp apply_room_merge_defaults(plan, normalized, rooms) do
-    plan = plan || %{}
-    room_entries = normalized_entries(normalized, :rooms)
-    room_ids = entity_ids(room_entries)
-    put_room_actions(plan, room_ids, "check", normalized, rooms)
-  end
-
-  defp room_action_for(_room_id, "skip", _normalized, _rooms) do
-    %{"action" => "skip", "target_room_id" => nil}
-  end
-
-  defp room_action_for(room_id, _action, normalized, rooms) do
-    room_entries = normalized_entries(normalized, :rooms)
-    source_id = Normalize.normalize_source_id(room_id)
-
-    room =
-      Enum.find(room_entries, fn entry ->
-        Normalize.normalize_source_id(Normalize.fetch(entry, :source_id)) == source_id
-      end)
-
-    case matching_room_id(room, rooms) do
-      nil ->
-        %{"action" => "create", "target_room_id" => nil}
-
-      target_id ->
-        %{"action" => "merge", "target_room_id" => Integer.to_string(target_id)}
-    end
-  end
-
-  defp matching_room_id(nil, _rooms), do: nil
-
-  defp matching_room_id(room, rooms) do
-    name = Normalize.fetch(room, :name) || "Room"
-    normalized_name = Normalize.fetch(room, :normalized_name) || Util.normalize_room_name(name)
-
-    rooms
-    |> Enum.find_value(fn existing ->
-      if Util.normalize_room_name(existing.name) == normalized_name do
-        existing.id
-      else
-        nil
-      end
-    end)
+    socket.assigns.plan
+    |> ReviewPlan.apply_bulk_resolution(statuses, status, resolution)
+    |> then(&assign_plan(socket, &1))
   end
 
   defp pipeline_module do
@@ -651,121 +393,28 @@ defmodule HueworksWeb.BridgeSetupLive do
   end
 
   defp plan_selected?(plan, key, source_id) do
-    source_id = Normalize.normalize_source_id(source_id)
-    map = Normalize.fetch(plan, key) || %{}
-
-    if is_binary(source_id) do
-      case Map.get(map, source_id, true) do
-        false -> false
-        %{} = entry -> Map.get(entry, "selected", true)
-        _ -> true
-      end
-    else
-      false
-    end
+    ReviewPlan.selected?(plan, key, source_id)
   end
 
   defp entity_target_room(plan, key, source_id) do
-    source_id = Normalize.normalize_source_id(source_id)
-    map = Normalize.fetch(plan, key) || %{}
-
-    case source_id do
-      nil ->
-        nil
-
-      _ ->
-        Map.get(map, source_id, %{})
-        |> Normalize.fetch(:target_room_id)
-        |> Normalize.normalize_source_id()
-    end
+    ReviewPlan.entity_target_room(plan, key, source_id)
   end
 
   defp entity_resolution(plan, key, source_id) do
-    source_id = Normalize.normalize_source_id(source_id)
-    map = Normalize.fetch(plan, key) || %{}
-
-    case source_id do
-      nil ->
-        nil
-
-      _ ->
-        Map.get(map, source_id, %{})
-        |> Normalize.fetch(:resolution)
-    end
+    ReviewPlan.entity_resolution(plan, key, source_id)
   end
 
   defp room_action(plan, source_id) do
-    source_id = Normalize.normalize_source_id(source_id)
-    rooms = Normalize.fetch(plan, :rooms) || %{}
-
-    case source_id do
-      nil ->
-        "create"
-
-      _ ->
-        Map.get(rooms, source_id, %{})
-        |> Normalize.fetch(:action)
-        |> case do
-          nil -> "create"
-          value -> value
-        end
-    end
+    ReviewPlan.room_action(plan, source_id)
   end
 
   defp room_merge_target(plan, source_id) do
-    source_id = Normalize.normalize_source_id(source_id)
-    rooms = Normalize.fetch(plan, :rooms) || %{}
-
-    case source_id do
-      nil ->
-        nil
-
-      _ ->
-        Map.get(rooms, source_id, %{})
-        |> Normalize.fetch(:target_room_id)
-        |> Normalize.normalize_source_id()
-    end
+    ReviewPlan.room_merge_target(plan, source_id)
   end
-
-  defp toggle_selection(value) do
-    case value do
-      false -> true
-      true -> false
-      map when is_map(map) -> Map.put(map, "selected", !Map.get(map, "selected", true))
-      _ -> false
-    end
-  end
-
-  defp merge_selection_value(current, selected) when is_map(current) do
-    Map.put(current, "selected", selected)
-  end
-
-  defp merge_selection_value(_current, selected), do: selected
-
-  defp selection_map(map) when is_map(map), do: map
-  defp selection_map(_value), do: %{"selected" => true}
-
-  defp resolution_selected?(resolution),
-    do: resolution in ["import", "import_real", "import_hidden_duplicate"]
 
   defp import_flash_info(%{status: status, imported_at: imported_at}) do
     "Configuration loaded into memory. Import status: #{status}. Imported at: #{imported_at}."
   end
 
   defp import_flash_info(_bridge_import), do: "Configuration loaded into memory."
-
-  defp put_notice(socket, :info, message) when is_binary(message) do
-    socket
-    |> clear_flash(:error)
-    |> put_flash(:info, message)
-  end
-
-  defp put_notice(socket, :error, message) when is_binary(message) do
-    socket
-    |> clear_flash(:info)
-    |> put_flash(:error, message)
-  end
-
-  defp blank_to_nil(""), do: nil
-  defp blank_to_nil(value), do: value
 end

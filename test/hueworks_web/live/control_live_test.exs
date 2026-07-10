@@ -9,6 +9,16 @@ defmodule HueworksWeb.ControlLiveTest do
   alias Hueworks.Schemas.{ActiveScene, Group, GroupLight, Light, Room}
   alias Hueworks.Scenes
 
+  setup do
+    original_modules = Application.get_env(:hueworks, :control_state_bootstrap_modules)
+
+    on_exit(fn ->
+      restore_app_env(:hueworks, :control_state_bootstrap_modules, original_modules)
+    end)
+
+    :ok
+  end
+
   defp insert_room(name \\ "Studio") do
     Repo.insert!(%Room{name: name, metadata: %{}})
   end
@@ -329,5 +339,29 @@ defmodule HueworksWeb.ControlLiveTest do
              "#control-room-#{room.id}-group-#{group.id} button[phx-click='toggle'][phx-value-type='group'][phx-value-id='#{group.id}'].hw-button-on",
              "..."
            )
+  end
+
+  test "control page reload only rereads the current snapshot", %{conn: conn} do
+    Application.put_env(
+      :hueworks,
+      :control_state_bootstrap_modules,
+      [{__MODULE__.RefreshBootstrapStub, self()}]
+    )
+
+    {:ok, view, _html} = live(conn, "/control")
+
+    view
+    |> element("button[phx-click='refresh']", "Reload")
+    |> render_click()
+
+    assert render(view) =~ "Reloaded control snapshot"
+    refute_receive {:control_reload_bootstrapped, _pid}, 50
+  end
+
+  defmodule RefreshBootstrapStub do
+    def run(sink) do
+      send(sink, {:control_reload_bootstrapped, self()})
+      :ok
+    end
   end
 end

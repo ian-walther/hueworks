@@ -8,9 +8,8 @@ Overall assessment: the supervision design is good — `GenericEventStream` moni
 ## Test-Gap Notes (cross-reference for planning/test-coverage-audit.md)
 
 - Coverage here is genuinely good: every stream has a connection-level suite (staleness refresh, deferred connect, crash isolation), plus Hue parser/mapper suites and a `CasetaLeap` suite. Explicitly leave the parser suite alone.
-- Small gap: Hue's own `maybe_refresh_indexes` is load-bearing and only indirectly tested — worth one direct case mirroring the Caseta/HA refresh tests.
-- Gap: `GenericEventStream` restart-on-DOWN and readiness-retry behavior has no direct test; it's the self-healing backbone for all four streams. One small test with a crashing fake connection module would cover it.
+- Two small gaps remain (Hue `maybe_refresh_indexes` direct case; `GenericEventStream` restart/readiness test) — tracked as CC-5 in `07-cross-cutting.md`.
 
-## Parked (noted early, belongs to later chunks)
+## Parked
 
-- Chunk 7: `Readiness.bridges_table_ready?/0` exists to tolerate boot-before-migration ordering; revisit whether release-time migrations make it dead in practice (keep for dev `ecto.reset` workflows unless proven otherwise).
+The Readiness boot-ordering question is consolidated as CC-6 in `07-cross-cutting.md`.

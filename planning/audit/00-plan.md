@@ -8,8 +8,9 @@ This file is the living plan and status ledger. Every audit session must end by 
 
 ## How To Resume A Session
 
+0. If you are the Auditor (any model in that role), read `auditor-instructions.md` first — role, per-session loop, judgment calibration, and the remaining-work map live there. Implementers read `codex-instructions.md`.
 1. Read this file top to bottom.
-2. Read `planned_architecture.md` (the architectural north star) and skim `planning/refactoring.md` (the pre-existing refactor targets, which this audit supersedes-by-absorption but must reconcile with).
+2. Read `planned_architecture.md` (the architectural north star). (The pre-audit `planning/refactoring.md` has been fully absorbed and deleted.)
 3. Find the first chunk in the ledger whose status is not `done`.
 4. If a chunk is `in-progress`, its findings doc says exactly which files were already covered; continue from there.
 5. Audit the chunk, write/extend its findings doc, update the ledger, stop at a clean boundary.
@@ -20,7 +21,7 @@ This file is the living plan and status ledger. Every audit session must end by 
 - The audit records decisions, not options. Each finding says what to do, not "consider X or Y". If a decision genuinely needs the owner's input, mark it `DECISION-NEEDED` and phrase the question crisply.
 - Findings must be implementable by a cheaper model: concrete file paths (with line numbers where useful), target shape, guardrails, and required characterization tests.
 - Audit-only sessions do not change code. Implementation happens in separate sessions driven by the findings docs.
-- The existing `planning/refactoring.md` items (scene power policy extraction, state-map normalization, scene builder state split) are inputs; the relevant chunk docs absorb, refine, or supersede them and say so explicitly.
+- The pre-audit `planning/refactoring.md` items were absorbed by chunks 1/3/6a and the doc is deleted; new refactor targets belong in these chunk docs.
 
 ## Finding Format
 
@@ -55,10 +56,10 @@ Order follows the control pipeline (architecture centrality), not the directory 
 | 3 | Scenes & semantics | `lib/hueworks/scenes/**`, `lib/hueworks/scenes.ex`, `lib/hueworks/circadian*`, `lib/hueworks/presence_inputs.ex`, `lib/hueworks/external_scenes.ex` | `03-scenes-semantics.md` | done |
 | 4 | Import & persistence | `lib/hueworks/import/**`, `lib/hueworks/bridge_seeds.ex`, `lib/hueworks/bridges.ex`, materialize/link paths, `lib/hueworks/schemas/**` (import-owned) | `04-import.md` | done |
 | 5 | Integrations | `lib/hueworks/home_assistant/**`, `lib/hueworks/homekit*`, `lib/hueworks/picos/**` — judged against "integrations enter through normal control paths" | `05-integrations.md` | done |
-| 6a | Web: scene builder | `lib/hueworks_web/live/scene_builder*` | `06a-web-scene-builder.md` | not-started |
-| 6b | Web: everything else | remaining `lib/hueworks_web/**` (lights/rooms/config LiveViews, components, controllers, plugs, filter prefs) | `06b-web-other.md` | not-started |
-| 7 | Cross-cutting & support | `lib/hueworks/{util,color,kelvin,rooms,groups,lights,instance,app_settings,credentials,debug_logging}*`, `lib/mix/tasks/**`, `config/**`, test support | `07-cross-cutting.md` | not-started |
-| 8 | Distillation | Architectural synthesis of 1–7: systemic patterns, layering violations ranked, recommended sequencing of all refactors, reconciliation with `planning/refactoring.md` + `hueworks_todo.md` | `08-distillation.md` | not-started |
+| 6a | Web: scene builder | `lib/hueworks_web/live/scene_builder*`, `scene_editor_live.ex` | `06a-web-scene-builder.md` | done |
+| 6b | Web: everything else | remaining `lib/hueworks_web/**` (lights/rooms/config LiveViews, components, controllers, plugs, filter prefs) | `06b-web-other.md` | in-progress |
+| 7 | Cross-cutting & support | `lib/hueworks/{util,color,kelvin,rooms,groups,lights,instance,app_settings,credentials,debug_logging}*`, `lib/mix/tasks/**`, `config/**`, test support | `07-cross-cutting.md` | backlog pre-collected (CC-1..6 implementable now); audit read not-started |
+| 8 | Distillation | Architectural synthesis of 1–7: systemic patterns, remaining risks, reconciliation with `hueworks_todo.md` and `planned_architecture.md` | `08-distillation.md` | not-started |
 
 Status values: `not-started` → `in-progress` → `done`. A chunk is `done` only when its findings doc is complete for its whole scope and this ledger row is updated.
 
@@ -76,16 +77,21 @@ Status values: `not-started` → `in-progress` → `done`. A chunk is `done` onl
 | 2026-07-06 | Reconciled codex pass 4: verified SI-4/SI-5/SI-7 — suite green at 730 tests, nothing refuted. Bonus from SI-5: HA indexes now reload on every websocket reconnect (handle_connect). Chunk 2 is down to SI-3 only; all four streams now share the reference stream behaviors. | Implement IM-8 residual/CP-3/SI-3, or audit chunk 5. |
 | 2026-07-06 | Completed chunk 5 (integrations), audited in 4 flushed sub-passes: 6 findings, all small. Headline: no control-path bypasses anywhere; SC-2 is GO (design in 05 doc, 03 updated); IN-1 finishes refactoring.md item 2; both chunk-1 HA parked items and the chunk-2 Pico parked item resolved (IN-5, IN-6). | Implement SC-2/IN-1/IM-8 residual/CP-3/SI-3, or audit chunk 6a (scene builder). |
 | 2026-07-06 | Reconciled codex pass 5: verified SC-2 (DomainEvents inversion — publisher + subscriber sides exact, both sync guardrails held), IN-1..IN-6, AND an undocumented SI-3/CasetaLeap (verified independently; includes IM-5's Caseta half). Suite green at 748 tests. Chunks 2/3/5 now have zero actionable findings; IM-5 rewritten to its Z2M-fetch residual; refactoring.md down to item 3 only. Process note: implementation notes were stale vs the tree (SI-3 unlisted, test count off) — flagged to owner. | Remaining backlog: CP-3, IM-2/4/5-residual/6/8-residual. Or audit chunk 6a. |
+| 2026-07-06 | Reconciled codex pass 6: verified CP-3 (atom-key funnel via `normalize_keys/1` in merge_state + State.ensure; downstream dual-key handling deleted incl. the 05 rider; only StateParser stays loose — correct), IM-8 residual (full 12-case matrix), IM-2/4/5/6, and the SI-3 sentinel bug fix (real latent multi-line-packet bug, red/green). Suite green at 753. **Codex correctly REFUTED IM-2's display_name divergence sub-claim** — the schema's put_default_display_name forces it on both paths; correction recorded in 04. **The chunks 1–5 backlog is now empty** (CP-11 accepted-risk, SC-5 perf-deferred). | Audit chunk 6a (scene builder) next; then 6b, 7, 8 (distillation). |
+| 2026-07-06 | Completed chunk 6a (scene builder): 3 findings. Verdict on refactoring.md item 3: mostly already fixed organically (thin Flow, PowerPolicy, Builder, Topology); SB-1 is the right-sized remainder (Component struct + State facade split), after which refactoring.md gets deleted entirely. SB-4: editor double-activates scenes (only web caller of set_active). | Audit chunk 6b (remaining web), then 7, 8. |
+| 2026-07-06 | Completed 6b-1 (manual control surfaces): 4 findings. WB-1 Reload button blocks LiveView on full synchronous bridge re-bootstrap; WB-2 the UI is the SOLE caller of State.ensure and fabricates physical-state observations for slider defaults (delete ensure, make defaults display-local); WB-3/4 duplication + dead-tolerance smalls. Lights surface confirmed on the shared ManualControl semantic path. | 6b-2 (config/bridge-setup UI vs import-resync contract), 6b-3 (picos/rooms), 6b-4 (light-state editor + sweep). |
+| 2026-07-06 | Reconciled codex pass 7: verified SB-1 (Component struct + Membership/Policy/CustomState split behind the State facade, 769→194-line facade), SB-2/SB-4 (with single-broadcast red/green), WB-1..WB-4 — all exact; refactoring.md deleted with its dangling pointers fixed (00-plan, planned_architecture.md). Chunks 6a and 6b-1 now have zero open findings. Suite: 756 tests, but surfaced an intermittent PRE-EXISTING SQLite "Database busy" flake (logged in hygiene section for chunk 7; not caused by this pass — verified green twice, flaky once/twice across runs). | Audit 6b-2 (config/bridge-setup vs import-resync contract), then 6b-3/6b-4, 7, 8. |
+| 2026-07-06 | Audited 6b-2 bridge_setup + config_live in two atomic flushed drops: 7 findings. Headline: WB-9 CONFIRMED high bug — saving HA export settings with the blank password field (whose placeholder promises "leave blank to keep") WIPES the stored MQTT password via HaExportConfig's blank-as-nil semantics. Also WB-5 (destructive reimport resolutions lack confirmation — the one genuinely-missing hueworks_todo reimport UI item; items 1+3 look mostly satisfied, owner should re-check), WB-10 one-click bridge deletion, WB-6/7/8/11 extractions. | Resume at 6b-2 part 3 (bridge_live.ex), then 6b-3, 6b-4, 7, 8. |
+| 2026-07-06 | Reconciled codex pass 8 incrementally: WB-5..WB-11 all verified exact (suite 763 green, +7 tests, no flake this run). WB-9's two-layer password fix, WB-5's dependency-disclosure confirm panel (incl. clearing stale confirmations on plan edits), Import.apply_review/ReviewPlan/Bridges.imported?/editor_label extractions all consumed at every call site. hueworks_todo's three reimport UI bullets now all look satisfied — owner should hands-on verify and trim. Zero open findings anywhere; only audit work remains. | Audit 6b-2 part 3 (bridge_live.ex), then 6b-3, 6b-4, 7, 8. |
+| 2026-07-06 | Audited bridge_live (6b-2 done) + rooms/external-scene (6b-3 part 1) in two atomic drops: 5 findings. WB-12 wizard connection tests block the LiveView (same class as fixed WB-1); WB-15 one-click room/scene/presence deletion with zero data-confirm (same class as fixed WB-10); WB-13/14/16 smalls (Z2M vocab copy + staging leftovers, atom leak from form params, String.to_integer crashes, triple-copied scene-toggle flow, dead assigns). | Audit 6b-3 part 2 (pico_config_live, ~1,700 lines w/ heex), then 6b-4, 7, 8. |
+| 2026-07-06 | Reconciled codex pass 9: WB-12..WB-16 all verified exact — suite 767 green twice, no flake. WB-12 landed with request-id guarding against stale async completions (beyond spec); WB-13 added TTL-based staging prune in Credentials; Scenes.toggle_activation consumed by all three LiveViews. Zero open findings again. | Audit 6b-3 part 2 (pico_config_live), then 6b-4, 7, 8. |
+| 2026-07-06 | Prepared auditor handoff (Fable → any capable model, e.g. GPT Sol): wrote `auditor-instructions.md` (role, per-session loop, judgment calibration, remaining-work map — everything that previously lived only in Fable's session memory); created `07-cross-cutting.md` with the scattered hygiene/warnings/flake/parked backlog consolidated as CC-1..CC-6; pointed 00-plan resume instructions and the former parked sections at the new docs. | New auditor: read auditor-instructions.md, then resume at 6b-3 part 2 (pico_config_live). CC-1..CC-6 are implementable by codex immediately. |
 
 Note on AGENTS.md rule 1 (planning docs are forward-looking): the owner explicitly requested this ledger/session log so audit sessions can resume across usage resets. Keep entries to one line; when the whole audit is implemented and distilled, delete this folder's ledger rather than letting it become a progress narrative.
 
-## Repo Hygiene (global, found during setup)
+## Repo Hygiene
 
-Logged here because they were visible before any chunk started; chunk 7 will finalize them:
-
-- Repo root contains local databases and artifacts that look like they should be untracked/removed: `hueworks_dev.db`, `hueworks_test.db*`, `hueworks copy.db*`, `hueworks_dev_20260121T020205.db*`, `erl_crash.dump`. Verify git-tracked status before deleting; fix `.gitignore` accordingly.
-- `secrets.env` and `secrets.json` sit in the repo root. `secrets.json` is a documented seed mechanism (see README), but confirm both are gitignored and never committed; consider moving the documented default out of the repo root.
-- `exports/` contains captured bridge payloads with LAN IPs — decide whether these are fixtures (move under `test/fixtures/` or `priv/`) or scratch data (delete/ignore).
+The hygiene and test-infra backlog formerly tracked here is consolidated as pre-collected findings (CC-1..CC-6) in `07-cross-cutting.md`.
 
 ## Implementation Reconciliation Protocol
 

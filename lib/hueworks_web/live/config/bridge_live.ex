@@ -2,6 +2,8 @@ defmodule HueworksWeb.BridgeLive do
   use Phoenix.LiveView
 
   alias Hueworks.Credentials
+  alias Hueworks.Control.Z2MConfig
+  alias Hueworks.Import.Source
   alias Hueworks.Repo
   alias Hueworks.Schemas.Bridge
   alias Hueworks.Util
@@ -25,7 +27,8 @@ defmodule HueworksWeb.BridgeLive do
         caseta_staged_paths: %{},
         test_status: :idle,
         test_error: nil,
-        test_bridge_name: nil
+        test_bridge_name: nil,
+        test_request_id: nil
       )
       |> allow_upload(:caseta_cert, accept: ~w(.crt), max_entries: 1, auto_upload: true)
       |> allow_upload(:caseta_key, accept: ~w(.key), max_entries: 1, auto_upload: true)
@@ -36,6 +39,7 @@ defmodule HueworksWeb.BridgeLive do
 
   def handle_event("update_bridge", %{"type" => "hue"} = params, socket) do
     host = Util.normalize_host_input(Map.get(params, "host", socket.assigns.host))
+    clear_caseta_staged_paths(socket)
 
     {:noreply,
      assign(socket,
@@ -45,12 +49,14 @@ defmodule HueworksWeb.BridgeLive do
        caseta_staged_paths: %{},
        test_status: :idle,
        test_error: nil,
-       test_bridge_name: nil
+       test_bridge_name: nil,
+       test_request_id: nil
      )}
   end
 
   def handle_event("update_bridge", %{"type" => "ha"} = params, socket) do
     host = Util.normalize_host_input(Map.get(params, "host", socket.assigns.host))
+    clear_caseta_staged_paths(socket)
 
     {:noreply,
      assign(socket,
@@ -60,7 +66,8 @@ defmodule HueworksWeb.BridgeLive do
        caseta_staged_paths: %{},
        test_status: :idle,
        test_error: nil,
-       test_bridge_name: nil
+       test_bridge_name: nil,
+       test_request_id: nil
      )}
   end
 
@@ -77,12 +84,14 @@ defmodule HueworksWeb.BridgeLive do
          Map.get(params, "caseta_cacert_path", socket.assigns.caseta_cacert_path),
        test_status: :idle,
        test_error: nil,
-       test_bridge_name: nil
+       test_bridge_name: nil,
+       test_request_id: nil
      )}
   end
 
   def handle_event("update_bridge", %{"type" => "z2m"} = params, socket) do
     host = Util.normalize_host_input(Map.get(params, "host", socket.assigns.host))
+    clear_caseta_staged_paths(socket)
 
     {:noreply,
      assign(socket,
@@ -95,12 +104,14 @@ defmodule HueworksWeb.BridgeLive do
        caseta_staged_paths: %{},
        test_status: :idle,
        test_error: nil,
-       test_bridge_name: nil
+       test_bridge_name: nil,
+       test_request_id: nil
      )}
   end
 
   def handle_event("update_bridge", params, socket) do
     host = Util.normalize_host_input(Map.get(params, "host", socket.assigns.host))
+    clear_caseta_staged_paths(socket)
 
     {:noreply,
      assign(socket,
@@ -109,7 +120,8 @@ defmodule HueworksWeb.BridgeLive do
        caseta_staged_paths: %{},
        test_status: :idle,
        test_error: nil,
-       test_bridge_name: nil
+       test_bridge_name: nil,
+       test_request_id: nil
      )}
   end
 
@@ -131,97 +143,175 @@ defmodule HueworksWeb.BridgeLive do
     end
   end
 
+  def handle_async({:test_bridge, request_id}, {:ok, result}, socket) do
+    if socket.assigns.test_request_id == request_id do
+      {:noreply, apply_test_result(socket, result)}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_async({:test_bridge, request_id}, {:exit, reason}, socket) do
+    if socket.assigns.test_request_id == request_id do
+      {:noreply,
+       assign(socket,
+         test_status: :error,
+         test_error: "Connection test crashed: #{inspect(reason)}",
+         test_request_id: nil
+       )}
+    else
+      {:noreply, socket}
+    end
+  end
+
   defp save_bridge(socket) do
-    credentials = build_credentials(socket)
-    name = socket.assigns.test_bridge_name || Util.default_bridge_name(socket.assigns.type)
+    case Source.normalize(socket.assigns.type) do
+      nil ->
+        {:noreply, assign(socket, test_status: :error, test_error: "Unsupported bridge type.")}
 
-    changeset =
-      Bridge.changeset(%Bridge{}, %{
-        type: String.to_atom(socket.assigns.type),
-        name: name,
-        host: socket.assigns.host,
-        credentials: credentials,
-        enabled: true,
-        import_complete: false
-      })
+      type ->
+        credentials = build_credentials(socket)
+        name = socket.assigns.test_bridge_name || Util.default_bridge_name(socket.assigns.type)
 
-    case Repo.insert(changeset) do
-      {:ok, bridge} ->
-        {:noreply, push_navigate(socket, to: "/config/bridge/#{bridge.id}/setup")}
+        changeset =
+          Bridge.changeset(%Bridge{}, %{
+            type: type,
+            name: name,
+            host: socket.assigns.host,
+            credentials: credentials,
+            enabled: true,
+            import_complete: false
+          })
 
-      {:error, changeset} ->
-        {:noreply,
-         assign(socket, test_status: :error, test_error: Util.format_changeset_error(changeset))}
-    end
-  end
+        case Repo.insert(changeset) do
+          {:ok, bridge} ->
+            {:noreply, push_navigate(socket, to: "/config/bridge/#{bridge.id}/setup")}
 
-  defp test_bridge(%{assigns: %{type: "hue"}} = socket) do
-    case Hueworks.ConnectionTest.Hue.test(socket.assigns.host, socket.assigns.hue_api_key) do
-      {:ok, name} ->
-        {:noreply, assign(socket, test_status: :ok, test_error: nil, test_bridge_name: name)}
-
-      :ok ->
-        {:noreply, assign(socket, test_status: :ok, test_error: nil, test_bridge_name: nil)}
-
-      {:error, message} ->
-        {:noreply, assign(socket, test_status: :error, test_error: message)}
-    end
-  end
-
-  defp test_bridge(%{assigns: %{type: "ha"}} = socket) do
-    case Hueworks.ConnectionTest.HomeAssistant.test(socket.assigns.host, socket.assigns.ha_token) do
-      {:ok, name} ->
-        {:noreply, assign(socket, test_status: :ok, test_error: nil, test_bridge_name: name)}
-
-      :ok ->
-        {:noreply, assign(socket, test_status: :ok, test_error: nil, test_bridge_name: nil)}
-
-      {:error, message} ->
-        {:noreply, assign(socket, test_status: :error, test_error: message)}
-    end
-  end
-
-  defp test_bridge(%{assigns: %{type: "caseta"}} = socket) do
-    case stage_caseta_uploads(socket) do
-      {:ok, socket, staged} ->
-        case Hueworks.ConnectionTest.Caseta.test(socket.assigns.host, staged) do
-          {:ok, name} ->
+          {:error, changeset} ->
             {:noreply,
              assign(socket,
-               caseta_staged_paths: staged,
-               test_status: :ok,
-               test_error: nil,
-               test_bridge_name: name
+               test_status: :error,
+               test_error: Util.format_changeset_error(changeset)
              )}
-
-          {:error, message} ->
-            {:noreply, assign(socket, test_status: :error, test_error: message)}
         end
-
-      {:error, message} ->
-        {:noreply, assign(socket, test_status: :error, test_error: message)}
-    end
-  end
-
-  defp test_bridge(%{assigns: %{type: "z2m"}} = socket) do
-    opts = %{
-      "broker_port" => socket.assigns.z2m_broker_port,
-      "username" => socket.assigns.z2m_username,
-      "password" => socket.assigns.z2m_password
-    }
-
-    case Hueworks.ConnectionTest.Z2M.test(socket.assigns.host, opts) do
-      {:ok, name} ->
-        {:noreply, assign(socket, test_status: :ok, test_error: nil, test_bridge_name: name)}
-
-      {:error, message} ->
-        {:noreply, assign(socket, test_status: :error, test_error: message)}
     end
   end
 
   defp test_bridge(socket) do
-    {:noreply, socket}
+    case build_connection_request(socket) do
+      {:ok, socket, request} ->
+        request_id = System.unique_integer([:positive])
+
+        socket =
+          assign(socket,
+            test_status: :testing,
+            test_error: nil,
+            test_bridge_name: nil,
+            test_request_id: request_id
+          )
+
+        {:noreply,
+         start_async(socket, {:test_bridge, request_id}, fn ->
+           run_connection_test(request)
+         end)}
+
+      {:error, message} ->
+        {:noreply, assign(socket, test_status: :error, test_error: message)}
+    end
   end
+
+  defp build_connection_request(%{assigns: %{type: "hue"}} = socket) do
+    {:ok, socket,
+     %{
+       type: :hue,
+       host: socket.assigns.host,
+       api_key: socket.assigns.hue_api_key
+     }}
+  end
+
+  defp build_connection_request(%{assigns: %{type: "ha"}} = socket) do
+    {:ok, socket,
+     %{
+       type: :ha,
+       host: socket.assigns.host,
+       token: socket.assigns.ha_token
+     }}
+  end
+
+  defp build_connection_request(%{assigns: %{type: "caseta"}} = socket) do
+    case stage_caseta_uploads(socket) do
+      {:ok, socket, staged} ->
+        {:ok, assign(socket, caseta_staged_paths: staged),
+         %{type: :caseta, host: socket.assigns.host, staged: staged}}
+
+      {:error, message} ->
+        {:error, message}
+    end
+  end
+
+  defp build_connection_request(%{assigns: %{type: "z2m"}} = socket) do
+    {:ok, socket,
+     %{
+       type: :z2m,
+       host: socket.assigns.host,
+       opts: %{
+         "broker_port" => socket.assigns.z2m_broker_port,
+         "username" => socket.assigns.z2m_username,
+         "password" => socket.assigns.z2m_password
+       }
+     }}
+  end
+
+  defp build_connection_request(_socket), do: {:error, "Missing required fields."}
+
+  defp run_connection_test(%{type: :hue, host: host, api_key: api_key}) do
+    connection_test_module(:hue).test(host, api_key)
+  end
+
+  defp run_connection_test(%{type: :ha, host: host, token: token}) do
+    connection_test_module(:ha).test(host, token)
+  end
+
+  defp run_connection_test(%{type: :caseta, host: host, staged: staged}) do
+    connection_test_module(:caseta).test(host, staged)
+  end
+
+  defp run_connection_test(%{type: :z2m, host: host, opts: opts}) do
+    connection_test_module(:z2m).test(host, opts)
+  end
+
+  defp apply_test_result(socket, result) do
+    case result do
+      {:ok, name} ->
+        assign(socket,
+          test_status: :ok,
+          test_error: nil,
+          test_bridge_name: name,
+          test_request_id: nil
+        )
+
+      :ok ->
+        assign(socket,
+          test_status: :ok,
+          test_error: nil,
+          test_bridge_name: nil,
+          test_request_id: nil
+        )
+
+      {:error, message} ->
+        assign(socket, test_status: :error, test_error: message, test_request_id: nil)
+    end
+  end
+
+  defp connection_test_module(type) do
+    Application.get_env(:hueworks, :connection_test_modules, %{})
+    |> Map.get(type, default_connection_test_module(type))
+  end
+
+  defp default_connection_test_module(:hue), do: Hueworks.ConnectionTest.Hue
+  defp default_connection_test_module(:ha), do: Hueworks.ConnectionTest.HomeAssistant
+  defp default_connection_test_module(:caseta), do: Hueworks.ConnectionTest.Caseta
+  defp default_connection_test_module(:z2m), do: Hueworks.ConnectionTest.Z2M
 
   defp validate_required_fields(%{assigns: %{type: "hue"}} = socket) do
     missing =
@@ -256,7 +346,10 @@ defmodule HueworksWeb.BridgeLive do
     missing =
       []
       |> maybe_missing(socket.assigns.host == "", "host")
-      |> maybe_missing(invalid_port?(socket.assigns.z2m_broker_port), "z2m_broker_port")
+      |> maybe_missing(
+        not Z2MConfig.valid_port?(socket.assigns.z2m_broker_port),
+        "z2m_broker_port"
+      )
       |> maybe_missing(String.trim(socket.assigns.z2m_base_topic) == "", "z2m_base_topic")
 
     missing_message(missing)
@@ -285,13 +378,21 @@ defmodule HueworksWeb.BridgeLive do
 
   defp stage_caseta_uploads(%{assigns: %{caseta_staged_paths: staged}} = socket)
        when map_size(staged) == 3 do
-    {:ok, socket, staged}
+    if caseta_upload_entries?(socket) do
+      restage_caseta_uploads(socket)
+    else
+      {:ok, socket, staged}
+    end
   end
 
-  defp stage_caseta_uploads(socket) do
+  defp stage_caseta_uploads(socket), do: restage_caseta_uploads(socket)
+
+  defp restage_caseta_uploads(socket) do
     host_prefix = Util.host_prefix(socket.assigns.host)
     dir = Credentials.caseta_staging_dir()
     File.mkdir_p!(dir)
+    Credentials.prune_stale_caseta_staging_files()
+    clear_caseta_staged_paths(socket)
     stamp = System.unique_integer([:positive])
 
     with :ok <- validate_uploads_complete(socket),
@@ -304,6 +405,16 @@ defmodule HueworksWeb.BridgeLive do
     else
       {:error, reason} -> {:error, reason}
     end
+  end
+
+  defp caseta_upload_entries?(socket) do
+    [:caseta_cert, :caseta_key, :caseta_cacert]
+    |> Enum.any?(fn key ->
+      socket.assigns.uploads
+      |> Map.fetch!(key)
+      |> Map.get(:entries)
+      |> Kernel.!=([])
+    end)
   end
 
   defp stage_upload(socket, upload_name, dir, base) do
@@ -356,10 +467,10 @@ defmodule HueworksWeb.BridgeLive do
 
   defp build_credentials(%{assigns: %{type: "z2m"}} = socket) do
     %{
-      "broker_port" => normalize_port(socket.assigns.z2m_broker_port),
-      "username" => normalize_optional(socket.assigns.z2m_username),
-      "password" => normalize_optional(socket.assigns.z2m_password),
-      "base_topic" => normalize_base_topic(socket.assigns.z2m_base_topic)
+      "broker_port" => Z2MConfig.normalize_port(socket.assigns.z2m_broker_port),
+      "username" => Z2MConfig.normalize_optional(socket.assigns.z2m_username),
+      "password" => Z2MConfig.normalize_optional(socket.assigns.z2m_password),
+      "base_topic" => Z2MConfig.normalize_base_topic(socket.assigns.z2m_base_topic)
     }
   end
 
@@ -390,31 +501,11 @@ defmodule HueworksWeb.BridgeLive do
     end
   end
 
-  defp normalize_port(value) do
-    case Util.parse_optional_integer(value) do
-      port when is_integer(port) and port > 0 and port <= 65_535 -> port
-      _ -> 1883
-    end
+  defp clear_caseta_staged_paths(%{assigns: %{caseta_staged_paths: staged}}) do
+    staged
+    |> Map.values()
+    |> Credentials.delete_paths()
   end
 
-  defp invalid_port?(value) do
-    case Util.parse_optional_integer(value) do
-      port when is_integer(port) and port > 0 and port <= 65_535 -> false
-      _ -> true
-    end
-  end
-
-  defp normalize_optional(value) when is_binary(value) do
-    value = String.trim(value)
-    if value == "", do: nil, else: value
-  end
-
-  defp normalize_optional(_value), do: nil
-
-  defp normalize_base_topic(value) when is_binary(value) do
-    value = String.trim(value)
-    if value == "", do: "zigbee2mqtt", else: value
-  end
-
-  defp normalize_base_topic(_value), do: "zigbee2mqtt"
+  defp clear_caseta_staged_paths(_socket), do: :ok
 end

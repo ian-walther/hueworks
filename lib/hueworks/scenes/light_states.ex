@@ -54,6 +54,33 @@ defmodule Hueworks.Scenes.LightStates do
 
   def usages(_id), do: []
 
+  def editor_label(%LightState{type: :circadian, name: name}), do: "#{name} (circadian)"
+
+  def editor_label(%LightState{type: :manual, name: name, config: config}) do
+    suffix =
+      case LightState.manual_mode(config) do
+        :color -> "manual color"
+        _ -> "manual temp"
+      end
+
+    "#{name} (#{suffix})"
+  end
+
+  def editor_label(%LightState{name: name}), do: name
+  def editor_label(%{type: :circadian, name: name}), do: "#{name} (circadian)"
+
+  def editor_label(%{type: :manual, name: name, config: config}) do
+    suffix =
+      case LightState.manual_mode(config) do
+        :color -> "manual color"
+        _ -> "manual temp"
+      end
+
+    "#{name} (#{suffix})"
+  end
+
+  def editor_label(%{name: name}), do: name
+
   def create(name, type, config \\ %{})
 
   def create(name, type, config) when type in [:manual, :circadian] do

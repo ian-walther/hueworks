@@ -182,6 +182,47 @@ defmodule HueworksWeb.ConfigLiveTest do
     assert settings.ha_export_discovery_prefix == "homeassistant"
   end
 
+  test "saving home assistant export with a blank password preserves the stored password", %{
+    conn: conn
+  } do
+    Repo.insert!(%AppSetting{
+      scope: "global",
+      latitude: 40.7128,
+      longitude: -74.0060,
+      timezone: "America/New_York",
+      ha_export_enabled: true,
+      ha_export_scenes_enabled: true,
+      ha_export_room_selects_enabled: false,
+      ha_export_lights_enabled: false,
+      ha_export_mqtt_host: "mqtt.local",
+      ha_export_mqtt_port: 1883,
+      ha_export_mqtt_username: "ha_user",
+      ha_export_mqtt_password: "super-secret",
+      ha_export_discovery_prefix: "homeassistant"
+    })
+
+    HueworksApp.Cache.flush_namespace(:app_settings)
+
+    {:ok, view, _html} = live(conn, "/config")
+
+    view
+    |> form("form[phx-submit='save_ha_export']", %{
+      "ha_export_scenes_enabled" => "true",
+      "ha_export_room_selects_enabled" => "true",
+      "ha_export_lights_enabled" => "false",
+      "ha_export_mqtt_host" => "mqtt.local",
+      "ha_export_mqtt_port" => "1883",
+      "ha_export_mqtt_username" => "ha_user",
+      "ha_export_mqtt_password" => "",
+      "ha_export_discovery_prefix" => "homeassistant"
+    })
+    |> render_submit()
+
+    settings = AppSettings.get_global()
+    assert settings.ha_export_room_selects_enabled == true
+    assert settings.ha_export_mqtt_password == "super-secret"
+  end
+
   test "shows homekit bridge settings form and saves values", %{conn: conn} do
     Repo.insert!(%AppSetting{
       scope: "global",
@@ -491,6 +532,11 @@ defmodule HueworksWeb.ConfigLiveTest do
 
     {:ok, view, _html} = live(conn, "/config")
 
+    assert has_element?(
+             view,
+             "button[phx-click='delete_entities'][phx-value-id='#{bridge.id}'][data-confirm]"
+           )
+
     view
     |> element("button[phx-click='delete_entities'][phx-value-id='#{bridge.id}']")
     |> render_click()
@@ -514,6 +560,11 @@ defmodule HueworksWeb.ConfigLiveTest do
       })
 
     {:ok, view, _html} = live(conn, "/config")
+
+    assert has_element?(
+             view,
+             "button[phx-click='delete_bridge'][phx-value-id='#{bridge.id}'][data-confirm]"
+           )
 
     view
     |> element("button[phx-click='delete_bridge'][phx-value-id='#{bridge.id}']")

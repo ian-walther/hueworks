@@ -1,6 +1,7 @@
 defmodule HueworksWeb.SceneBuilderComponent do
   use Phoenix.LiveComponent
 
+  alias Hueworks.Scenes.PowerPolicy
   alias HueworksWeb.SceneBuilderComponent.Flow
   alias HueworksWeb.SceneBuilderComponent.State
 
@@ -594,18 +595,14 @@ defmodule HueworksWeb.SceneBuilderComponent do
         <input type="hidden" name="component_id" value={@component.id} />
         <input type="hidden" name={target_id_name(@target_kind)} value={@target_id} />
         <select class="hw-select" name="default_power" aria-label="Power policy">
-          <option value="default_on" selected={@policy == :default_on}>Default On</option>
-          <option value="default_off" selected={@policy == :default_off}>Default Off</option>
-          <option value="force_on" selected={@policy == :force_on}>Force On</option>
-          <option value="force_off" selected={@policy == :force_off}>Force Off</option>
-          <option
-            :if={@presence_inputs != []}
-            value="follow_presence"
-            selected={@policy == :follow_presence}
-          >
-            Follow Presence
+          <%= for policy <- power_policy_options(@presence_inputs) do %>
+            <option value={to_string(policy)} selected={@policy == policy}>
+              <%= PowerPolicy.label(policy) %>
+            </option>
+          <% end %>
+          <option :if={@policy == :mixed} value="mixed" selected disabled>
+            <%= PowerPolicy.label(:mixed) %>
           </option>
-          <option :if={@policy == :mixed} value="mixed" selected disabled>...</option>
         </select>
       </form>
 
@@ -630,6 +627,9 @@ defmodule HueworksWeb.SceneBuilderComponent do
 
   defp power_policy_event(:group), do: "set_group_default_power"
   defp power_policy_event(:light), do: "set_light_default_power"
+
+  defp power_policy_options([]), do: Enum.reject(PowerPolicy.values(), &(&1 == :follow_presence))
+  defp power_policy_options(_presence_inputs), do: PowerPolicy.values()
 
   defp presence_input_event(:group), do: "set_group_presence_input"
   defp presence_input_event(:light), do: "set_light_presence_input"

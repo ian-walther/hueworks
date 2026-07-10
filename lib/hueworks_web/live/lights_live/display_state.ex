@@ -36,12 +36,15 @@ defmodule HueworksWeb.LightsLive.DisplayState do
       {min_k, max_k} = Hueworks.Kelvin.derive_range(entity)
       kelvin = round((min_k + max_k) / 2)
 
+      defaults = %{
+        brightness: 75,
+        kelvin: kelvin,
+        power: :off
+      }
+
       state =
-        State.ensure(type, entity.id, %{
-          brightness: 75,
-          kelvin: kelvin,
-          power: :off
-        })
+        defaults
+        |> Map.merge(State.get(type, entity.id) || %{})
 
       Map.put(acc, entity.id, state)
     end)

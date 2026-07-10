@@ -28,7 +28,6 @@ defmodule Hueworks.HomeAssistant.Export.Messages.State do
     kelvin =
       state
       |> fetch_state_value(:kelvin)
-      |> Kernel.||(fetch_state_value(state, :temperature))
       |> normalize_export_kelvin()
 
     x =
@@ -129,7 +128,7 @@ defmodule Hueworks.HomeAssistant.Export.Messages.State do
   end
 
   defp fetch_state_value(state, key) when is_map(state) and is_atom(key) do
-    Map.get(state, key) || Map.get(state, Atom.to_string(key))
+    Map.get(state, key)
   end
 
   defp maybe_put_color_state(payload, entity, kelvin, x, y) do
@@ -189,12 +188,10 @@ defmodule Hueworks.HomeAssistant.Export.Messages.State do
   defp power_to_mqtt_json(:off), do: "OFF"
   defp power_to_mqtt_json(_value), do: nil
 
-  defp state_power_value(nil), do: nil
-
   defp state_power_value(state) when is_map(state) do
     case fetch_state_value(state, :power) do
-      value when value in [:on, "on", "ON", true] -> :on
-      value when value in [:off, "off", "OFF", false] -> :off
+      :on -> :on
+      :off -> :off
       _ -> nil
     end
   end

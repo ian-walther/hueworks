@@ -314,8 +314,8 @@ defmodule Hueworks.Control.Planner do
   defp log_trace(nil, _event, _kv), do: :ok
 
   defp log_trace(trace, event, kv) when is_map(trace) and is_list(kv) do
-    trace_id = Map.get(trace, :trace_id) || Map.get(trace, "trace_id")
-    source = Map.get(trace, :source) || Map.get(trace, "source")
+    trace_id = Map.get(trace, :trace_id)
+    source = Map.get(trace, :source)
 
     attrs =
       kv

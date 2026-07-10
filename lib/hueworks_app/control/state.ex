@@ -45,11 +45,6 @@ defmodule Hueworks.Control.State do
     end
   end
 
-  @spec ensure(entity_type(), entity_id(), state_map()) :: state_map()
-  def ensure(type, id, defaults) when is_map(defaults) do
-    GenServer.call(__MODULE__, {:ensure, type, id, defaults})
-  end
-
   @spec put(entity_type(), entity_id(), state_map()) :: state_map()
   def put(type, id, attrs) when is_map(attrs) do
     GenServer.call(__MODULE__, {:put, type, id, attrs})
@@ -63,21 +58,6 @@ defmodule Hueworks.Control.State do
   @impl true
   def handle_continue(:bootstrap, state) do
     {:noreply, start_bootstrap(state)}
-  end
-
-  @impl true
-  def handle_call({:ensure, type, id, defaults}, _from, state) do
-    key = {type, id}
-    defaults = LightStateSemantics.normalize_keys(defaults)
-
-    case :ets.lookup(@table, key) do
-      [{_key, current}] ->
-        {:reply, current, state}
-
-      [] ->
-        :ets.insert(@table, {key, defaults})
-        {:reply, defaults, state}
-    end
   end
 
   @impl true

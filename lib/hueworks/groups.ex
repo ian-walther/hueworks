@@ -29,12 +29,24 @@ defmodule Hueworks.Groups do
   def get_group(id), do: Repo.get(Group, id)
 
   def member_light_ids(group_id) when is_integer(group_id) do
+    group_id
+    |> List.wrap()
+    |> light_ids_by_group()
+    |> Map.get(group_id, [])
+  end
+
+  def light_ids_by_group([]), do: %{}
+
+  def light_ids_by_group(group_ids) when is_list(group_ids) do
     Repo.all(
       from(gl in GroupLight,
-        where: gl.group_id == ^group_id,
-        select: gl.light_id
+        where: gl.group_id in ^group_ids,
+        select: {gl.group_id, gl.light_id}
       )
     )
+    |> Enum.group_by(fn {group_id, _light_id} -> group_id end, fn {_group_id, light_id} ->
+      light_id
+    end)
   end
 
   def update_display_name(group, attrs) when is_map(attrs) do

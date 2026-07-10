@@ -561,9 +561,57 @@
       <div class="hw-panel-header">
         <h2>Materialize</h2>
       </div>
-      <button class="hw-button" type="button" phx-click="apply_materialization">
-        <%= if @reimport, do: "Apply Reimport", else: "Apply Materialization" %>
-      </button>
+      <%= if @destructive_confirmation != [] do %>
+        <div id="destructive-reimport-confirmation" class="hw-card">
+          <div class="hw-row">
+            <div>
+              <div class="hw-row-title">Confirm destructive reimport changes</div>
+              <p class="hw-muted">
+                These choices remove entities from active use and may clean up scene or group references.
+              </p>
+            </div>
+          </div>
+
+          <div class="hw-grid">
+            <%= for item <- @destructive_confirmation do %>
+              <div class="hw-row">
+                <div>
+                  <div class="hw-row-title">
+                    <%= item.action_label %> <%= item.type_label %>: <%= item.name %>
+                  </div>
+                  <%= if item.dependents == [] do %>
+                    <div class="hw-muted">No dependent scenes or groups found.</div>
+                  <% else %>
+                    <ul class="hw-muted">
+                      <%= for dependent <- item.dependents do %>
+                        <li><%= dependent %></li>
+                      <% end %>
+                    </ul>
+                  <% end %>
+                </div>
+              </div>
+            <% end %>
+          </div>
+
+          <div class="hw-row-actions">
+            <button class="hw-button" type="button" phx-click="cancel_destructive_confirmation">
+              Cancel
+            </button>
+            <button
+              class="hw-button hw-button-on"
+              type="button"
+              phx-click="apply_materialization"
+              phx-value-confirmed="true"
+            >
+              Confirm and Apply
+            </button>
+          </div>
+        </div>
+      <% else %>
+        <button class="hw-button" type="button" phx-click="apply_materialization">
+          <%= if @reimport, do: "Apply Reimport", else: "Apply Materialization" %>
+        </button>
+      <% end %>
     </section>
   <% end %>
 </div>

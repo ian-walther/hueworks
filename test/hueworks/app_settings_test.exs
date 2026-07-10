@@ -2,6 +2,7 @@ defmodule Hueworks.AppSettingsTest do
   use Hueworks.DataCase, async: false
 
   alias Hueworks.AppSettings
+  alias Hueworks.AppSettings.HaExportConfig
   alias Hueworks.Repo
   alias Hueworks.Schemas.AppSetting
 
@@ -91,5 +92,10 @@ defmodule Hueworks.AppSettingsTest do
     settings = AppSettings.get_global()
     assert settings.ha_export_mqtt_port == 1883
     assert settings.ha_export_mqtt_host == "mqtt.local"
+  end
+
+  test "HA export config treats explicitly blank password as nil for programmatic callers" do
+    assert {:ok, %{ha_export_mqtt_password: nil}} =
+             HaExportConfig.normalize(%{ha_export_mqtt_password: ""})
   end
 end

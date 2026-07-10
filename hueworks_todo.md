@@ -13,12 +13,6 @@ Reference: `planning/import-resync.md`
 - [ ] Add dependency disclosure and confirmation UI for destructive disable/delete resolutions.
 - [ ] Make bridge-owned auto-refresh details inspectable without presenting them as decisions.
 
-### Control Architecture Refactor
-Reference: `planning/refactoring.md` and `planning/audit/`
-
-- [ ] Split scene-builder state into smaller typed surfaces for membership, embedded manual state, and per-light policy state.
-- [ ] Preserve existing behavior with characterization tests before changing semantics.
-
 ## Experience Backlog
 
 ### Transition Smoothness

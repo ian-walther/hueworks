@@ -467,6 +467,34 @@ defmodule Hueworks.ScenesComponentsTest do
     assert DesiredState.get(:light, light1.id)[:power] == :on
   end
 
+  test "toggle_activation activates inactive scenes and deactivates active scenes" do
+    room = insert_room()
+    bridge = insert_bridge()
+    light = insert_light(room, bridge, %{name: "Lamp"})
+
+    {:ok, state} =
+      Scenes.create_manual_light_state("Soft", %{"brightness" => "40", "temperature" => "3000"})
+
+    {:ok, scene} = Scenes.create_scene(%{name: "Chill", room_id: room.id})
+
+    {:ok, _} =
+      Scenes.replace_scene_components(scene, [
+        %{name: "Component 1", light_ids: [light.id], light_state_id: to_string(state.id)}
+      ])
+
+    assert {:ok, :activated, activated_scene, diff, _updated} =
+             Scenes.toggle_activation(scene.id, :test)
+
+    assert activated_scene.id == scene.id
+    assert diff[{:light, light.id}][:brightness] == 40
+    assert ActiveScenes.get_for_room(room.id).scene_id == scene.id
+    assert DesiredState.get(:light, light.id)[:power] == :on
+
+    assert {:ok, :deactivated, deactivated_scene} = Scenes.toggle_activation(scene.id, :test)
+    assert deactivated_scene.id == scene.id
+    refute ActiveScenes.get_for_room(room.id)
+  end
+
   test "activate_scene materializes manual color states as xy desired state" do
     room = insert_room()
     bridge = insert_bridge()

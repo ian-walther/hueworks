@@ -12,11 +12,12 @@ defmodule Hueworks.Import.Materialize do
     Rooms
   }
 
+  alias Hueworks.Bridges
   alias Hueworks.Repo
   alias Hueworks.Schemas.{Group, GroupLight, Light}
 
   def materialize(bridge, normalized) do
-    if imported_bridge?(bridge) do
+    if Bridges.imported?(bridge) do
       {:error, :reimport_requires_review}
     else
       materialize(bridge, normalized, Plan.build_default(normalized))
@@ -24,20 +25,11 @@ defmodule Hueworks.Import.Materialize do
   end
 
   def materialize(bridge, normalized, plan) do
-    if imported_bridge?(bridge) do
+    if Bridges.imported?(bridge) do
       ReimportApply.apply(bridge, normalized, plan)
     else
       materialize_initial(bridge, normalized, plan)
     end
-  end
-
-  defp imported_bridge?(bridge) do
-    bridge.import_complete or bridge_has_entities?(bridge.id)
-  end
-
-  defp bridge_has_entities?(bridge_id) do
-    Repo.exists?(from(l in Light, where: l.bridge_id == ^bridge_id)) or
-      Repo.exists?(from(g in Group, where: g.bridge_id == ^bridge_id))
   end
 
   defp materialize_initial(bridge, normalized, plan) do

@@ -102,8 +102,7 @@ defmodule Hueworks.LightsLivePipelineTest do
     assert light_id == light.id
     assert DesiredState.get(:light, light.id) == %{power: :on, brightness: 100, kelvin: 3000}
 
-    physical = State.get(:light, light.id)
-    assert physical[:power] in [:off, "off", false]
+    assert State.get(:light, light.id) == nil
   end
 
   test "manual group temperature change enqueues planner output and updates desired for member lights",

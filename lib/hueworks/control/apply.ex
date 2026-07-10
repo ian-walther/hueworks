@@ -111,14 +111,14 @@ defmodule Hueworks.Control.Apply do
   defp attach_trace(plan, nil, _enqueued_at_ms), do: plan
 
   defp attach_trace(plan, trace, enqueued_at_ms) when is_list(plan) and is_map(trace) do
-    trace_id = map_value(trace, :trace_id)
-    trace_source = map_value(trace, :source) || map_value(trace, :trace_source)
-    trace_room_id = map_value(trace, :trace_room_id)
-    trace_scene_id = map_value(trace, :trace_scene_id)
-    trace_target_occupied = map_value(trace, :trace_target_occupied)
+    trace_id = Map.get(trace, :trace_id)
+    trace_source = Map.get(trace, :source) || Map.get(trace, :trace_source)
+    trace_room_id = Map.get(trace, :trace_room_id)
+    trace_scene_id = Map.get(trace, :trace_scene_id)
+    trace_target_occupied = Map.get(trace, :trace_target_occupied)
 
     trace_started_at_ms =
-      map_value(trace, :started_at_ms) || map_value(trace, :trace_started_at_ms)
+      Map.get(trace, :started_at_ms) || Map.get(trace, :trace_started_at_ms)
 
     Enum.map(plan, fn action ->
       action
@@ -137,12 +137,12 @@ defmodule Hueworks.Control.Apply do
   defp log_plan_built(nil, _room_id, _planner_ms, _plan), do: :ok
 
   defp log_plan_built(trace, room_id, planner_ms, plan) when is_map(trace) and is_list(plan) do
-    case map_value(trace, :trace_id) do
+    case Map.get(trace, :trace_id) do
       nil ->
         :ok
 
       trace_id ->
-        trace_source = map_value(trace, :source) || map_value(trace, :trace_source)
+        trace_source = Map.get(trace, :source) || Map.get(trace, :trace_source)
 
         DebugLogging.info(
           "[control-trace #{trace_id}] plan_built source=#{trace_source} room_id=#{inspect(room_id)} planner_ms=#{planner_ms} actions_total=#{length(plan)} group_actions=#{count_action_type(plan, :group)} light_actions=#{count_action_type(plan, :light)} off_actions=#{count_power(plan, :off)} on_actions=#{count_power(plan, :on)}"
@@ -154,12 +154,12 @@ defmodule Hueworks.Control.Apply do
 
   defp log_plan_enqueued(trace, room_id, enqueue_mode, plan)
        when is_map(trace) and is_list(plan) do
-    case map_value(trace, :trace_id) do
+    case Map.get(trace, :trace_id) do
       nil ->
         :ok
 
       trace_id ->
-        trace_source = map_value(trace, :source) || map_value(trace, :trace_source)
+        trace_source = Map.get(trace, :source) || Map.get(trace, :trace_source)
 
         DebugLogging.info(
           "[control-trace #{trace_id}] plan_enqueued source=#{trace_source} room_id=#{inspect(room_id)} enqueue_mode=#{enqueue_mode} actions_total=#{length(plan)}"
@@ -180,8 +180,4 @@ defmodule Hueworks.Control.Apply do
 
   defp maybe_put(map, _key, nil), do: map
   defp maybe_put(map, key, value), do: Map.put(map, key, value)
-
-  defp map_value(map, key) when is_map(map) do
-    Map.get(map, key) || Map.get(map, Atom.to_string(key))
-  end
 end

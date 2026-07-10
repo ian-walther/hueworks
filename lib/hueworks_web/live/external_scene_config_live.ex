@@ -1,6 +1,8 @@
 defmodule HueworksWeb.ExternalSceneConfigLive do
   use Phoenix.LiveView
 
+  import HueworksWeb.Notices
+
   alias Hueworks.ExternalScenes
   alias Hueworks.Repo
   alias Hueworks.Schemas.Bridge
@@ -11,9 +13,7 @@ defmodule HueworksWeb.ExternalSceneConfigLive do
      assign(socket,
        bridge: nil,
        external_scenes: [],
-       scene_options: [],
-       save_status: nil,
-       save_error: nil
+       scene_options: []
      )}
   end
 
@@ -34,17 +34,12 @@ defmodule HueworksWeb.ExternalSceneConfigLive do
       {:ok, external_scenes} ->
         {:noreply,
          socket
-         |> assign(
-           external_scenes: external_scenes,
-           save_status: nil,
-           save_error: nil
-         )
+         |> assign(external_scenes: external_scenes)
          |> put_notice(:info, "Home Assistant scenes synced.")}
 
       {:error, reason} ->
         {:noreply,
          socket
-         |> assign(save_status: nil, save_error: nil)
          |> put_notice(:error, inspect(reason))}
     end
   end
@@ -56,7 +51,6 @@ defmodule HueworksWeb.ExternalSceneConfigLive do
       nil ->
         {:noreply,
          socket
-         |> assign(save_status: nil, save_error: nil)
          |> put_notice(:error, "External scene not found.")}
 
       external_scene ->
@@ -66,9 +60,7 @@ defmodule HueworksWeb.ExternalSceneConfigLive do
              socket
              |> assign(
                external_scenes:
-                 ExternalScenes.list_external_scenes_for_bridge(socket.assigns.bridge.id),
-               save_status: nil,
-               save_error: nil
+                 ExternalScenes.list_external_scenes_for_bridge(socket.assigns.bridge.id)
              )
              |> put_notice(:info, "Mapping saved.")}
 
@@ -80,7 +72,6 @@ defmodule HueworksWeb.ExternalSceneConfigLive do
 
             {:noreply,
              socket
-             |> assign(save_status: nil, save_error: nil)
              |> put_notice(:error, message)}
         end
     end
@@ -90,21 +81,7 @@ defmodule HueworksWeb.ExternalSceneConfigLive do
     assign(socket,
       bridge: bridge,
       external_scenes: ExternalScenes.list_external_scenes_for_bridge(bridge.id),
-      scene_options: ExternalScenes.list_mappable_scenes(),
-      save_status: nil,
-      save_error: nil
+      scene_options: ExternalScenes.list_mappable_scenes()
     )
-  end
-
-  defp put_notice(socket, :info, message) when is_binary(message) do
-    socket
-    |> clear_flash(:error)
-    |> put_flash(:info, message)
-  end
-
-  defp put_notice(socket, :error, message) when is_binary(message) do
-    socket
-    |> clear_flash(:info)
-    |> put_flash(:error, message)
   end
 end

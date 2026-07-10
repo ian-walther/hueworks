@@ -11,10 +11,6 @@ Overall assessment: the integration layer passes its central architectural test 
 - Pico control groups living in device `metadata` JSON is fine at this scale.
 - `Import.Fetch.Common.load_enabled_bridge!`'s raise on multiple HA bridges is the deliberate single-HA-bridge product gate (the control bootstrap no longer shares that assumption).
 
-## CP-3 rider (for the CP-3 implementer)
-
-`Messages.State.fetch_state_value/2` and `state_power_value/1` do dual-key reads of control-state maps ([messages/state.ex](../../lib/hueworks/home_assistant/export/messages/state.ex)); once CP-3's atom-key invariant lands, collapse these to atom reads (the `state_power_value(nil)` dead clause is one of the known compile warnings).
-
 ## Test-Gap Notes (cross-reference for planning/test-coverage-audit.md)
 
 - All three integrations have suites, now including domain-event subscriber coverage (HA export scene CRUD, HomeKit event reloads), Caseta crash isolation, and `CasetaLeap` transport tests.
