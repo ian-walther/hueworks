@@ -24,7 +24,9 @@ defmodule Hueworks.DataCase do
     :ok = HueworksApp.Cache.flush_all()
     clear_ets(:hueworks_desired_state)
     clear_ets(:hueworks_desired_state_revisions)
+    clear_ets(:hueworks_desired_state_updated_at)
     clear_ets(:hueworks_control_state)
+    clear_ets(:hueworks_control_state_observed_at)
     on_exit(fn -> Ecto.Adapters.SQL.Sandbox.stop_owner(pid) end)
   end
 

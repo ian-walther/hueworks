@@ -38,7 +38,11 @@ defmodule HueworksWeb.ConfigLive do
        homekit_scenes_enabled: app_setting.homekit_scenes_enabled == true,
        homekit_bridge_name: app_setting.homekit_bridge_name || "HueWorks",
        homekit_pairing_code: homekit_pairing_code(app_setting),
-       homekit_paired?: HomeKit.paired?()
+       homekit_paired?: HomeKit.paired?(),
+       api_enabled: AppSettings.api_enabled?(),
+       api_token: nil,
+       api_token_revealed?: false,
+       api_base_url: api_base_url()
      )}
   end
 
@@ -294,6 +298,63 @@ defmodule HueworksWeb.ConfigLive do
     end
   end
 
+  def handle_event("enable_api_access", _params, socket) do
+    case AppSettings.enable_api_access() do
+      {:ok, _app_setting} ->
+        {:noreply,
+         socket
+         |> assign(api_enabled: true, api_token: nil, api_token_revealed?: false)
+         |> put_notice(:info, "AI API access enabled. Reveal the token to configure MCP.")}
+
+      {:error, _reason} ->
+        {:noreply, put_notice(socket, :error, "Unable to enable AI API access.")}
+    end
+  end
+
+  def handle_event("disable_api_access", _params, socket) do
+    case AppSettings.disable_api_access() do
+      {:ok, _app_setting} ->
+        {:noreply,
+         socket
+         |> assign(api_enabled: false, api_token: nil, api_token_revealed?: false)
+         |> put_notice(:info, "AI API access disabled.")}
+
+      {:error, _reason} ->
+        {:noreply, put_notice(socket, :error, "Unable to disable AI API access.")}
+    end
+  end
+
+  def handle_event("reveal_api_token", _params, socket) do
+    {:noreply,
+     assign(socket,
+       api_token: AppSettings.api_token(),
+       api_token_revealed?: true
+     )}
+  end
+
+  def handle_event("hide_api_token", _params, socket) do
+    {:noreply, assign(socket, api_token: nil, api_token_revealed?: false)}
+  end
+
+  def handle_event("rotate_api_token", _params, socket) do
+    case AppSettings.rotate_api_token() do
+      {:ok, app_setting} ->
+        {:noreply,
+         socket
+         |> assign(api_token: app_setting.api_token, api_token_revealed?: true)
+         |> put_notice(
+           :info,
+           "API token rotated. Update the MCP configuration before using it again."
+         )}
+
+      {:error, :api_disabled} ->
+        {:noreply, put_notice(socket, :error, "Enable AI API access before rotating its token.")}
+
+      {:error, _reason} ->
+        {:noreply, put_notice(socket, :error, "Unable to rotate the API token.")}
+    end
+  end
+
   def handle_event(
         "geolocation_success",
         %{"latitude" => latitude, "longitude" => longitude} = params,
@@ -396,6 +457,11 @@ defmodule HueworksWeb.ConfigLive do
     app_setting
     |> HomeKitBridgeConfig.from_settings()
     |> Map.fetch!(:pairing_code)
+  end
+
+  defp api_base_url do
+    HueworksWeb.Endpoint.url()
+    |> String.trim_trailing("/")
   end
 
   defp format_coord(nil), do: ""

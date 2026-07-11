@@ -14,6 +14,7 @@ defmodule Hueworks.Application do
         HueworksApp.Cache.Store,
         Hueworks.Control.State,
         Hueworks.Control.DesiredState,
+        Hueworks.Control.TraceBuffer,
         Hueworks.Control.Executor,
         maybe_circadian_poller(),
         Hueworks.Subscription.HueEventStream,

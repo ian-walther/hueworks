@@ -244,6 +244,22 @@ Hooks.GeoLocate = {
   }
 }
 
+Hooks.CopyToClipboard = {
+  mounted() {
+    this.el.addEventListener("click", async () => {
+      let value = this.el.dataset.copyValue
+      if (!value || !navigator.clipboard) return
+
+      try {
+        await navigator.clipboard.writeText(value)
+        this.el.textContent = "Copied"
+      } catch (_error) {
+        this.el.textContent = "Copy Failed"
+      }
+    })
+  }
+}
+
 Hooks.AutoClearFlash = {
   mounted() {
     this.timer = window.setTimeout(() => {

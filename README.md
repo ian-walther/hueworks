@@ -153,6 +153,74 @@ Never expose HueWorks to the public Internet. Do not port-forward it, publish it
 
 CSRF protection and WebSocket origin checks remain enabled as defense in depth, but they are not authentication. A future remote-access use case requires a new security design before any exposure, including authentication, authorization, TLS, session policy, and secret handling.
 
+## AI API And MCP
+
+HueWorks includes an opt-in, token-authenticated JSON API at `/api/v1` for
+local diagnostics and explicit operational controls. It is disabled by default.
+
+1. Open `/config` and enable **AI API**.
+2. Reveal and copy the generated token only into your local MCP configuration.
+3. Rotate the token from the same panel whenever that local configuration needs
+   to be revoked.
+
+The API exposes separate observed physical state and desired state. A `null`
+physical state means HueWorks has no current observation; it does not mean the
+light is off. Recent planner/executor lifecycle evidence is available through
+the bounded in-memory trace endpoint. API controls use the same scene and
+manual-control paths as the UI, so a successful write means intent was accepted
+and queued, not that a bridge has already converged.
+
+Every API request requires `Authorization: Bearer <token>`. The available v1
+read endpoints are `GET /api/v1/status`, `/api/v1/rooms`, `/api/v1/rooms/:id`,
+`/api/v1/lights/:id`, `/api/v1/groups/:id`, `/api/v1/traces`, and the matching
+`/api/v1/debug/rooms/:id`, `/api/v1/debug/lights/:id`, and
+`/api/v1/debug/groups/:id` projections. The intentionally
+narrow write endpoints are:
+
+| Endpoint | Operation |
+| --- | --- |
+| `POST /api/v1/scenes/:id/activate` | Activate or reapply one scene. |
+| `DELETE /api/v1/rooms/:id/active-scene` | Explicitly deactivate a room scene. |
+| `POST /api/v1/lights/:id/control` | Send exactly one `power`, `brightness`, `kelvin`, or `color` command. |
+| `POST /api/v1/groups/:id/control` | Apply the same explicit command through existing group membership. |
+| `POST /api/v1/runtime/physical-state/refresh` | Start an asynchronous observed-state refresh. |
+
+Manual color input uses `{ "color": { "hue": 0..360, "saturation": 0..100 } }`.
+Brightness, temperature, and color remain unavailable while a room scene is
+active, just as they are in the browser UI. Configuration, reimport, Pico
+configuration, credentials, and destructive operations are deliberately not
+available through the API.
+
+The repository includes a local stdio MCP adapter in `mcp/`. It runs on the AI
+client machine, not inside the HueWorks Docker container:
+
+```bash
+npm --prefix mcp ci
+npm --prefix mcp run build
+```
+
+Register the compiled adapter in the user's global `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.hueworks]
+command = "node"
+args = ["/absolute/path/to/hueworks/mcp/dist/index.js"]
+cwd = "/absolute/path/to/hueworks/mcp"
+startup_timeout_sec = 15
+tool_timeout_sec = 60
+default_tools_approval_mode = "writes"
+enabled = true
+
+[mcp_servers.hueworks.env]
+HUEWORKS_API_URL = "https://hueworks.home"
+HUEWORKS_API_TOKEN = "copy-from-HueWorks-Config"
+```
+
+Use the base URL shown on the Config page. Do not commit the token or place it
+in the MCP package. Rebuild the adapter and restart Codex after changing its
+source or configuration. The adapter's own contract tests run with
+`npm --prefix mcp test`.
+
 ## Docker
 
 For a fresh deployment:

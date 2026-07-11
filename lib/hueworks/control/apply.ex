@@ -2,7 +2,7 @@ defmodule Hueworks.Control.Apply do
   @moduledoc false
 
   alias Hueworks.DebugLogging
-  alias Hueworks.Control.{DesiredState, Executor, Planner}
+  alias Hueworks.Control.{DesiredState, Executor, Planner, TraceBuffer}
 
   @type plan_diff :: map()
   @type commit_result :: %{
@@ -45,6 +45,7 @@ defmodule Hueworks.Control.Apply do
   def commit_and_enqueue(%DesiredState.Transaction{} = txn, room_id, opts \\ []) do
     force_apply = Keyword.get(opts, :force_apply, false)
     {:ok, %{plan_diff: plan_diff} = result} = commit_transaction(txn, force_apply: force_apply)
+    record_intent(Keyword.get(opts, :trace), plan_diff)
 
     case plan_and_enqueue(room_id, plan_diff, opts) do
       {:ok, %{plan: plan, planner_ms: planner_ms}} ->
@@ -82,10 +83,12 @@ defmodule Hueworks.Control.Apply do
     plan = build_plan(room_id, diff, trace: trace)
     planner_ms = System.monotonic_time(:millisecond) - planner_started_ms
     log_plan_built(trace, room_id, planner_ms, plan)
+    record_planned(trace, plan, planner_ms)
 
     transformed_plan = attach_trace(plan, trace, System.monotonic_time(:millisecond))
     _ = enqueue_plan(transformed_plan, mode: enqueue_mode)
     log_plan_enqueued(trace, room_id, enqueue_mode, transformed_plan)
+    record_enqueued(trace, transformed_plan)
 
     {:ok, %{plan: transformed_plan, planner_ms: planner_ms}}
   end
@@ -113,8 +116,8 @@ defmodule Hueworks.Control.Apply do
   defp attach_trace(plan, trace, enqueued_at_ms) when is_list(plan) and is_map(trace) do
     trace_id = Map.get(trace, :trace_id)
     trace_source = Map.get(trace, :source) || Map.get(trace, :trace_source)
-    trace_room_id = Map.get(trace, :trace_room_id)
-    trace_scene_id = Map.get(trace, :trace_scene_id)
+    trace_room_id = Map.get(trace, :trace_room_id) || Map.get(trace, :room_id)
+    trace_scene_id = Map.get(trace, :trace_scene_id) || Map.get(trace, :scene_id)
     trace_target_occupied = Map.get(trace, :trace_target_occupied)
 
     trace_started_at_ms =
@@ -177,6 +180,59 @@ defmodule Hueworks.Control.Apply do
       Map.get(desired, :power) == power
     end)
   end
+
+  defp record_intent(trace, diff) when is_map(diff) do
+    diff
+    |> Enum.sort_by(fn {{type, id}, _desired} -> {type, id} end)
+    |> Enum.each(fn {{type, id}, desired} ->
+      record_trace(trace, :intent, %{
+        type: type,
+        id: id,
+        desired: desired,
+        action_count: map_size(diff)
+      })
+    end)
+  end
+
+  defp record_intent(_trace, _diff), do: :ok
+
+  defp record_planned(trace, plan, planner_ms) when is_list(plan) do
+    Enum.each(plan, fn action ->
+      record_trace(trace, :planned, %{
+        type: action.type,
+        id: action.id,
+        bridge_id: action.bridge_id,
+        desired: action.desired,
+        planner_ms: planner_ms,
+        action_count: length(plan)
+      })
+    end)
+  end
+
+  defp record_enqueued(trace, plan) when is_list(plan) do
+    Enum.each(plan, fn action ->
+      record_trace(trace, :enqueued, %{
+        type: action.type,
+        id: action.id,
+        bridge_id: action.bridge_id,
+        desired: action.desired,
+        action_count: length(plan)
+      })
+    end)
+
+    record_trace(trace, :enqueued, %{
+      action_count: length(plan),
+      bridge_count: plan |> Enum.map(& &1.bridge_id) |> MapSet.new() |> MapSet.size()
+    })
+  end
+
+  # Preserve the existing low-overhead path for control work that is not being traced.
+  defp record_trace(%{trace_id: trace_id} = trace, stage, attrs)
+       when is_binary(trace_id) and trace_id != "" do
+    TraceBuffer.record(trace, stage, attrs)
+  end
+
+  defp record_trace(_trace, _stage, _attrs), do: :ok
 
   defp maybe_put(map, _key, nil), do: map
   defp maybe_put(map, key, value), do: Map.put(map, key, value)

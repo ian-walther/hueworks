@@ -1,12 +1,14 @@
 defmodule Hueworks.LightsManualControlTest do
   use Hueworks.DataCase, async: false
 
-  alias Hueworks.Control.{DesiredState, Executor, State}
+  alias Hueworks.Control.{DesiredState, Executor, State, TraceBuffer}
   alias Hueworks.Lights.ManualControl
   alias Hueworks.Repo
   alias Hueworks.Schemas.{Light, Room, Scene}
 
   setup do
+    TraceBuffer.clear()
+
     actions_id = {:executor_manual_control_actions, self()}
     {:ok, actions_agent} = start_supervised({Agent, fn -> [] end}, id: actions_id)
 
@@ -37,6 +39,48 @@ defmodule Hueworks.LightsManualControlTest do
     end)
 
     {:ok, actions_agent: actions_agent, executor_server: server}
+  end
+
+  test "manual updates preserve a caller-provided trace through planning", %{
+    executor_server: executor_server
+  } do
+    room = Repo.insert!(%Room{name: "Trace Office"})
+
+    bridge =
+      insert_bridge!(%{
+        name: "Trace Hue Bridge",
+        type: :hue,
+        host: "192.168.1.199",
+        credentials: %{"api_key" => "test"}
+      })
+
+    light =
+      Repo.insert!(%Light{
+        name: "Trace Desk Lamp",
+        source: :hue,
+        source_id: "trace-desk-lamp",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        enabled: true
+      })
+
+    _ = DesiredState.put(:light, light.id, %{power: :on, brightness: 10})
+    _ = State.put(:light, light.id, %{power: :on, brightness: 10})
+
+    trace = %{
+      trace_id: "api-manual-update-#{light.id}",
+      source: "api.light_control",
+      room_id: room.id,
+      started_at_ms: System.monotonic_time(:millisecond)
+    }
+
+    assert {:ok, _diff} =
+             ManualControl.apply_updates(room.id, [light.id], %{brightness: 55}, trace: trace)
+
+    assert %{events: events} = TraceBuffer.recent(trace_id: trace.trace_id)
+    assert Enum.any?(events, &(&1.stage == :planned and &1.source == "api.light_control"))
+
+    drain_executor(executor_server)
   end
 
   test "manual power action retries when physical state stays stale", %{

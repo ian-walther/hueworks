@@ -12,6 +12,11 @@ defmodule HueworksWeb.Router do
     plug(:put_secure_browser_headers)
   end
 
+  pipeline :api do
+    plug(:accepts, ["json"])
+    plug(HueworksWeb.Plugs.ApiAuth)
+  end
+
   scope "/", HueworksWeb do
     pipe_through(:browser)
 
@@ -30,5 +35,24 @@ defmodule HueworksWeb.Router do
     live("/config/bridge/:id/picos", PicoConfigLive, :index)
     live("/config/bridge/:id/picos/:pico_id", PicoConfigLive, :show)
     live("/config/bridge/:id/external-scenes", ExternalSceneConfigLive, :index)
+  end
+
+  scope "/api/v1", HueworksWeb.Api do
+    pipe_through(:api)
+
+    get("/status", StatusController, :show)
+    get("/rooms", RoomsController, :index)
+    get("/rooms/:id", RoomsController, :show)
+    get("/lights/:id", EntitiesController, :show_light)
+    get("/groups/:id", EntitiesController, :show_group)
+    get("/traces", TracesController, :index)
+    get("/debug/rooms/:id", RoomsController, :debug)
+    get("/debug/lights/:id", EntitiesController, :debug_light)
+    get("/debug/groups/:id", EntitiesController, :debug_group)
+    post("/scenes/:id/activate", ControlsController, :activate_scene)
+    delete("/rooms/:id/active-scene", ControlsController, :deactivate_room_scene)
+    post("/lights/:id/control", ControlsController, :control_light)
+    post("/groups/:id/control", ControlsController, :control_group)
+    post("/runtime/physical-state/refresh", ControlsController, :refresh_physical_state)
   end
 end

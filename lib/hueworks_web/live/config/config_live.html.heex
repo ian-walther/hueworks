@@ -274,6 +274,80 @@
 
   <section class="hw-panel">
     <div class="hw-panel-header">
+      <h2>AI API</h2>
+    </div>
+
+    <p class="hw-muted">
+      Give local AI tools authenticated access to HueWorks state, diagnostics, and normal control actions.
+    </p>
+
+    <%= if @api_enabled do %>
+      <p class="hw-muted">API access is enabled.</p>
+      <div class="hw-form">
+        <label class="hw-modal-label" for="ai-api-url">API Base URL</label>
+        <code id="ai-api-url" class="hw-modal-input"><%= @api_base_url %></code>
+
+        <label class="hw-modal-label" for="ai-api-token">API Token</label>
+        <%= if @api_token_revealed? do %>
+          <code id="ai-api-token" class="hw-modal-input"><%= @api_token %></code>
+          <div class="hw-modal-actions">
+            <button
+              id="copy-ai-api-token"
+              type="button"
+              class="hw-button"
+              phx-hook="CopyToClipboard"
+              data-copy-value={@api_token}
+            >
+              Copy Token
+            </button>
+            <button id="hide-ai-api-token" type="button" class="hw-button" phx-click="hide_api_token">
+              Hide Token
+            </button>
+          </div>
+          <label class="hw-modal-label" for="ai-api-mcp-env">MCP Environment</label>
+          <pre id="ai-api-mcp-env" class="hw-modal-input">HUEWORKS_API_URL=<%= @api_base_url %>{"\n"}HUEWORKS_API_TOKEN=<%= @api_token %></pre>
+        <% else %>
+          <code id="ai-api-token" class="hw-modal-input">Hidden until revealed</code>
+          <div class="hw-modal-actions">
+            <button id="reveal-ai-api-token" type="button" class="hw-button" phx-click="reveal_api_token">
+              Reveal Token
+            </button>
+          </div>
+        <% end %>
+
+        <div class="hw-modal-actions">
+          <button
+            id="rotate-ai-api-token"
+            type="button"
+            class="hw-button hw-delete-button"
+            phx-click="rotate_api_token"
+            data-confirm="Rotate the AI API token? Existing MCP clients will stop working until updated."
+          >
+            Rotate Token
+          </button>
+          <button
+            id="disable-ai-api"
+            type="button"
+            class="hw-button hw-delete-button"
+            phx-click="disable_api_access"
+            data-confirm="Disable AI API access? Existing MCP clients will stop working immediately."
+          >
+            Disable API
+          </button>
+        </div>
+      </div>
+    <% else %>
+      <p class="hw-muted">API access is disabled.</p>
+      <div class="hw-modal-actions">
+        <button id="enable-ai-api" type="button" class="hw-button hw-button-on" phx-click="enable_api_access">
+          Enable AI API
+        </button>
+      </div>
+    <% end %>
+  </section>
+
+  <section class="hw-panel">
+    <div class="hw-panel-header">
       <h2>Light State Configs</h2>
       <span class="hw-count"><%= length(@light_states) %></span>
     </div>

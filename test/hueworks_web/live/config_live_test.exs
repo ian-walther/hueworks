@@ -278,6 +278,50 @@ defmodule HueworksWeb.ConfigLiveTest do
     assert html =~ "ready to pair"
   end
 
+  test "AI API controls generate, reveal, disable, and rotate a persistent token", %{conn: conn} do
+    {:ok, view, html} = live(conn, "/config")
+
+    assert html =~ "AI API"
+    assert html =~ "API access is disabled."
+    refute html =~ "HUEWORKS_API_TOKEN"
+
+    view
+    |> element("#enable-ai-api")
+    |> render_click()
+
+    enabled_html = render(view)
+    assert enabled_html =~ "API access is enabled."
+    refute enabled_html =~ "HUEWORKS_API_TOKEN"
+    refute enabled_html =~ AppSettings.get_global().api_token
+
+    view
+    |> element("#reveal-ai-api-token")
+    |> render_click()
+
+    revealed_html = render(view)
+    assert revealed_html =~ "HUEWORKS_API_TOKEN"
+
+    token = AppSettings.get_global().api_token
+    assert revealed_html =~ token
+
+    view
+    |> element("#rotate-ai-api-token")
+    |> render_click()
+
+    rotated_token = AppSettings.get_global().api_token
+    refute rotated_token == token
+
+    assert render(view) =~
+             "API token rotated. Update the MCP configuration before using it again."
+
+    view
+    |> element("#disable-ai-api")
+    |> render_click()
+
+    assert AppSettings.get_global().api_enabled == false
+    assert render(view) =~ "API access is disabled."
+  end
+
   test "shows a validation error for invalid HA export input", %{conn: conn} do
     Repo.insert!(%AppSetting{
       scope: "global",

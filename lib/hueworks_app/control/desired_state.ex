@@ -13,6 +13,7 @@ defmodule Hueworks.Control.DesiredState do
 
   @table :hueworks_desired_state
   @revision_table :hueworks_desired_state_revisions
+  @updated_at_table :hueworks_desired_state_updated_at
 
   @type entity_type :: atom()
   @type entity_id :: term()
@@ -51,6 +52,10 @@ defmodule Hueworks.Control.DesiredState do
       :ets.delete(@revision_table)
     end
 
+    if :ets.whereis(@updated_at_table) != :undefined do
+      :ets.delete(@updated_at_table)
+    end
+
     :ets.new(@table, [:named_table, :public, read_concurrency: true, write_concurrency: true])
 
     :ets.new(@revision_table, [
@@ -59,6 +64,8 @@ defmodule Hueworks.Control.DesiredState do
       read_concurrency: true,
       write_concurrency: true
     ])
+
+    :ets.new(@updated_at_table, [:named_table, :public, read_concurrency: true])
 
     {:ok, %{}}
   end
@@ -81,6 +88,13 @@ defmodule Hueworks.Control.DesiredState do
     case :ets.lookup(@revision_table, {type, id}) do
       [{_key, revision}] -> revision
       [] -> 0
+    end
+  end
+
+  def updated_at(type, id) do
+    case :ets.lookup(@updated_at_table, {type, id}) do
+      [{_key, timestamp}] -> timestamp
+      [] -> nil
     end
   end
 
@@ -177,6 +191,10 @@ defmodule Hueworks.Control.DesiredState do
       revisions:
         Map.new(keys, fn {type, id} = key ->
           {key, revision(type, id)}
+        end),
+      updated_at:
+        Map.new(keys, fn {type, id} = key ->
+          {key, updated_at(type, id)}
         end)
     }
 
@@ -199,6 +217,7 @@ defmodule Hueworks.Control.DesiredState do
       else
         next_revision = revision(type, id) + 1
         :ets.insert(@revision_table, {{type, id}, next_revision})
+        :ets.insert(@updated_at_table, {{type, id}, DateTime.utc_now()})
         next_revision
       end
 

@@ -13,6 +13,7 @@ defmodule Hueworks.Control.State do
   alias Phoenix.PubSub
 
   @table :hueworks_control_state
+  @observed_at_table :hueworks_control_state_observed_at
   @topic "control_state"
 
   @type entity_type :: atom()
@@ -31,7 +32,12 @@ defmodule Hueworks.Control.State do
       :ets.delete(@table)
     end
 
+    if :ets.whereis(@observed_at_table) != :undefined do
+      :ets.delete(@observed_at_table)
+    end
+
     :ets.new(@table, [:named_table, :public, read_concurrency: true, write_concurrency: true])
+    :ets.new(@observed_at_table, [:named_table, :public, read_concurrency: true])
 
     {:ok, %{bootstrap_ref: nil, bootstrap_pid: nil, bootstrap_waiters: []},
      {:continue, :bootstrap}}
@@ -50,13 +56,30 @@ defmodule Hueworks.Control.State do
     GenServer.call(__MODULE__, {:put, type, id, attrs})
   end
 
+  def observed_at(type, id) do
+    case :ets.lookup(@observed_at_table, {type, id}) do
+      [{_key, timestamp}] -> timestamp
+      [] -> nil
+    end
+  end
+
   @spec bootstrap() :: :ok
   def bootstrap do
     GenServer.call(__MODULE__, :bootstrap, :infinity)
   end
 
+  @spec refresh() :: :ok
+  def refresh do
+    GenServer.cast(__MODULE__, :refresh)
+  end
+
   @impl true
   def handle_continue(:bootstrap, state) do
+    {:noreply, start_bootstrap(state)}
+  end
+
+  @impl true
+  def handle_cast(:refresh, state) do
     {:noreply, start_bootstrap(state)}
   end
 
@@ -162,6 +185,7 @@ defmodule Hueworks.Control.State do
       |> LightStateSemantics.merge_state(attrs)
 
     :ets.insert(@table, {key, updated})
+    :ets.insert(@observed_at_table, {key, DateTime.utc_now()})
     broadcast_update(key, updated)
     updated
   end

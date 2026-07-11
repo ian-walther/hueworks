@@ -78,8 +78,41 @@ defmodule Hueworks.AppSettings do
       ha_export_mqtt_password: app_setting.ha_export_mqtt_password,
       ha_export_discovery_prefix: app_setting.ha_export_discovery_prefix || "homeassistant",
       homekit_scenes_enabled: app_setting.homekit_scenes_enabled == true,
-      homekit_bridge_name: app_setting.homekit_bridge_name || HomeKitConfig.default_bridge_name()
+      homekit_bridge_name: app_setting.homekit_bridge_name || HomeKitConfig.default_bridge_name(),
+      api_enabled: api_enabled?(app_setting)
     }
+  end
+
+  def api_enabled? do
+    get_global()
+    |> api_enabled?()
+  end
+
+  def api_token do
+    app_setting = get_global()
+
+    if api_enabled?(app_setting), do: app_setting.api_token, else: nil
+  end
+
+  def enable_api_access do
+    app_setting = get_global()
+
+    update_api_access(%{
+      api_enabled: true,
+      api_token: app_setting.api_token || generate_api_token()
+    })
+  end
+
+  def disable_api_access do
+    update_api_access(%{api_enabled: false})
+  end
+
+  def rotate_api_token do
+    if api_enabled?() do
+      update_api_access(%{api_token: generate_api_token()})
+    else
+      {:error, :api_disabled}
+    end
   end
 
   defp load_global do
@@ -173,7 +206,45 @@ defmodule Hueworks.AppSettings do
       ha_export_mqtt_password: s.ha_export_mqtt_password,
       ha_export_discovery_prefix: s.ha_export_discovery_prefix || "homeassistant",
       homekit_scenes_enabled: s.homekit_scenes_enabled == true,
-      homekit_bridge_name: s.homekit_bridge_name || HomeKitConfig.default_bridge_name()
+      homekit_bridge_name: s.homekit_bridge_name || HomeKitConfig.default_bridge_name(),
+      api_enabled: s.api_enabled == true,
+      api_token: s.api_token
     }
+  end
+
+  defp update_api_access(attrs) do
+    result =
+      case Repo.get_by(AppSetting, scope: @global_scope) do
+        nil ->
+          %AppSetting{}
+          |> AppSetting.changeset(Map.put(attrs, :scope, @global_scope))
+          |> Repo.insert()
+
+        %AppSetting{} = app_setting ->
+          app_setting
+          |> AppSetting.changeset(attrs)
+          |> Repo.update()
+      end
+
+    case result do
+      {:ok, %AppSetting{} = app_setting} ->
+        :ok = Cache.put(@cache_namespace, @cache_key, app_setting)
+        {:ok, app_setting}
+
+      other ->
+        other
+    end
+  end
+
+  defp api_enabled?(%AppSetting{api_enabled: true, api_token: token})
+       when is_binary(token) and token != "",
+       do: true
+
+  defp api_enabled?(_app_setting), do: false
+
+  defp generate_api_token do
+    32
+    |> :crypto.strong_rand_bytes()
+    |> Base.url_encode64(padding: false)
   end
 end

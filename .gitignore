@@ -25,6 +25,9 @@ erl_crash.dump
 
 # Node/NPM
 /assets/node_modules/
+/mcp/node_modules/
+/mcp/dist/
+/mcp/.test-dist/
 npm-debug.log
 
 # IDE

@@ -137,4 +137,28 @@ defmodule Hueworks.AppSettingsTest do
     assert {:ok, %{ha_export_mqtt_password: nil}} =
              HaExportConfig.normalize(%{ha_export_mqtt_password: ""})
   end
+
+  test "enabling API access generates and persists one secure token" do
+    assert {:ok, enabled} = AppSettings.enable_api_access()
+    assert enabled.api_enabled == true
+    assert is_binary(enabled.api_token)
+    assert String.length(enabled.api_token) >= 43
+
+    assert {:ok, enabled_again} = AppSettings.enable_api_access()
+    assert enabled_again.api_token == enabled.api_token
+    assert AppSettings.api_enabled?() == true
+  end
+
+  test "rotating API access replaces the token and disabling keeps it unavailable" do
+    {:ok, enabled} = AppSettings.enable_api_access()
+
+    assert {:ok, rotated} = AppSettings.rotate_api_token()
+    assert rotated.api_enabled == true
+    refute rotated.api_token == enabled.api_token
+
+    assert {:ok, disabled} = AppSettings.disable_api_access()
+    assert disabled.api_enabled == false
+    assert AppSettings.api_enabled?() == false
+    assert AppSettings.api_token() == nil
+  end
 end
