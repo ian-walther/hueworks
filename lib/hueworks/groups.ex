@@ -56,11 +56,10 @@ defmodule Hueworks.Groups do
       |> normalize_kelvin_attrs()
 
     group
-    |> Group.changeset(attrs)
-    |> Repo.update()
-    |> maybe_sync_room_lights(attrs)
+    |> update_group(attrs)
     |> maybe_refresh_home_assistant_export()
     |> maybe_reload_homekit()
+    |> unwrap_update_result()
   end
 
   def update_display_name(group, display_name) do
@@ -74,50 +73,109 @@ defmodule Hueworks.Groups do
     |> Map.update(:extended_min_kelvin, nil, &Util.normalize_kelvin/1)
   end
 
-  defp maybe_sync_room_lights({:ok, group} = result, attrs) when is_map(attrs) do
+  defp update_group(%Group{} = group, attrs) when is_map(attrs) do
     if Map.has_key?(attrs, :room_id) do
-      room_id = Map.get(attrs, :room_id)
-
-      subgroup_ids =
-        Topology.member_sets()
-        |> Topology.derive_subgroups()
-        |> then(&Topology.all_subgroups(group.id, &1))
-
-      group_ids = [group.id | subgroup_ids]
-
-      from(l in Light,
-        join: gl in GroupLight,
-        on: gl.light_id == l.id,
-        where: gl.group_id in ^group_ids,
-        update: [set: [room_id: ^room_id]]
-      )
-      |> Repo.update_all([])
-
-      from(g in Group,
-        where: g.id in ^subgroup_ids,
-        update: [set: [room_id: ^room_id]]
-      )
-      |> Repo.update_all([])
+      update_group_room_cascade(group, attrs)
+    else
+      group
+      |> Group.changeset(attrs)
+      |> Repo.update()
+      |> with_refresh_effects(fn updated ->
+        %{group_ids: [updated.id], light_ids: []}
+      end)
     end
-
-    result
   end
 
-  defp maybe_sync_room_lights(result, _attrs), do: result
+  defp update_group_room_cascade(%Group{} = group, attrs) do
+    room_id = Map.get(attrs, :room_id)
+    effects = room_cascade_effects(group.id)
+    group_ids = effects.group_ids
 
-  defp maybe_refresh_home_assistant_export({:ok, %Group{} = group} = result) do
-    HomeAssistantExport.refresh_group(group.id)
+    Repo.transaction(fn ->
+      updated =
+        group
+        |> Group.changeset(attrs)
+        |> Repo.update()
+        |> case do
+          {:ok, updated} -> updated
+          {:error, changeset} -> Repo.rollback(changeset)
+        end
+
+      update_member_lights_room!(group_ids, room_id)
+      update_subgroups_room!(List.delete(group_ids, group.id), room_id)
+
+      {updated, effects}
+    end)
+  end
+
+  defp room_cascade_effects(group_id) do
+    subgroup_ids =
+      Topology.member_sets()
+      |> Topology.derive_subgroups()
+      |> then(&Topology.all_subgroups(group_id, &1))
+
+    group_ids = [group_id | subgroup_ids] |> Enum.uniq()
+
+    light_ids =
+      group_ids
+      |> light_ids_by_group()
+      |> Map.values()
+      |> List.flatten()
+      |> Enum.uniq()
+
+    %{group_ids: group_ids, light_ids: light_ids}
+  end
+
+  defp update_member_lights_room!(group_ids, room_id) do
+    from(l in Light,
+      join: gl in GroupLight,
+      on: gl.light_id == l.id,
+      where: gl.group_id in ^group_ids,
+      update: [set: [room_id: ^room_id]]
+    )
+    |> Repo.update_all([])
+  end
+
+  defp update_subgroups_room!([], _room_id), do: {0, nil}
+
+  defp update_subgroups_room!(subgroup_ids, room_id) do
+    from(g in Group,
+      where: g.id in ^subgroup_ids,
+      update: [set: [room_id: ^room_id]]
+    )
+    |> Repo.update_all([])
+  end
+
+  defp with_refresh_effects({:ok, %Group{} = group}, build_effects)
+       when is_function(build_effects, 1) do
+    {:ok, {group, build_effects.(group)}}
+  end
+
+  defp with_refresh_effects(other, _build_effects), do: other
+
+  defp maybe_refresh_home_assistant_export({:ok, {%Group{}, effects}} = result) do
+    effects.group_ids
+    |> Enum.uniq()
+    |> Enum.each(&HomeAssistantExport.refresh_group/1)
+
+    effects.light_ids
+    |> Enum.uniq()
+    |> Enum.each(&HomeAssistantExport.refresh_light/1)
+
     result
   end
 
   defp maybe_refresh_home_assistant_export(result), do: result
 
-  defp maybe_reload_homekit({:ok, %Group{}} = result) do
+  defp maybe_reload_homekit({:ok, {%Group{}, _effects}} = result) do
     HomeKit.reload()
     result
   end
 
   defp maybe_reload_homekit(result), do: result
+
+  defp unwrap_update_result({:ok, {%Group{} = group, _effects}}), do: {:ok, group}
+  defp unwrap_update_result(other), do: other
 
   defp maybe_filter_enabled(query, true), do: query
 

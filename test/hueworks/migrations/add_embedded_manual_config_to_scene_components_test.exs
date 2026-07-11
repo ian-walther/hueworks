@@ -1,17 +1,19 @@
 defmodule Hueworks.Migrations.AddEmbeddedManualConfigToSceneComponentsTest do
   use Hueworks.DataCase, async: false
 
-  Code.require_file(
-    Path.expand(
-      "../../../priv/repo/migrations/20260421110000_add_embedded_manual_config_to_scene_components.exs",
-      __DIR__
-    )
-  )
-
   alias Ecto.Adapters.SQL
   alias Hueworks.Repo
   alias Hueworks.Repo.Migrations.AddEmbeddedManualConfigToSceneComponents
   alias Hueworks.Schemas.{LightState, Room, Scene}
+
+  unless Code.ensure_loaded?(AddEmbeddedManualConfigToSceneComponents) do
+    Code.require_file(
+      Path.expand(
+        "../../../priv/repo/migrations/20260421110000_add_embedded_manual_config_to_scene_components.exs",
+        __DIR__
+      )
+    )
+  end
 
   test "rebuild_scene_components preserves existing scene component light rows" do
     room = Repo.insert!(%Room{name: "Migration Room"})

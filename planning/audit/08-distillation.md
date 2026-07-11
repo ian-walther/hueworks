@@ -21,7 +21,7 @@ The work uncovered by the audit was mostly consolidation around already-correct 
 
 `Circadian.Config`, `BridgeSeeds`, `Import.Source`, `LightStateSemantics`, and the settings boundary modules demonstrate the right shape: accept loose external input once, validate/normalize it, then pass a bounded internal representation downstream. The audit repeatedly removed mixed-key and vocabulary handling from interior modules while deliberately preserving it in JSON/import parsers where it belongs.
 
-The remaining CC-9 and CC-11 findings are local ordering/parser bypasses, not evidence that the boundary approach failed.
+The CC-9 and CC-11 corrections were local ordering/parser bypasses, not evidence that the boundary approach failed.
 
 ### Integration inversion is worth preserving
 
@@ -35,16 +35,9 @@ Supervised state, executors, caches, pollers, and event-stream processes live un
 
 `LightsLive`, the split scene-builder state modules, Pico configuration coordinators, boundary config modules, and shared transport helpers all improved by extracting cohesive responsibilities behind the existing public surface. None needed a new generic service layer. Future refactors should keep following concrete duplication and invariant ownership rather than line-count thresholds alone.
 
-## Remaining Audit-Directed Work
+## Audit-Directed Work Complete
 
-Implement in risk order, while retaining each finding's own test-first guardrails:
-
-1. Protect data and topology: CC-10 (database backup/restore), CC-7 (canonical-light invariants), CC-8 (atomic group room cascade/export fan-out), and CC-9 (merged HA toggle derivation).
-2. Restore deterministic runtime/test feedback: CC-12 (tzdata), CC-1 (SQLite busy timeout), and CC-2 (warnings-zero enforcement).
-3. Finish web safety and state hygiene: WB-21 (real dirty-state protection), WB-23 (light-state delete confirmation), and WB-22 (broken/dead web scaffolding).
-4. Complete bounded maintenance cleanup: CC-3 (ignored local artifacts), CC-4 (dead bridge-host metadata), CC-5 (two focused stream tests), and CC-11 (offline import task parsing/docs).
-
-These are the complete open audit findings: WB-21..WB-23 and CC-1..CC-5 plus CC-7..CC-12. Gaps in the ID sequences are reconciled work or deliberate leave-alone decisions, not missing records.
+No audit findings remain open. All WB and CC findings are implemented and reconciled; gaps in the ID sequences are intentional leave-alone or completed items. The approved ignored-artifact cleanup stayed within its deletion boundary, and the required test command now bootstraps a clean test database.
 
 ## Accepted Risks And Product Work
 

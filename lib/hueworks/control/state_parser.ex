@@ -152,14 +152,8 @@ defmodule Hueworks.Control.StateParser do
       has_any_temp_attrs?(attrs) ->
         %{}
 
-      is_tuple(xy) and z2m_color_mode(attrs) in ["xy", "hs", "rgb", "rgbw", "rgbww"] ->
-        xy_map(xy)
-
-      is_tuple(xy) ->
-        xy_map(xy)
-
       true ->
-        %{}
+        xy_map(xy)
     end
   end
 

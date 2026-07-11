@@ -179,6 +179,33 @@ defmodule Hueworks.ContextsTest do
     assert Repo.get!(Light, dependent.id).canonical_light_id == middle.id
   end
 
+  test "Lights.update_display_name rejects canonical links for lights with dependents" do
+    bridge = insert_bridge(%{host: "10.0.0.133"})
+    root = insert_light(bridge, %{source_id: "root"})
+    middle = insert_light(bridge, %{source_id: "middle"})
+    dependent = insert_light(bridge, %{source_id: "dependent", canonical_light_id: middle.id})
+
+    assert {:error, :has_linked_dependents} =
+             Lights.update_display_name(middle, %{canonical_light_id: root.id})
+
+    assert Repo.get!(Light, middle.id).canonical_light_id == nil
+    assert Repo.get!(Light, dependent.id).canonical_light_id == middle.id
+  end
+
+  test "Lights.update_display_name rejects non-root canonical targets" do
+    bridge = insert_bridge(%{host: "10.0.0.134"})
+    root = insert_light(bridge, %{source_id: "root"})
+    child = insert_light(bridge, %{source_id: "child"})
+
+    linked_target =
+      insert_light(bridge, %{source_id: "linked-target", canonical_light_id: root.id})
+
+    assert {:error, :invalid_canonical_light} =
+             Lights.update_display_name(child, %{canonical_light_id: linked_target.id})
+
+    assert Repo.get!(Light, child.id).canonical_light_id == nil
+  end
+
   test "Lights.list_link_targets excludes self and non-root lights" do
     bridge = insert_bridge(%{host: "10.0.0.132"})
     root = insert_light(bridge, %{source_id: "root"})
@@ -217,6 +244,44 @@ defmodule Hueworks.ContextsTest do
 
     assert updated.display_name == "Group"
     assert Repo.get!(Light, light.id).room_id == room.id
+  end
+
+  test "Groups.update_display_name rolls back room cascade failures" do
+    bridge = insert_bridge(%{host: "10.0.0.152"})
+    old_room = insert_room("Old")
+    new_room = insert_room("New")
+    group = insert_group(bridge, %{source_id: "g1", room_id: old_room.id})
+    subgroup = insert_group(bridge, %{source_id: "g2", room_id: old_room.id})
+    light = insert_light(bridge, %{source_id: "l1", room_id: old_room.id})
+    other_light = insert_light(bridge, %{source_id: "l2", room_id: old_room.id})
+
+    Repo.insert!(%GroupLight{group_id: group.id, light_id: light.id})
+    Repo.insert!(%GroupLight{group_id: group.id, light_id: other_light.id})
+    Repo.insert!(%GroupLight{group_id: subgroup.id, light_id: light.id})
+
+    Ecto.Adapters.SQL.query!(
+      Repo,
+      """
+      CREATE TEMP TRIGGER fail_light_room_update
+      BEFORE UPDATE OF room_id ON lights
+      BEGIN
+        SELECT RAISE(ABORT, 'forced light room failure');
+      END;
+      """
+    )
+
+    try do
+      assert_raise Exqlite.Error, fn ->
+        Groups.update_display_name(group, %{room_id: new_room.id})
+      end
+
+      assert Repo.get!(Group, group.id).room_id == old_room.id
+      assert Repo.get!(Group, subgroup.id).room_id == old_room.id
+      assert Repo.get!(Light, light.id).room_id == old_room.id
+      assert Repo.get!(Light, other_light.id).room_id == old_room.id
+    after
+      Ecto.Adapters.SQL.query!(Repo, "DROP TRIGGER IF EXISTS fail_light_room_update")
+    end
   end
 
   test "Groups.member_light_ids returns group members" do

@@ -8,6 +8,7 @@ defmodule Hueworks.MixProject do
       elixir: "~> 1.19",
       licenses: ["PolyForm-Noncommercial-1.0.0"],
       elixirc_paths: elixirc_paths(Mix.env()),
+      elixirc_options: elixirc_options(Mix.env()),
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
       deps: deps()
@@ -16,6 +17,9 @@ defmodule Hueworks.MixProject do
 
   defp elixirc_paths(:test), do: ["lib", "test/support"]
   defp elixirc_paths(_), do: ["lib"]
+
+  defp elixirc_options(:test), do: [warnings_as_errors: true]
+  defp elixirc_options(_env), do: []
 
   # Run "mix help compile.app" to learn about applications.
   def application do
@@ -70,7 +74,8 @@ defmodule Hueworks.MixProject do
         "tailwind hueworks --minify",
         "esbuild hueworks --minify",
         "phx.digest"
-      ]
+      ],
+      test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"]
     ]
   end
 end

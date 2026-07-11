@@ -220,8 +220,13 @@ mix materialize_bridge_imports
 Manual bridge reimport through the web UI is the supported application workflow. The file tasks are retained for offline inspection and recovery workflows only.
 
 # database backup helpers
+# Creates a consistent SQLite snapshot beside the configured DB.
 mix backup_db
-mix restore_db
+
+# Stop any running HueWorks service before restore. Restore validates the backup,
+# keeps the source backup, and creates a *_pre_restore_* recovery snapshot first.
+mix restore_db --force
+mix restore_db --force --backup /path/to/hueworks_YYYYMMDDTHHMMSS.db
 
 # quality
 mix test

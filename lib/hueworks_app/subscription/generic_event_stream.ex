@@ -19,9 +19,12 @@ defmodule Hueworks.Subscription.GenericEventStream do
 
   @impl true
   def init(opts) do
+    Process.flag(:trap_exit, true)
+
     state = %{
       bridge_type: Keyword.fetch!(opts, :bridge_type),
       monitors: %{},
+      connection_refs: %{},
       connection_module: Keyword.fetch!(opts, :connection_module),
       readiness_fun: Keyword.get(opts, :readiness_fun, &Readiness.bridges_table_ready?/0),
       restart_delay_ms: Keyword.get(opts, :restart_delay_ms, @restart_delay_ms),
@@ -34,14 +37,26 @@ defmodule Hueworks.Subscription.GenericEventStream do
   end
 
   @impl true
-  def handle_info({:DOWN, ref, :process, _pid, _reason}, state) do
+  def handle_info({:DOWN, ref, :process, pid, _reason}, state) do
     case Map.pop(state.monitors, ref) do
       {nil, monitors} ->
-        {:noreply, %{state | monitors: monitors}}
+        {:noreply,
+         %{state | monitors: monitors, connection_refs: Map.delete(state.connection_refs, pid)}}
 
       {bridge, monitors} ->
         Process.send_after(self(), {:restart, bridge}, state.restart_delay_ms)
-        {:noreply, %{state | monitors: monitors}}
+
+        {:noreply,
+         %{state | monitors: monitors, connection_refs: Map.delete(state.connection_refs, pid)}}
+    end
+  end
+
+  @impl true
+  def handle_info({:EXIT, pid, reason}, state) do
+    if Map.has_key?(state.connection_refs, pid) do
+      {:noreply, state}
+    else
+      {:stop, reason, state}
     end
   end
 
@@ -59,7 +74,12 @@ defmodule Hueworks.Subscription.GenericEventStream do
     case state.connection_module.start_link(bridge) do
       {:ok, pid} ->
         ref = Process.monitor(pid)
-        %{state | monitors: Map.put(state.monitors, ref, bridge)}
+
+        %{
+          state
+          | monitors: Map.put(state.monitors, ref, bridge),
+            connection_refs: Map.put(state.connection_refs, pid, ref)
+        }
 
       {:error, _reason} ->
         Process.send_after(self(), {:restart, bridge}, state.restart_delay_ms)

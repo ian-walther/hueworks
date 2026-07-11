@@ -8,6 +8,7 @@ defmodule Hueworks.HomeKitTest do
   alias Hueworks.HomeKit.AccessoryGraph
   alias Hueworks.HomeKit.Bridge, as: HomeKitBridge
   alias Hueworks.HomeKit.Config, as: HomeKitConfig
+  alias Hueworks.HomeKit.HAPSessionHandler
   alias Hueworks.HomeKit.ValueStore
   alias Hueworks.Lights
   alias Hueworks.Repo
@@ -445,6 +446,20 @@ defmodule Hueworks.HomeKitTest do
              |> Hueworks.HomeKit.HAPSessionTransport.decrypt_if_needed()
   end
 
+  test "homekit HAP session handler delegates sent notifications to Bandit" do
+    state = hap_session_state(4_321)
+
+    assert {:noreply, ^state, 4_321} =
+             HAPSessionHandler.handle_info({:plug_conn, :sent}, state)
+  end
+
+  test "homekit HAP session handler delegates normal child exits to Bandit" do
+    state = hap_session_state(4_322)
+
+    assert {:noreply, ^state, 4_322} =
+             HAPSessionHandler.handle_info({:EXIT, self(), :normal}, state)
+  end
+
   test "bridge restarts HAP child when exposed entity topology changes" do
     original_hap_module = Application.get_env(:hueworks, :homekit_hap_module)
     original_pairing_state_module = Application.get_env(:hueworks, :homekit_pairing_state_module)
@@ -620,6 +635,18 @@ defmodule Hueworks.HomeKitTest do
       credentials: %{api_key: "key"},
       enabled: true
     })
+  end
+
+  defp hap_session_state(read_timeout) do
+    socket = %ThousandIsland.Socket{
+      socket: :test_socket,
+      transport_module: __MODULE__.Transport,
+      read_timeout: read_timeout,
+      silent_terminate_on_error: false,
+      span: nil
+    }
+
+    {socket, %{}}
   end
 
   defp drain_executor(server, attempts \\ 5)

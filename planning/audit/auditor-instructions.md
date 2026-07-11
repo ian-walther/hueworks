@@ -35,9 +35,9 @@ Every Auditor session runs the same loop:
 - Every characterization-refactor guardrail names the exact test files; bug fixes are test-first per `AGENTS.md` (red evidence in receipts).
 - Codex's track record across 9 passes: consistently faithful, occasionally better than spec (pure helpers, request-id guards); its one real deviation was CORRECT (IM-2 refutation). Trust it with M-effort extractions; verify semantics-bearing changes (state merges, group projection, event ordering) line-by-line.
 
-## Audit Status (as of 2026-07-10)
+## Audit Status (as of 2026-07-11)
 
-The whole-code audit and architectural distillation are complete. Open implementation work is WB-21..WB-23 and CC-1..CC-5/CC-7..CC-12. Future Auditor sessions should reconcile implementation receipts and remove or rewrite verified findings; they should not start another broad audit without a new user request or concrete evidence that invalidates the distillation.
+The whole-code audit, architectural distillation, and audit-directed implementation backlog are complete. No findings remain open. Future Auditor work requires a new user request, an implementation receipt, or concrete evidence that invalidates the distillation; do not start another broad audit by default.
 
 ## Handoff Notes
 

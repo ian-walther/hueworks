@@ -881,6 +881,67 @@ defmodule Hueworks.LightsLivePipelineTest do
     assert Repo.get!(Light, light.id).canonical_light_id == target.id
   end
 
+  test "light edit modal cannot link a canonical root with dependents", %{conn: conn} do
+    room = Repo.insert!(%Room{name: "Kitchen"})
+
+    bridge =
+      insert_bridge!(%{
+        name: "Mixed Bridge",
+        type: :ha,
+        host: "192.168.1.87",
+        credentials: %{"token" => "test"}
+      })
+
+    target =
+      Repo.insert!(%Light{
+        name: "kitchen.target",
+        display_name: "Kitchen Target",
+        source: :caseta,
+        source_id: "caseta-1",
+        bridge_id: bridge.id,
+        room_id: room.id
+      })
+
+    root =
+      Repo.insert!(%Light{
+        name: "kitchen.root",
+        display_name: "Kitchen Root",
+        source: :hue,
+        source_id: "hue-root",
+        bridge_id: bridge.id,
+        room_id: room.id
+      })
+
+    dependent =
+      Repo.insert!(%Light{
+        name: "kitchen.duplicate",
+        display_name: "Kitchen Duplicate",
+        source: :ha,
+        source_id: "light.kitchen_duplicate",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        canonical_light_id: root.id
+      })
+
+    {:ok, view, _html} = live(conn, "/lights")
+
+    view
+    |> element("#light-#{root.id} button[aria-label='Edit light name']")
+    |> render_click()
+
+    view
+    |> element("button[phx-click='show_link_selector']")
+    |> render_click()
+
+    view
+    |> element("form[phx-submit='save_edit_fields']")
+    |> render_submit(%{"canonical_light_id" => Integer.to_string(target.id)})
+
+    assert render(view) =~ ":has_linked_dependents"
+    assert Repo.get!(Light, root.id).canonical_light_id == nil
+    assert Repo.get!(Light, dependent.id).canonical_light_id == root.id
+  end
+
   test "light edit modal saves HA export mode", %{conn: conn} do
     room = Repo.insert!(%Room{name: "Kitchen"})
 

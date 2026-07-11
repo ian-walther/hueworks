@@ -1,6 +1,5 @@
 defmodule Mix.Tasks.HardwareSmoke do
   use Mix.Task
-  require Logger
 
   @shortdoc "Run explicit hardware smoke scenarios against the dev environment"
 
@@ -63,7 +62,6 @@ defmodule Mix.Tasks.HardwareSmoke do
       |> parse_log_level!()
 
     Logger.configure(level: level)
-    Logger.configure_backend(:console, level: level)
   end
 
   defp parse_log_level!(value) when is_binary(value) do

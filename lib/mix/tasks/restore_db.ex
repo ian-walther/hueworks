@@ -1,63 +1,52 @@
 defmodule Mix.Tasks.RestoreDb do
   use Mix.Task
 
-  @shortdoc "Restore the most recent SQLite database backup"
+  alias Hueworks.DatabaseMaintenance
+
+  @shortdoc "Restore a SQLite backup after validation"
 
   @impl true
-  def run(_args) do
+  def run(args) do
     Mix.Task.run("app.config")
 
-    db_path =
-      Application.fetch_env!(:hueworks, Hueworks.Repo)
-      |> Keyword.fetch!(:database)
-      |> Path.expand()
+    {opts, _remaining, invalid} =
+      OptionParser.parse(args,
+        strict: [force: :boolean, backup: :string],
+        aliases: [f: :force, b: :backup]
+      )
 
-    ext = Path.extname(db_path)
-    base = Path.rootname(db_path)
-    pattern = base <> "_????????T??????" <> ext
-
-    backup =
-      pattern
-      |> Path.wildcard()
-      |> Enum.sort()
-      |> List.last()
-
-    if is_nil(backup) do
-      Mix.raise("No backups found for pattern: #{pattern}")
+    if invalid != [] do
+      Mix.raise("Invalid restore_db options: #{inspect(invalid)}")
     end
 
-    remove_if_exists(db_path)
-    remove_if_exists(db_path <> "-shm")
-    remove_if_exists(db_path <> "-wal")
+    restore_opts =
+      [force: Keyword.get(opts, :force, false)]
+      |> maybe_put_backup_path(Keyword.get(opts, :backup))
 
-    rename_if_exists(backup, db_path)
-    rename_if_exists(backup <> "-shm", db_path <> "-shm")
-    rename_if_exists(backup <> "-wal", db_path <> "-wal")
-  end
+    case DatabaseMaintenance.restore(repo_db_path(), restore_opts) do
+      {:ok, result} ->
+        Mix.shell().info("Restored SQLite database from: #{result.backup_path}")
+        Mix.shell().info("Pre-restore recovery snapshot: #{result.recovery_path}")
 
-  defp remove_if_exists(path) do
-    if File.exists?(path) do
-      case File.rm(path) do
-        :ok ->
-          Mix.shell().info("Removed #{path}")
+      {:error, :force_required} ->
+        Mix.raise("Refusing restore without --force")
 
-        {:error, reason} ->
-          Mix.raise("Failed to remove #{path}: #{inspect(reason)}")
-      end
+      {:error, :application_running} ->
+        Mix.raise("Refusing restore while HueWorks Repo is running in this BEAM")
+
+      {:error, reason} ->
+        Mix.raise("Failed to restore SQLite backup: #{format_reason(reason)}")
     end
   end
 
-  defp rename_if_exists(from, to) do
-    if File.exists?(from) do
-      case File.rename(from, to) do
-        :ok ->
-          Mix.shell().info("Moved #{from} -> #{to}")
-
-        {:error, reason} ->
-          Mix.raise("Failed to move #{from} -> #{to}: #{inspect(reason)}")
-      end
-    else
-      Mix.shell().info("Skipping missing file: #{from}")
-    end
+  defp repo_db_path do
+    Application.fetch_env!(:hueworks, Hueworks.Repo)
+    |> Keyword.fetch!(:database)
+    |> Path.expand()
   end
+
+  defp maybe_put_backup_path(opts, nil), do: opts
+  defp maybe_put_backup_path(opts, backup_path), do: Keyword.put(opts, :backup_path, backup_path)
+
+  defp format_reason(reason), do: inspect(reason)
 end
