@@ -101,7 +101,7 @@ defmodule Hueworks.Scenes.Intent do
             |> maybe_preserve_manual_power_latch(
               current_desired,
               preserve_power_latches and is_nil(power_override) and
-                PowerPolicy.overridable?(power_policy)
+                PowerPolicy.preserves_manual_latch?(power_policy)
             )
             |> maybe_apply_power_override(power_override, power_policy)
 

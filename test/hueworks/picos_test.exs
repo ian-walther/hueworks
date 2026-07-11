@@ -9,7 +9,7 @@ defmodule Hueworks.PicosTest do
   alias Hueworks.Control.{DesiredState, State}
   alias Hueworks.Repo
   alias Hueworks.Schemas.PicoButton.ActionConfig, as: StoredActionConfig
-  alias Hueworks.Schemas.{Group, GroupLight, Light, PicoButton, PicoDevice, Room}
+  alias Hueworks.Schemas.{Group, GroupLight, Light, PicoButton, PicoDevice, PresenceInput, Room}
 
   defp insert_bridge(attrs \\ %{}) do
     defaults = %{
@@ -724,6 +724,110 @@ defmodule Hueworks.PicosTest do
     assert :handled = Picos.handle_button_press(bridge.id, "1")
     assert DesiredState.get(:light, overhead.id)[:power] == :on
     assert DesiredState.get(:light, lamp.id)[:power] == :on
+  end
+
+  test "control-group bindings override follow-presence lights while a scene is active" do
+    bridge = insert_bridge(%{host: "10.0.0.5160"})
+    room = Repo.insert!(%Room{name: "Office"})
+
+    overhead =
+      Repo.insert!(%Light{
+        name: "Overhead",
+        source: :caseta,
+        source_id: "81",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        enabled: true
+      })
+
+    cove =
+      Repo.insert!(%Light{
+        name: "Cove",
+        source: :caseta,
+        source_id: "82",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        enabled: true
+      })
+
+    presence_input =
+      Repo.insert!(%PresenceInput{
+        room_id: room.id,
+        name: "Office Presence",
+        occupied: false
+      })
+
+    group =
+      Repo.insert!(%Group{
+        name: "Office Overhead",
+        source: :caseta,
+        source_id: "group-81",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        enabled: true
+      })
+
+    Repo.insert!(%GroupLight{group_id: group.id, light_id: overhead.id})
+
+    device =
+      Repo.insert!(%PicoDevice{
+        bridge_id: bridge.id,
+        room_id: room.id,
+        source_id: "device-presence-control-group",
+        name: "Office Pico",
+        hardware_profile: "5_button",
+        metadata: %{"room_override" => true}
+      })
+
+    insert_pico_button(%{
+      pico_device_id: device.id,
+      source_id: "1",
+      button_number: 2,
+      slot_index: 0,
+      enabled: true
+    })
+
+    assert {:ok, device} =
+             Picos.save_control_group(device, %{
+               "name" => "Overhead",
+               "group_ids" => [group.id],
+               "light_ids" => [cove.id]
+             })
+
+    [control_group] = Picos.control_groups(device)
+
+    assert {:ok, _button} =
+             Picos.assign_button_binding(device, "1", %{
+               "action" => "on",
+               "target_kind" => "control_groups",
+               "target_ids" => [control_group["id"]]
+             })
+
+    {:ok, state} =
+      Scenes.create_manual_light_state("Evening", %{"brightness" => "40", "temperature" => "3000"})
+
+    {:ok, scene} = Scenes.create_scene(%{name: "Evening", room_id: room.id})
+
+    {:ok, _} =
+      Scenes.replace_scene_components(scene, [
+        %{
+          name: "Office",
+          light_ids: [overhead.id, cove.id],
+          light_state_id: to_string(state.id),
+          light_defaults: %{overhead.id => :follow_presence, cove.id => :default_on},
+          light_presence_inputs: %{overhead.id => presence_input.id}
+        }
+      ])
+
+    {:ok, _} = ActiveScenes.set_active(scene)
+    {:ok, _diff, _updated} = Scenes.apply_scene(scene)
+
+    assert DesiredState.get(:light, overhead.id)[:power] == :off
+
+    assert :handled = Picos.handle_button_press(bridge.id, "1")
+
+    assert DesiredState.get(:light, overhead.id)[:power] == :on
+    assert DesiredState.get(:light, cove.id)[:power] == :on
   end
 
   test "persisted control-group bindings execute on button press" do

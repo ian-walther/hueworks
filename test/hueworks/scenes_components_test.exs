@@ -1010,6 +1010,46 @@ defmodule Hueworks.ScenesComponentsTest do
     assert DesiredState.get(:light, ceiling.id)[:power] == :on
   end
 
+  test "active scene manual power can turn on a follow-presence light" do
+    room = insert_room()
+    bridge = insert_bridge()
+    cove = insert_light(room, bridge, %{name: "Cove"})
+    ceiling = insert_light(room, bridge, %{name: "Ceiling"})
+
+    presence_input =
+      Repo.insert!(%Hueworks.Schemas.PresenceInput{
+        room_id: room.id,
+        name: "Desk Presence",
+        occupied: false
+      })
+
+    {:ok, state} =
+      Scenes.create_manual_light_state("Evening", %{"brightness" => "40", "temperature" => "3000"})
+
+    {:ok, scene} = Scenes.create_scene(%{name: "Evening", room_id: room.id})
+
+    {:ok, _} =
+      Scenes.replace_scene_components(scene, [
+        %{
+          name: "Office Accent",
+          light_ids: [cove.id, ceiling.id],
+          light_state_id: to_string(state.id),
+          light_defaults: %{cove.id => :default_on, ceiling.id => :follow_presence},
+          light_presence_inputs: %{ceiling.id => presence_input.id}
+        }
+      ])
+
+    {:ok, _} = ActiveScenes.set_active(scene)
+    {:ok, _diff, _updated} = Scenes.apply_scene(scene)
+
+    assert DesiredState.get(:light, ceiling.id)[:power] == :off
+
+    assert {:ok, _result} = ManualControl.apply_power_action(room.id, [cove.id, ceiling.id], :on)
+
+    assert DesiredState.get(:light, cove.id)[:power] == :on
+    assert DesiredState.get(:light, ceiling.id)[:power] == :on
+  end
+
   test "active scene manual power cannot turn on a force-off light" do
     room = insert_room()
     bridge = insert_bridge()

@@ -24,7 +24,9 @@ defmodule Hueworks.Scenes.PowerPolicy do
     end
   end
 
-  def overridable?(policy), do: parse(policy) in [:default_on, :default_off]
+  def overridable?(policy), do: parse(policy) in [:default_on, :default_off, :follow_presence]
+
+  def preserves_manual_latch?(policy), do: parse(policy) in [:default_on, :default_off]
 
   def label(:default_on), do: "Default On"
   def label(:default_off), do: "Default Off"

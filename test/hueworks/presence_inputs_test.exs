@@ -110,4 +110,42 @@ defmodule Hueworks.PresenceInputsTest do
     assert updated.occupied == false
     assert DesiredState.get(:light, light.id)[:power] == :off
   end
+
+  test "set_occupied can turn a follow-presence light back on after vacancy" do
+    room = insert_room()
+    bridge = insert_bridge()
+    light = insert_light(room, bridge, %{name: "Desk Lamp"})
+
+    input =
+      Repo.insert!(%PresenceInput{
+        room_id: room.id,
+        name: "Desk Presence",
+        occupied: false
+      })
+
+    {:ok, state} =
+      Scenes.create_manual_light_state("Soft", %{"brightness" => "40", "temperature" => "3000"})
+
+    {:ok, scene} = Scenes.create_scene(%{name: "Work", room_id: room.id})
+
+    {:ok, _} =
+      Scenes.replace_scene_components(scene, [
+        %{
+          name: "Component 1",
+          light_ids: [light.id],
+          light_state_id: to_string(state.id),
+          light_defaults: %{light.id => :follow_presence},
+          light_presence_inputs: %{light.id => input.id}
+        }
+      ])
+
+    {:ok, _diff, _updated} = Scenes.activate_scene(scene.id)
+    assert DesiredState.get(:light, light.id)[:power] == :off
+
+    assert {:ok, updated} =
+             PresenceInputs.set_occupied(input.id, true, refresh_home_assistant: false)
+
+    assert updated.occupied == true
+    assert DesiredState.get(:light, light.id)[:power] == :on
+  end
 end

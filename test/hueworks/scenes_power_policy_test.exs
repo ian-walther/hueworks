@@ -45,9 +45,17 @@ defmodule Hueworks.ScenesPowerPolicyTest do
   test "overridable?/1 matches manual override semantics" do
     assert PowerPolicy.overridable?(:default_on)
     assert PowerPolicy.overridable?(:default_off)
+    assert PowerPolicy.overridable?(:follow_presence)
     refute PowerPolicy.overridable?(:force_on)
     refute PowerPolicy.overridable?(:force_off)
-    refute PowerPolicy.overridable?(:follow_presence)
+  end
+
+  test "preserves_manual_latch?/1 only allows ambient latches for fixed defaults" do
+    assert PowerPolicy.preserves_manual_latch?(:default_on)
+    assert PowerPolicy.preserves_manual_latch?(:default_off)
+    refute PowerPolicy.preserves_manual_latch?(:follow_presence)
+    refute PowerPolicy.preserves_manual_latch?(:force_on)
+    refute PowerPolicy.preserves_manual_latch?(:force_off)
   end
 
   test "cycle/1 preserves the existing quick-toggle order" do
