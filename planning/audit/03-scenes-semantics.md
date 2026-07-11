@@ -31,7 +31,6 @@ Parked question resolved during this chunk: chunk 2's "verify external scene act
 
 - This chunk has the best coverage in the app; explicitly leave the circadian reference-parity suite alone — it is what makes SC-5 safely deferrable.
 - Gap: `Scenes.Active.persist_power_overrides` swallows `merge_power_overrides` failure silently (active.ex:109-112) — a failed persist means the next circadian tick reverts a manual power change. One test forcing the changeset failure would document intent; low priority.
-- Gap: Persistence's integration side-effects (HA/HomeKit refresh on scene CRUD) have no direct assertions; SC-2 stage 2 will restructure them anyway — write the subscriber tests then, not now.
 
 ## Parked (noted early, belongs to later chunks)
 

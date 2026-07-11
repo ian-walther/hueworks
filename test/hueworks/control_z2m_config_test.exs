@@ -1,5 +1,5 @@
 defmodule Hueworks.Control.Z2MConfigTest do
-  use Hueworks.DataCase, async: true
+  use Hueworks.DataCase, async: false
 
   alias Hueworks.Control.Z2MConfig
   alias Hueworks.Schemas.Bridge

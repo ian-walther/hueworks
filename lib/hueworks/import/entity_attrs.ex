@@ -15,7 +15,7 @@ defmodule Hueworks.Import.EntityAttrs do
       supports_temp: capabilities |> Normalize.fetch(:color_temp) |> Normalize.truthy?(),
       reported_min_kelvin: Normalize.fetch(capabilities, :reported_kelvin_min),
       reported_max_kelvin: Normalize.fetch(capabilities, :reported_kelvin_max),
-      metadata: light_metadata(light, bridge.host),
+      metadata: light_metadata(light),
       external_id: Identifiers.light_external_id(light),
       normalized_json: NormalizeJson.to_map(light)
     }
@@ -33,7 +33,7 @@ defmodule Hueworks.Import.EntityAttrs do
       supports_temp: capabilities |> Normalize.fetch(:color_temp) |> Normalize.truthy?(),
       reported_min_kelvin: Normalize.fetch(capabilities, :reported_kelvin_min),
       reported_max_kelvin: Normalize.fetch(capabilities, :reported_kelvin_max),
-      metadata: group_metadata(group, bridge.host),
+      metadata: group_metadata(group),
       external_id: Identifiers.group_external_id(group),
       normalized_json: NormalizeJson.to_map(group)
     }
@@ -62,17 +62,13 @@ defmodule Hueworks.Import.EntityAttrs do
   def source_id(entity),
     do: entity |> Normalize.fetch(:source_id) |> Normalize.normalize_source_id()
 
-  defp light_metadata(light, bridge_host) do
+  defp light_metadata(light) do
     base = Normalize.fetch(light, :metadata) || %{}
     identifiers = Normalize.fetch(light, :identifiers) || %{}
 
     base
     |> Map.put("identifiers", identifiers)
-    |> Map.put_new("bridge_host", bridge_host)
   end
 
-  defp group_metadata(group, bridge_host) do
-    (Normalize.fetch(group, :metadata) || %{})
-    |> Map.put_new("bridge_host", bridge_host)
-  end
+  defp group_metadata(group), do: Normalize.fetch(group, :metadata) || %{}
 end

@@ -23,8 +23,6 @@ defmodule Hueworks.Application do
         maybe_home_assistant_export(),
         maybe_homekit_bridge(),
         HueworksWeb.Endpoint
-        # Exploration modules will be started manually in iex for now
-        # {Hueworks.Exploration.PicoHueSlice, []},
       ]
       |> Enum.reject(&is_nil/1)
 

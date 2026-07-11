@@ -47,14 +47,9 @@ defmodule Hueworks.MixProject do
       {:phoenix, "~> 1.7"},
       {:phoenix_live_view, "~> 0.20"},
       {:phoenix_html, "~> 4.0"},
-      {:plug_cowboy, "~> 2.7"},
       {:bandit, "~> 1.0"},
       {:esbuild, "~> 0.8", runtime: Mix.env() == :dev},
       {:tailwind, "~> 0.2", runtime: Mix.env() == :dev},
-
-      # Telemetry
-      {:telemetry_metrics, "~> 1.0"},
-      {:telemetry_poller, "~> 1.0"},
 
       # Development
       {:phoenix_live_reload, "~> 1.4", only: :dev},

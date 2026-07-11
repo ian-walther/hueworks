@@ -12,7 +12,7 @@ defmodule Mix.Tasks.MaterializeBridgeImports do
       mix materialize_bridge_imports path/to/normalized.json
   """
 
-  alias Hueworks.Import.Materialize
+  alias Hueworks.Import.{Materialize, Source}
   alias Hueworks.Repo
   alias Hueworks.Schemas.Bridge
 
@@ -46,25 +46,28 @@ defmodule Mix.Tasks.MaterializeBridgeImports do
         {:error, reason} ->
           Mix.shell().error("Skipped #{path}: #{inspect(reason)}")
       end
+    else
+      {:error, message} ->
+        Mix.shell().error("Skipped #{path}: #{message}")
     end
   rescue
     error -> Mix.shell().error("Failed to materialize #{path}: #{Exception.message(error)}")
   end
 
   defp find_bridge(%{"host" => host, "type" => type}) do
-    bridge_type = to_bridge_type(type)
-
-    case Repo.get_by(Bridge, host: host, type: bridge_type) do
-      nil -> {:error, "No bridge found for #{host} (#{type})"}
-      bridge -> {:ok, bridge}
+    with {:ok, bridge_type} <- Source.parse(type) do
+      case Repo.get_by(Bridge, host: host, type: bridge_type) do
+        nil -> {:error, "No bridge found for #{host} (#{type})"}
+        bridge -> {:ok, bridge}
+      end
     end
+  end
+
+  defp find_bridge(%{"host" => _host}) do
+    {:error, "Missing bridge host/type in normalized file"}
   end
 
   defp find_bridge(_bridge_data) do
     {:error, "Missing bridge host/type in normalized file"}
   end
-
-  defp to_bridge_type(nil), do: nil
-  defp to_bridge_type(type) when is_atom(type), do: type
-  defp to_bridge_type(type) when is_binary(type), do: String.to_atom(type)
 end

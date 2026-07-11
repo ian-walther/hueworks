@@ -6,12 +6,11 @@ This file should stay short. If a future idea is not likely to be acted on soon,
 
 ## Now
 
-### Reimport Idempotency
+### Reimport Review UX
 Reference: `planning/import-resync.md`
 
-- [ ] Replace the legacy checkbox-shaped reimport review page with explicit diff and resolution controls.
-- [ ] Add dependency disclosure and confirmation UI for destructive disable/delete resolutions.
-- [ ] Make bridge-owned auto-refresh details inspectable without presenting them as decisions.
+- [ ] Replace the remaining new-entity checkboxes with explicit `Do Not Import` / `Import` controls and show current HueWorks versus bridge values where a decision is required.
+- [ ] Show collapsed, inspectable bridge-owned auto-refresh details plus summary counts for unchanged, auto-refreshed, and membership-warning items without presenting them as decisions.
 
 ## Experience Backlog
 
@@ -26,14 +25,6 @@ Reference: `planning/homekit-control-quality.md`
 
 - [ ] Improve HomeKit behavior beyond reliable on/off control.
 - [ ] Define the expected user experience for brightness/color control when no HueWorks scene is active.
-
-## Maintenance Backlog
-
-### Test Coverage Audit
-Reference: `planning/test-coverage-audit.md`
-
-- [ ] Audit current test coverage against the code that has changed since the last deliberate coverage pass.
-- [ ] Identify meaningful behavior, regression, and integration gaps before adding new tests.
 
 ## Concrete Runtime Gaps
 

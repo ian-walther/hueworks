@@ -388,6 +388,16 @@ defmodule HueworksWeb.ConfigLiveTest do
 
     {:ok, view, _html} = live(conn, "/config")
 
+    assert has_element?(
+             view,
+             "button[phx-click='delete_light_state'][phx-value-id='#{state.id}'][data-confirm*='Soft (manual temp)']"
+           )
+
+    assert has_element?(
+             view,
+             "button[phx-click='delete_light_state'][phx-value-id='#{state.id}'][data-confirm*='cannot be undone']"
+           )
+
     view
     |> element("button[phx-click='delete_light_state'][phx-value-id='#{state.id}']")
     |> render_click()

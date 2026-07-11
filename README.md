@@ -212,11 +212,12 @@ mix ecto.reset
 # seed bridge rows from secrets.json
 mix seed_bridges
 
-# bridge import pipeline
+# legacy/offline bridge import file tools
 mix export_bridge_imports
 mix normalize_bridge_imports
 mix materialize_bridge_imports
-mix link_bridge_imports
+
+Manual bridge reimport through the web UI is the supported application workflow. The file tasks are retained for offline inspection and recovery workflows only.
 
 # database backup helpers
 mix backup_db

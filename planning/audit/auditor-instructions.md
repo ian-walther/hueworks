@@ -35,14 +35,9 @@ Every Auditor session runs the same loop:
 - Every characterization-refactor guardrail names the exact test files; bug fixes are test-first per `AGENTS.md` (red evidence in receipts).
 - Codex's track record across 9 passes: consistently faithful, occasionally better than spec (pure helpers, request-id guards); its one real deviation was CORRECT (IM-2 refutation). Trust it with M-effort extractions; verify semantics-bearing changes (state merges, group projection, event ordering) line-by-line.
 
-## Remaining Work Map (as of 2026-07-06)
+## Audit Status (as of 2026-07-10)
 
-Zero open findings anywhere; all remaining work is audit itself:
-
-1. **6b-3 part 2**: `pico_config_live.ex` (1,124) + heex (595) — the largest LiveView; probably a full session. Focus: does Pico config CRUD stay behind `Picos.Config`; assigns hygiene; destructive confirms.
-2. **6b-4**: `light_state_editor_live` (+ `form_state`, `preview`), `components/layouts`, controllers, plugs, `filter_prefs`, and a final heex sweep. Note `FormState` is shared with the scene builder — changes ripple.
-3. **Chunk 7**: consolidated backlog now lives in `07-cross-cutting.md` (audit of `util`/`color`/`kelvin`/small contexts/mix tasks/config/test-support, plus the accumulated hygiene/warnings/flake items).
-4. **Chunk 8 (distillation)**: synthesis, not new findings. Inputs to weave in: the session log in `00-plan.md` (bottom-up narrative), each chunk doc's assessment paragraphs and Leave-Alone sections, the reference patterns above, `CP-11`/`SC-5` accepted-risk items, and reconciliation of `hueworks_todo.md` (the reimport "Now" section likely trims to zero — owner confirms) + `planned_architecture.md` (whose rules held up; consider proposing additions codifying the DomainEvents pattern and the runtime/domain file split). The honest headline: the audit found the architecture sound; the work was consolidation, safety affordances, and a handful of real bugs (CP-1, IM-1, WB-9, the LEAP sentinel).
+The whole-code audit and architectural distillation are complete. Open implementation work is WB-21..WB-23 and CC-1..CC-5/CC-7..CC-12. Future Auditor sessions should reconcile implementation receipts and remove or rewrite verified findings; they should not start another broad audit without a new user request or concrete evidence that invalidates the distillation.
 
 ## Handoff Notes
 

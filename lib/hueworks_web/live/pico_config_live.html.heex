@@ -15,7 +15,15 @@
       <%= if @live_action == :show do %>
         <a class="hw-button" href={"/config/bridge/#{@bridge.id}/picos"}>Back to Picos</a>
       <% end %>
-      <button type="button" class="hw-button hw-button-on" phx-click="sync_picos">Sync Picos</button>
+      <button
+        id="pico-sync-button"
+        type="button"
+        class="hw-button hw-button-on"
+        phx-click="sync_picos"
+        disabled={@sync_status == :syncing}
+      >
+        <%= if @sync_status == :syncing, do: "Syncing Picos", else: "Sync Picos" %>
+      </button>
     </div>
   </div>
 
@@ -182,8 +190,9 @@
                 class="hw-button hw-delete-button"
                 phx-click="clear_pico_config"
                 disabled={room_scope_clear_disabled?(@selected_pico)}
+                data-confirm="Clear this Pico config? This restores the auto-detected room and removes all control groups and button bindings."
               >
-                Clear
+                Clear Config
               </button>
             </div>
           </div>
@@ -218,7 +227,13 @@
               </div>
 
               <div class="hw-inline-action">
-                <button id="pico-clone-config" type="button" class="hw-button" phx-click="clone_pico_config">
+                <button
+                  id="pico-clone-config"
+                  type="button"
+                  class="hw-button"
+                  phx-click="clone_pico_config"
+                  data-confirm="Copy this Pico config? The destination Pico's current room, control groups, and button bindings will be replaced."
+                >
                   Copy
                 </button>
               </div>
@@ -342,6 +357,7 @@
                         class="hw-button hw-delete-button"
                         phx-click="delete_control_group"
                         phx-value-id={group["id"]}
+                        data-confirm="Delete this control group? Any dependent button bindings will also be cleared."
                       >
                         Delete
                       </button>
@@ -580,7 +596,13 @@
                     >
                       Manual Assign
                     </button>
-                    <button type="button" class="hw-button hw-delete-button" phx-click="clear_button_binding" phx-value-id={button.id}>
+                    <button
+                      type="button"
+                      class="hw-button hw-delete-button"
+                      phx-click="clear_button_binding"
+                      phx-value-id={button.id}
+                      data-confirm={"Clear binding for Button #{button.button_number}?"}
+                    >
                       Clear
                     </button>
                   </div>

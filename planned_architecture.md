@@ -75,6 +75,29 @@ Rules:
 - Do not spread mixed atom/string key handling through downstream domain code.
 - If multiple modules parse the same vocabulary, extract a boundary module before adding more branches.
 
+### Context APIs Own Persistence Invariants
+
+Rules:
+- Treat UI validation and filtered selectors as affordances, not enforcement.
+- Enforce topology and persistence invariants in the owning context path so every caller receives the same validation.
+- Route specialized update functions through the same validated mutation path instead of maintaining parallel rule copies.
+- Commit multi-row topology changes in one database transaction, then run external integration effects only after a successful commit.
+
+### Fan Out Integration Effects After Commit
+
+Rules:
+- When one committed domain change has multiple optional integration consumers, publish a domain event instead of making the domain mutation depend directly on every integration.
+- Broadcast only after persistence succeeds. Subscriber failure must not turn a committed domain mutation into an apparent rollback.
+- Keep subscribers independently restartable and safe to refresh from current domain state.
+- Synchronous integration effects are acceptable when ordering is part of the domain contract; keep those exceptions explicit and tested.
+
+### Preserve The Runtime And Domain File Split
+
+Rules:
+- Keep supervised runtime processes and infrastructure under `lib/hueworks_app`; keep domain/application APIs and pure transformations under `lib/hueworks`.
+- Runtime modules may retain the `Hueworks.*` namespace when they implement domain runtime behavior. Reserve `HueworksApp.*` for infrastructure such as the runtime cache.
+- Do not move a module based on namespace alone; placement follows whether it owns supervised runtime state or domain behavior.
+
 ### Keep Semantics Above Hardware, Hardware Below Semantics
 
 Rules:

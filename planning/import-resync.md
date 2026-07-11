@@ -157,19 +157,14 @@ Keeping imported group membership fresh matters for control planning and group o
 The next pass should make the operator review experience easier to scan while preserving the invariants above.
 
 Required UI improvements:
-- Show summary counts for unchanged, auto-refreshed, new, duplicate, missing, ambiguous identity, and membership warning items.
+- Add the summary counts still missing from the current review header: unchanged, auto-refreshed, and membership warning items.
 - Collapse unchanged and auto-refreshed entities by default.
 - Make auto-refreshed bridge facts inspectable for debugging without presenting them as decisions.
 - Replace remaining generic checkbox-shaped controls with explicit resolution controls where that improves clarity.
 - For review items, show current HueWorks value and bridge value clearly enough that the operator can understand the consequence.
 - Use `Do Not Import` and `Import` for new entities.
-- Use `Import Hidden Duplicate` and `Import as Real Entity` for duplicates.
-- Use `Keep`, `Disable`, and `Delete` for missing entities.
-- Include bulk actions for `Import all new` and `Disable all missing`.
 - Recompute affected HA group duplicate items in the UI when member-light resolutions change instead of waiting for apply-time validation.
-- Add dependency disclosure and confirmation UI for destructive disable/delete resolutions.
 - Surface membership warnings when imported bridge group membership cannot be refreshed because a member is missing, unimported, or ambiguous.
-- Require explicit confirmation for delete and other high-risk destructive actions.
 
 Avoid using "ignore" because it blurs "do nothing in this review" with durable acknowledgment. This feature does not include durable acknowledgment; if the review item remains true on the next manual reimport, it should appear again.
 

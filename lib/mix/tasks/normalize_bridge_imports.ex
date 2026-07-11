@@ -12,7 +12,7 @@ defmodule Mix.Tasks.NormalizeBridgeImports do
       mix normalize_bridge_imports path/to/raw.json
   """
 
-  alias Hueworks.Import.Normalize
+  alias Hueworks.Import.{Normalize, Source}
   alias Hueworks.Schemas.Bridge
 
   @impl true
@@ -39,9 +39,15 @@ defmodule Mix.Tasks.NormalizeBridgeImports do
     raw = payload["raw"] || %{}
     fetched_at = payload["fetched_at"]
 
+    bridge_type =
+      case Source.parse(bridge_data["type"]) do
+        {:ok, type} -> type
+        {:error, message} -> raise ArgumentError, message
+      end
+
     bridge = %Bridge{
       id: bridge_data["id"],
-      type: to_bridge_type(bridge_data["type"]),
+      type: bridge_type,
       name: bridge_data["name"],
       host: bridge_data["host"]
     }
@@ -62,10 +68,6 @@ defmodule Mix.Tasks.NormalizeBridgeImports do
   rescue
     error -> Mix.shell().error("Failed to normalize #{path}: #{Exception.message(error)}")
   end
-
-  defp to_bridge_type(nil), do: nil
-  defp to_bridge_type(type) when is_atom(type), do: type
-  defp to_bridge_type(type) when is_binary(type), do: String.to_atom(type)
 
   defp normalized_filename(path, fetched_at) do
     base = Path.basename(path)

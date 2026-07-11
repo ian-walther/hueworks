@@ -68,7 +68,7 @@ defmodule HueworksWeb.LightStateEditorLive do
       |> assign(
         light_state_name: name,
         light_state_config: config,
-        dirty: true
+        dirty: dirty?(socket.assigns, name, config)
       )
       |> clear_flash(:error)
       |> assign(preview_assigns)
@@ -275,6 +275,10 @@ defmodule HueworksWeb.LightStateEditorLive do
 
   defp normalize_save_action("save_and_return"), do: :save_and_return
   defp normalize_save_action(_value), do: :save
+
+  defp dirty?(assigns, name, config) do
+    name != assigns.original_light_state_name or config != assigns.original_light_state_config
+  end
 
   defp new_page_title(:manual), do: "New Manual Light State"
   defp new_page_title(:circadian), do: "New Circadian Light State"

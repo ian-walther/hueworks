@@ -1,5 +1,5 @@
 defmodule Hueworks.Import.MaterializeTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
 
   alias Hueworks.Import.{Materialize, NormalizeFromDb, Plan, ReimportPlan}
   alias Hueworks.Repo
@@ -80,7 +80,7 @@ defmodule Hueworks.Import.MaterializeTest do
     assert studio_group.room_id == nil
   end
 
-  test "materializes Hue metadata and bridge_host" do
+  test "materializes Hue metadata without caching bridge_host" do
     bridge =
       %Bridge{}
       |> Bridge.changeset(%{
@@ -98,10 +98,12 @@ defmodule Hueworks.Import.MaterializeTest do
     :ok = Materialize.materialize(bridge, normalized)
 
     light = Repo.get_by!(Light, bridge_id: bridge.id, source_id: "1")
-    assert light.metadata["bridge_host"] == "10.0.0.9"
+    assert light.metadata["uniqueid"] == "11:22:33:44:55:66-0b"
+    refute Map.has_key?(light.metadata, "bridge_host")
 
     group = Repo.get_by!(Group, bridge_id: bridge.id, source_id: "2")
-    assert group.metadata["bridge_host"] == "10.0.0.9"
+    assert group.metadata["type"] == "Zone"
+    refute Map.has_key?(group.metadata, "bridge_host")
   end
 
   test "reimport preserve action does not move existing lights to bridge-reported rooms" do
@@ -301,7 +303,6 @@ defmodule Hueworks.Import.MaterializeTest do
     light = Repo.reload!(light)
 
     assert light.metadata == %{
-             "bridge_host" => "10.0.0.2",
              "identifiers" => %{"mac" => "00:aa:bb:cc:dd:ee"},
              "unique_id" => "ha-light-1"
            }
@@ -309,7 +310,6 @@ defmodule Hueworks.Import.MaterializeTest do
     group = Repo.reload!(group)
 
     assert group.metadata == %{
-             "bridge_host" => "10.0.0.2",
              "members" => ["light.office_lamp"]
            }
   end
