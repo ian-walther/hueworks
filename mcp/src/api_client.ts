@@ -9,11 +9,19 @@ export type TraceFilters = {
   limit?: number;
 };
 
+export type EntitySearchFilters = {
+  query: string;
+  kind?: EntityKind;
+  roomId?: number;
+  limit?: number;
+};
+
 export type HueworksApi = {
   status(): Promise<unknown>;
   listRooms(): Promise<unknown>;
   room(roomId: number, includeDiagnostics?: boolean): Promise<unknown>;
   entity(kind: EntityKind, id: number, includeDiagnostics?: boolean): Promise<unknown>;
+  searchEntities(filters: EntitySearchFilters): Promise<unknown>;
   controlTrace(filters?: TraceFilters): Promise<unknown>;
   activateScene(sceneId: number): Promise<unknown>;
   deactivateRoomScene(roomId: number): Promise<unknown>;
@@ -103,6 +111,16 @@ export class HueworksApiClient implements HueworksApi {
   entity(kind: EntityKind, id: number, includeDiagnostics = true): Promise<unknown> {
     const basePath = includeDiagnostics ? "/api/v1/debug" : "/api/v1";
     return this.get(`${basePath}/${kind}s/${id}`);
+  }
+
+  searchEntities(filters: EntitySearchFilters): Promise<unknown> {
+    const parameters = new URLSearchParams();
+    addParameter(parameters, "query", filters.query);
+    addParameter(parameters, "kind", filters.kind);
+    addParameter(parameters, "room_id", filters.roomId);
+    addParameter(parameters, "limit", filters.limit);
+
+    return this.get(`/api/v1/entities?${parameters.toString()}`);
   }
 
   controlTrace(filters: TraceFilters = {}): Promise<unknown> {

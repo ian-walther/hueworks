@@ -99,6 +99,30 @@ export function createHueworksMcpServer(api: HueworksApi): McpServer {
   );
 
   server.registerTool(
+    "hueworks_search_entities",
+    {
+      description:
+        "Search HueWorks light and group names before acting on a name-based request. Only write when exact_controllable_match_count is exactly 1 and the selected result has match=exact and controllable=true; otherwise ask the user. Never infer an entity from partial matches or room aliases.",
+      inputSchema: z.object({
+        query: z.string().trim().min(1).max(120),
+        kind: entityKindSchema.optional(),
+        room_id: positiveInteger.optional(),
+        limit: z.number().int().min(1).max(100).optional(),
+      }),
+      annotations: readOnlyAnnotations,
+    },
+    async ({ query, kind, room_id, limit }) =>
+      toolResult(() =>
+        api.searchEntities({
+          query,
+          ...(kind === undefined ? {} : { kind }),
+          ...(room_id === undefined ? {} : { roomId: room_id }),
+          ...(limit === undefined ? {} : { limit }),
+        }),
+      ),
+  );
+
+  server.registerTool(
     "hueworks_get_control_trace",
     {
       description:
@@ -152,7 +176,7 @@ export function createHueworksMcpServer(api: HueworksApi): McpServer {
     "hueworks_control_entity",
     {
       description:
-        "Apply exactly one explicit manual control to an enabled light or group. This writes desired state through HueWorks normal scene/manual rules and may be rejected while a scene is active.",
+        "Apply exactly one explicit manual control to an enabled light or group. For a name-based request, first use hueworks_search_entities and only use its ID when it returns exactly one exact controllable match. This writes desired state through HueWorks normal scene/manual rules and may be rejected while a scene is active.",
       inputSchema: controlInputSchema,
       annotations: writeAnnotations,
     },

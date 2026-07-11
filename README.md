@@ -172,7 +172,8 @@ and queued, not that a bridge has already converged.
 
 Every API request requires `Authorization: Bearer <token>`. The available v1
 read endpoints are `GET /api/v1/status`, `/api/v1/rooms`, `/api/v1/rooms/:id`,
-`/api/v1/lights/:id`, `/api/v1/groups/:id`, `/api/v1/traces`, and the matching
+`/api/v1/entities?query=...`, `/api/v1/lights/:id`, `/api/v1/groups/:id`,
+`/api/v1/traces`, and the matching
 `/api/v1/debug/rooms/:id`, `/api/v1/debug/lights/:id`, and
 `/api/v1/debug/groups/:id` projections. The intentionally
 narrow write endpoints are:
@@ -190,6 +191,13 @@ Brightness, temperature, and color remain unavailable while a room scene is
 active, just as they are in the browser UI. Configuration, reimport, Pico
 configuration, credentials, and destructive operations are deliberately not
 available through the API.
+
+`GET /api/v1/entities` searches lights and groups by `name` and `display_name`.
+Its results include exact-match and controllability metadata so MCP clients can
+resolve a name safely: a control action is appropriate only when
+`exact_controllable_match_count` is exactly `1` and the selected result is an
+exact, controllable match. Partial matches and ambiguous names require user
+confirmation.
 
 The repository includes a local stdio MCP adapter in `mcp/`. It runs on the AI
 client machine, not inside the HueWorks Docker container:

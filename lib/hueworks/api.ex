@@ -77,6 +77,41 @@ defmodule Hueworks.Api do
 
   def group(_id), do: {:error, :not_found}
 
+  @doc """
+  Searches lights and groups by their bridge and display names.
+
+  The result deliberately includes disabled and canonical rows so callers can
+  recognize ambiguity instead of treating a filtered result as unambiguous.
+  `exact_controllable_match_count` is the safe precondition for a name-based
+  control request: it must be exactly one.
+  """
+  def search_entities(query, filters \\ [])
+
+  def search_entities(query, filters) when is_binary(query) and is_list(filters) do
+    normalized_query = normalize_search_value(query)
+    kind = Keyword.get(filters, :kind)
+    room_id = Keyword.get(filters, :room_id)
+    limit = normalize_search_limit(Keyword.get(filters, :limit))
+
+    results =
+      entity_search_candidates(kind)
+      |> Enum.map(&entity_search_projection(&1, normalized_query))
+      |> Enum.filter(&(&1.match != nil))
+      |> maybe_filter_by_room(room_id)
+      |> Enum.sort_by(&entity_search_sort_key/1)
+
+    %{
+      query: normalized_query,
+      exact_match_count: Enum.count(results, &(&1.match == "exact")),
+      exact_controllable_match_count:
+        Enum.count(results, &(&1.match == "exact" and &1.controllable)),
+      results: Enum.take(results, limit)
+    }
+  end
+
+  def search_entities(_query, _filters),
+    do: %{query: "", exact_match_count: 0, exact_controllable_match_count: 0, results: []}
+
   def debug_room(id) do
     with {:ok, room} <- room(id) do
       {:ok,
@@ -268,6 +303,119 @@ defmodule Hueworks.Api do
       room_id: input.room_id
     }
   end
+
+  defp entity_search_candidates(kind) when kind in [nil, :light] do
+    lights =
+      from(light in Light,
+        left_join: room in Room,
+        on: room.id == light.room_id,
+        select: {light, room}
+      )
+      |> Repo.all()
+      |> Enum.map(fn {entity, room} -> %{entity: entity, room: room, kind: "light"} end)
+
+    if kind == :light, do: lights, else: lights ++ entity_search_candidates(:group)
+  end
+
+  defp entity_search_candidates(:group) do
+    groups_with_members =
+      from(membership in GroupLight,
+        select: membership.group_id,
+        distinct: true
+      )
+      |> Repo.all()
+      |> MapSet.new()
+
+    from(group in Group,
+      left_join: room in Room,
+      on: room.id == group.room_id,
+      select: {group, room}
+    )
+    |> Repo.all()
+    |> Enum.map(fn {entity, room} ->
+      %{
+        entity: entity,
+        room: room,
+        kind: "group",
+        has_members: MapSet.member?(groups_with_members, entity.id)
+      }
+    end)
+  end
+
+  defp entity_search_candidates(_kind), do: []
+
+  defp entity_search_projection(%{entity: entity, room: room, kind: kind} = candidate, query) do
+    display_name = entity.display_name || entity.name
+    match = entity_search_match([display_name, entity.name], query)
+    canonical_id = canonical_id(entity, kind)
+
+    %{
+      id: entity.id,
+      kind: kind,
+      name: entity.name,
+      display_name: display_name,
+      room_id: entity.room_id,
+      room_name: room && (room.display_name || room.name),
+      enabled: entity.enabled == true,
+      canonical_id: canonical_id,
+      source: enum(entity.source),
+      bridge_id: entity.bridge_id,
+      match: match && Atom.to_string(match),
+      controllable: controllable_search_result?(entity, kind, canonical_id, candidate)
+    }
+  end
+
+  defp canonical_id(entity, "light"), do: entity.canonical_light_id
+  defp canonical_id(entity, "group"), do: entity.canonical_group_id
+
+  defp controllable_search_result?(entity, kind, canonical_id, candidate) do
+    entity.enabled == true and is_integer(entity.room_id) and is_nil(canonical_id) and
+      (kind == "light" or candidate.has_members == true)
+  end
+
+  defp entity_search_match(_names, ""), do: nil
+
+  defp entity_search_match(names, query) do
+    normalized_names =
+      names
+      |> Enum.filter(&is_binary/1)
+      |> Enum.map(&normalize_search_value/1)
+
+    cond do
+      Enum.any?(normalized_names, &(&1 == query)) -> :exact
+      Enum.any?(normalized_names, &String.starts_with?(&1, query)) -> :prefix
+      Enum.any?(normalized_names, &String.contains?(&1, query)) -> :partial
+      true -> nil
+    end
+  end
+
+  defp maybe_filter_by_room(results, nil), do: results
+  defp maybe_filter_by_room(results, room_id), do: Enum.filter(results, &(&1.room_id == room_id))
+
+  defp entity_search_sort_key(result) do
+    {
+      search_match_rank(result.match),
+      if(result.controllable, do: 0, else: 1),
+      normalize_search_value(result.display_name || result.name),
+      result.kind,
+      result.id
+    }
+  end
+
+  defp search_match_rank("exact"), do: 0
+  defp search_match_rank("prefix"), do: 1
+  defp search_match_rank("partial"), do: 2
+
+  defp normalize_search_value(value) when is_binary(value) do
+    value
+    |> String.trim()
+    |> String.downcase()
+  end
+
+  defp normalize_search_value(_value), do: ""
+
+  defp normalize_search_limit(limit) when is_integer(limit) and limit in 1..100, do: limit
+  defp normalize_search_limit(_limit), do: 20
 
   defp canonical_light_dependents(light_id) do
     from(light in Light,

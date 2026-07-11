@@ -118,6 +118,86 @@ defmodule Hueworks.ApiTest do
     refute Map.has_key?(room, :groups)
   end
 
+  test "searches entity names with explicit match and controllability metadata" do
+    fixture = fixture()
+
+    hidden_duplicate =
+      Repo.insert!(%Light{
+        name: "Office Lamp",
+        display_name: "Office Lamp",
+        source: :ha,
+        source_id: "hidden-office-lamp",
+        bridge_id: fixture.bridge.id,
+        canonical_light_id: fixture.lamp.id,
+        enabled: false
+      })
+
+    search = Api.search_entities("  office lamp  ")
+
+    assert search.query == "office lamp"
+    assert search.exact_match_count == 2
+    assert search.exact_controllable_match_count == 1
+
+    assert [
+             %{
+               id: lamp_id,
+               kind: "light",
+               match: "exact",
+               controllable: true,
+               room_id: room_id,
+               room_name: "Office",
+               canonical_id: nil
+             },
+             %{
+               id: duplicate_id,
+               kind: "light",
+               match: "exact",
+               controllable: false,
+               enabled: false,
+               canonical_id: canonical_id,
+               room_id: nil,
+               room_name: nil
+             },
+             %{id: linked_id, kind: "light", match: "partial", controllable: false}
+           ] = search.results
+
+    assert lamp_id == fixture.lamp.id
+    assert room_id == fixture.room.id
+    assert duplicate_id == hidden_duplicate.id
+    assert canonical_id == fixture.lamp.id
+    assert linked_id == fixture.linked_lamp.id
+    refute inspect(search) =~ "must-not-leak"
+  end
+
+  test "filters entity searches by kind and room while matching bridge names" do
+    fixture = fixture()
+    other_room = Repo.insert!(%Room{name: "Studio"})
+
+    other_lamp =
+      Repo.insert!(%Light{
+        name: "Office Lamp",
+        display_name: "Studio Office Lamp",
+        source: :hue,
+        source_id: "studio-office-lamp",
+        bridge_id: fixture.bridge.id,
+        room_id: other_room.id
+      })
+
+    group_search = Api.search_entities("office", kind: :group)
+    assert [%{id: group_id, kind: "group", match: "prefix"}] = group_search.results
+    assert group_id == fixture.group.id
+
+    room_search = Api.search_entities("office lamp", room_id: other_room.id)
+    assert room_search.exact_match_count == 1
+    assert room_search.exact_controllable_match_count == 1
+
+    assert [%{id: lamp_id, kind: "light", match: "exact", room_id: room_id}] =
+             room_search.results
+
+    assert lamp_id == other_lamp.id
+    assert room_id == other_room.id
+  end
+
   defp fixture do
     room = Repo.insert!(%Room{name: "Office"})
 

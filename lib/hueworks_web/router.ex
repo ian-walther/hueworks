@@ -43,6 +43,7 @@ defmodule HueworksWeb.Router do
     get("/status", StatusController, :show)
     get("/rooms", RoomsController, :index)
     get("/rooms/:id", RoomsController, :show)
+    get("/entities", EntitiesController, :search)
     get("/lights/:id", EntitiesController, :show_light)
     get("/groups/:id", EntitiesController, :show_group)
     get("/traces", TracesController, :index)

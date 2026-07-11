@@ -121,6 +121,51 @@ defmodule HueworksWeb.ApiControllerTest do
              |> json_response(200)
   end
 
+  test "searches entities by name and validates lookup filters", %{conn: conn, token: token} do
+    %{room: room, light: light, group: group} = fixture()
+
+    assert %{
+             "query" => "controller",
+             "exact_match_count" => 0,
+             "exact_controllable_match_count" => 0,
+             "results" => [
+               %{
+                 "id" => group_id,
+                 "kind" => "group",
+                 "match" => "prefix",
+                 "room_name" => "Controller Room"
+               },
+               %{
+                 "id" => light_id,
+                 "kind" => "light",
+                 "match" => "prefix",
+                 "room_name" => "Controller Room"
+               }
+             ]
+           } =
+             conn
+             |> api_auth(token)
+             |> get("/api/v1/entities?query=controller&room_id=#{room.id}")
+             |> json_response(200)
+
+    assert light_id == light.id
+    assert group_id == group.id
+
+    for path <- [
+          "/api/v1/entities",
+          "/api/v1/entities?query=",
+          "/api/v1/entities?query=controller&kind=room",
+          "/api/v1/entities?query=controller&room_id=zero",
+          "/api/v1/entities?query=controller&limit=101"
+        ] do
+      assert %{"error" => %{"code" => "invalid_parameter"}} =
+               build_conn()
+               |> api_auth(token)
+               |> get(path)
+               |> json_response(400)
+    end
+  end
+
   test "accepts explicit controls through the normal control path and translates validation errors",
        %{
          conn: conn,

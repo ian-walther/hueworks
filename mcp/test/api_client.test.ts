@@ -76,6 +76,29 @@ test("API client encodes trace filters and preserves HueWorks error details", as
   assert.equal(requests[0]?.url, "/api/v1/traces?entity_kind=group&entity_id=9&limit=20");
 });
 
+test("API client encodes entity lookup filters", async (t) => {
+  const requests: RecordedRequest[] = [];
+  const server = await startFixtureServer(requests);
+  t.after(() => close(server));
+
+  const client = new HueworksApiClient({
+    baseUrl: serverUrl(server),
+    token: "test-api-token",
+  });
+
+  assert.deepEqual(
+    await client.searchEntities({ query: "Office Lamps", kind: "group", roomId: 4, limit: 10 }),
+    { query: "office lamps", results: [] },
+  );
+
+  assert.deepEqual(requests[0], {
+    method: "GET",
+    url: "/api/v1/entities?query=Office+Lamps&kind=group&room_id=4&limit=10",
+    authorization: "Bearer test-api-token",
+    body: undefined,
+  });
+});
+
 async function startFixtureServer(requests: RecordedRequest[]): Promise<Server> {
   const server = createServer(async (request, response) => {
     const body = await readJsonBody(request);
@@ -96,6 +119,9 @@ async function startFixtureServer(requests: RecordedRequest[]): Promise<Server> 
 
       case "/api/v1/traces?entity_kind=group&entity_id=9&limit=20":
         return sendJson(response, 200, { events: [] });
+
+      case "/api/v1/entities?query=Office+Lamps&kind=group&room_id=4&limit=10":
+        return sendJson(response, 200, { query: "office lamps", results: [] });
 
       case "/api/v1/error":
         return sendJson(response, 409, {
