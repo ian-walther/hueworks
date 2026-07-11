@@ -1,7 +1,7 @@
 # Audit Chunk 8: Architectural Distillation
 
 Scope: synthesis of chunks 1–7, accepted risks, remaining findings, and reconciliation with `planned_architecture.md`, `hueworks_todo.md`, `planning/import-resync.md`, and `planning/test-coverage-audit.md`.
-Status: audit complete. This chunk adds no implementation findings; actionable work remains in the source chunk documents.
+Status: complete. Chunks 1–12 and all audit-directed implementation are reconciled; no audit findings remain open.
 
 ## Executive Verdict
 
@@ -35,13 +35,19 @@ Supervised state, executors, caches, pollers, and event-stream processes live un
 
 `LightsLive`, the split scene-builder state modules, Pico configuration coordinators, boundary config modules, and shared transport helpers all improved by extracting cohesive responsibilities behind the existing public surface. None needed a new generic service layer. Future refactors should keep following concrete duplication and invariant ownership rather than line-count thresholds alone.
 
-## Audit-Directed Work Complete
+## Original Audit-Directed Work Complete
 
-No audit findings remain open. All WB and CC findings are implemented and reconciled; gaps in the ID sequences are intentional leave-alone or completed items. The approved ignored-artifact cleanup stayed within its deletion boundary, and the required test command now bootstraps a clean test database.
+No findings from chunks 1–8 remain open. All WB and CC findings are implemented and reconciled; gaps in the ID sequences are intentional leave-alone or completed items. The approved ignored-artifact cleanup stayed within its deletion boundary, and the required test command now bootstraps a clean test database. Chunks 9–12 are a bounded extension, not a reopening of those audited areas without evidence.
+
+## Drill-In Conclusions
+
+- The web endpoint's protections are internally coherent for its declared product: a never-public trusted-LAN appliance with no application authentication and direct HTTP permitted only within that isolated boundary. CSRF and origin checks remain defense in depth, and public exposure is explicitly unsupported.
+- Extended-Kelvin commands now have dynamic HA/Z2M encode-report-parse parity across both sides of the device-profile crossover, including reported-floor ambiguity.
+- Deterministic commit/plan/enqueue interleavings proved and closed the former control concurrency risk. Desired-state revisions prevent older light and group plans from dispatching over newer intent without creating a second state plane.
+- Migration constraints, browser hooks, and release plumbing received dynamic coverage. The sweep closed two missing unique-constraint mappings, duplicate paired-color events, inaccurate endpoint URL metadata, and one-time bootstrap loss when secrets arrive after first start.
 
 ## Accepted Risks And Product Work
 
-- CP-11 remains an accepted single-home-scale risk: desired-state commits are per-entity GenServer calls. Change it only after evidence of a real interleaving failure.
 - SC-5 remains performance-deferred: cache circadian solar windows only if profiling or a shorter poll interval makes the repeated calculation material.
 - Transition smoothness and HomeKit brightness/color quality remain product-experience work, not refactoring debt.
 - Caseta group dispatch remains a concrete runtime feature gap and should stay in `hueworks_todo.md` with its regression test.
@@ -54,4 +60,4 @@ No audit findings remain open. All WB and CC findings are implemented and reconc
 
 ## Final Audit Posture
 
-Do not reopen audited areas simply because some modules remain large or protocol code looks unusual. The chunk documents name the intentional quirks and reference patterns. New work should begin from production evidence, a failing regression, a product decision, or one of the open findings above.
+The audit is complete. Do not reopen audited areas simply because some modules remain large or protocol code looks unusual; the chunk documents name intentional quirks, accepted risks, and reference patterns. Reopen an area only when production evidence, a concrete feature, or a newly identified invariant supplies a specific reason.

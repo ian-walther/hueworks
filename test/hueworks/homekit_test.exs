@@ -449,15 +449,13 @@ defmodule Hueworks.HomeKitTest do
   test "homekit HAP session handler delegates sent notifications to Bandit" do
     state = hap_session_state(4_321)
 
-    assert {:noreply, ^state, 4_321} =
-             HAPSessionHandler.handle_info({:plug_conn, :sent}, state)
+    assert {:noreply, ^state} = HAPSessionHandler.handle_info({:plug_conn, :sent}, state)
   end
 
   test "homekit HAP session handler delegates normal child exits to Bandit" do
     state = hap_session_state(4_322)
 
-    assert {:noreply, ^state, 4_322} =
-             HAPSessionHandler.handle_info({:EXIT, self(), :normal}, state)
+    assert {:noreply, ^state} = HAPSessionHandler.handle_info({:EXIT, self(), :normal}, state)
   end
 
   test "bridge restarts HAP child when exposed entity topology changes" do

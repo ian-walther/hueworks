@@ -4,7 +4,7 @@ This document defines the Auditor's role in the audit-driven refactoring process
 
 ## Role Split
 
-- The Auditor owns: audit findings docs (`NN-<chunk>.md`), the ledger/session log in `00-plan.md`, all decision language, and reconciliation of implementation receipts.
+- The Auditor owns: audit findings docs (`NN-<chunk>.md`), all decision language, and reconciliation of implementation receipts.
 - The implementer (codex) owns: implementing already-decided findings, tests, and temporary receipts. It does not edit findings docs.
 - The user (Ian) owns product calls, priorities, and anything marked `DECISION-NEEDED`.
 
@@ -12,14 +12,14 @@ This document defines the Auditor's role in the audit-driven refactoring process
 
 Every Auditor session runs the same loop:
 
-1. **Reconcile first.** If any `*-implementation.md` receipts exist, run the Implementation Reconciliation Protocol in `00-plan.md` before doing anything else. Non-negotiable parts: verify claims against actual `git diff`s (receipts have been stale once — SI-3 landed unlisted with a wrong test count); run the FULL suite yourself; if 1–2 tests fail, rerun before suspecting the change (known intermittent SQLite "Database busy" flake, see `07-cross-cutting.md`).
-2. **Then audit** the next chunk per the ledger. Read code line-by-line for domain/control code; transport/parser code at external boundaries may get lighter structural scrutiny (say so in the doc's Status line when you do).
+1. **Reconcile first.** If any `*-implementation.md` receipts exist, verify their claims against actual `git diff`s before doing anything else (receipts have been stale once — SI-3 landed unlisted with a wrong test count); run the FULL suite yourself; if 1–2 tests fail, rerun before suspecting the change (known intermittent SQLite "Database busy" flake, see `07-cross-cutting.md`).
+2. **Then audit** the explicitly requested scope. Read code line-by-line for domain/control code; transport/parser code at external boundaries may get lighter structural scrutiny (say so in the doc's Status line when you do).
 3. **Flush atomically.** Ian is usage-constrained: write findings to the chunk doc after each FILE or small file-group, not at chunk end, so the implementer always has actionable work if the session dies. Keep a sub-area tracker table in in-progress chunk docs.
-4. **End every session** by updating the ledger + one session-log row in `00-plan.md`.
+4. **End every session** by leaving the relevant findings doc forward-facing and resumable.
 
 ## Findings: Format and Rules
 
-- Use the finding format in `00-plan.md`. IDs are per-chunk prefixes (CP/SI/SC/IM/IN/SB/WB/CC…) and are STABLE — never renumber; gaps mean implemented-and-removed.
+- Findings record an ID/title, severity, type, location, concrete problem, architectural reason, implementation decision, guardrails/tests, and effort. IDs are per-chunk prefixes (CP/SI/SC/IM/IN/SB/WB/CC…) and are STABLE — never renumber; gaps mean implemented-and-removed.
 - **Decisions, not options.** Every finding says exactly what to do. If two designs are genuinely tied, pick one and note the alternative in one sentence. Only use `DECISION-NEEDED` for product judgment that belongs to Ian.
 - **Forward-facing docs** (Ian's explicit rule): completed work is DELETED from docs — no tombstones, no "done" markers. Partially-done findings are rewritten to only the residual. Refuted findings revert to open with a note on what went wrong. After deletions, sweep other docs for dangling references to the removed IDs.
 - Record honest verdicts both ways: keep "Explicitly Fine / Leave-Alone" sections so future passes don't re-litigate deliberate quirks, and record refutations permanently (see the IM-2 display_name correction in `04-import.md` — the implementer was right and the audit was wrong; that is a healthy outcome, credit it).
@@ -37,10 +37,9 @@ Every Auditor session runs the same loop:
 
 ## Audit Status (as of 2026-07-11)
 
-The whole-code audit, architectural distillation, and audit-directed implementation backlog are complete. No findings remain open. Future Auditor work requires a new user request, an implementation receipt, or concrete evidence that invalidates the distillation; do not start another broad audit by default.
+Chunks 1–12 and their audit-directed implementation backlog are complete. The durable conclusions live in the chunk documents and `08-distillation.md`; there is no active session ledger. Future audit work should begin from a concrete production symptom, feature, or newly identified invariant instead of reopening completed areas generically. If a new multi-session whole-code audit is explicitly commissioned, create a new bounded plan rather than reviving the retired ledger.
 
 ## Handoff Notes
 
 - The working tree may hold uncommitted implementation + doc work — check `git status` before assuming docs match HEAD. Committing at reconciliation boundaries is the user's call; suggest it when the tree gets large.
-- `codex-instructions.md` says receipts are reconciled by "Fable" — read that as "the Auditor."
 - Ian values: incremental/atomic output over completeness-in-one-pass, honest refutation over deference, and docs that a cold model can resume from. When in doubt, flush what you have.

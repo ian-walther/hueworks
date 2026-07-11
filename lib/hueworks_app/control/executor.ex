@@ -8,6 +8,7 @@ defmodule Hueworks.Control.Executor do
 
   alias Hueworks.Control.Executor.Convergence
   alias Hueworks.Control.Executor.Trace
+  alias Hueworks.Control.DesiredState
   alias Hueworks.Control.Group, as: ControlGroup
   alias Hueworks.Control.Light, as: ControlLight
   alias Hueworks.Repo
@@ -56,6 +57,7 @@ defmodule Hueworks.Control.Executor do
        queues: %{},
        bridge_rates: %{},
        last_sent: %{},
+       dispatched_revisions: %{},
        timer_ref: nil,
        dispatch_fun: dispatch_fun,
        now_fn: now_fn,
@@ -129,7 +131,17 @@ defmodule Hueworks.Control.Executor do
   end
 
   defp enqueue_actions(state, actions, mode) do
-    actions_by_bridge = Enum.group_by(actions, & &1.bridge_id)
+    actions_by_bridge =
+      actions
+      |> Enum.flat_map(fn action ->
+        if DesiredState.action_current?(action) do
+          [action]
+        else
+          Convergence.stale_recovery_actions(action, state)
+        end
+      end)
+      |> Enum.uniq_by(&action_target/1)
+      |> Enum.group_by(& &1.bridge_id)
 
     Enum.reduce(actions_by_bridge, state, fn {bridge_id, bridge_actions}, acc ->
       now = acc.now_fn.(:millisecond)
@@ -262,72 +274,105 @@ defmodule Hueworks.Control.Executor do
   defp dispatch_tick(state, force \\ false) do
     now = state.now_fn.(:millisecond)
 
-    {queues, last_sent, had_work} =
-      Enum.reduce(state.queues, {state.queues, state.last_sent, false}, fn {bridge_id, queue},
-                                                                           {queues_acc, last_acc,
-                                                                            worked} ->
-        rate = Map.get(state.bridge_rates, bridge_id) || default_rate()
-        interval = interval_ms(rate)
+    {queues, last_sent, dispatched_revisions, had_work} =
+      Enum.reduce(
+        state.queues,
+        {state.queues, state.last_sent, state.dispatched_revisions, false},
+        fn {bridge_id, queue}, {queues_acc, last_acc, dispatched_acc, worked} ->
+          rate = Map.get(state.bridge_rates, bridge_id) || default_rate()
+          interval = interval_ms(rate)
 
-        last =
-          case Map.get(last_acc, bridge_id) do
-            nil -> now - interval
-            0 -> now - interval
-            value -> value
-          end
-
-        if :queue.is_empty(queue) or (not force and now - last < interval) do
-          {queues_acc, last_acc, worked}
-        else
-          {action_result, updated_queue} =
-            if force do
-              case :queue.out(queue) do
-                {:empty, _} -> {:none, queue}
-                {{:value, action}, rest} -> {{:action, action}, rest}
-              end
-            else
-              case next_action(queue, now) do
-                {:none, rest} -> {:none, rest}
-                {:action, action, rest} -> {{:action, action}, rest}
-              end
+          last =
+            case Map.get(last_acc, bridge_id) do
+              nil -> now - interval
+              0 -> now - interval
+              value -> value
             end
 
-          case action_result do
-            :none ->
-              {Map.put(queues_acc, bridge_id, updated_queue), last_acc, worked}
-
-            {:action, action} ->
-              dispatch_started_ms = now
-              Trace.log_dispatch_start(action, dispatch_started_ms, :queue.len(updated_queue))
-              result = state.dispatch_fun.(action)
-              dispatch_completed_ms = state.now_fn.(:millisecond)
-              Trace.log_dispatch_end(action, result, dispatch_started_ms, dispatch_completed_ms)
-
-              {updated_queue, last_acc} =
-                case result do
-                  :ok ->
-                    Convergence.schedule_check(action, state)
-                    {updated_queue, Map.put(last_acc, bridge_id, now)}
-
-                  {:error, _} ->
-                    {requeue_action(updated_queue, action, now, state), last_acc}
-
-                  _ ->
-                    {updated_queue, Map.put(last_acc, bridge_id, now)}
+          if :queue.is_empty(queue) or (not force and now - last < interval) do
+            {queues_acc, last_acc, dispatched_acc, worked}
+          else
+            {action_result, updated_queue} =
+              if force do
+                case :queue.out(queue) do
+                  {:empty, _} -> {:none, queue}
+                  {{:value, action}, rest} -> {{:action, action}, rest}
                 end
+              else
+                case next_action(queue, now) do
+                  {:none, rest} -> {:none, rest}
+                  {:action, action, rest} -> {{:action, action}, rest}
+                end
+              end
 
-              queues_acc = Map.put(queues_acc, bridge_id, updated_queue)
-              {queues_acc, last_acc, true}
+            case action_result do
+              :none ->
+                {Map.put(queues_acc, bridge_id, updated_queue), last_acc, dispatched_acc, worked}
+
+              {:action, action} ->
+                if DesiredState.action_current?(action) do
+                  dispatch_started_ms = now
+                  Trace.log_dispatch_start(action, dispatch_started_ms, :queue.len(updated_queue))
+                  result = state.dispatch_fun.(action)
+                  dispatch_completed_ms = state.now_fn.(:millisecond)
+
+                  Trace.log_dispatch_end(
+                    action,
+                    result,
+                    dispatch_started_ms,
+                    dispatch_completed_ms
+                  )
+
+                  {updated_queue, last_acc, dispatched_acc} =
+                    case result do
+                      :ok ->
+                        Convergence.schedule_check(action, state)
+
+                        {updated_queue, Map.put(last_acc, bridge_id, now),
+                         mark_dispatched(dispatched_acc, action)}
+
+                      {:error, _} ->
+                        {requeue_action(updated_queue, action, now, state), last_acc,
+                         dispatched_acc}
+
+                      _ ->
+                        {updated_queue, Map.put(last_acc, bridge_id, now),
+                         mark_dispatched(dispatched_acc, action)}
+                    end
+
+                  queues_acc = Map.put(queues_acc, bridge_id, updated_queue)
+                  {queues_acc, last_acc, dispatched_acc, true}
+                else
+                  recovery_state = %{state | dispatched_revisions: dispatched_acc}
+                  recovery_actions = Convergence.stale_recovery_actions(action, recovery_state)
+                  refreshed_queue = replace_queued_targets(updated_queue, recovery_actions)
+
+                  {Map.put(queues_acc, bridge_id, refreshed_queue), last_acc, dispatched_acc,
+                   true}
+                end
+            end
           end
         end
-      end)
+      )
 
     has_pending =
       queues
       |> Enum.any?(fn {_bridge_id, queue} -> not :queue.is_empty(queue) end)
 
-    {%{state | queues: queues, last_sent: last_sent}, had_work, has_pending}
+    {%{
+       state
+       | queues: queues,
+         last_sent: last_sent,
+         dispatched_revisions: dispatched_revisions
+     }, had_work, has_pending}
   end
+
+  defp mark_dispatched(dispatched_revisions, %{desired_revisions: revisions})
+       when is_map(revisions) do
+    Map.merge(dispatched_revisions, revisions)
+  end
+
+  defp mark_dispatched(dispatched_revisions, _action), do: dispatched_revisions
 
   defp default_dispatch(action), do: dispatch_action(action)
 

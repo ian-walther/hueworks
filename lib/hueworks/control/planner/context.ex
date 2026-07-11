@@ -12,6 +12,7 @@ defmodule Hueworks.Control.Planner.Context do
     :scale_transition_by_brightness,
     room_lights: [],
     desired_by_light: %{},
+    desired_revisions_by_light: %{},
     physical_by_light: %{},
     group_memberships: [],
     room_light_ids: MapSet.new()
@@ -28,6 +29,7 @@ defmodule Hueworks.Control.Planner.Context do
       scale_transition_by_brightness: scale_transition_by_brightness?(),
       room_lights: room_lights,
       desired_by_light: effective_desired_by_light(room_lights, desired_by_light),
+      desired_revisions_by_light: Map.get(snapshot, :desired_revisions_by_light, %{}),
       physical_by_light: Map.get(snapshot, :physical_by_light, %{}),
       group_memberships: Map.get(snapshot, :group_memberships, []),
       room_light_ids: MapSet.new(Enum.map(room_lights, & &1.id))

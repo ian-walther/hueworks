@@ -99,6 +99,7 @@ defmodule Hueworks.Control.Planner do
           )
       end)
       |> Enum.map(&Action.to_map/1)
+      |> Enum.map(&Action.attach_revisions(&1, context.desired_revisions_by_light))
 
     log_trace(trace, "planner_output",
       room_id: context.room_id,
@@ -157,7 +158,8 @@ defmodule Hueworks.Control.Planner do
             scale_transition_by_brightness
           )
 
-        {[Action.group(group.id, group.bridge_id, desired, apply_opts) | rest], final_remaining}
+        {[Action.group(group.id, group.bridge_id, desired, group.lights, apply_opts) | rest],
+         final_remaining}
     end
   end
 

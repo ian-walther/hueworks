@@ -28,7 +28,8 @@ defmodule Hueworks.Control.PlannerTest do
              type: :light,
              id: 1,
              bridge_id: 10,
-             desired: %{power: :on}
+             desired: %{power: :on},
+             light_ids: [1]
            }
   end
 

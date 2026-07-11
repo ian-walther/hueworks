@@ -5,10 +5,10 @@ It is forward-looking process documentation, not a progress log.
 
 ## Role Split
 
-- Fable owns the audit findings docs: `NN-<chunk>.md`, the chunk ledger, and the decision language.
+- The Auditor owns the audit findings docs (`NN-<chunk>.md`) and decision language.
 - Codex owns implementation of already-decided findings, tests, and temporary implementation receipts.
 - The user owns product calls, priority calls, and any decision marked `DECISION-NEEDED`.
-- Codex should not edit Fable-owned findings docs during the normal Fable-driven loop unless explicitly asked. Instead, document implementation evidence in a temporary receipt and let Fable reconcile.
+- Codex should not edit Auditor-owned findings docs during a normal audit-driven loop unless explicitly asked. Instead, document implementation evidence in a temporary receipt and let the Auditor reconcile.
 
 ## Cold Start Checklist
 
@@ -16,11 +16,10 @@ When asked to resume implementation, do this first:
 
 1. Read `AGENTS.md`.
 2. Read `planned_architecture.md`.
-3. Read `planning/audit/00-plan.md`.
-4. Read the relevant chunk findings docs under `planning/audit/`.
-5. Check `git status --short --branch`.
-6. Identify uncommitted changes that may belong to the user, Fable, or a prior Codex pass. Do not overwrite or revert them unless explicitly asked.
-7. If any `*-implementation.md` receipts already exist, read them before starting new implementation work.
+3. Read the relevant chunk findings docs under `planning/audit/`.
+4. Check `git status --short --branch`.
+5. Identify uncommitted changes that may belong to the user, the Auditor, or a prior Codex pass. Do not overwrite or revert them unless explicitly asked.
+6. If any `*-implementation.md` receipts already exist, read them before starting new implementation work.
 
 ## Picking Work
 
@@ -90,7 +89,7 @@ Delete this file after the audit doc has been updated to remove or revise the co
 
 ## Auditor Notes
 
-- What Fable should verify.
+- What the Auditor should verify.
 - Any nuance where implementation differs slightly from the original audit wording.
 ```
 
@@ -98,7 +97,7 @@ Receipts are disposable evidence, not durable planning docs. Once Fable verifies
 
 ## Reconciliation Expectations
 
-Fable should verify receipts against actual diffs and tests before deleting completed findings. Codex should make that cheap by:
+The Auditor should verify receipts against actual diffs and tests before deleting completed findings. Codex should make that cheap by:
 
 - Listing exact finding IDs.
 - Naming exact files and functions when useful.
@@ -126,4 +125,4 @@ When finishing an implementation pass, report:
 - Which tests were run, including `mix test`.
 - Any warnings, residual risks, or findings intentionally left open.
 
-Do not claim Fable-owned findings are complete; say they are ready for Fable to reconcile.
+Do not claim Auditor-owned findings are complete; say they are ready for the Auditor to reconcile.

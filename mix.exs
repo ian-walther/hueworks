@@ -33,8 +33,8 @@ defmodule Hueworks.MixProject do
   defp deps do
     [
       # Database
-      {:ecto_sql, "~> 3.11"},
-      {:ecto_sqlite3, "~> 0.15"},
+      {:ecto_sql, "~> 3.14"},
+      {:ecto_sqlite3, "~> 0.24"},
 
       # HTTP clients
       {:httpoison, "~> 2.2"},
@@ -48,10 +48,10 @@ defmodule Hueworks.MixProject do
       {:tzdata, "~> 1.1"},
 
       # Phoenix for web UI
-      {:phoenix, "~> 1.7"},
+      {:phoenix, "~> 1.7.24"},
       {:phoenix_live_view, "~> 0.20"},
       {:phoenix_html, "~> 4.0"},
-      {:bandit, "~> 1.0"},
+      {:bandit, "~> 1.12"},
       {:esbuild, "~> 0.8", runtime: Mix.env() == :dev},
       {:tailwind, "~> 0.2", runtime: Mix.env() == :dev},
 

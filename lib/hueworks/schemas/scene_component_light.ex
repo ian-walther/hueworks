@@ -24,6 +24,7 @@ defmodule Hueworks.Schemas.SceneComponentLight do
     |> cast(attrs, [:scene_component_id, :light_id, :default_power, :presence_input_id])
     |> validate_required([:scene_component_id, :light_id, :default_power])
     |> validate_presence_input_for_policy()
+    |> unique_constraint([:scene_component_id, :light_id])
   end
 
   defp validate_presence_input_for_policy(changeset) do
