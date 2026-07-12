@@ -14,7 +14,6 @@ Overall assessment: the scene builder is now the shape refactoring.md item 3 ask
 - Reusing `LightStateEditorLive.FormState` for embedded manual config editing is intentional cross-feature reuse (same form semantics as the light-state editor), not coupling to remove.
 - `load_scene_components` reconstructing groups purely by projection (`component_groups` finds groups fully contained in the component's light_ids) rather than persisting group membership — deliberate: groups are optimization projections per planned_architecture.md.
 
-## Test-Gap Notes (cross-reference for planning/test-coverage-audit.md)
+## Test Coverage Assessment
 
 - Coverage is strong across state, component render/events, and full LiveView flows; the SB-1 split landed behind that net plus a single-broadcast activation regression test. Nothing worth adding.
-

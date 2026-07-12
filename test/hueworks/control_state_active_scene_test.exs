@@ -109,4 +109,25 @@ defmodule Hueworks.ControlStateActiveSceneTest do
     assert %ActiveScene{scene_id: scene_id} = Repo.get_by(ActiveScene, room_id: room.id)
     assert scene_id == scene.id
   end
+
+  test "manual power override does not apply when its active-scene latch fails to persist" do
+    room = insert_room()
+    bridge = insert_bridge()
+    light = insert_light(room, bridge)
+    scene = insert_scene(room)
+
+    {:ok, _} = ActiveScenes.set_active(scene)
+    _ = DesiredState.put(:light, light.id, %{power: :on})
+
+    persist_fun = fn _room_id, _power_overrides -> {:error, :forced_persist_failure} end
+
+    assert {:error, :forced_persist_failure} =
+             Scenes.recompute_active_scene_lights(room.id, [light.id],
+               power_override: :off,
+               power_override_persist_fun: persist_fun
+             )
+
+    assert DesiredState.get(:light, light.id) == %{power: :on}
+    assert ActiveScenes.get_for_room(room.id).power_overrides == %{}
+  end
 end

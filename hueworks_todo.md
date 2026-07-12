@@ -21,8 +21,3 @@ Reference: `planning/homekit-control-quality.md`
 
 - [ ] Improve HomeKit behavior beyond reliable on/off control.
 - [ ] Define the expected user experience for brightness/color control when no HueWorks scene is active.
-
-## Concrete Runtime Gaps
-
-- [ ] Implement Caseta group dispatch in `Hueworks.Control.Group`.
-- [ ] Add a regression test for the runtime gap above.

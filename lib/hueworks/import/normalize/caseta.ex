@@ -5,7 +5,6 @@ defmodule Hueworks.Import.Normalize.Caseta do
 
   def normalize(bridge, raw, _opts \\ %{}) do
     lights_raw = Normalize.fetch(raw, :lights) |> Normalize.normalize_list()
-    groups_raw = Normalize.fetch(raw, :groups) |> Normalize.normalize_list()
 
     {rooms, room_map} = build_caseta_rooms(lights_raw)
 
@@ -31,26 +30,6 @@ defmodule Hueworks.Import.Normalize.Caseta do
         }
       end)
 
-    groups =
-      Enum.map(groups_raw, fn group ->
-        %{
-          source: :caseta,
-          source_id: Normalize.fetch(group, :id),
-          name: Normalize.fetch(group, :name) || "Caseta Group",
-          classification: "group",
-          room_source_id: nil,
-          type: "group",
-          capabilities: %{
-            brightness: false,
-            color: false,
-            color_temp: false,
-            reported_kelvin_min: nil,
-            reported_kelvin_max: nil
-          },
-          metadata: %{"raw" => group}
-        }
-      end)
-
     memberships = %{
       room_groups: [],
       room_lights:
@@ -65,7 +44,7 @@ defmodule Hueworks.Import.Normalize.Caseta do
       group_lights: []
     }
 
-    Normalize.base_normalized(bridge, rooms, groups, lights, memberships)
+    Normalize.base_normalized(bridge, rooms, [], lights, memberships)
   end
 
   defp normalize_caseta_capabilities(light) do

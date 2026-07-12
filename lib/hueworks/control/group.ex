@@ -35,10 +35,6 @@ defmodule Hueworks.Control.Group do
     end
   end
 
-  defp dispatch(%{source: :caseta}, _action, _apply_opts) do
-    {:error, :not_implemented}
-  end
-
   defp dispatch(%{source: :ha} = group, action, apply_opts) do
     with {:ok, host, token} <- HomeAssistantBridge.credentials_for(group),
          {service, payload} <- HomeAssistantPayload.action_payload(action, group, apply_opts),

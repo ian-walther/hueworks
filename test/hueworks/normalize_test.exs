@@ -195,6 +195,23 @@ defmodule Hueworks.Import.NormalizeTest do
     assert light.identifiers["serial"] == "12345678"
   end
 
+  test "does not expose Caseta virtual scene buttons as controllable groups" do
+    raw = %{
+      "lights" => [],
+      "groups" => [
+        %{
+          "group_id" => "7",
+          "name" => "Goodnight",
+          "type" => "virtualbutton"
+        }
+      ]
+    }
+
+    bridge = %Bridge{id: 3, type: :caseta, name: "Caseta", host: "10.0.0.3"}
+
+    assert Normalize.normalize(bridge, raw).groups == []
+  end
+
   test "normalizes Zigbee2MQTT raw data into lights and groups" do
     raw = load_fixture("z2m_raw.json")
 

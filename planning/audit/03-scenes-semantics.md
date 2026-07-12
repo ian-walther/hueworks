@@ -27,10 +27,9 @@ Parked question resolved during this chunk: chunk 2's "verify external scene act
 - `ExternalScenes` — mixed-key handling is at a genuine external boundary (HA entity payloads), which the architecture explicitly permits; managed-scene filtering prevents HueWorks-exported scenes from looping back in. Leave as is.
 - `PresenceInputs.set_occupied` ordering (persist → HA republish → active-scene refresh) is correct and load-bearing.
 
-## Test-Gap Notes (cross-reference for planning/test-coverage-audit.md)
+## Test Coverage Assessment
 
 - This chunk has the best coverage in the app; explicitly leave the circadian reference-parity suite alone — it is what makes SC-5 safely deferrable.
-- Gap: `Scenes.Active.persist_power_overrides` swallows `merge_power_overrides` failure silently (active.ex:109-112) — a failed persist means the next circadian tick reverts a manual power change. One test forcing the changeset failure would document intent; low priority.
 
 ## Parked (noted early, belongs to later chunks)
 

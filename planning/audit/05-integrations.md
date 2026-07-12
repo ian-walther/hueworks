@@ -10,8 +10,9 @@ Overall assessment: the integration layer passes its central architectural test 
 - The HomeKit HAP transport/session/pairing layer (`hap.ex`, `hap_session_transport.ex`, `hap_session_handler.ex`, `pairing_state.ex`) is deliberately quirky protocol code owned by the `planning/homekit-control-quality.md` product question — leave it out of refactor passes, including its known redundant-clause compile warning (chunk-7 warnings pass must treat it carefully, not mechanically).
 - Pico control groups living in device `metadata` JSON is fine at this scale.
 - `Import.Fetch.Common.load_enabled_bridge!`'s raise on multiple HA bridges is the deliberate single-HA-bridge product gate (the control bootstrap no longer shares that assumption).
+- Caseta programmed virtual buttons are scene triggers, not controllable light groups. Do not normalize them into `Group` rows or route arbitrary desired state to them; any future support belongs in an external-scene model.
 
-## Test-Gap Notes (cross-reference for planning/test-coverage-audit.md)
+## Test Coverage Assessment
 
 - All three integrations have suites, now including domain-event subscriber coverage (HA export scene CRUD, HomeKit event reloads), Caseta crash isolation, and `CasetaLeap` transport tests.
 - No integration-specific gaps remain worth listing; the HomeKit brightness/color reliability question is product work (`planning/homekit-control-quality.md`), not test debt.

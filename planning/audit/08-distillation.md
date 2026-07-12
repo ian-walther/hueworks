@@ -1,6 +1,6 @@
 # Audit Chunk 8: Architectural Distillation
 
-Scope: synthesis of chunks 1–7, accepted risks, remaining findings, and reconciliation with `planned_architecture.md`, `hueworks_todo.md`, `planning/import-resync.md`, and `planning/test-coverage-audit.md`.
+Scope: synthesis of chunks 1–7, accepted risks, remaining findings, and reconciliation with `planned_architecture.md`, `hueworks_todo.md`, and `planning/import-resync.md`.
 Status: complete. Chunks 1–12 and all audit-directed implementation are reconciled; no audit findings remain open.
 
 ## Executive Verdict
@@ -50,12 +50,10 @@ No findings from chunks 1–8 remain open. All WB and CC findings are implemente
 
 - SC-5 remains performance-deferred: cache circadian solar windows only if profiling or a shorter poll interval makes the repeated calculation material.
 - Transition smoothness and HomeKit brightness/color quality remain product-experience work, not refactoring debt.
-- Caseta group dispatch remains a concrete runtime feature gap and should stay in `hueworks_todo.md` with its regression test.
 
 ## Planning Reconciliation
 
 - The destructive reimport dependency/confirmation work is complete and was removed from forward-looking plans. The residual reimport work is narrower: explicit new-entity choices, current-versus-bridge presentation, inspectable auto-refresh details, missing summary/warning visibility, and dynamic HA-group duplicate recomputation.
-- The deliberate test-coverage review is complete. `planning/test-coverage-audit.md` now contains only the small current gap list, and the generic audit task was removed from `hueworks_todo.md`.
 - `planned_architecture.md` gained the three rules the implementation repeatedly validated: contexts own invariants, optional integration fan-out happens after commit, and supervised runtime placement stays separate from domain logic.
 
 ## Final Audit Posture

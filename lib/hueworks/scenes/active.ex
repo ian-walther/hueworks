@@ -87,27 +87,27 @@ defmodule Hueworks.Scenes.Active do
         {:ok, %{}, %{}}
 
       {_light_ids, active_scene} ->
-        {active_scene, power_overrides} =
-          persist_power_overrides(active_scene, room_id, light_ids, opts)
+        with {:ok, active_scene, power_overrides} <-
+               persist_power_overrides(active_scene, room_id, light_ids, opts) do
+          active_scene.scene_id
+          |> Scenes.get_scene()
+          |> case do
+            nil ->
+              {:error, :not_found}
 
-        active_scene.scene_id
-        |> Scenes.get_scene()
-        |> case do
-          nil ->
-            {:error, :not_found}
-
-          scene ->
-            Scenes.apply_active_scene(scene, active_scene,
-              preserve_power_latches: true,
-              target_light_ids: light_ids,
-              circadian_only: Keyword.get(opts, :circadian_only, false),
-              power_overrides: power_overrides,
-              now: Keyword.get(opts, :now, DateTime.utc_now()),
-              trace: Keyword.get(opts, :trace),
-              origin: Keyword.get(opts, :origin, :manual),
-              transition_policy: Keyword.get(opts, :transition_policy),
-              group_candidate_light_ids: Keyword.get(opts, :group_candidate_light_ids)
-            )
+            scene ->
+              Scenes.apply_active_scene(scene, active_scene,
+                preserve_power_latches: true,
+                target_light_ids: light_ids,
+                circadian_only: Keyword.get(opts, :circadian_only, false),
+                power_overrides: power_overrides,
+                now: Keyword.get(opts, :now, DateTime.utc_now()),
+                trace: Keyword.get(opts, :trace),
+                origin: Keyword.get(opts, :origin, :manual),
+                transition_policy: Keyword.get(opts, :transition_policy),
+                group_candidate_light_ids: Keyword.get(opts, :group_candidate_light_ids)
+              )
+          end
         end
     end
   end
@@ -128,20 +128,27 @@ defmodule Hueworks.Scenes.Active do
     |> Keyword.get(:power_override)
     |> case do
       nil ->
-        {active_scene, %{}}
+        {:ok, active_scene, %{}}
 
-      power ->
+      power when power in [:on, :off] ->
         power_overrides = Map.new(light_ids, &{&1, power})
 
-        updated_active_scene =
-          room_id
-          |> ActiveScenes.merge_power_overrides(power_overrides)
-          |> case do
-            {:ok, updated_active_scene} -> updated_active_scene
-            _ -> active_scene
-          end
+        persist_fun =
+          Keyword.get(opts, :power_override_persist_fun, &ActiveScenes.merge_power_overrides/2)
 
-        {updated_active_scene, power_overrides}
+        case persist_fun.(room_id, power_overrides) do
+          {:ok, updated_active_scene} ->
+            {:ok, updated_active_scene, power_overrides}
+
+          {:error, _reason} = error ->
+            error
+
+          other ->
+            {:error, {:invalid_power_override_persist_result, other}}
+        end
+
+      _power ->
+        {:error, :invalid_power_override}
     end
   end
 

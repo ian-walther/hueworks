@@ -35,23 +35,15 @@ defmodule Hueworks.Import.Fetch.Caseta do
 
     buttons = read_endpoint(socket, "/button")
 
-    if log? do
-      Logger.info("Fetching Lutron virtual buttons...")
-    end
-
-    virtual_buttons = read_endpoint(socket, "/virtualbutton")
-
     lights = lutron_lights(devices)
     pico_buttons = lutron_buttons(devices, buttons)
-    groups = lutron_groups(virtual_buttons)
 
     :ssl.close(socket)
 
     %{
       bridge_ip: bridge.host,
       lights: lights,
-      pico_buttons: pico_buttons,
-      groups: groups
+      pico_buttons: pico_buttons
     }
   end
 
@@ -214,21 +206,6 @@ defmodule Hueworks.Import.Fetch.Caseta do
       }
     end)
     |> Enum.filter(& &1.button_id)
-  end
-
-  defp lutron_groups(virtual_buttons) do
-    buttons = get_in(virtual_buttons, [:merged_body, "VirtualButtons"]) || []
-
-    buttons
-    |> Enum.filter(fn button -> button["IsProgrammed"] == true end)
-    |> Enum.map(fn button ->
-      %{
-        group_id: href_id(button["href"], "virtualbutton"),
-        name: button["Name"],
-        type: "virtualbutton"
-      }
-    end)
-    |> Enum.filter(& &1.group_id)
   end
 
   defp href_id(href, type) do
