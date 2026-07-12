@@ -43,6 +43,7 @@ npm-debug.log
 /secrets.json
 /credentials/
 /priv/credentials/
+/deploy-prod.local.sh
 
 # OS
 .DS_Store
