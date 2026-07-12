@@ -273,9 +273,11 @@ HomeKit runtime:
 Home Assistant MQTT export:
 
 - Scenes, room scene selectors, lights, groups, and Presence Inputs are published through Home Assistant MQTT discovery when Home Assistant export is enabled.
+- A scene can use the scene editor's **Activation Transition** setting: `Default` follows the global manual timing, while `Custom` applies an unscaled fade whenever that scene is explicitly activated. The setting does not affect later circadian adjustments or presence changes.
+- For an automation that needs a one-shot scene fade, publish JSON directly to the discovered command topic instead of using Home Assistant's normal scene/select service. Direct-scene example: `{"transition_ms":30000}`. Room-select example: `{"option":"Evening Auto","transition_ms":30000}`. Plain `ON` scene commands and plain room-select options remain supported.
 - Presence Inputs are configured per room on `/rooms` and exported as writable MQTT switches. `ON` means `Occupied`; `OFF` means `Unoccupied`.
 - Scene components can use `Follow Presence` as a power policy for individual lights or nested groups. The policy resolves to on/off from the selected Presence Input when a scene is applied.
-- Home Assistant owns Presence Input values. Changing one stores and republishes state, then reapplies the room's active scene so any `Follow Presence` scene components dispatch their updated on/off intent.
+- Home Assistant owns Presence Input values. Changing one stores and republishes state, then recomputes only the active-scene lights that follow that specific input.
 
 Useful commands:
 

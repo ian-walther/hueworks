@@ -7,6 +7,7 @@ defmodule Hueworks.Control.CircadianPoller do
   require Logger
 
   alias Hueworks.ActiveScenes
+  alias Hueworks.Control.TransitionPolicy
   alias Hueworks.DebugLogging
   alias Hueworks.Scenes
 
@@ -20,24 +21,25 @@ defmodule Hueworks.Control.CircadianPoller do
   @impl true
   def init(opts) do
     interval = Keyword.get(opts, :interval_ms, poll_interval_ms())
-    {:ok, %{interval: interval}, {:continue, :schedule}}
+    now_fn = Keyword.get(opts, :now_fn, &DateTime.utc_now/0)
+    {:ok, %{interval: interval, now_fn: now_fn}, {:continue, :schedule}}
   end
 
   @impl true
   def handle_continue(:schedule, state) do
-    run_tick()
+    run_tick(state.now_fn.())
     schedule_tick(state)
     {:noreply, state}
   end
 
   @impl true
   def handle_info(:tick, state) do
-    run_tick()
+    run_tick(state.now_fn.())
     schedule_tick(state)
     {:noreply, state}
   end
 
-  defp run_tick do
+  def run_tick(now \\ DateTime.utc_now()) when is_struct(now, DateTime) do
     active_scenes = ActiveScenes.list_active_scenes()
     started_at_ms = System.monotonic_time(:millisecond)
 
@@ -60,10 +62,7 @@ defmodule Hueworks.Control.CircadianPoller do
               started_at_ms: System.monotonic_time(:millisecond)
             }
 
-            case Scenes.apply_active_scene(scene, active,
-                   preserve_power_latches: true,
-                   trace: trace
-                 ) do
+            case apply_active_scene(scene, active, now, trace) do
               {:ok, diff, _updated} ->
                 DebugLogging.info(
                   "circadian_scene_apply result=ok room_id=#{scene.room_id} scene_id=#{scene.id} diff_size=#{map_size(diff)}"
@@ -91,6 +90,33 @@ defmodule Hueworks.Control.CircadianPoller do
     DebugLogging.info(
       "circadian_tick_end active_scene_count=#{length(active_scenes)} applied=#{applied} failed=#{failed} elapsed_ms=#{System.monotonic_time(:millisecond) - started_at_ms}"
     )
+  end
+
+  defp apply_active_scene(scene, active_scene, now, trace) do
+    cond do
+      ActiveScenes.circadian_deferred?(active_scene, now) and
+          Scenes.active_scene_rehydrate_needed?(scene.id) ->
+        remaining_ms = ActiveScenes.remaining_circadian_deferral_ms(active_scene, now)
+
+        Scenes.apply_active_scene(scene, active_scene,
+          preserve_power_latches: true,
+          origin: :scene_activation,
+          transition_policy: TransitionPolicy.new(remaining_ms, :none),
+          now: now,
+          trace: trace
+        )
+
+      ActiveScenes.circadian_deferred?(active_scene, now) ->
+        {:ok, %{}, %{}}
+
+      true ->
+        Scenes.apply_active_scene(scene, active_scene,
+          preserve_power_latches: true,
+          origin: :circadian,
+          now: now,
+          trace: trace
+        )
+    end
   end
 
   defp schedule_tick(state) do

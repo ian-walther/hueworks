@@ -18,30 +18,39 @@ defmodule Hueworks.ActiveScenes do
     Repo.one(from(a in ActiveScene, where: a.room_id == ^room_id))
   end
 
-  def set_active(%Scene{} = scene) do
-    now = DateTime.utc_now()
+  def set_active(%Scene{} = scene, opts \\ []) when is_list(opts) do
+    now = Keyword.get(opts, :now, DateTime.utc_now())
+    circadian_resume_at = Keyword.get(opts, :circadian_resume_at)
 
     attrs = %{
       room_id: scene.room_id,
       scene_id: scene.id,
       last_applied_at: now,
-      power_overrides: %{}
+      power_overrides: %{},
+      circadian_resume_at: circadian_resume_at
     }
 
+    changeset = ActiveScene.changeset(%ActiveScene{}, attrs)
+
     result =
-      %ActiveScene{}
-      |> ActiveScene.changeset(attrs)
-      |> Repo.insert(
-        on_conflict: [
-          set: [
-            scene_id: scene.id,
-            last_applied_at: now,
-            power_overrides: %{},
-            updated_at: now
-          ]
-        ],
-        conflict_target: :room_id
-      )
+      try do
+        Repo.insert(changeset,
+          on_conflict: [
+            set: [
+              scene_id: scene.id,
+              last_applied_at: now,
+              power_overrides: %{},
+              circadian_resume_at: circadian_resume_at,
+              updated_at: now
+            ]
+          ],
+          conflict_target: :room_id
+        )
+      rescue
+        Ecto.ConstraintError ->
+          {:error,
+           Ecto.Changeset.add_error(changeset, :base, "active scene references are invalid")}
+      end
 
     case result do
       {:ok, active_scene} ->
@@ -82,6 +91,23 @@ defmodule Hueworks.ActiveScenes do
 
     :ok
   end
+
+  def circadian_deferred?(%ActiveScene{circadian_resume_at: %DateTime{} = resume_at}, now)
+      when is_struct(now, DateTime) do
+    DateTime.compare(now, resume_at) == :lt
+  end
+
+  def circadian_deferred?(_active_scene, _now), do: false
+
+  def remaining_circadian_deferral_ms(
+        %ActiveScene{circadian_resume_at: %DateTime{} = resume_at},
+        now
+      )
+      when is_struct(now, DateTime) do
+    max(DateTime.diff(resume_at, now, :millisecond), 0)
+  end
+
+  def remaining_circadian_deferral_ms(_active_scene, _now), do: 0
 
   def power_overrides(%ActiveScene{} = active_scene) do
     active_scene.power_overrides

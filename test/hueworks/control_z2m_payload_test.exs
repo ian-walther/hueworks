@@ -32,6 +32,12 @@ defmodule Hueworks.Control.Z2MPayloadTest do
     assert payload["transition"] == 0.75
   end
 
+  test "effective transition duration matches the Z2M seconds payload" do
+    assert Z2MPayload.effective_transition_ms(%{transition_ms: 750}) == 750
+    assert Z2MPayload.effective_transition_ms(%{transition_ms: 1_250}) == 1_250
+    assert Z2MPayload.effective_transition_ms(%{}) == 0
+  end
+
   test "set_state returns ignore for empty desired" do
     assert Z2MPayload.action_payload({:set_state, %{}}, %{}) == :ignore
   end

@@ -103,6 +103,19 @@ defmodule Hueworks.Scenes do
     Active.refresh_scene(scene_id)
   end
 
+  def active_scene_rehydrate_needed?(scene_id) when is_integer(scene_id) do
+    Active.rehydrate_needed?(scene_id)
+  end
+
+  def active_scene_rehydrate_needed?(_scene_id), do: false
+
+  def active_scene_follow_presence_light_ids(scene_id, presence_input_id)
+      when is_integer(scene_id) and is_integer(presence_input_id) do
+    Active.follow_presence_light_ids(scene_id, presence_input_id)
+  end
+
+  def active_scene_follow_presence_light_ids(_scene_id, _presence_input_id), do: []
+
   @spec refresh_active_scenes_for_light_state(integer()) :: {:ok, list(struct())}
   def refresh_active_scenes_for_light_state(light_state_id) when is_integer(light_state_id) do
     Active.refresh_for_light_state(light_state_id)

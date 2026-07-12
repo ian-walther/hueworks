@@ -2,8 +2,10 @@ defmodule Hueworks.ActiveScenesTest do
   use Hueworks.DataCase, async: false
 
   alias Hueworks.ActiveScenes
+  alias Hueworks.Control.TraceBuffer
   alias Phoenix.PubSub
   alias Hueworks.Repo
+  alias Hueworks.Scenes.Apply, as: SceneApply
   alias Hueworks.Schemas.{ActiveScene, Room, Scene}
 
   defp insert_room do
@@ -31,6 +33,26 @@ defmodule Hueworks.ActiveScenesTest do
     assert active.scene_id == scene2.id
     assert %DateTime{} = active.last_applied_at
     assert Repo.aggregate(ActiveScene, :count) == 1
+  end
+
+  test "set_active persists and replaces the circadian deferral deadline" do
+    room = insert_room()
+    scene1 = insert_scene(room, "Chill")
+    scene2 = insert_scene(room, "Focus")
+    now = ~U[2026-07-11 20:00:00.000000Z]
+    resume_at = DateTime.add(now, 30_000, :millisecond)
+
+    assert {:ok, _} =
+             ActiveScenes.set_active(scene1, now: now, circadian_resume_at: resume_at)
+
+    active = ActiveScenes.get_for_room(room.id)
+    assert active.circadian_resume_at == resume_at
+    assert ActiveScenes.circadian_deferred?(active, now)
+    assert ActiveScenes.remaining_circadian_deferral_ms(active, now) == 30_000
+
+    assert {:ok, _} = ActiveScenes.set_active(scene2, now: now)
+
+    refute ActiveScenes.get_for_room(room.id).circadian_resume_at
   end
 
   test "mark_applied refreshes last_applied_at" do
@@ -68,5 +90,20 @@ defmodule Hueworks.ActiveScenesTest do
 
     :ok = ActiveScenes.clear_for_room(room.id)
     assert_receive {:active_scene_updated, ^room_id, nil}
+  end
+
+  test "scene activation does not apply intent when active-scene persistence fails" do
+    room = insert_room()
+    scene = insert_scene(room, "Deleted Room Scene")
+    trace = %{trace_id: "failed-active-scene", source: "test"}
+    TraceBuffer.clear()
+    Repo.delete!(room)
+
+    assert {:error, changeset} = SceneApply.activate_scene(scene, trace: trace)
+
+    assert Keyword.has_key?(changeset.errors, :base)
+
+    assert ActiveScenes.get_for_room(room.id) == nil
+    assert TraceBuffer.recent(trace_id: trace.trace_id).events == []
   end
 end

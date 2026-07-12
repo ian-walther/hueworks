@@ -30,6 +30,12 @@ defmodule Hueworks.Control.HomeAssistantPayloadTest do
     assert payload == %{"entity_id" => "light.kitchen", "transition" => 0.5}
   end
 
+  test "effective transition duration matches the Home Assistant seconds payload" do
+    assert HomeAssistantPayload.effective_transition_ms(%{transition_ms: 750}) == 750
+    assert HomeAssistantPayload.effective_transition_ms(%{transition_ms: 1_250}) == 1_250
+    assert HomeAssistantPayload.effective_transition_ms(%{}) == 0
+  end
+
   test "set_state uses xy_color when desired state includes color" do
     entity = %{source_id: "light.kitchen", extended_kelvin_range: false}
 

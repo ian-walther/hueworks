@@ -22,6 +22,46 @@
         class="hw-modal-input"
         autocomplete="off"
       />
+
+      <label class="hw-modal-label" for="scene_activation_transition_mode">
+        Activation Transition
+      </label>
+      <select
+        id="scene_activation_transition_mode"
+        name="activation_transition_mode"
+        class="hw-modal-select"
+      >
+        <option value="default" selected={@activation_transition_mode == "default"}>Default</option>
+        <option value="custom" selected={@activation_transition_mode == "custom"}>Custom</option>
+      </select>
+
+      <%= if @activation_transition_mode == "custom" do %>
+        <label class="hw-modal-label" for="scene_activation_transition_value">
+          Custom Duration
+        </label>
+        <div class="hw-inline-fields">
+          <input
+            id="scene_activation_transition_value"
+            name="activation_transition_value"
+            type="number"
+            min="1"
+            step="1"
+            value={@activation_transition_value}
+            class="hw-modal-input"
+          />
+          <select
+            id="scene_activation_transition_unit"
+            name="activation_transition_unit"
+            class="hw-modal-select"
+          >
+            <option value="milliseconds" selected={@activation_transition_unit == "milliseconds"}>
+              milliseconds
+            </option>
+            <option value="seconds" selected={@activation_transition_unit == "seconds"}>seconds</option>
+            <option value="minutes" selected={@activation_transition_unit == "minutes"}>minutes</option>
+          </select>
+        </div>
+      <% end %>
     </form>
 
     <.live_component

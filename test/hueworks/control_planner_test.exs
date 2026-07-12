@@ -4,7 +4,7 @@ defmodule Hueworks.Control.PlannerTest do
 
   alias Hueworks.Control.Planner.Action
   alias Hueworks.Control.Planner.Context
-  alias Hueworks.Control.{DesiredState, Planner, State}
+  alias Hueworks.Control.{DesiredState, Operation, Planner, State, TransitionPolicy}
   alias Hueworks.Repo
   alias Hueworks.Schemas.{AppSetting, Group, GroupLight, Light, Room}
 
@@ -104,6 +104,79 @@ defmodule Hueworks.Control.PlannerTest do
            ] = actions
 
     assert group_id == group_big.id
+  end
+
+  test "strict candidate scope keeps a targeted operation from selecting unrelated group members" do
+    room = Repo.insert!(%Room{name: "Scoped Planner Room"})
+
+    bridge =
+      insert_bridge!(%{name: "Hue", type: :hue, host: "scope-bridge", credentials: %{}})
+
+    light_a = insert_light(room, bridge, "A")
+    light_b = insert_light(room, bridge, "B")
+    group = insert_group(room, bridge, "Both")
+    insert_group_light(group, light_a)
+    insert_group_light(group, light_b)
+
+    desired = %{power: :on, brightness: 50}
+    DesiredState.put(:light, light_a.id, desired)
+    DesiredState.put(:light, light_b.id, desired)
+    State.put(:light, light_a.id, %{power: :off})
+    State.put(:light, light_b.id, %{power: :off})
+
+    assert [%{type: :light, id: light_id}] =
+             Planner.plan_room(room.id, %{{:light, light_b.id} => desired},
+               group_candidate_light_ids: [light_b.id]
+             )
+
+    assert light_id == light_b.id
+  end
+
+  test "protected lights are excluded from convergence recovery group candidates" do
+    room = Repo.insert!(%Room{name: "Protected Planner Room"})
+
+    bridge =
+      insert_bridge!(%{name: "Hue", type: :hue, host: "protected-bridge", credentials: %{}})
+
+    light_a = insert_light(room, bridge, "A")
+    light_b = insert_light(room, bridge, "B")
+    group = insert_group(room, bridge, "Both")
+    insert_group_light(group, light_a)
+    insert_group_light(group, light_b)
+
+    desired = %{power: :on, brightness: 50}
+    DesiredState.put(:light, light_a.id, desired)
+    DesiredState.put(:light, light_b.id, desired)
+    State.put(:light, light_a.id, %{power: :off})
+    State.put(:light, light_b.id, %{power: :off})
+
+    assert [%{type: :light, id: light_id}] =
+             Planner.plan_room(room.id, %{{:light, light_b.id} => desired},
+               protected_light_ids: [light_a.id]
+             )
+
+    assert light_id == light_b.id
+  end
+
+  test "an operation policy controls planner transitions independently of the global setting" do
+    room = Repo.insert!(%Room{name: "Circadian Policy Room"})
+
+    bridge =
+      insert_bridge!(%{name: "Hue", type: :hue, host: "circadian-bridge", credentials: %{}})
+
+    light = insert_light(room, bridge, "Lamp")
+    desired = %{power: :on, brightness: 60}
+    DesiredState.put(:light, light.id, desired)
+    State.put(:light, light.id, %{power: :on, brightness: 50})
+
+    operation =
+      Operation.new(
+        origin: :circadian,
+        transition_policy: TransitionPolicy.circadian()
+      )
+
+    assert [%{apply_opts: %{transition_ms: 500}, operation: ^operation}] =
+             Planner.plan_room(room.id, %{{:light, light.id} => desired}, operation: operation)
   end
 
   test "plan_snapshot plans from a preloaded room snapshot without repo lookups" do

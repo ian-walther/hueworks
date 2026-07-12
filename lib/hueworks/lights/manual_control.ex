@@ -26,6 +26,7 @@ defmodule Hueworks.Lights.ManualControl do
 
       case ControlApply.commit_and_enqueue(txn, room_id,
              enqueue_mode: Keyword.get(opts, :enqueue_mode, :replace_targets),
+             origin: :manual,
              trace: trace
            ) do
         {:ok, %{plan_diff: plan_diff}} ->
@@ -54,6 +55,7 @@ defmodule Hueworks.Lights.ManualControl do
       _active_scene ->
         case Scenes.recompute_active_scene_lights(room_id, light_ids,
                power_override: :on,
+               origin: :manual,
                trace: trace
              ) do
           {:ok, _diff, updated} when map_size(updated) > 0 ->
@@ -82,6 +84,7 @@ defmodule Hueworks.Lights.ManualControl do
       _active_scene ->
         case Scenes.recompute_active_scene_lights(room_id, light_ids,
                power_override: :off,
+               origin: :manual,
                trace: trace
              ) do
           {:ok, _diff, updated} when map_size(updated) > 0 ->

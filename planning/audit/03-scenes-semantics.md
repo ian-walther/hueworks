@@ -14,7 +14,7 @@ Parked question resolved during this chunk: chunk 2's "verify external scene act
 - Type: refactor (deliberate no-op until cost shows up — document, don't fix speculatively)
 - Where: [lib/hueworks/circadian.ex:66-84](../../lib/hueworks/circadian.ex) (`build_context` computes all three curves' events purely to validate, then discards them), [circadian.ex:208-246](../../lib/hueworks/circadian.ex) (`prev_and_next_events` recomputes ±1-day event sets on every evaluation; `calculate/3` triggers this separately for shared/brightness/temperature curves)
 - What: one `calculate/3` call computes sun-event sets on the order of a dozen times. It runs per circadian component per active scene per poller tick (60s default) — measured in microseconds-to-milliseconds at home scale, so currently harmless, but it is the hottest pure function in the app and the structure hides that the context already *had* the events.
-- Decision: no change now. If the poller ever shows up in profiles or the tick interval shrinks (see `planning/transition-smoothness.md` — imperceptible adaptation may want much shorter ticks), the fix is: compute the per-curve 3-day event windows once in `build_context` and thread them through `sun_position`/`brightness_pct`/`color_temp_kelvin`. The `circadian_reference_test.exs` parity suite makes that refactor safe whenever it happens.
+- Decision: no change now. If the poller ever shows up in profiles or the tick interval shrinks, the fix is: compute the per-curve 3-day event windows once in `build_context` and thread them through `sun_position`/`brightness_pct`/`color_temp_kelvin`. The `circadian_reference_test.exs` parity suite makes that refactor safe whenever it happens.
 - Effort: — (M when triggered)
 
 ---

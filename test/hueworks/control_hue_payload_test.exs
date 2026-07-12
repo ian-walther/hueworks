@@ -16,6 +16,12 @@ defmodule Hueworks.Control.HuePayloadTest do
     assert payload["transitiontime"] == 9
   end
 
+  test "effective transition duration reflects Hue's decisecond encoding" do
+    assert HuePayload.effective_transition_ms(%{transition_ms: 750}) == 800
+    assert HuePayload.effective_transition_ms(%{transition_ms: 850}) == 900
+    assert HuePayload.effective_transition_ms(%{}) == 0
+  end
+
   test "off payload includes transitiontime when configured" do
     assert HuePayload.action_payload({:set_state, %{power: :off}}, %{transition_ms: 500}) == %{
              "on" => false,

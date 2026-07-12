@@ -36,6 +36,13 @@ defmodule Hueworks.Control.Z2MPayload do
 
   def action_payload(_action, _entity, _opts), do: :ignore
 
+  def effective_transition_ms(opts) do
+    case Transition.seconds(opts) do
+      value when is_number(value) and value > 0 -> round(value * 1_000)
+      _ -> 0
+    end
+  end
+
   def percent_to_brightness(level) do
     level
     |> Util.normalize_percent(0, 100)

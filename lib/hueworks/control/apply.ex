@@ -2,7 +2,7 @@ defmodule Hueworks.Control.Apply do
   @moduledoc false
 
   alias Hueworks.DebugLogging
-  alias Hueworks.Control.{DesiredState, Executor, Planner, TraceBuffer}
+  alias Hueworks.Control.{DesiredState, Executor, Operation, Planner, TraceBuffer}
 
   @type plan_diff :: map()
   @type commit_result :: %{
@@ -43,9 +43,10 @@ defmodule Hueworks.Control.Apply do
   @spec commit_and_enqueue(DesiredState.transaction(), integer(), keyword()) ::
           {:ok, map()} | {:error, {:invalid_room_id, integer()}}
   def commit_and_enqueue(%DesiredState.Transaction{} = txn, room_id, opts \\ []) do
+    opts = ensure_operation(opts)
     force_apply = Keyword.get(opts, :force_apply, false)
     {:ok, %{plan_diff: plan_diff} = result} = commit_transaction(txn, force_apply: force_apply)
-    record_intent(Keyword.get(opts, :trace), plan_diff)
+    record_intent(operation_trace(opts), plan_diff)
 
     case plan_and_enqueue(room_id, plan_diff, opts) do
       {:ok, %{plan: plan, planner_ms: planner_ms}} ->
@@ -61,9 +62,17 @@ defmodule Hueworks.Control.Apply do
 
   @spec build_plan(integer(), map(), keyword()) :: list(map())
   def build_plan(room_id, diff, opts) when is_integer(room_id) and is_map(diff) do
+    opts = ensure_operation(opts)
+
     planner_opts =
       opts
-      |> Keyword.take([:trace, :transition_ms])
+      |> Keyword.take([
+        :trace,
+        :transition_ms,
+        :operation,
+        :group_candidate_light_ids,
+        :protected_light_ids
+      ])
 
     Planner.plan_room(room_id, diff, planner_opts)
   end
@@ -76,11 +85,12 @@ defmodule Hueworks.Control.Apply do
   @spec plan_and_enqueue(integer(), map(), keyword()) ::
           {:ok, planner_result()} | {:error, {:invalid_room_id, integer()}}
   def plan_and_enqueue(room_id, diff, opts) when is_integer(room_id) and is_map(diff) do
-    trace = Keyword.get(opts, :trace)
+    opts = ensure_operation(opts)
+    trace = operation_trace(opts)
     enqueue_mode = Keyword.get(opts, :enqueue_mode, :replace_targets)
 
     planner_started_ms = System.monotonic_time(:millisecond)
-    plan = build_plan(room_id, diff, trace: trace)
+    plan = build_plan(room_id, diff, opts)
     planner_ms = System.monotonic_time(:millisecond) - planner_started_ms
     log_plan_built(trace, room_id, planner_ms, plan)
     record_planned(trace, plan, planner_ms)
@@ -233,6 +243,20 @@ defmodule Hueworks.Control.Apply do
   end
 
   defp record_trace(_trace, _stage, _attrs), do: :ok
+
+  defp ensure_operation(opts) do
+    case Keyword.get(opts, :operation) do
+      %Operation{} -> opts
+      _ -> Keyword.put(opts, :operation, Operation.new(opts))
+    end
+  end
+
+  defp operation_trace(opts) do
+    case Keyword.get(opts, :operation) do
+      %Operation{trace: trace} when is_map(trace) -> trace
+      _ -> Keyword.get(opts, :trace)
+    end
+  end
 
   defp maybe_put(map, _key, nil), do: map
   defp maybe_put(map, key, value), do: Map.put(map, key, value)

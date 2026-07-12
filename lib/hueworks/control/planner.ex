@@ -58,7 +58,7 @@ defmodule Hueworks.Control.Planner do
                 desired_key(desired)
           end)
           |> Enum.map(& &1.id)
-          |> MapSet.new()
+          |> then(&Context.group_candidate_light_ids(context, &1))
 
         log_trace(trace, "planner_partition",
           bridge_id: bridge_id,
@@ -75,10 +75,11 @@ defmodule Hueworks.Control.Planner do
             candidate_ids,
             MapSet.new(ids),
             desired,
-            context.base_transition_ms,
-            context.scale_transition_by_brightness,
+            context.transition_policy,
             context.physical_by_light,
-            trace
+            trace,
+            context.operation,
+            context.group_candidate_light_ids
           )
 
         log_trace(trace, "planner_partition_result",
@@ -93,9 +94,10 @@ defmodule Hueworks.Control.Planner do
             remaining,
             bridge_id,
             desired,
-            context.base_transition_ms,
-            context.scale_transition_by_brightness,
-            context.physical_by_light
+            context.transition_policy,
+            context.physical_by_light,
+            context.operation,
+            context.group_candidate_light_ids
           )
       end)
       |> Enum.map(&Action.to_map/1)
@@ -116,10 +118,11 @@ defmodule Hueworks.Control.Planner do
          candidate_set,
          remaining_diff,
          desired,
-         base_transition_ms,
-         scale_transition_by_brightness,
+         transition_policy,
          physical_by_light,
-         trace
+         trace,
+         operation,
+         group_candidate_light_ids
        ) do
     case pick_group(groups, candidate_set, remaining_diff) do
       nil ->
@@ -143,23 +146,33 @@ defmodule Hueworks.Control.Planner do
             candidate_set,
             updated_remaining,
             desired,
-            base_transition_ms,
-            scale_transition_by_brightness,
+            transition_policy,
             physical_by_light,
-            trace
+            trace,
+            operation,
+            group_candidate_light_ids
           )
 
         apply_opts =
           action_apply_opts(
-            base_transition_ms,
+            transition_policy,
             desired,
             group.lights,
-            physical_by_light,
-            scale_transition_by_brightness
+            physical_by_light
           )
 
-        {[Action.group(group.id, group.bridge_id, desired, group.lights, apply_opts) | rest],
-         final_remaining}
+        {[
+           Action.group(
+             group.id,
+             group.bridge_id,
+             desired,
+             group.lights,
+             apply_opts,
+             operation,
+             group_candidate_light_ids
+           )
+           | rest
+         ], final_remaining}
     end
   end
 
@@ -177,23 +190,30 @@ defmodule Hueworks.Control.Planner do
          remaining_diff,
          bridge_id,
          desired,
-         base_transition_ms,
-         scale_transition_by_brightness,
-         physical_by_light
+         transition_policy,
+         physical_by_light,
+         operation,
+         group_candidate_light_ids
        ) do
     remaining_diff
     |> MapSet.to_list()
     |> Enum.map(fn id ->
       apply_opts =
         action_apply_opts(
-          base_transition_ms,
+          transition_policy,
           desired,
           [id],
-          physical_by_light,
-          scale_transition_by_brightness
+          physical_by_light
         )
 
-      Action.light(id, bridge_id, desired, apply_opts)
+      Action.light(
+        id,
+        bridge_id,
+        desired,
+        apply_opts,
+        operation,
+        group_candidate_light_ids
+      )
     end)
   end
 
@@ -228,21 +248,20 @@ defmodule Hueworks.Control.Planner do
   defp desired_differs_from_physical_values?(_desired, _physical), do: true
 
   defp action_apply_opts(
-         base_transition_ms,
+         transition_policy,
          desired,
          light_ids,
-         physical_by_light,
-         scale_transition_by_brightness
+         physical_by_light
        ) do
     cond do
-      not is_integer(base_transition_ms) or base_transition_ms <= 0 ->
+      transition_policy.duration_ms <= 0 ->
         %{}
 
-      not scale_transition_by_brightness ->
-        Transition.apply_opts(base_transition_ms)
+      transition_policy.scaling != :brightness_delta ->
+        Transition.apply_opts(transition_policy.duration_ms)
 
       not Transition.brightness_scalable?(desired) ->
-        Transition.apply_opts(base_transition_ms)
+        Transition.apply_opts(transition_policy.duration_ms)
 
       true ->
         normalize_light_ids(light_ids)
@@ -252,10 +271,10 @@ defmodule Hueworks.Control.Planner do
         |> Enum.filter(&is_integer/1)
         |> case do
           [] ->
-            Transition.apply_opts(base_transition_ms)
+            Transition.apply_opts(transition_policy.duration_ms)
 
           deltas ->
-            scaled_ms = round(base_transition_ms * Enum.max(deltas) / 100)
+            scaled_ms = round(transition_policy.duration_ms * Enum.max(deltas) / 100)
             Transition.apply_opts(scaled_ms)
         end
     end

@@ -270,7 +270,7 @@ defmodule Hueworks.Control.ExecutorQueueTest do
 
     now_fn = fn :millisecond -> Agent.get(now_agent, & &1) end
 
-    {:ok, _pid} =
+    {:ok, pid} =
       start_supervised(
         {Executor,
          name: :executor_negative,
@@ -278,6 +278,8 @@ defmodule Hueworks.Control.ExecutorQueueTest do
          now_fn: now_fn,
          bridge_rate_fun: fn _ -> 10 end}
       )
+
+    ref = Process.monitor(pid)
 
     assert :ok ==
              Executor.enqueue([%{type: :group, id: 13, bridge_id: 1, desired: %{power: :on}}],
@@ -288,5 +290,6 @@ defmodule Hueworks.Control.ExecutorQueueTest do
     Process.sleep(10)
     Executor.tick(:executor_negative, force: true)
     assert_receive {:dispatched, %{id: 13}}, 500
+    refute_receive {:DOWN, ^ref, :process, ^pid, _reason}, 50
   end
 end

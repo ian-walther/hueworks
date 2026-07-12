@@ -4,9 +4,10 @@ defmodule Hueworks.Scenes.Active do
   import Ecto.Query, only: [from: 2]
 
   alias Hueworks.ActiveScenes
+  alias Hueworks.Control.DesiredState
   alias Hueworks.Repo
   alias Hueworks.Scenes
-  alias Hueworks.Schemas.{ActiveScene, Scene, SceneComponent}
+  alias Hueworks.Schemas.{ActiveScene, Scene, SceneComponent, SceneComponentLight}
 
   def refresh_scene(scene_id) when is_integer(scene_id) do
     scene_id
@@ -45,6 +46,32 @@ defmodule Hueworks.Scenes.Active do
     |> then(&{:ok, &1})
   end
 
+  def rehydrate_needed?(scene_id) when is_integer(scene_id) do
+    scene_id
+    |> scene_light_ids()
+    |> Enum.any?(fn light_id ->
+      DesiredState.get(:light, light_id) == nil
+    end)
+  end
+
+  def rehydrate_needed?(_scene_id), do: false
+
+  def follow_presence_light_ids(scene_id, presence_input_id)
+      when is_integer(scene_id) and is_integer(presence_input_id) do
+    Repo.all(
+      from(scl in SceneComponentLight,
+        join: sc in SceneComponent,
+        on: sc.id == scl.scene_component_id,
+        where:
+          sc.scene_id == ^scene_id and scl.default_power == :follow_presence and
+            scl.presence_input_id == ^presence_input_id,
+        select: scl.light_id
+      )
+    )
+  end
+
+  def follow_presence_light_ids(_scene_id, _presence_input_id), do: []
+
   def recompute_lights(room_id, light_ids, opts)
       when is_integer(room_id) and is_list(light_ids) do
     light_ids =
@@ -76,7 +103,10 @@ defmodule Hueworks.Scenes.Active do
               circadian_only: Keyword.get(opts, :circadian_only, false),
               power_overrides: power_overrides,
               now: Keyword.get(opts, :now, DateTime.utc_now()),
-              trace: Keyword.get(opts, :trace)
+              trace: Keyword.get(opts, :trace),
+              origin: Keyword.get(opts, :origin, :manual),
+              transition_policy: Keyword.get(opts, :transition_policy),
+              group_candidate_light_ids: Keyword.get(opts, :group_candidate_light_ids)
             )
         end
     end
@@ -128,6 +158,17 @@ defmodule Hueworks.Scenes.Active do
         )
       )
     end)
+  end
+
+  defp scene_light_ids(scene_id) do
+    Repo.all(
+      from(scl in SceneComponentLight,
+        join: sc in SceneComponent,
+        on: sc.id == scl.scene_component_id,
+        where: sc.scene_id == ^scene_id,
+        select: scl.light_id
+      )
+    )
   end
 
   defp scene_ids_for_light_state(light_state_id) do

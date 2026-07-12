@@ -3,8 +3,8 @@ defmodule Hueworks.PresenceInputs do
   Room-scoped presence input helpers.
 
   Presence inputs are room-scoped booleans configured in HueWorks and driven by
-  Home Assistant. When an input changes, the room's active scene is reapplied so
-  scene components using Follow Presence can update their lights.
+  Home Assistant. When an input changes, only active-scene lights that use
+  Follow Presence with that input are recomputed.
   """
 
   import Ecto.Query, only: [from: 2]
@@ -107,7 +107,12 @@ defmodule Hueworks.PresenceInputs do
   defp refresh_room_active_scene(%PresenceInput{room_id: room_id, id: input_id}) do
     case Hueworks.ActiveScenes.get_for_room(room_id) do
       %{scene_id: scene_id} ->
-        case Scenes.refresh_active_scene(scene_id) do
+        light_ids = Scenes.active_scene_follow_presence_light_ids(scene_id, input_id)
+
+        case Scenes.recompute_active_scene_lights(room_id, light_ids,
+               origin: :presence,
+               group_candidate_light_ids: light_ids
+             ) do
           {:ok, _diff, _updated} ->
             :ok
 

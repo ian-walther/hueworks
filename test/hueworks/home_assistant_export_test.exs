@@ -1,6 +1,8 @@
 defmodule Hueworks.HomeAssistant.ExportTest do
   use Hueworks.DataCase, async: false
 
+  import ExUnit.CaptureLog
+
   alias Hueworks.ActiveScenes
   alias Hueworks.AppSettings
   alias Hueworks.Control.DesiredState
@@ -376,6 +378,61 @@ defmodule Hueworks.HomeAssistant.ExportTest do
     assert scene_id == scene.id
   end
 
+  test "JSON scene command applies a one-shot activation transition" do
+    put_export_settings(%{
+      ha_export_scenes_enabled: true,
+      ha_export_mqtt_host: "mqtt.local"
+    })
+
+    room = Repo.insert!(%Room{name: "Kitchen"})
+    scene = Repo.insert!(%Scene{name: "Cooking", room_id: room.id, metadata: %{}})
+
+    Export.reload()
+    _ = :sys.get_state(Export)
+
+    send(
+      Export,
+      {:mqtt_message, ["hueworks", "ha_export", "scenes", Integer.to_string(scene.id), "set"],
+       ~s({"transition_ms":30000})}
+    )
+
+    _ = :sys.get_state(Export)
+
+    assert %Hueworks.Schemas.ActiveScene{scene_id: scene_id} =
+             active =
+             ActiveScenes.get_for_room(room.id)
+
+    assert scene_id == scene.id
+
+    assert DateTime.diff(active.circadian_resume_at, active.last_applied_at, :millisecond) ==
+             30_000
+  end
+
+  test "invalid JSON scene command does not change the active scene" do
+    put_export_settings(%{
+      ha_export_scenes_enabled: true,
+      ha_export_mqtt_host: "mqtt.local"
+    })
+
+    room = Repo.insert!(%Room{name: "Kitchen"})
+    current = Repo.insert!(%Scene{name: "Current", room_id: room.id, metadata: %{}})
+    requested = Repo.insert!(%Scene{name: "Requested", room_id: room.id, metadata: %{}})
+    {:ok, _} = ActiveScenes.set_active(current)
+
+    Export.reload()
+    _ = :sys.get_state(Export)
+
+    send(
+      Export,
+      {:mqtt_message, ["hueworks", "ha_export", "scenes", Integer.to_string(requested.id), "set"],
+       ~s({"transition_ms":0})}
+    )
+
+    _ = :sys.get_state(Export)
+
+    assert ActiveScenes.get_for_room(room.id).scene_id == current.id
+  end
+
   test "room select command activates the matching HueWorks scene" do
     put_export_settings(%{
       ha_export_room_selects_enabled: true,
@@ -400,6 +457,90 @@ defmodule Hueworks.HomeAssistant.ExportTest do
     assert %Hueworks.Schemas.ActiveScene{scene_id: scene_id} = ActiveScenes.get_for_room(room.id)
     assert scene_id == evening.id
     refute scene_id == morning.id
+  end
+
+  test "JSON room select command applies a one-shot activation transition" do
+    put_export_settings(%{
+      ha_export_room_selects_enabled: true,
+      ha_export_mqtt_host: "mqtt.local"
+    })
+
+    room = Repo.insert!(%Room{name: "Main Floor"})
+    evening = Repo.insert!(%Scene{name: "Evening", room_id: room.id})
+
+    Export.reload()
+    _ = :sys.get_state(Export)
+
+    send(
+      Export,
+      {:mqtt_message,
+       ["hueworks", "ha_export", "rooms", Integer.to_string(room.id), "scene", "set"],
+       ~s({"option":"Evening","transition_ms":45000})}
+    )
+
+    _ = :sys.get_state(Export)
+
+    assert %Hueworks.Schemas.ActiveScene{scene_id: scene_id} =
+             active =
+             ActiveScenes.get_for_room(room.id)
+
+    assert scene_id == evening.id
+
+    assert DateTime.diff(active.circadian_resume_at, active.last_applied_at, :millisecond) ==
+             45_000
+  end
+
+  test "plain room select labels that resemble JSON remain backward-compatible" do
+    put_export_settings(%{
+      ha_export_room_selects_enabled: true,
+      ha_export_mqtt_host: "mqtt.local"
+    })
+
+    room = Repo.insert!(%Room{name: "Main Floor"})
+    scene = Repo.insert!(%Scene{name: "2026", room_id: room.id})
+
+    Export.reload()
+    _ = :sys.get_state(Export)
+
+    send(
+      Export,
+      {:mqtt_message,
+       ["hueworks", "ha_export", "rooms", Integer.to_string(room.id), "scene", "set"], "2026"}
+    )
+
+    _ = :sys.get_state(Export)
+
+    assert ActiveScenes.get_for_room(room.id).scene_id == scene.id
+  end
+
+  test "unknown JSON room select options are logged without changing the active scene" do
+    put_export_settings(%{
+      ha_export_room_selects_enabled: true,
+      ha_export_mqtt_host: "mqtt.local"
+    })
+
+    room = Repo.insert!(%Room{name: "Main Floor"})
+    current = Repo.insert!(%Scene{name: "Current", room_id: room.id})
+    {:ok, _} = ActiveScenes.set_active(current)
+
+    Export.reload()
+    _ = :sys.get_state(Export)
+
+    log =
+      capture_log(fn ->
+        send(
+          Export,
+          {:mqtt_message,
+           ["hueworks", "ha_export", "rooms", Integer.to_string(room.id), "scene", "set"],
+           ~s({"option":"Missing","transition_ms":30000})}
+        )
+
+        _ = :sys.get_state(Export)
+      end)
+
+    assert log =~ "HA export room select command ignored"
+    assert log =~ "unknown option"
+    assert ActiveScenes.get_for_room(room.id).scene_id == current.id
   end
 
   test "room select command can clear the active scene with Manual" do

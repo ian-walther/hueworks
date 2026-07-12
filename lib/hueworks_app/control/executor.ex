@@ -6,9 +6,10 @@ defmodule Hueworks.Control.Executor do
   use GenServer
   require Logger
 
+  alias Hueworks.Control.DispatchReceipt
   alias Hueworks.Control.Executor.Convergence
   alias Hueworks.Control.Executor.Trace
-  alias Hueworks.Control.DesiredState
+  alias Hueworks.Control.{DesiredState, Operation, TransitionPolicy}
   alias Hueworks.Control.Group, as: ControlGroup
   alias Hueworks.Control.Light, as: ControlLight
   alias Hueworks.Repo
@@ -51,6 +52,8 @@ defmodule Hueworks.Control.Executor do
     max_retries = Keyword.get(opts, :max_retries, @default_max_retries)
     backoff_ms = Keyword.get(opts, :backoff_ms, @default_backoff_ms)
     bridge_rate_fun = Keyword.get(opts, :bridge_rate_fun, &bridge_rate/1)
+    settlement_floor_ms = Keyword.get(opts, :settlement_floor_ms, 750)
+    settlement_grace_ms = Keyword.get(opts, :settlement_grace_ms, 0)
 
     {:ok,
      %{
@@ -58,12 +61,15 @@ defmodule Hueworks.Control.Executor do
        bridge_rates: %{},
        last_sent: %{},
        dispatched_revisions: %{},
+       settlements: %{},
        timer_ref: nil,
        dispatch_fun: dispatch_fun,
        now_fn: now_fn,
        max_retries: max_retries,
        backoff_ms: backoff_ms,
-       bridge_rate_fun: bridge_rate_fun
+       bridge_rate_fun: bridge_rate_fun,
+       settlement_floor_ms: settlement_floor_ms,
+       settlement_grace_ms: settlement_grace_ms
      }}
   end
 
@@ -85,7 +91,8 @@ defmodule Hueworks.Control.Executor do
      %{
        queues: Map.new(queues),
        bridge_rates: state.bridge_rates,
-       last_sent: state.last_sent
+       last_sent: state.last_sent,
+       settlements: map_size(state.settlements)
      }, state}
   end
 
@@ -110,10 +117,9 @@ defmodule Hueworks.Control.Executor do
   end
 
   @impl true
-  def handle_info({:verify_convergence, action}, state) do
+  def handle_info({:verify_settlement, dispatch_id}, state) do
     state =
-      action
-      |> Convergence.handle_verification(state, fn state, actions ->
+      Convergence.handle_verification(dispatch_id, state, fn state, actions ->
         state
         |> enqueue_actions(actions, :append)
         |> ensure_timer()
@@ -182,6 +188,8 @@ defmodule Hueworks.Control.Executor do
 
   defp normalize_action(action, now) do
     action
+    |> ensure_operation()
+    |> ensure_light_ids()
     |> Map.put_new(:attempts, 0)
     |> Map.put_new(:not_before, now)
     |> Map.update(:attempts, 0, fn
@@ -274,11 +282,11 @@ defmodule Hueworks.Control.Executor do
   defp dispatch_tick(state, force \\ false) do
     now = state.now_fn.(:millisecond)
 
-    {queues, last_sent, dispatched_revisions, had_work} =
+    {queues, last_sent, dispatched_revisions, settlements, had_work} =
       Enum.reduce(
         state.queues,
-        {state.queues, state.last_sent, state.dispatched_revisions, false},
-        fn {bridge_id, queue}, {queues_acc, last_acc, dispatched_acc, worked} ->
+        {state.queues, state.last_sent, state.dispatched_revisions, state.settlements, false},
+        fn {bridge_id, queue}, {queues_acc, last_acc, dispatched_acc, settlements_acc, worked} ->
           rate = Map.get(state.bridge_rates, bridge_id) || default_rate()
           interval = interval_ms(rate)
 
@@ -290,7 +298,7 @@ defmodule Hueworks.Control.Executor do
             end
 
           if :queue.is_empty(queue) or (not force and now - last < interval) do
-            {queues_acc, last_acc, dispatched_acc, worked}
+            {queues_acc, last_acc, dispatched_acc, settlements_acc, worked}
           else
             {action_result, updated_queue} =
               if force do
@@ -307,7 +315,8 @@ defmodule Hueworks.Control.Executor do
 
             case action_result do
               :none ->
-                {Map.put(queues_acc, bridge_id, updated_queue), last_acc, dispatched_acc, worked}
+                {Map.put(queues_acc, bridge_id, updated_queue), last_acc, dispatched_acc,
+                 settlements_acc, worked}
 
               {:action, action} ->
                 if DesiredState.action_current?(action) do
@@ -323,32 +332,39 @@ defmodule Hueworks.Control.Executor do
                     dispatch_completed_ms
                   )
 
-                  {updated_queue, last_acc, dispatched_acc} =
-                    case result do
-                      :ok ->
-                        Convergence.schedule_check(action, state)
+                  {updated_queue, last_acc, dispatched_acc, settlements_acc} =
+                    case normalize_dispatch_result(result) do
+                      {:ok, receipt} ->
+                        settlement_state =
+                          Convergence.register_dispatch(
+                            action,
+                            receipt,
+                            dispatch_completed_ms,
+                            %{state | settlements: settlements_acc}
+                          )
 
                         {updated_queue, Map.put(last_acc, bridge_id, now),
-                         mark_dispatched(dispatched_acc, action)}
+                         mark_dispatched(dispatched_acc, action), settlement_state.settlements}
 
                       {:error, _} ->
                         {requeue_action(updated_queue, action, now, state), last_acc,
-                         dispatched_acc}
-
-                      _ ->
-                        {updated_queue, Map.put(last_acc, bridge_id, now),
-                         mark_dispatched(dispatched_acc, action)}
+                         dispatched_acc, settlements_acc}
                     end
 
                   queues_acc = Map.put(queues_acc, bridge_id, updated_queue)
-                  {queues_acc, last_acc, dispatched_acc, true}
+                  {queues_acc, last_acc, dispatched_acc, settlements_acc, true}
                 else
-                  recovery_state = %{state | dispatched_revisions: dispatched_acc}
+                  recovery_state = %{
+                    state
+                    | dispatched_revisions: dispatched_acc,
+                      settlements: settlements_acc
+                  }
+
                   recovery_actions = Convergence.stale_recovery_actions(action, recovery_state)
                   refreshed_queue = replace_queued_targets(updated_queue, recovery_actions)
 
                   {Map.put(queues_acc, bridge_id, refreshed_queue), last_acc, dispatched_acc,
-                   true}
+                   settlements_acc, true}
                 end
             end
           end
@@ -363,7 +379,8 @@ defmodule Hueworks.Control.Executor do
        state
        | queues: queues,
          last_sent: last_sent,
-         dispatched_revisions: dispatched_revisions
+         dispatched_revisions: dispatched_revisions,
+         settlements: settlements
      }, had_work, has_pending}
   end
 
@@ -384,7 +401,7 @@ defmodule Hueworks.Control.Executor do
         :ok
 
       light ->
-        ControlLight.set_state(light, desired, apply_opts)
+        ControlLight.dispatch_state(light, desired, apply_opts)
     end
   end
 
@@ -396,11 +413,35 @@ defmodule Hueworks.Control.Executor do
         :ok
 
       group ->
-        ControlGroup.set_state(group, desired, apply_opts)
+        ControlGroup.dispatch_state(group, desired, apply_opts)
     end
   end
 
   defp dispatch_action(_action), do: :ok
+
+  defp normalize_dispatch_result({:ok, %DispatchReceipt{} = receipt}), do: {:ok, receipt}
+  defp normalize_dispatch_result(:ok), do: {:ok, DispatchReceipt.new(0)}
+  defp normalize_dispatch_result({:error, _} = error), do: error
+  defp normalize_dispatch_result(_result), do: {:ok, DispatchReceipt.new(0)}
+
+  defp ensure_operation(%{operation: %Operation{}} = action), do: action
+
+  defp ensure_operation(action) do
+    trace = Trace.action_trace(action)
+
+    Map.put(
+      action,
+      :operation,
+      Operation.new(trace: trace, transition_policy: TransitionPolicy.new(0, :none))
+    )
+  end
+
+  defp ensure_light_ids(%{light_ids: light_ids} = action) when is_list(light_ids), do: action
+
+  defp ensure_light_ids(%{type: :light, id: id} = action) when is_integer(id),
+    do: Map.put(action, :light_ids, [id])
+
+  defp ensure_light_ids(action), do: Map.put_new(action, :light_ids, [])
 
   defp next_action(queue, now) do
     case :queue.out(queue) do

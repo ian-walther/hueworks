@@ -21,6 +21,9 @@ defmodule HueworksWeb.SceneEditorLive do
        scene_mode: :new,
        scene_id: nil,
        scene_name: "",
+       activation_transition_mode: "default",
+       activation_transition_value: "",
+       activation_transition_unit: "seconds",
        scene_components: [Component.new()],
        scene_builder: nil,
        scene_room_lights: [],
@@ -52,8 +55,21 @@ defmodule HueworksWeb.SceneEditorLive do
     end
   end
 
-  def handle_event("update_scene", %{"name" => name}, socket) do
-    {:noreply, assign(socket, scene_name: name)}
+  def handle_event("update_scene", params, socket) do
+    {:noreply,
+     assign(socket,
+       scene_name: Map.get(params, "name", socket.assigns.scene_name),
+       activation_transition_mode:
+         Map.get(params, "activation_transition_mode", socket.assigns.activation_transition_mode),
+       activation_transition_value:
+         Map.get(
+           params,
+           "activation_transition_value",
+           socket.assigns.activation_transition_value
+         ),
+       activation_transition_unit:
+         Map.get(params, "activation_transition_unit", socket.assigns.activation_transition_unit)
+     )}
   end
 
   def handle_event("save_scene", params, socket) do
@@ -134,7 +150,8 @@ defmodule HueworksWeb.SceneEditorLive do
           socket,
           room,
           cloned_scene_name(scene),
-          load_scene_components(scene)
+          load_scene_components(scene),
+          scene.activation_transition_ms
         )
     end
   end
@@ -156,6 +173,7 @@ defmodule HueworksWeb.SceneEditorLive do
           components = load_scene_components(scene)
           builder = Builder.build(room_lights, room_groups, components)
           active_scene_id = active_scene_id_for_room(room_id)
+          {transition_value, transition_unit} = transition_fields(scene.activation_transition_ms)
 
           assign(socket,
             room_id: room_id,
@@ -163,6 +181,9 @@ defmodule HueworksWeb.SceneEditorLive do
             scene_mode: :edit,
             scene_id: scene.id,
             scene_name: Hueworks.Util.display_name(scene),
+            activation_transition_mode: transition_mode(scene.activation_transition_ms),
+            activation_transition_value: transition_value,
+            activation_transition_unit: transition_unit,
             scene_components: components,
             scene_builder: builder,
             scene_room_lights: room_lights,
@@ -177,42 +198,47 @@ defmodule HueworksWeb.SceneEditorLive do
   end
 
   defp save_new_scene(socket, name) do
-    attrs = %{name: name, room_id: socket.assigns.room_id}
+    with {:ok, transition_attrs} <- transition_attrs(socket) do
+      attrs = %{name: name, room_id: socket.assigns.room_id} |> Map.merge(transition_attrs)
 
-    case Scenes.create_scene(attrs) do
-      {:ok, scene} ->
-        case Scenes.replace_scene_components(scene, socket.assigns.scene_components) do
-          {:ok, _} ->
-            {:noreply,
-             socket
-             |> put_flash(:info, "Scene saved.")
-             |> push_patch(to: "/rooms/#{scene.room_id}/scenes/#{scene.id}/edit")}
+      case Scenes.create_scene(attrs) do
+        {:ok, scene} ->
+          case Scenes.replace_scene_components(scene, socket.assigns.scene_components) do
+            {:ok, _} ->
+              {:noreply,
+               socket
+               |> put_flash(:info, "Scene saved.")
+               |> push_patch(to: "/rooms/#{scene.room_id}/scenes/#{scene.id}/edit")}
 
-          {:error, :invalid_light_state} ->
-            _ = Scenes.delete_scene(scene)
+            {:error, :invalid_light_state} ->
+              _ = Scenes.delete_scene(scene)
 
-            {:noreply,
-             put_scene_error(
-               socket,
-               "Each component must use a saved light state or custom manual state before saving."
-             )}
+              {:noreply,
+               put_scene_error(
+                 socket,
+                 "Each component must use a saved light state or custom manual state before saving."
+               )}
 
-          {:error, :invalid_color_targets} ->
-            _ = Scenes.delete_scene(scene)
+            {:error, :invalid_color_targets} ->
+              _ = Scenes.delete_scene(scene)
 
-            {:noreply,
-             put_scene_error(
-               socket,
-               "Manual color states can only target lights that support color."
-             )}
+              {:noreply,
+               put_scene_error(
+                 socket,
+                 "Manual color states can only target lights that support color."
+               )}
 
-          {:error, _} ->
-            _ = Scenes.delete_scene(scene)
-            {:noreply, put_scene_error(socket, "Unable to save scene components.")}
-        end
+            {:error, _} ->
+              _ = Scenes.delete_scene(scene)
+              {:noreply, put_scene_error(socket, "Unable to save scene components.")}
+          end
 
-      {:error, _changeset} ->
-        {:noreply, put_scene_error(socket, "Scene name is required.")}
+        {:error, _changeset} ->
+          {:noreply, put_scene_error(socket, "Scene name is required.")}
+      end
+    else
+      {:error, message} ->
+        {:noreply, put_scene_error(socket, message)}
     end
   end
 
@@ -222,53 +248,60 @@ defmodule HueworksWeb.SceneEditorLive do
         {:noreply, push_navigate(socket, to: "/rooms")}
 
       scene ->
-        attrs =
-          if name == "" do
-            %{display_name: nil}
-          else
-            %{display_name: name}
-          end
-
-        case Scenes.update_scene(scene, attrs) do
-          {:ok, updated} ->
-            case Scenes.replace_scene_components(updated, socket.assigns.scene_components) do
-              {:ok, _} ->
-                _ = Scenes.refresh_active_scene(updated.id)
-
-                {:noreply,
-                 socket
-                 |> assign(active_scene_id: active_scene_id_for_room(updated.room_id))
-                 |> put_flash(:info, "Scene saved.")}
-
-              {:error, :invalid_light_state} ->
-                {:noreply,
-                 put_scene_error(
-                   socket,
-                   "Each component must use a saved light state or custom manual state before saving."
-                 )}
-
-              {:error, :invalid_color_targets} ->
-                {:noreply,
-                 put_scene_error(
-                   socket,
-                   "Manual color states can only target lights that support color."
-                 )}
-
-              {:error, _} ->
-                {:noreply, put_scene_error(socket, "Unable to save scene components.")}
+        with {:ok, transition_attrs} <- transition_attrs(socket) do
+          attrs =
+            if name == "" do
+              %{display_name: nil}
+            else
+              %{display_name: name}
             end
+            |> Map.merge(transition_attrs)
 
-          {:error, _changeset} ->
-            {:noreply, put_scene_error(socket, "Scene name is required.")}
+          case Scenes.update_scene(scene, attrs) do
+            {:ok, updated} ->
+              case Scenes.replace_scene_components(updated, socket.assigns.scene_components) do
+                {:ok, _} ->
+                  _ = Scenes.refresh_active_scene(updated.id)
+
+                  {:noreply,
+                   socket
+                   |> assign(active_scene_id: active_scene_id_for_room(updated.room_id))
+                   |> put_flash(:info, "Scene saved.")}
+
+                {:error, :invalid_light_state} ->
+                  {:noreply,
+                   put_scene_error(
+                     socket,
+                     "Each component must use a saved light state or custom manual state before saving."
+                   )}
+
+                {:error, :invalid_color_targets} ->
+                  {:noreply,
+                   put_scene_error(
+                     socket,
+                     "Manual color states can only target lights that support color."
+                   )}
+
+                {:error, _} ->
+                  {:noreply, put_scene_error(socket, "Unable to save scene components.")}
+              end
+
+            {:error, _changeset} ->
+              {:noreply, put_scene_error(socket, "Scene name is required.")}
+          end
+        else
+          {:error, message} ->
+            {:noreply, put_scene_error(socket, message)}
         end
     end
   end
 
-  defp assign_new_scene(socket, room, scene_name, components) do
+  defp assign_new_scene(socket, room, scene_name, components, activation_transition_ms \\ nil) do
     room_id = room.id
     {room_lights, room_groups, presence_inputs} = scene_room_data(room_id)
     light_states = Scenes.list_editable_light_states()
     builder = Builder.build(room_lights, room_groups, components)
+    {transition_value, transition_unit} = transition_fields(activation_transition_ms)
 
     assign(socket,
       room_id: room_id,
@@ -276,6 +309,9 @@ defmodule HueworksWeb.SceneEditorLive do
       scene_mode: :new,
       scene_id: nil,
       scene_name: scene_name,
+      activation_transition_mode: transition_mode(activation_transition_ms),
+      activation_transition_value: transition_value,
+      activation_transition_unit: transition_unit,
       scene_components: components,
       scene_builder: builder,
       scene_room_lights: room_lights,
@@ -372,6 +408,39 @@ defmodule HueworksWeb.SceneEditorLive do
   end
 
   defp active_scene_id_for_room(_room_id), do: nil
+
+  defp transition_attrs(%{assigns: %{activation_transition_mode: "default"}}),
+    do: {:ok, %{activation_transition_ms: nil}}
+
+  defp transition_attrs(%{assigns: %{activation_transition_mode: "custom"} = assigns}) do
+    with {value, ""} when value > 0 <- Integer.parse(assigns.activation_transition_value),
+         multiplier when is_integer(multiplier) <-
+           transition_unit_multiplier(assigns.activation_transition_unit) do
+      {:ok, %{activation_transition_ms: value * multiplier}}
+    else
+      _ -> {:error, "Custom activation transition must be a positive duration."}
+    end
+  end
+
+  defp transition_attrs(_socket), do: {:error, "Choose a valid activation transition."}
+
+  defp transition_mode(duration_ms) when is_integer(duration_ms) and duration_ms > 0, do: "custom"
+  defp transition_mode(_duration_ms), do: "default"
+
+  defp transition_fields(duration_ms) when is_integer(duration_ms) and duration_ms > 0 do
+    cond do
+      rem(duration_ms, 60_000) == 0 -> {Integer.to_string(div(duration_ms, 60_000)), "minutes"}
+      rem(duration_ms, 1_000) == 0 -> {Integer.to_string(div(duration_ms, 1_000)), "seconds"}
+      true -> {Integer.to_string(duration_ms), "milliseconds"}
+    end
+  end
+
+  defp transition_fields(_duration_ms), do: {"", "seconds"}
+
+  defp transition_unit_multiplier("milliseconds"), do: 1
+  defp transition_unit_multiplier("seconds"), do: 1_000
+  defp transition_unit_multiplier("minutes"), do: 60_000
+  defp transition_unit_multiplier(_unit), do: nil
 
   defp parse_id(value), do: Hueworks.Util.parse_id(value)
 end

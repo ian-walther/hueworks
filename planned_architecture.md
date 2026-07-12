@@ -54,6 +54,8 @@ Rules:
 - Runtime traces should survive crossing queue/executor boundaries.
 - Commit each desired-state transaction atomically. Planned actions must carry the desired-state revisions of the snapshot that produced them.
 - Never dispatch an action whose covered desired-state revisions are stale. Replan its covered lights from current desired and physical state so group optimization cannot strand an unchanged member or overwrite a newer intent.
+- Track expected bridge settlement only as executor-local, per-light dispatch metadata. It must expire or be superseded, never become persisted desired state or a second target-state model.
+- Base convergence eligibility on the effective duration actually encoded by the dispatch boundary, not only the caller's requested transition. Recovery must preserve its original operation policy and avoid groups that include lights owned by newer settlements.
 
 ## Agent Rules
 

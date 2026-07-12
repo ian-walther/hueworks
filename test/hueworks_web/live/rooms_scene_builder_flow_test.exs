@@ -856,6 +856,111 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
     assert has_element?(view, "button[phx-click='save_scene']")
   end
 
+  test "scene editor persists a custom activation transition", %{conn: conn} do
+    room = insert_room()
+
+    scene =
+      Repo.insert!(%Scene{
+        name: "Evening",
+        room_id: room.id,
+        metadata: %{}
+      })
+
+    {:ok, view, _html} = live(conn, "/rooms/#{room.id}/scenes/#{scene.id}/edit")
+
+    assert has_element?(view, "#scene_activation_transition_mode option[value='default']")
+
+    view
+    |> form("form[phx-change='update_scene']", %{
+      "name" => "Evening",
+      "activation_transition_mode" => "custom"
+    })
+    |> render_change()
+
+    view
+    |> form("form[phx-change='update_scene']", %{
+      "name" => "Evening",
+      "activation_transition_mode" => "custom",
+      "activation_transition_value" => "10",
+      "activation_transition_unit" => "minutes"
+    })
+    |> render_change()
+
+    assert has_element?(view, "#scene_activation_transition_value[value='10']")
+
+    assert has_element?(
+             view,
+             "#scene_activation_transition_unit option[value='minutes'][selected]"
+           )
+
+    view
+    |> element("button[phx-click='save_scene']")
+    |> render_click()
+
+    assert Repo.get!(Scene, scene.id).activation_transition_ms == 600_000
+  end
+
+  test "scene editor reloads a persisted custom transition with its mode and unit selected", %{
+    conn: conn
+  } do
+    room = insert_room()
+
+    scene =
+      Repo.insert!(%Scene{
+        name: "Slow Evening",
+        room_id: room.id,
+        activation_transition_ms: 600_000,
+        metadata: %{}
+      })
+
+    {:ok, view, _html} = live(conn, "/rooms/#{room.id}/scenes/#{scene.id}/edit")
+
+    assert has_element?(
+             view,
+             "#scene_activation_transition_mode option[value='custom'][selected]"
+           )
+
+    assert has_element?(view, "#scene_activation_transition_value[value='10']")
+
+    assert has_element?(
+             view,
+             "#scene_activation_transition_unit option[value='minutes'][selected]"
+           )
+  end
+
+  test "scene editor rejects a blank custom activation transition", %{conn: conn} do
+    room = insert_room()
+    scene = Repo.insert!(%Scene{name: "Evening", room_id: room.id, metadata: %{}})
+
+    {:ok, view, _html} = live(conn, "/rooms/#{room.id}/scenes/#{scene.id}/edit")
+
+    view
+    |> form("form[phx-change='update_scene']", %{
+      "name" => "Evening",
+      "activation_transition_mode" => "custom"
+    })
+    |> render_change()
+
+    view
+    |> form("form[phx-change='update_scene']", %{
+      "name" => "Evening",
+      "activation_transition_mode" => "custom",
+      "activation_transition_value" => "",
+      "activation_transition_unit" => "seconds"
+    })
+    |> render_change()
+
+    view
+    |> element("button[phx-click='save_scene']")
+    |> render_click()
+
+    assert has_element?(
+             view,
+             ".hw-flash-bar-error",
+             "Custom activation transition must be a positive duration."
+           )
+  end
+
   test "scene editor activation publishes a single active scene update", %{conn: conn} do
     room = insert_room()
 

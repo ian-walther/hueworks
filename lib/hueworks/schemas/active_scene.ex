@@ -5,6 +5,7 @@ defmodule Hueworks.Schemas.ActiveScene do
   schema "active_scenes" do
     field(:last_applied_at, :utc_datetime_usec)
     field(:power_overrides, :map, default: %{})
+    field(:circadian_resume_at, :utc_datetime_usec)
 
     belongs_to(:room, Hueworks.Schemas.Room)
     belongs_to(:scene, Hueworks.Schemas.Scene)
@@ -18,9 +19,12 @@ defmodule Hueworks.Schemas.ActiveScene do
       :room_id,
       :scene_id,
       :last_applied_at,
-      :power_overrides
+      :power_overrides,
+      :circadian_resume_at
     ])
     |> validate_required([:room_id, :scene_id])
     |> unique_constraint(:room_id)
+    |> foreign_key_constraint(:room_id)
+    |> foreign_key_constraint(:scene_id)
   end
 end

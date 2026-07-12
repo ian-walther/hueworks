@@ -2,7 +2,7 @@ defmodule Hueworks.Scenes.Apply do
   @moduledoc false
 
   alias Hueworks.ActiveScenes
-  alias Hueworks.Control.Apply, as: ControlApply
+  alias Hueworks.Control.{Apply, Operation, TransitionPolicy}
   alias Hueworks.DebugLogging
   alias Hueworks.Repo
   alias Hueworks.Scenes.Components
@@ -10,21 +10,35 @@ defmodule Hueworks.Scenes.Apply do
   alias Hueworks.Scenes.Intent.BuildOptions
   alias Hueworks.Schemas.Scene
 
-  def activate_scene(scene_id, opts \\ []) when is_integer(scene_id) do
+  def activate_scene(scene_or_id, opts \\ [])
+
+  def activate_scene(scene_id, opts) when is_integer(scene_id) do
     case Repo.get(Scene, scene_id) do
       nil ->
         {:error, :not_found}
 
       scene ->
-        _ = ActiveScenes.set_active(scene)
+        activate_scene(scene, opts)
+    end
+  end
 
-        scene
-        |> apply_scene(
-          opts
-          |> Keyword.put(:preserve_power_latches, false)
-          |> Keyword.put(:force_apply, true)
-          |> Keyword.put_new(:enqueue_mode, :replace_targets)
-        )
+  def activate_scene(%Scene{} = scene, opts) when is_list(opts) do
+    now = Keyword.get(opts, :now, DateTime.utc_now())
+    operation = Operation.scene_activation(scene, opts)
+
+    with {:ok, _active_scene} <-
+           ActiveScenes.set_active(scene,
+             now: now,
+             circadian_resume_at: circadian_resume_at(operation.transition_policy, now)
+           ) do
+      scene
+      |> apply_scene(
+        opts
+        |> Keyword.put(:operation, operation)
+        |> Keyword.put(:preserve_power_latches, false)
+        |> Keyword.put(:force_apply, true)
+        |> Keyword.put_new(:enqueue_mode, :replace_targets)
+      )
     end
   end
 
@@ -57,6 +71,21 @@ defmodule Hueworks.Scenes.Apply do
       |> ensure_trace(scene)
       |> enrich_trace(scene)
 
+    operation =
+      opts
+      |> Keyword.get(:operation)
+      |> case do
+        %Operation{} = operation ->
+          %{operation | trace: trace}
+
+        _ ->
+          Operation.new(
+            origin: Keyword.get(opts, :origin, :scene_refresh),
+            transition_policy: Keyword.get(opts, :transition_policy),
+            trace: trace
+          )
+      end
+
     log_trace(
       trace,
       "apply_scene_start",
@@ -69,10 +98,11 @@ defmodule Hueworks.Scenes.Apply do
     txn = Intent.build_transaction(scene, intent_opts)
 
     result =
-      ControlApply.commit_and_enqueue(txn, scene.room_id,
+      Apply.commit_and_enqueue(txn, scene.room_id,
         force_apply: force_apply,
         enqueue_mode: enqueue_mode,
-        trace: trace
+        operation: operation,
+        group_candidate_light_ids: Keyword.get(opts, :group_candidate_light_ids)
       )
 
     case result do
@@ -148,4 +178,11 @@ defmodule Hueworks.Scenes.Apply do
 
     %{scene | scene_components: scene_components}
   end
+
+  defp circadian_resume_at(%TransitionPolicy{duration_ms: duration_ms}, now)
+       when is_integer(duration_ms) and duration_ms > 0 do
+    DateTime.add(now, duration_ms, :millisecond)
+  end
+
+  defp circadian_resume_at(_policy, _now), do: nil
 end

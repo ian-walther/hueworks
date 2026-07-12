@@ -12,13 +12,9 @@ Reference: `planning/import-resync.md`
 - [ ] Replace the remaining new-entity checkboxes with explicit `Do Not Import` / `Import` controls and show current HueWorks versus bridge values where a decision is required.
 - [ ] Show collapsed, inspectable bridge-owned auto-refresh details plus summary counts for unchanged, auto-refreshed, and membership-warning items without presenting them as decisions.
 
-## Experience Backlog
+### Transition Hardware Validation
 
-### Transition Smoothness
-Reference: `planning/transition-smoothness.md`
-
-- [ ] Revisit how transition timing feels across scene changes, circadian adaptation, and manual control.
-- [ ] Define the desired user experience before choosing implementation details.
+- [ ] Smoke-test a multi-minute scene activation on both Hue and Zigbee2MQTT, verifying that neither convergence nor circadian adaptation interrupts the fade.
 
 ### HomeKit Control Quality
 Reference: `planning/homekit-control-quality.md`

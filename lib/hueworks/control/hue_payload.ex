@@ -51,6 +51,13 @@ defmodule Hueworks.Control.HuePayload do
 
   def action_payload(_action, _opts), do: %{}
 
+  def effective_transition_ms(opts) do
+    case Transition.hue_transitiontime(opts) do
+      value when is_integer(value) and value > 0 -> value * 100
+      _ -> 0
+    end
+  end
+
   def percent_to_bri(level) do
     level
     |> Util.normalize_percent()

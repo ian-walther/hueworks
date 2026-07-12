@@ -21,7 +21,11 @@ defmodule Hueworks.LightsManualControlTest do
 
     {:ok, _pid} =
       start_supervised(
-        {Executor, name: server, dispatch_fun: dispatch_fun, bridge_rate_fun: fn _ -> 10 end}
+        {Executor,
+         name: server,
+         dispatch_fun: dispatch_fun,
+         bridge_rate_fun: fn _ -> 10 end,
+         settlement_floor_ms: 25}
       )
 
     original_enabled = Application.get_env(:hueworks, :control_executor_enabled)
@@ -196,6 +200,38 @@ defmodule Hueworks.LightsManualControlTest do
 
     assert {:error, :scene_active_manual_adjustment_not_allowed} =
              ManualControl.apply_updates(room.id, [123], %{brightness: 40})
+  end
+
+  test "manual power updates remain eligible during circadian deferral" do
+    room = Repo.insert!(%Room{name: "Deferred Manual Room"})
+
+    bridge =
+      insert_bridge!(%{
+        name: "Deferred Manual Hue Bridge",
+        type: :hue,
+        host: "192.168.1.94",
+        credentials: %{"api_key" => "test"}
+      })
+
+    light =
+      Repo.insert!(%Light{
+        name: "Deferred Manual Lamp",
+        source: :hue,
+        source_id: "deferred-manual-lamp",
+        bridge_id: bridge.id,
+        room_id: room.id,
+        enabled: true
+      })
+
+    scene = Repo.insert!(%Scene{name: "Deferred Evening", room_id: room.id, metadata: %{}})
+    resume_at = DateTime.add(DateTime.utc_now(), 60, :second)
+    {:ok, _} = Hueworks.ActiveScenes.set_active(scene, circadian_resume_at: resume_at)
+    _ = DesiredState.put(:light, light.id, %{power: :on})
+
+    assert {:ok, diff} = ManualControl.apply_updates(room.id, [light.id], %{power: :off})
+    assert diff[{:light, light.id}] == %{power: :off}
+    assert DesiredState.get(:light, light.id) == %{power: :off}
+    assert Hueworks.ActiveScenes.get_for_room(room.id).circadian_resume_at == resume_at
   end
 
   test "manual updates preserve queued work for other rooms on the same bridge", %{

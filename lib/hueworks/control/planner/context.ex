@@ -1,38 +1,45 @@
 defmodule Hueworks.Control.Planner.Context do
   @moduledoc false
 
-  alias Hueworks.AppSettings
   alias Hueworks.Control.LightStateSemantics
+  alias Hueworks.Control.Operation
   alias Hueworks.Control.Transition
+  alias Hueworks.Control.TransitionPolicy
 
   defstruct [
     :room_id,
     :trace,
-    :base_transition_ms,
-    :scale_transition_by_brightness,
+    :operation,
+    :transition_policy,
     room_lights: [],
     desired_by_light: %{},
     desired_revisions_by_light: %{},
     physical_by_light: %{},
     group_memberships: [],
-    room_light_ids: MapSet.new()
+    room_light_ids: MapSet.new(),
+    group_candidate_light_ids: MapSet.new(),
+    protected_light_ids: MapSet.new()
   ]
 
   def from_snapshot(snapshot, opts) when is_map(snapshot) and is_list(opts) do
     room_lights = Map.get(snapshot, :room_lights, [])
     desired_by_light = Map.get(snapshot, :desired_by_light, %{})
+    room_light_ids = MapSet.new(Enum.map(room_lights, & &1.id))
+    operation = Keyword.get(opts, :operation)
 
     %__MODULE__{
       room_id: Map.get(snapshot, :room_id),
-      trace: Keyword.get(opts, :trace),
-      base_transition_ms: transition_ms(opts),
-      scale_transition_by_brightness: scale_transition_by_brightness?(),
+      trace: operation_trace(operation, opts),
+      operation: operation,
+      transition_policy: transition_policy(operation, opts),
       room_lights: room_lights,
       desired_by_light: effective_desired_by_light(room_lights, desired_by_light),
       desired_revisions_by_light: Map.get(snapshot, :desired_revisions_by_light, %{}),
       physical_by_light: Map.get(snapshot, :physical_by_light, %{}),
       group_memberships: Map.get(snapshot, :group_memberships, []),
-      room_light_ids: MapSet.new(Enum.map(room_lights, & &1.id))
+      room_light_ids: room_light_ids,
+      group_candidate_light_ids: initial_group_candidate_light_ids(opts, room_light_ids),
+      protected_light_ids: light_id_set(Keyword.get(opts, :protected_light_ids, []))
     }
   end
 
@@ -72,11 +79,11 @@ defmodule Hueworks.Control.Planner.Context do
     end)
   end
 
-  def transition_ms(opts) when is_list(opts) do
-    case Transition.transition_ms(opts) do
-      value when is_integer(value) -> value
-      _ -> default_transition_ms()
-    end
+  def group_candidate_light_ids(%__MODULE__{} = context, ids) do
+    ids
+    |> light_id_set()
+    |> MapSet.intersection(context.group_candidate_light_ids)
+    |> MapSet.difference(context.protected_light_ids)
   end
 
   defp effective_desired_by_light(room_lights, desired_by_light) do
@@ -87,11 +94,27 @@ defmodule Hueworks.Control.Planner.Context do
     end)
   end
 
-  defp default_transition_ms do
-    AppSettings.get_global().default_transition_ms || 0
+  defp operation_trace(%Operation{trace: trace}, _opts) when is_map(trace), do: trace
+  defp operation_trace(_operation, opts), do: Keyword.get(opts, :trace)
+
+  defp transition_policy(%Operation{transition_policy: policy}, _opts), do: policy
+
+  defp transition_policy(_operation, opts) do
+    case Transition.transition_ms(opts) do
+      value when is_integer(value) -> %{TransitionPolicy.manual() | duration_ms: value}
+      _ -> TransitionPolicy.manual()
+    end
   end
 
-  defp scale_transition_by_brightness? do
-    AppSettings.get_global().scale_transition_by_brightness == true
+  defp initial_group_candidate_light_ids(opts, room_light_ids) do
+    case Keyword.get(opts, :group_candidate_light_ids) do
+      nil -> room_light_ids
+      :all -> room_light_ids
+      ids -> light_id_set(ids) |> MapSet.intersection(room_light_ids)
+    end
   end
+
+  defp light_id_set(%MapSet{} = ids), do: ids
+  defp light_id_set(ids) when is_list(ids), do: MapSet.new(Enum.filter(ids, &is_integer/1))
+  defp light_id_set(_ids), do: MapSet.new()
 end

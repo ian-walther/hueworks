@@ -6,6 +6,7 @@ defmodule Hueworks.Schemas.Scene do
     field(:name, :string)
     field(:display_name, :string)
     field(:metadata, :map, default: %{})
+    field(:activation_transition_ms, :integer)
 
     belongs_to(:room, Hueworks.Schemas.Room)
     has_many(:scene_components, Hueworks.Schemas.SceneComponent)
@@ -15,7 +16,8 @@ defmodule Hueworks.Schemas.Scene do
 
   def changeset(scene, attrs) do
     scene
-    |> cast(attrs, [:name, :display_name, :metadata, :room_id])
+    |> cast(attrs, [:name, :display_name, :metadata, :room_id, :activation_transition_ms])
     |> validate_required([:name, :room_id])
+    |> validate_number(:activation_transition_ms, greater_than: 0)
   end
 end
