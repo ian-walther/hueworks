@@ -19,7 +19,7 @@ defmodule HueworksWeb.BridgeLiveTest do
   end
 
   test "renders z2m fields when type is selected", %{conn: conn} do
-    {:ok, view, _html} = live(conn, "/config/bridge/new")
+    {:ok, view, _html} = live(conn, "/config/bridges/new")
 
     html =
       render_change(view, "update_bridge", %{
@@ -35,7 +35,7 @@ defmodule HueworksWeb.BridgeLiveTest do
   end
 
   test "validates z2m required fields before running connection test", %{conn: conn} do
-    {:ok, view, _html} = live(conn, "/config/bridge/new")
+    {:ok, view, _html} = live(conn, "/config/bridges/new")
 
     render_change(view, "update_bridge", %{
       "type" => "z2m",
@@ -56,7 +56,7 @@ defmodule HueworksWeb.BridgeLiveTest do
 
     Application.put_env(:hueworks, :bridge_live_test_pid, self())
 
-    {:ok, view, _html} = live(conn, "/config/bridge/new")
+    {:ok, view, _html} = live(conn, "/config/bridges/new")
 
     render_change(view, "update_bridge", %{
       "type" => "ha",
@@ -92,7 +92,7 @@ defmodule HueworksWeb.BridgeLiveTest do
       :gen_tcp.close(listener)
     end)
 
-    {:ok, view, _html} = live(conn, "/config/bridge/new")
+    {:ok, view, _html} = live(conn, "/config/bridges/new")
 
     render_change(view, "update_bridge", %{
       "type" => "z2m",
@@ -109,13 +109,13 @@ defmodule HueworksWeb.BridgeLiveTest do
              render_click(view, "proceed_bridge", %{})
 
     bridge = Repo.get_by!(Bridge, host: "127.0.0.1", type: :z2m)
-    assert to == "/config/bridge/#{bridge.id}/setup"
+    assert to == "/config/bridges/#{bridge.id}/import"
     assert bridge.import_complete == false
     assert bridge.enabled == true
   end
 
   test "cannot proceed before running a successful connection test", %{conn: conn} do
-    {:ok, view, _html} = live(conn, "/config/bridge/new")
+    {:ok, view, _html} = live(conn, "/config/bridges/new")
 
     render_change(view, "update_bridge", %{
       "type" => "ha",
@@ -130,7 +130,7 @@ defmodule HueworksWeb.BridgeLiveTest do
   end
 
   test "unsupported bridge types are rejected before saving", %{conn: conn} do
-    {:ok, view, _html} = live(conn, "/config/bridge/new")
+    {:ok, view, _html} = live(conn, "/config/bridges/new")
 
     render_change(view, "update_bridge", %{
       "type" => "oops",

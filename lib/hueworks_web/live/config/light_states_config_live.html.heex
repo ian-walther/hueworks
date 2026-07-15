@@ -1,0 +1,62 @@
+<HueworksWeb.ConfigComponents.page
+  active={:light_states}
+  title="Light States"
+  subtitle="Reusable lighting behavior for scene components."
+  breadcrumbs={[%{label: "Config", to: "/config"}, %{label: "Light States"}]}
+  flash={@flash}
+>
+  <:actions>
+    <a class="hw-button" href="/config/light-states/new/circadian">New Circadian</a>
+    <a class="hw-button hw-button-primary" href="/config/light-states/new/manual">New Manual</a>
+  </:actions>
+
+  <section class="hw-panel">
+    <div class="hw-panel-header">
+      <div>
+        <p class="hw-eyebrow">Reusable definitions</p>
+        <h2>Configured states</h2>
+      </div>
+      <span class="hw-count"><%= length(@light_states) %></span>
+    </div>
+
+    <div :if={@light_states == []} class="hw-empty-state">
+      <h3>No light states yet</h3>
+      <p>Create a manual or circadian state to use while building scenes.</p>
+    </div>
+
+    <div class="hw-list">
+      <div :for={entry <- @light_states} class="hw-card hw-resource-card" id={"light-state-#{entry.state.id}"}>
+        <div>
+          <h3><%= HueworksWeb.LightStatesConfigLive.state_label(entry.state) %></h3>
+          <p class="hw-meta">
+            Used by <%= entry.usage_count %> <%= if entry.usage_count == 1, do: "scene", else: "scenes" %>
+          </p>
+          <p :if={entry.usages != []} class="hw-meta">
+            <%= Enum.map_join(entry.usages, ", ", fn usage -> "#{usage.room_name} / #{usage.scene_name}" end) %>
+          </p>
+        </div>
+        <div class="hw-actions">
+          <a class="hw-button" href={"/config/light-states/#{entry.state.id}/edit"}>Edit</a>
+          <button class="hw-button" type="button" phx-click="duplicate_light_state" phx-value-id={entry.state.id}>
+            Duplicate
+          </button>
+          <button
+            class={["hw-button", entry.usage_count == 0 && "hw-delete-button"]}
+            type="button"
+            phx-click="delete_light_state"
+            phx-value-id={entry.state.id}
+            disabled={entry.usage_count > 0}
+            data-confirm={
+              if entry.usage_count == 0,
+                do:
+                  "Delete #{HueworksWeb.LightStatesConfigLive.state_label(entry.state)}? This cannot be undone.",
+                else: nil
+            }
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+    </div>
+  </section>
+</HueworksWeb.ConfigComponents.page>

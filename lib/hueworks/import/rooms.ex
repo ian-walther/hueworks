@@ -50,15 +50,22 @@ defmodule Hueworks.Import.Rooms do
 
     plan_entry = if is_binary(source_id), do: Normalize.fetch(plan_map, source_id), else: nil
 
-    case plan_entry |> Normalize.fetch(:target_room_id) |> Util.parse_optional_integer() do
-      id when is_integer(id) ->
-        id
+    case Normalize.fetch(plan_entry, :target_room_id) do
+      "unassigned" ->
+        nil
 
-      _ ->
-        entry
-        |> Normalize.fetch(:room_source_id)
-        |> Normalize.normalize_source_id()
-        |> then(&Map.get(room_map, &1))
+      target_room_id ->
+        case Util.parse_optional_integer(target_room_id) do
+          id when is_integer(id) -> id
+          _ -> bridge_room_id(entry, room_map)
+        end
     end
+  end
+
+  defp bridge_room_id(entry, room_map) do
+    entry
+    |> Normalize.fetch(:room_source_id)
+    |> Normalize.normalize_source_id()
+    |> then(&Map.get(room_map, &1))
   end
 end

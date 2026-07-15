@@ -1,28 +1,28 @@
-<div class="hw-shell">
-  <div class="hw-topbar">
-    <div>
-      <h1 class="hw-title"><%= @page_title %></h1>
-      <p class="hw-subtitle">
-        <%= if @light_state_type == :circadian, do: "Circadian light state", else: "Manual light state" %>
-      </p>
-    </div>
-    <div class="hw-actions">
+<HueworksWeb.ConfigComponents.page
+  active={:light_states}
+  title={@page_title}
+  subtitle={if @light_state_type == :circadian, do: "Circadian light state", else: "Manual light state"}
+  breadcrumbs={[
+    %{label: "Config", to: "/config"},
+    %{label: "Light States", to: "/config/light-states"},
+    %{label: @page_title}
+  ]}
+  flash={@flash}
+>
+  <:actions>
       <a
         id="light-state-back-to-config"
-        class="hw-button hw-button-off"
-        href="/config"
+        class="hw-button"
+        href="/config/light-states"
         data-confirm={
           if @dirty,
-            do: "You have unsaved changes. Back to Config will discard them.",
+            do: "You have unsaved changes. Leaving will discard them.",
             else: nil
         }
       >
-        Back to Config
+        Back to Light States
       </a>
-    </div>
-  </div>
-
-  <HueworksWeb.Layouts.app_flash_group flash={@flash} class="hw-flash-stack-inline" />
+  </:actions>
 
   <section class="hw-panel">
     <%= if @light_state_id && @light_state_usages != [] do %>
@@ -764,4 +764,4 @@
       </div>
     </form>
   </section>
-</div>
+</HueworksWeb.ConfigComponents.page>

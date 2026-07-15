@@ -1,146 +1,185 @@
-    <div class="hw-shell">
-      <div class="hw-topbar">
-        <div>
-          <h1 class="hw-title">Rooms</h1>
-          <p class="hw-subtitle">Manage room names and assignments.</p>
+<main class="hw-shell hw-content-frame hw-rooms-page">
+  <HueworksWeb.PageComponents.header
+    eyebrow="House structure"
+    title="Rooms"
+    subtitle="Organize scenes, presence inputs, and the lighting assigned to each part of the house."
+  >
+    <:actions>
+      <button type="button" class="hw-button hw-button-primary" phx-click="open_new">
+        <span class="hw-button-icon" aria-hidden="true">+</span>
+        Add room
+      </button>
+    </:actions>
+  </HueworksWeb.PageComponents.header>
+
+  <div class="hw-list hw-room-ledger-list">
+    <article :for={room <- @rooms} class="hw-card hw-room-ledger-card" id={"room-#{room.id}"}>
+      <% active_scene_id = Map.get(@active_scene_by_room, room.id) %>
+      <% active_scene = Enum.find(room.scenes, &(&1.id == active_scene_id)) %>
+
+      <header class="hw-room-card-header">
+        <div class="hw-room-heading-copy">
+          <div class="hw-room-title-row">
+            <h2><%= Hueworks.Util.display_name(room) %></h2>
+            <span class={[
+              "hw-status-badge",
+              active_scene && "hw-status-badge-success"
+            ]}>
+              <%= if active_scene do %>
+                <%= Hueworks.Util.display_name(active_scene) %> active
+              <% else %>
+                No active scene
+              <% end %>
+            </span>
+          </div>
+          <div class="hw-stat-list" aria-label="Room contents">
+            <span><%= count_label(room.scenes, "scene") %></span>
+            <span><%= count_label(room.groups, "group") %></span>
+            <span><%= count_label(room.lights, "light") %></span>
+          </div>
         </div>
-        <div class="hw-actions">
-          <button class="hw-button" phx-click="open_new">
-            <span class="hw-button-icon">+</span>
-            Add
+
+        <div class="hw-actions hw-room-actions">
+          <button
+            type="button"
+            class="hw-button"
+            phx-click="open_edit"
+            phx-value-id={room.id}
+            aria-label="Edit room name"
+          >
+            Edit room
+          </button>
+          <button
+            type="button"
+            class="hw-button hw-delete-button"
+            phx-click="delete_room"
+            phx-value-id={room.id}
+            data-confirm="Delete this room and its scenes?"
+            aria-label="Delete room"
+          >
+            Delete
           </button>
         </div>
-      </div>
+      </header>
 
-      <div class="hw-list">
-        <%= for room <- @rooms do %>
-          <% active_scene_id = Map.get(@active_scene_by_room, room.id) %>
-          <div class="hw-card" id={"room-#{room.id}"}>
-            <div class="hw-card-title">
-              <div class="hw-title-row">
-                <h3><%= Hueworks.Util.display_name(room) %></h3>
-                <button
-                  type="button"
-                  class="hw-edit-button"
-                  phx-click="open_edit"
-                  phx-value-id={room.id}
-                  aria-label="Edit room name"
-                >
-                  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                    <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3l-10 10L6 17l.5-3.5 10-10z"></path>
-                  </svg>
-                </button>
-                <button
-                  type="button"
-                  class="hw-edit-button hw-delete-button"
-                  phx-click="delete_room"
-                  phx-value-id={room.id}
-                  data-confirm="Delete this room and its scenes?"
-                  aria-label="Delete room"
-                >
-                  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                    <path d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 6h2v8h-2V9zm4 0h2v8h-2V9z"></path>
-                  </svg>
-                </button>
-                <button
-                  type="button"
-                  class="hw-edit-button hw-add-scene-button"
-                  phx-click="open_scene_new"
-                  phx-value-id={room.id}
-                  aria-label="Add scene"
-                >
-                  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                    <path d="M11 5h2v14h-2z"></path>
-                    <path d="M5 11h14v2H5z"></path>
-                  </svg>
-                </button>
-              </div>
+      <div class="hw-room-ledger-body">
+        <section class="hw-ledger-section" aria-labelledby={"room-#{room.id}-scenes"}>
+          <div class="hw-section-header">
+            <div>
+              <p class="hw-eyebrow">Primary behavior</p>
+              <h3 id={"room-#{room.id}-scenes"}>Scenes</h3>
             </div>
-            <div class="hw-room-scenes">
-              <div class="hw-room-scenes-header">
-                <p class="hw-room-label">Scenes</p>
+            <button
+              type="button"
+              class="hw-button hw-button-small"
+              phx-click="open_scene_new"
+              phx-value-id={room.id}
+              aria-label="Add scene"
+            >
+              New scene
+            </button>
+          </div>
+
+          <div :if={room.scenes != []} class="hw-data-list">
+            <div
+              :for={scene <- sort_by_display_name(room.scenes)}
+              id={"scene-#{scene.id}"}
+              class={[
+                "hw-data-row hw-scene-row",
+                active_scene_id == scene.id && "hw-data-row-active"
+              ]}
+            >
+              <% active? = active_scene_id == scene.id %>
+              <div class="hw-data-row-main">
+                <strong><%= Hueworks.Util.display_name(scene) %></strong>
+                <span class="hw-meta">
+                  <%= if active?, do: "Currently controlling this room", else: "Available scene" %>
+                </span>
+              </div>
+
+              <div class="hw-data-row-actions">
+                <span :if={active?} class="hw-status-badge hw-status-badge-success hw-muted">
+                  Active
+                </span>
                 <button
                   type="button"
-                  class="hw-edit-button hw-add-scene-button"
-                  phx-click="open_scene_new"
-                  phx-value-id={room.id}
-                  aria-label="Add scene"
+                  class={[
+                    "hw-button hw-button-small",
+                    !active? && "hw-button-primary"
+                  ]}
+                  phx-click="activate_scene"
+                  phx-value-id={scene.id}
                 >
-                  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                    <path d="M11 5h2v14h-2z"></path>
-                    <path d="M5 11h14v2H5z"></path>
-                  </svg>
+                  <%= if active?, do: "Deactivate", else: "Activate" %>
                 </button>
-              </div>
-              <div class="hw-room-list">
-                <%= for scene <- room.scenes do %>
-                  <% active? = active_scene_id == scene.id %>
-                  <div class="hw-room-item hw-room-item-row">
-                    <span><%= Hueworks.Util.display_name(scene) %></span>
+                <button
+                  type="button"
+                  class="hw-button hw-button-small"
+                  phx-click="open_scene_edit"
+                  phx-value-id={scene.id}
+                  aria-label="Edit scene"
+                >
+                  Edit
+                </button>
+                <details class="hw-action-menu">
+                  <summary class="hw-button hw-button-small">More</summary>
+                  <div class="hw-action-menu-popover">
                     <button
                       type="button"
-                      class={if active?, do: "hw-button hw-button-off", else: "hw-button"}
-                      phx-click="activate_scene"
+                      phx-click="open_scene_clone"
                       phx-value-id={scene.id}
+                      aria-label="Clone scene"
                     >
-                      <%= if active?, do: "Deactivate", else: "Activate" %>
+                      Clone scene
                     </button>
-                    <%= if active? do %>
-                      <span class="hw-muted">Active</span>
-                    <% end %>
-                    <span class="hw-room-item-actions">
-                      <button
-                        type="button"
-                        class="hw-edit-button"
-                        phx-click="open_scene_clone"
-                        phx-value-id={scene.id}
-                        aria-label="Clone scene"
-                      >
-                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                          <path d="M9 9h10v10H9z"></path>
-                          <path d="M5 5h10v2H7v8H5z"></path>
-                        </svg>
-                      </button>
-                      <button
-                        type="button"
-                        class="hw-edit-button"
-                        phx-click="open_scene_edit"
-                        phx-value-id={scene.id}
-                        aria-label="Edit scene"
-                      >
-                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                          <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3l-10 10L6 17l.5-3.5 10-10z"></path>
-                        </svg>
-                      </button>
-                      <button
-                        type="button"
-                        class="hw-edit-button hw-delete-button"
-                        phx-click="delete_scene"
-                        phx-value-id={scene.id}
-                        data-confirm="Delete this scene?"
-                        aria-label="Delete scene"
-                      >
-                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                          <path d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 6h2v8h-2V9zm4 0h2v8h-2V9z"></path>
-                        </svg>
-                      </button>
-                    </span>
+                    <button
+                      type="button"
+                      class="hw-action-menu-danger"
+                      phx-click="delete_scene"
+                      phx-value-id={scene.id}
+                      data-confirm="Delete this scene?"
+                      aria-label="Delete scene"
+                    >
+                      Delete scene
+                    </button>
                   </div>
-                <% end %>
-                <%= if Enum.empty?(room.scenes) do %>
-                  <span class="hw-room-item hw-room-empty">None</span>
-                <% end %>
+                </details>
               </div>
             </div>
-            <details class="hw-room-section">
-              <summary class="hw-room-label">Presence Inputs</summary>
-              <div class="hw-room-list">
-                <%= for input <- Enum.sort_by(room.presence_inputs, & &1.name) do %>
-                  <div class="hw-room-item hw-room-item-row" id={"presence-input-#{input.id}"}>
-                    <form
-                      class="hw-inline-form"
-                      phx-submit="update_presence_input"
-                    >
+          </div>
+
+          <div :if={room.scenes == []} class="hw-empty-state hw-empty-state-compact">
+            <h4>No scenes yet</h4>
+            <p>Create the first scene to define how this room should behave.</p>
+          </div>
+        </section>
+
+        <section class="hw-ledger-section hw-room-details" aria-labelledby={"room-#{room.id}-details"}>
+          <div class="hw-section-header">
+            <div>
+              <p class="hw-eyebrow">Configuration</p>
+              <h3 id={"room-#{room.id}-details"}>Room details</h3>
+            </div>
+          </div>
+
+          <div class="hw-detail-list">
+            <details class="hw-detail-disclosure">
+              <summary class="hw-detail-summary">
+                <span class="hw-detail-summary-copy">
+                  <strong>Presence inputs</strong>
+                  <span class="hw-meta"><%= presence_summary(room.presence_inputs) %></span>
+                </span>
+                <span class="hw-detail-summary-action">Manage</span>
+              </summary>
+
+              <div class="hw-detail-body">
+                <div :if={room.presence_inputs != []} class="hw-data-list hw-presence-list">
+                  <div
+                    :for={input <- Enum.sort_by(room.presence_inputs, & &1.name)}
+                    class="hw-data-row hw-presence-row"
+                    id={"presence-input-#{input.id}"}
+                  >
+                    <form class="hw-inline-form hw-presence-name-form" phx-submit="update_presence_input">
                       <input type="hidden" name="input_id" value={input.id} />
                       <input
                         type="text"
@@ -150,27 +189,34 @@
                         autocomplete="off"
                         aria-label="Presence input name"
                       />
-                      <button type="submit" class="hw-button">Rename</button>
+                      <button type="submit" class="hw-button hw-button-small">Rename</button>
                     </form>
-                    <span class="hw-muted">
-                      <%= if input.occupied, do: "Occupied", else: "Unoccupied" %>
-                    </span>
-                    <button
-                      type="button"
-                      class="hw-edit-button hw-delete-button"
-                      phx-click="delete_presence_input"
-                      phx-value-id={input.id}
-                      data-confirm="Delete this presence input?"
-                      aria-label="Delete presence input"
-                    >
-                      ×
-                    </button>
+                    <div class="hw-data-row-actions">
+                      <span class={[
+                        "hw-status-badge",
+                        input.occupied && "hw-status-badge-success"
+                      ]}>
+                        <%= if input.occupied, do: "Occupied", else: "Unoccupied" %>
+                      </span>
+                      <button
+                        type="button"
+                        class="hw-button hw-button-small hw-delete-button"
+                        phx-click="delete_presence_input"
+                        phx-value-id={input.id}
+                        data-confirm="Delete this presence input?"
+                        aria-label="Delete presence input"
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </div>
-                <% end %>
-                <%= if Enum.empty?(room.presence_inputs) do %>
-                  <span class="hw-room-item hw-room-empty">None</span>
-                <% end %>
-                <form class="hw-room-item hw-room-item-row" phx-submit="create_presence_input">
+                </div>
+
+                <p :if={room.presence_inputs == []} class="hw-meta hw-detail-empty">
+                  No presence inputs have been configured for this room.
+                </p>
+
+                <form class="hw-inline-form hw-presence-create-form" phx-submit="create_presence_input">
                   <input type="hidden" name="room_id" value={room.id} />
                   <input
                     type="text"
@@ -180,71 +226,77 @@
                     autocomplete="off"
                     aria-label="New presence input name"
                   />
-                  <button type="submit" class="hw-button">Add</button>
+                  <button type="submit" class="hw-button hw-button-small">Add input</button>
                 </form>
               </div>
             </details>
-            <div class="hw-room-grid">
-              <div>
-                <details class="hw-room-section">
-                  <summary class="hw-room-label">Groups</summary>
-                  <div class="hw-room-list">
-                    <%= for group <- room.groups do %>
-                      <span class="hw-room-item"><%= Hueworks.Util.display_name(group) %></span>
-                    <% end %>
-                    <%= if Enum.empty?(room.groups) do %>
-                      <span class="hw-room-item hw-room-empty">None</span>
-                    <% end %>
-                  </div>
-                </details>
+
+            <details class="hw-detail-disclosure">
+              <summary class="hw-detail-summary">
+                <span class="hw-detail-summary-copy">
+                  <strong>Lighting membership</strong>
+                  <span class="hw-meta">
+                    <%= count_label(room.groups, "group") %> and <%= count_label(room.lights, "light") %>
+                  </span>
+                </span>
+                <span class="hw-detail-summary-action">View</span>
+              </summary>
+
+              <div class="hw-detail-body hw-membership-grid">
+                <section>
+                  <h4>Groups</h4>
+                  <ul :if={room.groups != []} class="hw-name-list">
+                    <li :for={group <- sort_by_display_name(room.groups)}>
+                      <%= Hueworks.Util.display_name(group) %>
+                    </li>
+                  </ul>
+                  <p :if={room.groups == []} class="hw-meta hw-detail-empty">No groups assigned.</p>
+                </section>
+                <section>
+                  <h4>Lights</h4>
+                  <ul :if={room.lights != []} class="hw-name-list">
+                    <li :for={light <- sort_by_display_name(room.lights)}>
+                      <%= Hueworks.Util.display_name(light) %>
+                    </li>
+                  </ul>
+                  <p :if={room.lights == []} class="hw-meta hw-detail-empty">No lights assigned.</p>
+                </section>
               </div>
-              <div>
-                <details class="hw-room-section">
-                  <summary class="hw-room-label">Lights</summary>
-                  <div class="hw-room-list">
-                    <%= for light <- room.lights do %>
-                      <span class="hw-room-item"><%= Hueworks.Util.display_name(light) %></span>
-                    <% end %>
-                    <%= if Enum.empty?(room.lights) do %>
-                      <span class="hw-room-item hw-room-empty">None</span>
-                    <% end %>
-                  </div>
-                </details>
-              </div>
-            </div>
+            </details>
           </div>
-        <% end %>
+        </section>
       </div>
+    </article>
+
+    <div :if={@rooms == []} class="hw-empty-state">
+      <h3>No rooms yet</h3>
+      <p>Add a room to begin organizing lights, groups, scenes, and presence inputs.</p>
     </div>
+  </div>
+</main>
 
-    <%= if @modal_open do %>
-      <div class="hw-modal-backdrop">
-        <div class="hw-modal" phx-click-away="close_modal">
-          <div class="hw-modal-header">
-            <h3><%= if @edit_mode == :edit, do: "Edit Room", else: "Add Room" %></h3>
-            <button type="button" class="hw-modal-close" phx-click="close_modal" aria-label="Close">
-              ×
-            </button>
-          </div>
-          <form phx-submit="save_room" phx-change="update_room">
-            <label class="hw-modal-label" for="room_name">Name</label>
-            <input
-              id="room_name"
-              name="name"
-              type="text"
-              value={@edit_name}
-              class="hw-modal-input"
-              autocomplete="off"
-            />
-            <div class="hw-modal-actions">
-              <button type="button" class="hw-button hw-button-off" phx-click="close_modal">
-                Cancel
-              </button>
-              <button type="submit" class="hw-button hw-button-on">Save</button>
-            </div>
-          </form>
-        </div>
+<div :if={@modal_open} class="hw-modal-backdrop">
+  <div class="hw-modal" phx-click-away="close_modal">
+    <div class="hw-modal-header">
+      <h3><%= if @edit_mode == :edit, do: "Edit Room", else: "Add Room" %></h3>
+      <button type="button" class="hw-modal-close" phx-click="close_modal" aria-label="Close">
+        ×
+      </button>
+    </div>
+    <form phx-submit="save_room" phx-change="update_room">
+      <label class="hw-modal-label" for="room_name">Name</label>
+      <input
+        id="room_name"
+        name="name"
+        type="text"
+        value={@edit_name}
+        class="hw-modal-input"
+        autocomplete="off"
+      />
+      <div class="hw-modal-actions">
+        <button type="button" class="hw-button" phx-click="close_modal">Cancel</button>
+        <button type="submit" class="hw-button hw-button-primary">Save</button>
       </div>
-    <% end %>
-
-    
+    </form>
+  </div>
+</div>

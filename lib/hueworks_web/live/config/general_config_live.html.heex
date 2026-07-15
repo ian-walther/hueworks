@@ -1,0 +1,91 @@
+<HueworksWeb.ConfigComponents.page
+  active={:general}
+  title="General"
+  subtitle="Set the location and transition defaults HueWorks uses across the application."
+  breadcrumbs={[%{label: "Config", to: "/config"}, %{label: "General"}]}
+  flash={@flash}
+>
+  <section class="hw-panel hw-settings-panel">
+    <div class="hw-panel-header">
+      <div>
+        <p class="hw-eyebrow">Application defaults</p>
+        <h2>Location and transitions</h2>
+      </div>
+    </div>
+    <form class="hw-form" phx-change="update_global_solar" phx-submit="save_global_solar">
+      <label class="hw-modal-label" for="global_timezone">Timezone</label>
+      <select id="global_timezone" name="timezone" class="hw-select">
+        <%= for timezone <- @timezones do %>
+          <option value={timezone} selected={timezone == @timezone}><%= timezone %></option>
+        <% end %>
+      </select>
+
+      <div class="hw-modal-actions hw-actions-start">
+        <button type="button" class="hw-button" id="locate-btn" phx-hook="GeoLocate">
+          Use Current Location
+        </button>
+      </div>
+
+      <div class="hw-form-grid">
+        <div>
+          <label class="hw-modal-label" for="global_latitude">Latitude</label>
+          <input
+            id="global_latitude"
+            name="latitude"
+            type="text"
+            inputmode="decimal"
+            value={@latitude}
+            class="hw-modal-input"
+            placeholder="37.7749"
+            autocomplete="off"
+          />
+        </div>
+        <div>
+          <label class="hw-modal-label" for="global_longitude">Longitude</label>
+          <input
+            id="global_longitude"
+            name="longitude"
+            type="text"
+            inputmode="decimal"
+            value={@longitude}
+            class="hw-modal-input"
+            placeholder="-122.4194"
+            autocomplete="off"
+          />
+        </div>
+      </div>
+
+      <label class="hw-modal-label" for="global_default_transition_ms">Default Transition (ms)</label>
+      <input
+        id="global_default_transition_ms"
+        name="default_transition_ms"
+        type="number"
+        min="0"
+        step="1"
+        value={@default_transition_ms}
+        class="hw-modal-input"
+        placeholder="0"
+        autocomplete="off"
+      />
+
+      <label class="hw-modal-label" for="global_scale_transition_by_brightness">
+        Scale Transition By Brightness Delta
+      </label>
+      <input type="hidden" name="scale_transition_by_brightness" value="false" />
+      <label class="hw-toggle">
+        <input
+          id="global_scale_transition_by_brightness"
+          name="scale_transition_by_brightness"
+          type="checkbox"
+          value="true"
+          checked={@scale_transition_by_brightness}
+        />
+        <span>Shorten transitions for smaller brightness changes.</span>
+      </label>
+
+      <div class="hw-modal-actions">
+        <button type="submit" class="hw-button hw-button-primary">Save General Settings</button>
+      </div>
+    </form>
+  </section>
+</HueworksWeb.ConfigComponents.page>

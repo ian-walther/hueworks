@@ -1,0 +1,308 @@
+<HueworksWeb.ConfigComponents.page
+  active={:integrations}
+  title="Integrations"
+  subtitle="Connect HueWorks to the systems that publish, expose, and inspect your lighting state."
+  breadcrumbs={[%{label: "Config", to: "/config"}, %{label: "Integrations"}]}
+  flash={@flash}
+>
+  <div class="hw-settings-stack">
+    <section class="hw-panel hw-settings-panel" id="home-assistant-integration">
+      <div class="hw-panel-header">
+        <div>
+          <p class="hw-eyebrow">MQTT discovery</p>
+          <h2>Home Assistant MQTT Export</h2>
+        </div>
+        <span class={[
+          "hw-status-badge",
+          (@ha_export_scenes_enabled or @ha_export_room_selects_enabled or @ha_export_lights_enabled) &&
+            "hw-status-badge-success"
+        ]}>
+          <%= if @ha_export_scenes_enabled or @ha_export_room_selects_enabled or @ha_export_lights_enabled,
+            do: "Enabled",
+            else: "Off" %>
+        </span>
+      </div>
+
+      <p class="hw-muted">
+        Publish HueWorks scenes, room scene selectors, and opt-in lights/groups into Home Assistant.
+      </p>
+
+      <form class="hw-form" phx-change="update_ha_export" phx-submit="save_ha_export">
+        <label class="hw-modal-label" for="ha_export_scenes_enabled">Export Scenes</label>
+        <input type="hidden" name="ha_export_scenes_enabled" value="false" />
+        <label class="hw-toggle">
+          <input
+            id="ha_export_scenes_enabled"
+            name="ha_export_scenes_enabled"
+            type="checkbox"
+            value="true"
+            checked={@ha_export_scenes_enabled}
+          />
+          <span>Publish HueWorks scenes into Home Assistant.</span>
+        </label>
+
+        <label class="hw-modal-label" for="ha_export_room_selects_enabled">
+          Export Room Scene Selectors
+        </label>
+        <input type="hidden" name="ha_export_room_selects_enabled" value="false" />
+        <label class="hw-toggle">
+          <input
+            id="ha_export_room_selects_enabled"
+            name="ha_export_room_selects_enabled"
+            type="checkbox"
+            value="true"
+            checked={@ha_export_room_selects_enabled}
+          />
+          <span>Publish room-level scene dropdown selectors into Home Assistant.</span>
+        </label>
+
+        <label class="hw-modal-label" for="ha_export_lights_enabled">Export Lights and Groups</label>
+        <input type="hidden" name="ha_export_lights_enabled" value="false" />
+        <label class="hw-toggle">
+          <input
+            id="ha_export_lights_enabled"
+            name="ha_export_lights_enabled"
+            type="checkbox"
+            value="true"
+            checked={@ha_export_lights_enabled}
+          />
+          <span>Allow opt-in light and group entities to be exported into Home Assistant.</span>
+        </label>
+
+        <div class="hw-form-grid">
+          <div>
+            <label class="hw-modal-label" for="ha_export_mqtt_host">MQTT Host</label>
+            <input
+              id="ha_export_mqtt_host"
+              name="ha_export_mqtt_host"
+              type="text"
+              value={@ha_export_mqtt_host}
+              class="hw-modal-input"
+              placeholder="mqtt.local"
+              autocomplete="off"
+            />
+          </div>
+          <div>
+            <label class="hw-modal-label" for="ha_export_mqtt_port">MQTT Port</label>
+            <input
+              id="ha_export_mqtt_port"
+              name="ha_export_mqtt_port"
+              type="number"
+              min="1"
+              max="65535"
+              step="1"
+              value={@ha_export_mqtt_port}
+              class="hw-modal-input"
+              placeholder="1883"
+              autocomplete="off"
+            />
+          </div>
+        </div>
+
+        <div class="hw-form-grid">
+          <div>
+            <label class="hw-modal-label" for="ha_export_mqtt_username">MQTT Username (optional)</label>
+            <input
+              id="ha_export_mqtt_username"
+              name="ha_export_mqtt_username"
+              type="text"
+              value={@ha_export_mqtt_username}
+              class="hw-modal-input"
+              autocomplete="off"
+            />
+          </div>
+          <div>
+            <label class="hw-modal-label" for="ha_export_mqtt_password">MQTT Password (optional)</label>
+            <input
+              id="ha_export_mqtt_password"
+              name="ha_export_mqtt_password"
+              type="password"
+              value={@ha_export_mqtt_password}
+              class="hw-modal-input"
+              placeholder="Leave blank to keep current password"
+              autocomplete="new-password"
+            />
+          </div>
+        </div>
+
+        <label class="hw-modal-label" for="ha_export_discovery_prefix">Discovery Prefix</label>
+        <input
+          id="ha_export_discovery_prefix"
+          name="ha_export_discovery_prefix"
+          type="text"
+          value={@ha_export_discovery_prefix}
+          class="hw-modal-input"
+          placeholder="homeassistant"
+          autocomplete="off"
+        />
+
+        <div class="hw-modal-actions">
+          <button type="submit" class="hw-button hw-button-primary">Save Home Assistant</button>
+          <button
+            type="button"
+            class="hw-button"
+            phx-click="republish_ha_export_entities"
+            disabled={!(@ha_export_scenes_enabled or @ha_export_room_selects_enabled or @ha_export_lights_enabled)}
+          >
+            Republish Exported Entities
+          </button>
+        </div>
+      </form>
+    </section>
+
+    <section class="hw-panel hw-settings-panel" id="homekit-integration">
+      <div class="hw-panel-header">
+        <div>
+          <p class="hw-eyebrow">Apple Home</p>
+          <h2>HomeKit Bridge</h2>
+        </div>
+        <span class={[
+          "hw-status-badge",
+          @homekit_paired? && "hw-status-badge-success"
+        ]}>
+          <%= if @homekit_paired?, do: "Paired", else: "Ready to pair" %>
+        </span>
+      </div>
+
+      <p class="hw-muted">
+        Expose HueWorks scenes and opt-in lights/groups to Apple Home through a local bridge.
+      </p>
+
+      <div class="hw-form">
+        <label class="hw-modal-label" for="homekit_pairing_code">Apple Home Setup Code</label>
+        <code id="homekit_pairing_code" class="hw-modal-input"><%= @homekit_pairing_code %></code>
+        <p class="hw-muted">Use this code when Apple Home asks to add the HueWorks bridge manually.</p>
+        <p class="hw-muted">
+          Pairing status: <strong><%= if @homekit_paired?, do: "paired", else: "ready to pair" %></strong>
+        </p>
+      </div>
+
+      <form class="hw-form" phx-change="update_homekit" phx-submit="save_homekit">
+        <label class="hw-modal-label" for="homekit_bridge_name">Bridge Name</label>
+        <input
+          id="homekit_bridge_name"
+          name="homekit_bridge_name"
+          type="text"
+          value={@homekit_bridge_name}
+          class="hw-modal-input"
+          placeholder="HueWorks"
+          autocomplete="off"
+        />
+
+        <label class="hw-modal-label" for="homekit_scenes_enabled">Expose Scenes</label>
+        <input type="hidden" name="homekit_scenes_enabled" value="false" />
+        <label class="hw-toggle">
+          <input
+            id="homekit_scenes_enabled"
+            name="homekit_scenes_enabled"
+            type="checkbox"
+            value="true"
+            checked={@homekit_scenes_enabled}
+          />
+          <span>Expose all HueWorks scenes as HomeKit switch controls.</span>
+        </label>
+
+        <div class="hw-modal-actions">
+          <button type="submit" class="hw-button hw-button-primary">Save HomeKit Bridge</button>
+          <button
+            id="reset-homekit-pairings"
+            type="button"
+            class="hw-button hw-delete-button"
+            phx-click="reset_homekit_pairings"
+            phx-confirm="Reset HomeKit pairings? Apple Home will need to add the HueWorks bridge again."
+          >
+            Reset Pairing
+          </button>
+        </div>
+      </form>
+    </section>
+
+    <section class="hw-panel hw-settings-panel" id="ai-api-integration">
+      <div class="hw-panel-header">
+        <div>
+          <p class="hw-eyebrow">Local automation</p>
+          <h2>AI API</h2>
+        </div>
+        <span class={[
+          "hw-status-badge",
+          @api_enabled && "hw-status-badge-success"
+        ]}>
+          <%= if @api_enabled, do: "Enabled", else: "Off" %>
+        </span>
+      </div>
+
+      <p class="hw-muted">
+        Give local AI tools authenticated access to HueWorks state, diagnostics, and normal control actions.
+      </p>
+
+      <%= if @api_enabled do %>
+        <p class="hw-muted">API access is enabled.</p>
+        <div class="hw-form">
+          <label class="hw-modal-label" for="ai-api-url">API Base URL</label>
+          <code id="ai-api-url" class="hw-modal-input hw-api-code-value"><%= @api_base_url %></code>
+
+          <label class="hw-modal-label" for="ai-api-token">API Token</label>
+          <%= if @api_token_revealed? do %>
+            <div class="hw-api-value-row">
+              <code id="ai-api-token" class="hw-modal-input hw-api-code-value"><%= @api_token %></code>
+              <div class="hw-api-utility-actions">
+                <button
+                  id="copy-ai-api-token"
+                  type="button"
+                  class="hw-button"
+                  phx-hook="CopyToClipboard"
+                  data-copy-value={@api_token}
+                >
+                  Copy Token
+                </button>
+                <button id="hide-ai-api-token" type="button" class="hw-button" phx-click="hide_api_token">
+                  Hide Token
+                </button>
+              </div>
+            </div>
+            <label class="hw-modal-label" for="ai-api-mcp-env">MCP Environment</label>
+            <pre id="ai-api-mcp-env" class="hw-modal-input hw-api-env-value">HUEWORKS_API_URL=<%= @api_base_url %>
+HUEWORKS_API_TOKEN=<%= @api_token %></pre>
+          <% else %>
+            <div class="hw-api-value-row">
+              <code id="ai-api-token" class="hw-modal-input hw-api-code-value">Hidden until revealed</code>
+              <div class="hw-api-utility-actions">
+                <button id="reveal-ai-api-token" type="button" class="hw-button" phx-click="reveal_api_token">
+                  Reveal Token
+                </button>
+              </div>
+            </div>
+          <% end %>
+
+          <div class="hw-modal-actions hw-api-danger-actions">
+            <button
+              id="rotate-ai-api-token"
+              type="button"
+              class="hw-button hw-delete-button"
+              phx-click="rotate_api_token"
+              data-confirm="Rotate the AI API token? Existing MCP clients will stop working until updated."
+            >
+              Rotate Token
+            </button>
+            <button
+              id="disable-ai-api"
+              type="button"
+              class="hw-button hw-delete-button"
+              phx-click="disable_api_access"
+              data-confirm="Disable AI API access? Existing MCP clients will stop working immediately."
+            >
+              Disable API
+            </button>
+          </div>
+        </div>
+      <% else %>
+        <p class="hw-muted">API access is disabled.</p>
+        <div class="hw-modal-actions hw-actions-start">
+          <button id="enable-ai-api" type="button" class="hw-button hw-button-primary" phx-click="enable_api_access">
+            Enable AI API
+          </button>
+        </div>
+      <% end %>
+    </section>
+  </div>
+</HueworksWeb.ConfigComponents.page>

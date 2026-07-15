@@ -20,7 +20,7 @@ defmodule HueworksWeb.ExternalSceneConfigLiveTest do
       })
 
     assert {:error, {:live_redirect, %{to: "/config"}}} =
-             live(conn, "/config/bridge/#{bridge.id}/external-scenes")
+             live(conn, "/config/bridges/#{bridge.id}/external-scenes")
   end
 
   test "scene config page syncs HA scenes and saves mappings", %{conn: conn} do
@@ -42,7 +42,7 @@ defmodule HueworksWeb.ExternalSceneConfigLiveTest do
         %{source_id: "scene.movie_time", name: "Movie Time", metadata: %{}}
       ])
 
-    {:ok, view, html} = live(conn, "/config/bridge/#{bridge.id}/external-scenes")
+    {:ok, view, html} = live(conn, "/config/bridges/#{bridge.id}/external-scenes")
     assert html =~ "External Scenes"
     assert html =~ "Movie Time"
     refute html =~ "Mapping saved."
@@ -73,7 +73,7 @@ defmodule HueworksWeb.ExternalSceneConfigLiveTest do
         import_complete: true
       })
 
-    {:ok, view, html} = live(conn, "/config/bridge/#{bridge.id}/external-scenes")
+    {:ok, view, html} = live(conn, "/config/bridges/#{bridge.id}/external-scenes")
     assert html =~ "External Scenes"
     refute html =~ "Missing Home Assistant token"
 
@@ -96,7 +96,7 @@ defmodule HueworksWeb.ExternalSceneConfigLiveTest do
         import_complete: true
       })
 
-    {:ok, view, html} = live(conn, "/config/bridge/#{bridge.id}/external-scenes")
+    {:ok, view, html} = live(conn, "/config/bridges/#{bridge.id}/external-scenes")
     assert html =~ "External Scenes"
 
     html =

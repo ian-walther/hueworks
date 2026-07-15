@@ -1,0 +1,99 @@
+<HueworksWeb.ConfigComponents.page
+  active={:bridges}
+  title="Bridges"
+  subtitle="Connect lighting systems and review changes discovered upstream."
+  breadcrumbs={[%{label: "Config", to: "/config"}, %{label: "Bridges"}]}
+  flash={@flash}
+>
+  <:actions>
+    <a class="hw-button hw-button-primary" href="/config/bridges/new">Add Bridge</a>
+  </:actions>
+
+  <section class="hw-panel">
+    <div class="hw-panel-header">
+      <div>
+        <p class="hw-eyebrow">Connected systems</p>
+        <h2>Configured bridges</h2>
+      </div>
+      <span class="hw-count"><%= length(@bridge_entries) %></span>
+    </div>
+
+    <div :if={@bridge_entries == []} class="hw-empty-state">
+      <h3>No bridges yet</h3>
+      <p>Add a bridge to discover lights and groups.</p>
+      <a class="hw-button hw-button-primary" href="/config/bridges/new">Add Bridge</a>
+    </div>
+
+    <div class="hw-list">
+      <article :for={entry <- @bridge_entries} class="hw-card hw-bridge-card" id={"bridge-#{entry.bridge.id}"}>
+        <div class="hw-bridge-card-main">
+          <div>
+            <div class="hw-title-row">
+              <h3><%= entry.bridge.name %></h3>
+              <span class={[
+                "hw-status-badge",
+                entry.imported? && "hw-status-badge-success",
+                !entry.imported? && "hw-status-badge-warning"
+              ]}>
+                <%= if entry.imported?, do: "Imported", else: "Setup incomplete" %>
+              </span>
+            </div>
+            <p class="hw-meta"><%= entry.bridge.type %> · <%= entry.bridge.host %></p>
+            <p :if={entry.latest_import} class="hw-meta">
+              Last checked <%= Calendar.strftime(entry.latest_import.imported_at, "%b %-d, %Y at %-I:%M %p") %>
+            </p>
+          </div>
+
+          <div class="hw-actions">
+            <a
+              :if={!entry.imported?}
+              class="hw-button hw-button-primary"
+              href={"/config/bridges/#{entry.bridge.id}/import"}
+            >
+              Import
+            </a>
+            <a
+              :if={entry.imported?}
+              class="hw-button hw-button-primary"
+              href={"/config/bridges/#{entry.bridge.id}/reimport"}
+            >
+              Check for Changes
+            </a>
+            <a :if={entry.bridge.type == :caseta} class="hw-button" href={"/config/bridges/#{entry.bridge.id}/picos"}>
+              Pico Config
+            </a>
+            <a :if={entry.bridge.type == :ha} class="hw-button" href={"/config/bridges/#{entry.bridge.id}/external-scenes"}>
+              Scene Import
+            </a>
+          </div>
+        </div>
+
+        <details class="hw-maintenance-disclosure">
+          <summary>Maintenance</summary>
+          <p class="hw-muted">Destructive actions are kept separate from normal bridge workflows.</p>
+          <div class="hw-actions">
+            <button
+              :if={entry.imported?}
+              class="hw-button hw-delete-button"
+              type="button"
+              phx-click="delete_entities"
+              phx-value-id={entry.bridge.id}
+              data-confirm="This removes all imported lights, groups, and Picos for this bridge, including their scene assignments."
+            >
+              Delete Imported Entities
+            </button>
+            <button
+              class="hw-button hw-delete-button"
+              type="button"
+              phx-click="delete_bridge"
+              phx-value-id={entry.bridge.id}
+              data-confirm="This removes the bridge configuration. This cannot be undone."
+            >
+              Delete Bridge
+            </button>
+          </div>
+        </details>
+      </article>
+    </div>
+  </section>
+</HueworksWeb.ConfigComponents.page>

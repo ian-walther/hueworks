@@ -91,7 +91,7 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
 
     assert {:error, {:live_redirect, %{to: to}}} =
              view
-             |> element("#room-#{room.id} .hw-card-title button[phx-click='open_scene_new']")
+             |> element("#room-#{room.id} .hw-section-header button[phx-click='open_scene_new']")
              |> render_click()
 
     assert to == "/rooms/#{room.id}/scenes/new"

@@ -1,63 +1,30 @@
-<div class="hw-shell">
-  <div class="hw-topbar">
+<HueworksWeb.ConfigComponents.page
+  active={:bridges}
+  title="Import Bridge"
+  subtitle={"Choose what to import from #{@bridge.name} and where it belongs in HueWorks."}
+  breadcrumbs={[
+    %{label: "Config", to: "/config"},
+    %{label: "Bridges", to: "/config/bridges"},
+    %{label: @bridge.name, to: "/config/bridges"},
+    %{label: "Import"}
+  ]}
+  flash={@flash}
+>
+  <div :if={@import_status == :loading} class="hw-import-loading" role="status" aria-live="polite">
+    <span class="hw-loading-mark" aria-hidden="true"></span>
     <div>
-      <h1 class="hw-title"><%= if @reimport, do: "Reimport Bridge", else: "Setup Bridge" %></h1>
-      <p class="hw-subtitle">
-        Configure import for <%= @bridge.name %> (<%= @bridge.host %>).
-      </p>
+      <h2>Discovering <%= @bridge.name %></h2>
+      <p>Fetching rooms, lights, and groups from the bridge.</p>
     </div>
   </div>
 
-  <HueworksWeb.Layouts.app_flash_group flash={@flash} class="hw-flash-stack-inline" />
+  <div :if={@import_status == :error and is_nil(@normalized)} class="hw-state-message hw-state-message-error">
+    <h2>Could not load the bridge</h2>
+    <p><%= @import_error %></p>
+    <button type="button" class="hw-button" phx-click="import_configuration">Try Again</button>
+  </div>
 
   <%= if @normalized do %>
-    <section class="hw-panel">
-      <div class="hw-panel-header">
-        <h2><%= if @reimport, do: "Review Import", else: "Selection" %></h2>
-        <%= if @reimport do %>
-          <p class="hw-muted">
-            Existing entities refresh bridge-owned facts. Missing entities are kept by default.
-            Duplicate Home Assistant wrappers import as hidden bookkeeping rows.
-          </p>
-          <div class="hw-meta">
-            Existing: <%= summary_count(@reimport_summary, :existing) %>
-            · New: <%= summary_count(@reimport_summary, :new) %>
-            · Duplicates: <%= summary_count(@reimport_summary, :duplicate) %>
-            · Missing: <%= summary_count(@reimport_summary, :missing) %>
-            · Ambiguous: <%= summary_count(@reimport_summary, :ambiguous_identity) %>
-          </div>
-        <% end %>
-        <div class="hw-row-actions">
-          <button class="hw-button" type="button" phx-click="toggle_all" phx-value-action="check">
-            Check All
-          </button>
-          <button class="hw-button" type="button" phx-click="toggle_all" phx-value-action="uncheck">
-            Uncheck All
-          </button>
-          <%= if @reimport do %>
-            <button
-              class="hw-button"
-              type="button"
-              phx-click="bulk_resolution"
-              phx-value-status="new"
-              phx-value-resolution="import"
-            >
-              Import All New
-            </button>
-            <button
-              class="hw-button"
-              type="button"
-              phx-click="bulk_resolution"
-              phx-value-status="missing"
-              phx-value-resolution="disable"
-            >
-              Disable All Missing
-            </button>
-          <% end %>
-        </div>
-      </div>
-    </section>
-
     <% rooms = normalized_entries(@normalized, :rooms) %>
     <% lights = normalized_entries(@normalized, :lights) %>
     <% groups = normalized_entries(@normalized, :groups) %>
@@ -71,547 +38,160 @@
       |> Enum.filter(&is_binary/1)
     %>
 
-    <section class="hw-panel">
-      <div class="hw-panel-header">
-        <h2>Rooms</h2>
+    <section id="initial-import-review" class="hw-import-intro">
+      <div>
+        <p class="hw-eyebrow">Initial composition</p>
+        <h2>Select the bridge entities HueWorks should manage</h2>
+        <p>Rooms can be created, merged into an existing HueWorks room, or skipped. Nothing is saved until you apply the import.</p>
       </div>
-      <div class="hw-grid">
-        <%= for room <- rooms do %>
-          <% room_id = fetch(room, :source_id) %>
-          <% room_key = Hueworks.Import.Normalize.normalize_source_id(room_id) %>
-          <% room_lights =
-            Enum.filter(lights, fn light ->
-              Hueworks.Import.Normalize.normalize_source_id(fetch(light, :room_source_id)) == room_key
-            end)
-          %>
-          <% room_groups =
-            Enum.filter(groups, fn group ->
-              Hueworks.Import.Normalize.normalize_source_id(fetch(group, :room_source_id)) == room_key
-            end)
-          %>
-          <div class="hw-card">
-            <div class="hw-row">
-              <div class="hw-row-title"><%= fetch(room, :name) %></div>
-              <div class="hw-row-actions">
-                <div class="hw-button-group">
-                  <button
-                    class="hw-button"
-                    type="button"
-                    phx-click="toggle_room"
-                    phx-value-room_id={room_id}
-                    phx-value-action="check"
-                  >
-                    Check All
-                  </button>
-                  <button
-                    class="hw-button"
-                    type="button"
-                    phx-click="toggle_room"
-                    phx-value-room_id={room_id}
-                    phx-value-action="uncheck"
-                  >
-                    Uncheck All
-                  </button>
-                </div>
-                <form phx-change="set_room_action" data-room-id={room_id}>
-                  <input type="hidden" name="room_id" value={room_id} />
-                  <select class="hw-select" name="action">
-                    <option value="create" selected={room_action(@plan, room_id) == "create"}>
-                      Create
-                    </option>
-                    <option value="merge" selected={room_action(@plan, room_id) == "merge"}>
-                      Merge
-                    </option>
-                    <option value="skip" selected={room_action(@plan, room_id) == "skip"}>
-                      Skip
-                    </option>
-                  </select>
-                </form>
-                <%= if room_action(@plan, room_id) == "merge" do %>
-                  <form phx-change="set_room_merge" data-room-id={room_id}>
-                    <input type="hidden" name="room_id" value={room_id} />
-                    <select class="hw-select" name="target_room_id">
-                      <option value="">Select room</option>
-                      <%= for existing <- @rooms do %>
-                    <option value={existing.id} selected={room_merge_target(@plan, room_id) == to_string(existing.id)}>
-                      <%= Hueworks.Util.display_name(existing) %>
-                    </option>
-                      <% end %>
-                    </select>
-                  </form>
-                <% end %>
-              </div>
-            </div>
-
-            <div class="hw-subsection">
-              <div class="hw-row">
-                <div class="hw-subtitle">Lights</div>
-                <div class="hw-row-actions">
-                  <button
-                    class="hw-button"
-                    type="button"
-                    phx-click="toggle_room_section"
-                    phx-value-room_id={room_id}
-                    phx-value-section="lights"
-                    phx-value-action="check"
-                  >
-                    Check All
-                  </button>
-                  <button
-                    class="hw-button"
-                    type="button"
-                    phx-click="toggle_room_section"
-                    phx-value-room_id={room_id}
-                    phx-value-section="lights"
-                    phx-value-action="uncheck"
-                  >
-                    Uncheck All
-                  </button>
-                </div>
-              </div>
-              <div class="hw-grid">
-                <%= if room_lights == [] do %>
-                  <div class="hw-muted">No lights</div>
-                <% end %>
-                <%= for light <- room_lights do %>
-                  <% light_id = fetch(light, :source_id) %>
-                  <% light_status = reimport_status(@reimport_statuses, :lights, light_id) %>
-                  <label class="hw-row">
-                    <input
-                      type="checkbox"
-                      checked={
-                        if reimport_disabled?(@reimport_statuses, :lights, light_id) do
-                          false
-                        else
-                          plan_selected?(@plan, :lights, light_id)
-                        end
-                      }
-                      disabled={reimport_disabled?(@reimport_statuses, :lights, light_id)}
-                      phx-click="toggle_light"
-                      phx-value-id={light_id}
-                    />
-                    <span class="hw-row-title"><%= fetch(light, :name) %></span>
-                    <span class="hw-muted">(<%= fetch(light, :classification) %>)</span>
-                    <%= if light_status == :existing do %>
-                      <span class="hw-muted">(already imported)</span>
-                    <% end %>
-                    <%= if light_status == :duplicate do %>
-                      <span class="hw-muted">(duplicate; imports hidden)</span>
-                    <% end %>
-                    <%= if light_status == :missing do %>
-                      <span class="hw-muted">(missing upstream; kept)</span>
-                    <% end %>
-                    <%= if light_status == :ambiguous_identity do %>
-                      <span class="hw-muted">(ambiguous identity; kept separate)</span>
-                    <% end %>
-                    <%= if resolution_controls?(@reimport, light_status) do %>
-                      <form
-                        phx-change="set_entity_resolution"
-                        class="hw-inline-form"
-                        data-type="lights"
-                        data-source-id={light_id}
-                      >
-                        <input type="hidden" name="type" value="lights" />
-                        <input type="hidden" name="source_id" value={light_id} />
-                        <select class="hw-select" name="resolution">
-                          <%= for {label, value} <- resolution_options(light_status) do %>
-                            <option
-                              value={value}
-                              selected={entity_resolution(@plan, :lights, light_id) == value}
-                            >
-                              <%= label %>
-                            </option>
-                          <% end %>
-                        </select>
-                      </form>
-                    <% end %>
-                  </label>
-                <% end %>
-              </div>
-            </div>
-
-            <div class="hw-subsection">
-              <div class="hw-row">
-                <div class="hw-subtitle">Groups</div>
-                <div class="hw-row-actions">
-                  <button
-                    class="hw-button"
-                    type="button"
-                    phx-click="toggle_room_section"
-                    phx-value-room_id={room_id}
-                    phx-value-section="groups"
-                    phx-value-action="check"
-                  >
-                    Check All
-                  </button>
-                  <button
-                    class="hw-button"
-                    type="button"
-                    phx-click="toggle_room_section"
-                    phx-value-room_id={room_id}
-                    phx-value-section="groups"
-                    phx-value-action="uncheck"
-                  >
-                    Uncheck All
-                  </button>
-                </div>
-              </div>
-              <div class="hw-grid">
-                <%= if room_groups == [] do %>
-                  <div class="hw-muted">No groups</div>
-                <% end %>
-                <%= for group <- room_groups do %>
-                  <% group_id = fetch(group, :source_id) %>
-                  <% group_status = reimport_status(@reimport_statuses, :groups, group_id) %>
-                  <label class="hw-row">
-                    <input
-                      type="checkbox"
-                      checked={
-                        if reimport_disabled?(@reimport_statuses, :groups, group_id) do
-                          false
-                        else
-                          plan_selected?(@plan, :groups, group_id)
-                        end
-                      }
-                      disabled={reimport_disabled?(@reimport_statuses, :groups, group_id)}
-                      phx-click="toggle_group"
-                      phx-value-id={group_id}
-                    />
-                    <span class="hw-row-title"><%= fetch(group, :name) %></span>
-                    <span class="hw-muted">(<%= fetch(group, :classification) %>)</span>
-                    <%= if group_status == :existing do %>
-                      <span class="hw-muted">(already imported)</span>
-                    <% end %>
-                    <%= if group_status == :duplicate do %>
-                      <span class="hw-muted">(duplicate; imports hidden)</span>
-                    <% end %>
-                    <%= if group_status == :missing do %>
-                      <span class="hw-muted">(missing upstream; kept)</span>
-                    <% end %>
-                    <%= if group_status == :ambiguous_identity do %>
-                      <span class="hw-muted">(ambiguous identity; kept separate)</span>
-                    <% end %>
-                    <%= if resolution_controls?(@reimport, group_status) do %>
-                      <form
-                        phx-change="set_entity_resolution"
-                        class="hw-inline-form"
-                        data-type="groups"
-                        data-source-id={group_id}
-                      >
-                        <input type="hidden" name="type" value="groups" />
-                        <input type="hidden" name="source_id" value={group_id} />
-                        <select class="hw-select" name="resolution">
-                          <%= for {label, value} <- resolution_options(group_status) do %>
-                            <option
-                              value={value}
-                              selected={entity_resolution(@plan, :groups, group_id) == value}
-                            >
-                              <%= label %>
-                            </option>
-                          <% end %>
-                        </select>
-                      </form>
-                    <% end %>
-                  </label>
-                <% end %>
-              </div>
-            </div>
-          </div>
-        <% end %>
-
-        <% unassigned_lights =
-          Enum.filter(lights, fn light ->
-            room_key = Hueworks.Import.Normalize.normalize_source_id(fetch(light, :room_source_id))
-            not is_binary(room_key) or not Enum.member?(room_keys, room_key)
-          end)
-        %>
-        <% unassigned_groups =
-          Enum.filter(groups, fn group ->
-            room_key = Hueworks.Import.Normalize.normalize_source_id(fetch(group, :room_source_id))
-            not is_binary(room_key) or not Enum.member?(room_keys, room_key)
-          end)
-        %>
-
-        <%= if unassigned_lights != [] or unassigned_groups != [] do %>
-          <div class="hw-card">
-            <div class="hw-row">
-              <div class="hw-row-title">Unassigned</div>
-              <div class="hw-muted">No matching room</div>
-            </div>
-
-            <div class="hw-subsection">
-              <div class="hw-row">
-                <div class="hw-subtitle">Lights</div>
-                <div class="hw-row-actions">
-                  <button
-                    class="hw-button"
-                    type="button"
-                    phx-click="toggle_room_section"
-                    phx-value-room_id="unassigned"
-                    phx-value-section="lights"
-                    phx-value-action="check"
-                  >
-                    Check All
-                  </button>
-                  <button
-                    class="hw-button"
-                    type="button"
-                    phx-click="toggle_room_section"
-                    phx-value-room_id="unassigned"
-                    phx-value-section="lights"
-                    phx-value-action="uncheck"
-                  >
-                    Uncheck All
-                  </button>
-                </div>
-              </div>
-              <div class="hw-grid">
-                <%= if unassigned_lights == [] do %>
-                  <div class="hw-muted">No lights</div>
-                <% end %>
-                <%= for light <- unassigned_lights do %>
-                  <% light_id = fetch(light, :source_id) %>
-                  <% light_status = reimport_status(@reimport_statuses, :lights, light_id) %>
-                  <div class="hw-row">
-                    <input
-                      type="checkbox"
-                      checked={
-                        if reimport_disabled?(@reimport_statuses, :lights, light_id) do
-                          false
-                        else
-                          plan_selected?(@plan, :lights, light_id)
-                        end
-                      }
-                      disabled={reimport_disabled?(@reimport_statuses, :lights, light_id)}
-                      phx-click="toggle_light"
-                      phx-value-id={light_id}
-                    />
-                    <span class="hw-row-title"><%= fetch(light, :name) %></span>
-                    <span class="hw-muted">(<%= fetch(light, :classification) %>)</span>
-                    <%= if light_status == :existing do %>
-                      <span class="hw-muted">(already imported)</span>
-                    <% end %>
-                    <%= if light_status == :duplicate do %>
-                      <span class="hw-muted">(duplicate; imports hidden)</span>
-                    <% end %>
-                    <%= if light_status == :missing do %>
-                      <span class="hw-muted">(missing upstream; kept)</span>
-                    <% end %>
-                    <%= if light_status == :ambiguous_identity do %>
-                      <span class="hw-muted">(ambiguous identity; kept separate)</span>
-                    <% end %>
-                    <%= if resolution_controls?(@reimport, light_status) do %>
-                      <form
-                        phx-change="set_entity_resolution"
-                        class="hw-inline-form"
-                        data-type="lights"
-                        data-source-id={light_id}
-                      >
-                        <input type="hidden" name="type" value="lights" />
-                        <input type="hidden" name="source_id" value={light_id} />
-                        <select class="hw-select" name="resolution">
-                          <%= for {label, value} <- resolution_options(light_status) do %>
-                            <option
-                              value={value}
-                              selected={entity_resolution(@plan, :lights, light_id) == value}
-                            >
-                              <%= label %>
-                            </option>
-                          <% end %>
-                        </select>
-                      </form>
-                    <% end %>
-                    <form
-                      phx-change="set_entity_room"
-                      class="hw-inline-form"
-                      data-type="lights"
-                      data-source-id={light_id}
-                    >
-                      <input type="hidden" name="type" value="lights" />
-                      <input type="hidden" name="source_id" value={light_id} />
-                      <select class="hw-select" name="target_room_id">
-                        <option value="">Unassigned</option>
-                        <%= for existing <- @rooms do %>
-                          <option
-                            value={existing.id}
-                            selected={entity_target_room(@plan, :lights, light_id) == to_string(existing.id)}
-                          >
-                            <%= Hueworks.Util.display_name(existing) %>
-                          </option>
-                        <% end %>
-                      </select>
-                    </form>
-                  </div>
-                <% end %>
-              </div>
-            </div>
-
-            <div class="hw-subsection">
-              <div class="hw-row">
-                <div class="hw-subtitle">Groups</div>
-                <div class="hw-row-actions">
-                  <button
-                    class="hw-button"
-                    type="button"
-                    phx-click="toggle_room_section"
-                    phx-value-room_id="unassigned"
-                    phx-value-section="groups"
-                    phx-value-action="check"
-                  >
-                    Check All
-                  </button>
-                  <button
-                    class="hw-button"
-                    type="button"
-                    phx-click="toggle_room_section"
-                    phx-value-room_id="unassigned"
-                    phx-value-section="groups"
-                    phx-value-action="uncheck"
-                  >
-                    Uncheck All
-                  </button>
-                </div>
-              </div>
-              <div class="hw-grid">
-                <%= if unassigned_groups == [] do %>
-                  <div class="hw-muted">No groups</div>
-                <% end %>
-                <%= for group <- unassigned_groups do %>
-                  <% group_id = fetch(group, :source_id) %>
-                  <% group_status = reimport_status(@reimport_statuses, :groups, group_id) %>
-                  <div class="hw-row">
-                    <input
-                      type="checkbox"
-                      checked={
-                        if reimport_disabled?(@reimport_statuses, :groups, group_id) do
-                          false
-                        else
-                          plan_selected?(@plan, :groups, group_id)
-                        end
-                      }
-                      disabled={reimport_disabled?(@reimport_statuses, :groups, group_id)}
-                      phx-click="toggle_group"
-                      phx-value-id={group_id}
-                    />
-                    <span class="hw-row-title"><%= fetch(group, :name) %></span>
-                    <span class="hw-muted">(<%= fetch(group, :classification) %>)</span>
-                    <%= if group_status == :existing do %>
-                      <span class="hw-muted">(already imported)</span>
-                    <% end %>
-                    <%= if group_status == :duplicate do %>
-                      <span class="hw-muted">(duplicate; imports hidden)</span>
-                    <% end %>
-                    <%= if group_status == :missing do %>
-                      <span class="hw-muted">(missing upstream; kept)</span>
-                    <% end %>
-                    <%= if group_status == :ambiguous_identity do %>
-                      <span class="hw-muted">(ambiguous identity; kept separate)</span>
-                    <% end %>
-                    <%= if resolution_controls?(@reimport, group_status) do %>
-                      <form
-                        phx-change="set_entity_resolution"
-                        class="hw-inline-form"
-                        data-type="groups"
-                        data-source-id={group_id}
-                      >
-                        <input type="hidden" name="type" value="groups" />
-                        <input type="hidden" name="source_id" value={group_id} />
-                        <select class="hw-select" name="resolution">
-                          <%= for {label, value} <- resolution_options(group_status) do %>
-                            <option
-                              value={value}
-                              selected={entity_resolution(@plan, :groups, group_id) == value}
-                            >
-                              <%= label %>
-                            </option>
-                          <% end %>
-                        </select>
-                      </form>
-                    <% end %>
-                    <form
-                      phx-change="set_entity_room"
-                      class="hw-inline-form"
-                      data-type="groups"
-                      data-source-id={group_id}
-                    >
-                      <input type="hidden" name="type" value="groups" />
-                      <input type="hidden" name="source_id" value={group_id} />
-                      <select class="hw-select" name="target_room_id">
-                        <option value="">Unassigned</option>
-                        <%= for existing <- @rooms do %>
-                          <option
-                            value={existing.id}
-                            selected={entity_target_room(@plan, :groups, group_id) == to_string(existing.id)}
-                          >
-                            <%= Hueworks.Util.display_name(existing) %>
-                          </option>
-                        <% end %>
-                      </select>
-                    </form>
-                  </div>
-                <% end %>
-              </div>
-            </div>
-          </div>
-        <% end %>
-      </div>
-    </section>
-
-    <section class="hw-panel">
-      <div class="hw-panel-header">
-        <h2>Materialize</h2>
-      </div>
-      <%= if @destructive_confirmation != [] do %>
-        <div id="destructive-reimport-confirmation" class="hw-card">
-          <div class="hw-row">
-            <div>
-              <div class="hw-row-title">Confirm destructive reimport changes</div>
-              <p class="hw-muted">
-                These choices remove entities from active use and may clean up scene or group references.
-              </p>
-            </div>
-          </div>
-
-          <div class="hw-grid">
-            <%= for item <- @destructive_confirmation do %>
-              <div class="hw-row">
-                <div>
-                  <div class="hw-row-title">
-                    <%= item.action_label %> <%= item.type_label %>: <%= item.name %>
-                  </div>
-                  <%= if item.dependents == [] do %>
-                    <div class="hw-muted">No dependent scenes or groups found.</div>
-                  <% else %>
-                    <ul class="hw-muted">
-                      <%= for dependent <- item.dependents do %>
-                        <li><%= dependent %></li>
-                      <% end %>
-                    </ul>
-                  <% end %>
-                </div>
-              </div>
-            <% end %>
-          </div>
-
-          <div class="hw-row-actions">
-            <button class="hw-button" type="button" phx-click="cancel_destructive_confirmation">
-              Cancel
-            </button>
-            <button
-              class="hw-button hw-button-on"
-              type="button"
-              phx-click="apply_materialization"
-              phx-value-confirmed="true"
-            >
-              Confirm and Apply
-            </button>
-          </div>
-        </div>
-      <% else %>
-        <button class="hw-button" type="button" phx-click="apply_materialization">
-          <%= if @reimport, do: "Apply Reimport", else: "Apply Materialization" %>
+      <div class="hw-row-actions">
+        <button class="hw-button" type="button" phx-click="toggle_all" phx-value-action="check">
+          Check All
         </button>
-      <% end %>
+        <button class="hw-button" type="button" phx-click="toggle_all" phx-value-action="uncheck">
+          Uncheck All
+        </button>
+      </div>
     </section>
+
+    <section class="hw-import-room-list" aria-label="Bridge rooms">
+      <article :for={room <- rooms} class="hw-import-room-card">
+        <% room_id = fetch(room, :source_id) %>
+        <% room_key = Hueworks.Import.Normalize.normalize_source_id(room_id) %>
+        <% room_lights =
+          Enum.filter(lights, fn light ->
+            Hueworks.Import.Normalize.normalize_source_id(fetch(light, :room_source_id)) == room_key
+          end)
+        %>
+        <% room_groups =
+          Enum.filter(groups, fn group ->
+            Hueworks.Import.Normalize.normalize_source_id(fetch(group, :room_source_id)) == room_key
+          end)
+        %>
+
+        <header class="hw-import-room-header">
+          <div>
+            <p class="hw-eyebrow">Bridge room</p>
+            <h2><%= fetch(room, :name) %></h2>
+            <p><%= length(room_lights) %> lights · <%= length(room_groups) %> groups</p>
+          </div>
+          <div class="hw-import-room-actions">
+            <div class="hw-button-group">
+              <button
+                class="hw-button"
+                type="button"
+                phx-click="toggle_room"
+                phx-value-room_id={room_id}
+                phx-value-action="check"
+              >
+                Check All
+              </button>
+              <button
+                class="hw-button"
+                type="button"
+                phx-click="toggle_room"
+                phx-value-room_id={room_id}
+                phx-value-action="uncheck"
+              >
+                Uncheck All
+              </button>
+            </div>
+            <form phx-change="set_room_action" data-room-id={room_id}>
+              <input type="hidden" name="room_id" value={room_id} />
+              <label class="hw-sr-only" for={"room-action-#{room_id}"}>Room action</label>
+              <select id={"room-action-#{room_id}"} class="hw-select" name="action">
+                <option value="create" selected={room_action(@plan, room_id) == "create"}>Create room</option>
+                <option value="merge" selected={room_action(@plan, room_id) == "merge"}>Merge into</option>
+                <option value="skip" selected={room_action(@plan, room_id) == "skip"}>Skip room</option>
+              </select>
+            </form>
+            <form :if={room_action(@plan, room_id) == "merge"} phx-change="set_room_merge" data-room-id={room_id}>
+              <input type="hidden" name="room_id" value={room_id} />
+              <label class="hw-sr-only" for={"room-merge-#{room_id}"}>HueWorks room</label>
+              <select id={"room-merge-#{room_id}"} class="hw-select" name="target_room_id">
+                <option value="">Select room</option>
+                <%= for existing <- @rooms do %>
+                  <option value={existing.id} selected={room_merge_target(@plan, room_id) == to_string(existing.id)}>
+                    <%= Hueworks.Util.display_name(existing) %>
+                  </option>
+                <% end %>
+              </select>
+            </form>
+          </div>
+        </header>
+
+        <div class="hw-import-entity-columns">
+          <.import_entity_section
+            title="Lights"
+            type={:lights}
+            room_id={room_id}
+            entries={room_lights}
+            plan={@plan}
+          />
+          <.import_entity_section
+            title="Groups"
+            type={:groups}
+            room_id={room_id}
+            entries={room_groups}
+            plan={@plan}
+          />
+        </div>
+      </article>
+
+      <% unassigned_lights =
+        Enum.filter(lights, fn light ->
+          room_key = Hueworks.Import.Normalize.normalize_source_id(fetch(light, :room_source_id))
+          not is_binary(room_key) or not Enum.member?(room_keys, room_key)
+        end)
+      %>
+      <% unassigned_groups =
+        Enum.filter(groups, fn group ->
+          room_key = Hueworks.Import.Normalize.normalize_source_id(fetch(group, :room_source_id))
+          not is_binary(room_key) or not Enum.member?(room_keys, room_key)
+        end)
+      %>
+
+      <article :if={unassigned_lights != [] or unassigned_groups != []} class="hw-import-room-card">
+        <header class="hw-import-room-header">
+          <div>
+            <p class="hw-eyebrow">No matching room</p>
+            <h2>Unassigned</h2>
+            <p>Choose a HueWorks destination for any entity you import.</p>
+          </div>
+        </header>
+
+        <div class="hw-import-entity-columns">
+          <.unassigned_entity_section
+            title="Lights"
+            type={:lights}
+            entries={unassigned_lights}
+            plan={@plan}
+            rooms={@rooms}
+          />
+          <.unassigned_entity_section
+            title="Groups"
+            type={:groups}
+            entries={unassigned_groups}
+            plan={@plan}
+            rooms={@rooms}
+          />
+        </div>
+      </article>
+    </section>
+
+    <aside class="hw-review-action-bar" aria-label="Apply initial bridge import">
+      <div>
+        <p class="hw-eyebrow">Ready to create</p>
+        <strong>Review the room actions and selected entities above.</strong>
+      </div>
+      <button
+        class="hw-button hw-button-primary"
+        type="button"
+        phx-click="apply_materialization"
+        phx-disable-with="Applying Import..."
+      >
+        Apply Initial Import
+      </button>
+    </aside>
   <% end %>
-</div>
+</HueworksWeb.ConfigComponents.page>

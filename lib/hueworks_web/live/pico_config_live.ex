@@ -807,11 +807,11 @@ defmodule HueworksWeb.PicoConfigLive do
   end
 
   defp pico_show_path(bridge_id, pico_id) when is_integer(pico_id),
-    do: "/config/bridge/#{bridge_id}/picos/#{pico_id}"
+    do: "/config/bridges/#{bridge_id}/picos/#{pico_id}"
 
   defp pico_show_path(bridge_id, _pico_id), do: pico_index_path(bridge_id)
 
-  defp pico_index_path(bridge_id), do: "/config/bridge/#{bridge_id}/picos"
+  defp pico_index_path(bridge_id), do: "/config/bridges/#{bridge_id}/picos"
 
   defp reply_with_save_notice(socket) do
     socket =

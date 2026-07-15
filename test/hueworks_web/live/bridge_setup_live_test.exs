@@ -48,7 +48,7 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
 
     Application.delete_env(:hueworks, :import_pipeline_payload)
 
-    {:ok, view, html} = live(conn, "/config/bridge/#{bridge.id}/setup")
+    {:ok, view, html} = live(conn, "/config/bridges/#{bridge.id}/import")
     refute html =~ "Missing test import payload"
 
     html = render(view)
@@ -130,7 +130,7 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
 
     Application.put_env(:hueworks, :import_pipeline_payload, normalized)
 
-    {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/setup")
+    {:ok, view, _html} = live(conn, "/config/bridges/#{bridge.id}/import")
     render(view)
 
     view
@@ -181,7 +181,7 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
 
     Application.put_env(:hueworks, :import_pipeline_payload, normalized)
 
-    {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/setup")
+    {:ok, view, _html} = live(conn, "/config/bridges/#{bridge.id}/import")
     render(view)
 
     view
@@ -231,7 +231,7 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
 
     Application.put_env(:hueworks, :import_pipeline_payload, normalized)
 
-    {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/setup")
+    {:ok, view, _html} = live(conn, "/config/bridges/#{bridge.id}/import")
     render(view)
 
     plan = get_assign(view, :plan)
@@ -278,7 +278,7 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
 
     Application.put_env(:hueworks, :import_pipeline_payload, normalized)
 
-    {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/setup")
+    {:ok, view, _html} = live(conn, "/config/bridges/#{bridge.id}/import")
     render(view)
 
     view
@@ -329,7 +329,7 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
 
     Application.put_env(:hueworks, :import_pipeline_payload, normalized)
 
-    {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/setup")
+    {:ok, view, _html} = live(conn, "/config/bridges/#{bridge.id}/import")
     render(view)
 
     selected =
@@ -377,7 +377,7 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
 
     Application.put_env(:hueworks, :import_pipeline_payload, normalized)
 
-    {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/setup")
+    {:ok, view, _html} = live(conn, "/config/bridges/#{bridge.id}/import")
     html = render(view)
 
     assert html =~ "Studio Upstairs"
@@ -552,6 +552,150 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
              Integer.to_string(existing_room.id)
   end
 
+  test "reimport makes importing and creating an unmatched bridge room explicit", %{conn: conn} do
+    bridge =
+      %Bridge{}
+      |> Bridge.changeset(%{
+        type: :hue,
+        name: "Hue Bridge",
+        host: "10.0.0.230",
+        credentials: %{"api_key" => "key"},
+        import_complete: true,
+        enabled: true
+      })
+      |> Repo.insert!()
+
+    normalized = %{
+      rooms: [
+        %{
+          source: :hue,
+          source_id: "bridge-office",
+          name: "Bridge Office",
+          normalized_name: "bridge office",
+          metadata: %{}
+        }
+      ],
+      lights: [
+        %{
+          source: :hue,
+          source_id: "new-light",
+          name: "New Lamp",
+          room_source_id: "bridge-office",
+          capabilities: %{},
+          identifiers: %{},
+          metadata: %{"uniqueid" => "new-light-uid"}
+        }
+      ],
+      groups: [],
+      memberships: %{}
+    }
+
+    Application.put_env(:hueworks, :import_pipeline_payload, normalized)
+
+    {:ok, view, _html} = live(conn, "/config/bridges/#{bridge.id}/reimport")
+    render(view)
+
+    assert get_in(get_assign(view, :plan), [:lights, "new-light"]) == %{
+             "resolution" => "do_not_import",
+             "selected" => false,
+             "target_room_id" => "unassigned"
+           }
+
+    assert get_in(get_assign(view, :plan), [:rooms, "bridge-office", "action"]) == "skip"
+
+    refute has_element?(
+             view,
+             "form[phx-change='set_entity_room'][data-source-id='new-light']"
+           )
+
+    view
+    |> form(
+      "form[phx-change='set_entity_resolution'][data-source-id='new-light']",
+      %{
+        "type" => "lights",
+        "source_id" => "new-light",
+        "resolution" => "import"
+      }
+    )
+    |> render_change()
+
+    assert has_element?(
+             view,
+             "form[phx-change='set_entity_room'][data-source-id='new-light'] option[value='unassigned']",
+             "Unassigned"
+           )
+
+    assert has_element?(
+             view,
+             "form[phx-change='set_entity_room'][data-source-id='new-light'] option[value='bridge_room:bridge-office']",
+             ~s(Create "Bridge Office")
+           )
+
+    view
+    |> form("form[phx-change='set_entity_room'][data-source-id='new-light']", %{
+      "type" => "lights",
+      "source_id" => "new-light",
+      "target_room_id" => "bridge_room:bridge-office"
+    })
+    |> render_change()
+
+    assert get_in(get_assign(view, :plan), [:lights, "new-light", "target_room_id"]) ==
+             "bridge_room"
+
+    assert get_in(get_assign(view, :plan), [:rooms, "bridge-office", "action"]) == "create"
+
+    view
+    |> form(
+      "form[phx-change='set_entity_resolution'][data-source-id='new-light']",
+      %{
+        "type" => "lights",
+        "source_id" => "new-light",
+        "resolution" => "do_not_import"
+      }
+    )
+    |> render_change()
+
+    assert get_in(get_assign(view, :plan), [:rooms, "bridge-office", "action"]) == "skip"
+  end
+
+  test "initial import and reimport render independent workflows", %{conn: conn} do
+    initial_bridge =
+      %Bridge{}
+      |> Bridge.changeset(%{
+        type: :hue,
+        name: "New Hue Bridge",
+        host: "10.0.0.229",
+        credentials: %{"api_key" => "key"},
+        import_complete: false,
+        enabled: true
+      })
+      |> Repo.insert!()
+
+    Application.put_env(:hueworks, :import_pipeline_payload, %{
+      rooms: [],
+      lights: [],
+      groups: [],
+      memberships: %{}
+    })
+
+    {:ok, initial_view, _html} = live(conn, "/config/bridges/#{initial_bridge.id}/import")
+    render(initial_view)
+
+    assert has_element?(initial_view, "#initial-import-review")
+    refute has_element?(initial_view, "#removed-from-bridge")
+
+    Repo.update!(Bridge.changeset(initial_bridge, %{import_complete: true}))
+
+    {:ok, reimport_view, _html} = live(conn, "/config/bridges/#{initial_bridge.id}/reimport")
+    render(reimport_view)
+
+    assert has_element?(reimport_view, "section[aria-label='Reimport summary']")
+    assert has_element?(reimport_view, "#apply-reimport")
+    refute has_element?(reimport_view, "#initial-import-review")
+    refute has_element?(reimport_view, "form[phx-change='set_room_action']")
+    refute has_element?(reimport_view, "#removed-from-bridge")
+  end
+
   test "default reimport apply preserves an existing HA light left unlinked", %{conn: conn} do
     hue_bridge =
       %Bridge{}
@@ -624,11 +768,11 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
 
     Application.put_env(:hueworks, :import_pipeline_payload, normalized)
 
-    {:ok, view, _html} = live(conn, "/config/bridge/#{ha_bridge.id}/setup?reimport=1")
+    {:ok, view, _html} = live(conn, "/config/bridges/#{ha_bridge.id}/reimport")
     render(view)
 
     view
-    |> element("button[phx-click='apply_materialization']")
+    |> element("button[phx-click='apply_reimport']")
     |> render_click()
 
     assert Repo.get!(Light, ha_light.id).canonical_light_id == nil
@@ -750,11 +894,11 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
 
     Application.put_env(:hueworks, :import_pipeline_payload, normalized)
 
-    {:ok, view, _html} = live(conn, "/config/bridge/#{ha_bridge.id}/setup?reimport=1")
+    {:ok, view, _html} = live(conn, "/config/bridges/#{ha_bridge.id}/reimport")
     render(view)
 
     view
-    |> element("button[phx-click='apply_materialization']")
+    |> element("button[phx-click='apply_reimport']")
     |> render_click()
 
     assert Repo.get!(Group, ha_group.id).canonical_group_id == nil
@@ -816,7 +960,7 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
 
     Application.put_env(:hueworks, :import_pipeline_payload, normalized)
 
-    {:ok, view, _html} = live(conn, "/config/bridge/#{ha_bridge.id}/setup?reimport=1")
+    {:ok, view, _html} = live(conn, "/config/bridges/#{ha_bridge.id}/reimport")
     render(view)
 
     view
@@ -876,7 +1020,7 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
       memberships: %{}
     })
 
-    {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/setup?reimport=1")
+    {:ok, view, _html} = live(conn, "/config/bridges/#{bridge.id}/reimport")
     render(view)
 
     view
@@ -891,11 +1035,11 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
     |> render_change()
 
     view
-    |> element("button[phx-click='apply_materialization']")
+    |> element("button[phx-click='apply_reimport']")
     |> render_click()
 
     view
-    |> element("button[phx-click='apply_materialization'][phx-value-confirmed='true']")
+    |> element("button[phx-click='apply_reimport'][phx-value-confirmed='true']")
     |> render_click()
 
     refute Repo.reload!(light).enabled
@@ -961,7 +1105,7 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
       memberships: %{}
     })
 
-    {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/setup?reimport=1")
+    {:ok, view, _html} = live(conn, "/config/bridges/#{bridge.id}/reimport")
     render(view)
 
     view
@@ -977,10 +1121,10 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
 
     html =
       view
-      |> element("button[phx-click='apply_materialization']")
+      |> element("button[phx-click='apply_reimport']")
       |> render_click()
 
-    assert html =~ "Confirm destructive reimport changes"
+    assert html =~ "Confirm destructive bridge changes"
     assert html =~ "Missing Light"
     assert html =~ "Delete"
     assert html =~ "Existing Scene"
@@ -990,7 +1134,7 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
     assert Repo.get(GroupLight, group_light.id)
 
     view
-    |> element("button[phx-click='apply_materialization'][phx-value-confirmed='true']")
+    |> element("button[phx-click='apply_reimport'][phx-value-confirmed='true']")
     |> render_click()
 
     refute Repo.get(Light, light.id)
@@ -1035,7 +1179,7 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
       memberships: %{}
     })
 
-    {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/setup?reimport=1")
+    {:ok, view, _html} = live(conn, "/config/bridges/#{bridge.id}/reimport")
     render(view)
 
     view
@@ -1062,12 +1206,12 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
     |> Repo.update!()
 
     view
-    |> element("button[phx-click='apply_materialization']")
+    |> element("button[phx-click='apply_reimport']")
     |> render_click()
 
     html =
       view
-      |> element("button[phx-click='apply_materialization'][phx-value-confirmed='true']")
+      |> element("button[phx-click='apply_reimport'][phx-value-confirmed='true']")
       |> render_click()
 
     assert html =~ "review is out of date"
@@ -1142,11 +1286,11 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
     normalized = %{rooms: [], lights: [], groups: [], memberships: %{}}
     Application.put_env(:hueworks, :import_pipeline_payload, normalized)
 
-    {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/setup?reimport=1")
+    {:ok, view, _html} = live(conn, "/config/bridges/#{bridge.id}/reimport")
     render(view)
 
     view
-    |> element("button[phx-click='apply_materialization']")
+    |> element("button[phx-click='apply_reimport']")
     |> render_click()
 
     assert Repo.get(Light, light.id)
@@ -1230,11 +1374,11 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
 
     Application.put_env(:hueworks, :import_pipeline_payload, normalized)
 
-    {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/setup?reimport=1")
+    {:ok, view, _html} = live(conn, "/config/bridges/#{bridge.id}/reimport")
     render(view)
 
     view
-    |> element("button[phx-click='apply_materialization']")
+    |> element("button[phx-click='apply_reimport']")
     |> render_click()
 
     assert Repo.get(PicoDevice, pico_device.id)
@@ -1322,11 +1466,11 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
 
     Application.put_env(:hueworks, :import_pipeline_payload, normalized)
 
-    {:ok, view, _html} = live(conn, "/config/bridge/#{hue_bridge.id}/setup?reimport=1")
+    {:ok, view, _html} = live(conn, "/config/bridges/#{hue_bridge.id}/reimport")
     render(view)
 
     view
-    |> element("button[phx-click='apply_materialization']")
+    |> element("button[phx-click='apply_reimport']")
     |> render_click()
 
     assert Repo.get!(Light, ha_light.id).canonical_light_id == nil
@@ -1420,7 +1564,7 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
 
     Application.put_env(:hueworks, :import_pipeline_payload, normalized)
 
-    {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/setup")
+    {:ok, view, _html} = live(conn, "/config/bridges/#{bridge.id}/import")
     render(view)
 
     {view, bridge}

@@ -13,7 +13,7 @@ defmodule HueworksWeb.RouterTest do
     assert "/rooms" in paths
     assert "/config" in paths
     assert "/config/light-states/:id/edit" in paths
-    assert "/config/bridge/:id/picos/:pico_id" in paths
+    assert "/config/bridges/:id/picos/:pico_id" in paths
 
     refute "/explore" in paths
   end

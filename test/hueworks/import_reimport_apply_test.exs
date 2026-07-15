@@ -128,6 +128,58 @@ defmodule Hueworks.ImportReimportApplyTest do
     refute Repo.get_by(Light, bridge_id: bridge.id, source_id: "light.ignored")
   end
 
+  test "explicit unassigned destinations do not inherit a created bridge room" do
+    bridge = insert_bridge()
+
+    assert :ok =
+             ReimportApply.apply(
+               bridge,
+               normalized(%{
+                 rooms: [%{source_id: "bridge-office", name: "Bridge Office"}],
+                 lights: [
+                   %{
+                     source: :ha,
+                     source_id: "light.in_room",
+                     name: "Room Light",
+                     room_source_id: "bridge-office",
+                     metadata: %{"unique_id" => "room-light-uid"}
+                   },
+                   %{
+                     source: :ha,
+                     source_id: "light.unassigned",
+                     name: "Unassigned Light",
+                     room_source_id: "bridge-office",
+                     metadata: %{"unique_id" => "unassigned-light-uid"}
+                   }
+                 ]
+               }),
+               %{
+                 lights: %{
+                   "light.in_room" => %{
+                     "selected" => true,
+                     "resolution" => "import",
+                     "target_room_id" => "bridge_room"
+                   },
+                   "light.unassigned" => %{
+                     "selected" => true,
+                     "resolution" => "import",
+                     "target_room_id" => "unassigned"
+                   }
+                 },
+                 groups: %{},
+                 rooms: %{
+                   "bridge-office" => %{"action" => "create", "name" => "Bridge Office"}
+                 }
+               }
+             )
+
+    room_light = Repo.get_by!(Light, bridge_id: bridge.id, source_id: "light.in_room")
+    unassigned = Repo.get_by!(Light, bridge_id: bridge.id, source_id: "light.unassigned")
+
+    assert is_integer(room_light.room_id)
+    assert is_nil(unassigned.room_id)
+  end
+
   test "reimport-created lights pin display name while bridge name keeps refreshing" do
     bridge = insert_bridge()
     room = insert_room("Office")

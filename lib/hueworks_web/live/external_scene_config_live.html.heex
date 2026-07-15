@@ -1,18 +1,20 @@
-<div class="hw-shell">
-  <div class="hw-topbar">
-    <div>
-      <h1 class="hw-title">External Scenes</h1>
-      <p class="hw-subtitle"><%= @bridge.name %> <span class="hw-meta">(<%= @bridge.host %>)</span></p>
-    </div>
-    <div class="hw-actions">
-      <a class="hw-button" href="/config">Back to Config</a>
-      <button type="button" class="hw-button hw-button-on" phx-click="sync_external_scenes">
-        Sync HA Scenes
-      </button>
-    </div>
-  </div>
-
-  <HueworksWeb.Layouts.app_flash_group flash={@flash} class="hw-flash-stack-inline" />
+<HueworksWeb.ConfigComponents.page
+  active={:bridges}
+  title="External Scenes"
+  subtitle={"#{@bridge.name} (#{@bridge.host})"}
+  breadcrumbs={[
+    %{label: "Config", to: "/config"},
+    %{label: "Bridges", to: "/config/bridges"},
+    %{label: @bridge.name, to: "/config/bridges"},
+    %{label: "External Scenes"}
+  ]}
+  flash={@flash}
+>
+  <:actions>
+    <button type="button" class="hw-button hw-button-primary" phx-click="sync_external_scenes">
+      Sync HA Scenes
+    </button>
+  </:actions>
 
   <section class="hw-panel">
     <div class="hw-panel-header">
@@ -90,4 +92,4 @@
       </div>
     <% end %>
   </section>
-</div>
+</HueworksWeb.ConfigComponents.page>

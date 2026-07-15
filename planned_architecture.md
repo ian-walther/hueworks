@@ -171,7 +171,7 @@ Rules:
 ## Relationship To Other Docs
 
 - `/Users/ianwalther/code/hueworks/planning/audit/` contains the completed audit's durable scope conclusions and leave-alone decisions.
-- `/Users/ianwalther/code/hueworks/planning/import-resync.md` contains the reimport review-UI backlog.
+- `/Users/ianwalther/code/hueworks/planning/import-resync.md` contains the reimport ownership, safety, and future-extension rules.
 - `/Users/ianwalther/code/hueworks/hueworks_todo.md` contains prioritized future work.
 
 If those docs drift from these principles, update the more specific doc first unless the principle itself is intentionally changing.

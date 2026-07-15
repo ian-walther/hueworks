@@ -1,11 +1,14 @@
-<div class="hw-shell">
-  <div class="hw-topbar">
-    <div>
-      <h1 class="hw-title">Bridge</h1>
-      <p class="hw-subtitle">Add or edit bridge connections.</p>
-    </div>
-  </div>
-
+<HueworksWeb.ConfigComponents.page
+  active={:bridges}
+  title="Add Bridge"
+  subtitle="Connect HueWorks to a lighting system and verify the connection before importing."
+  breadcrumbs={[
+    %{label: "Config", to: "/config"},
+    %{label: "Bridges", to: "/config/bridges"},
+    %{label: "Add Bridge"}
+  ]}
+  flash={@flash}
+>
   <section class="hw-panel">
     <div class="hw-panel-header">
       <h2>Add Bridge</h2>
@@ -157,4 +160,4 @@
       <% end %>
     </form>
   </section>
-</div>
+</HueworksWeb.ConfigComponents.page>

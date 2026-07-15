@@ -10,11 +10,15 @@ defmodule HueworksWeb.RoomsLiveTest do
   test "rooms page renders existing rooms", %{conn: conn} do
     room = Repo.insert!(%Room{name: "Studio", metadata: %{}})
 
-    {:ok, _view, html} = live(conn, "/rooms")
+    {:ok, view, html} = live(conn, "/rooms")
 
     assert html =~ "Rooms"
     assert html =~ "Studio"
     assert html =~ "room-#{room.id}"
+    assert has_element?(view, "main.hw-content-frame .hw-page-header", "House structure")
+    assert has_element?(view, "#room-#{room.id}.hw-room-ledger-card")
+    assert has_element?(view, "#room-#{room.id} .hw-room-ledger-body")
+    assert has_element?(view, "#room-#{room.id} .hw-room-details", "Room details")
   end
 
   test "rooms page creates a room through the modal", %{conn: conn} do

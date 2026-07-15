@@ -1,33 +1,28 @@
-<div class="hw-shell">
-  <div class="hw-topbar">
-    <div>
-      <h1 class="hw-title">
-        <%= if @live_action == :show and @selected_pico do %>
-          Configure Pico
-        <% else %>
-          Pico Config
-        <% end %>
-      </h1>
-      <p class="hw-subtitle"><%= @bridge.name %> <span class="hw-meta">(<%= @bridge.host %>)</span></p>
-    </div>
-    <div class="hw-actions">
-      <a class="hw-button" href="/config">Back to Config</a>
-      <%= if @live_action == :show do %>
-        <a class="hw-button" href={"/config/bridge/#{@bridge.id}/picos"}>Back to Picos</a>
-      <% end %>
-      <button
+<HueworksWeb.ConfigComponents.page
+  active={:bridges}
+  title={if @live_action == :show and @selected_pico, do: "Configure Pico", else: "Pico Config"}
+  subtitle={"#{@bridge.name} (#{@bridge.host})"}
+  breadcrumbs={
+    [
+      %{label: "Config", to: "/config"},
+      %{label: "Bridges", to: "/config/bridges"},
+      %{label: @bridge.name, to: "/config/bridges"},
+      %{label: "Picos", to: if(@live_action == :show, do: "/config/bridges/#{@bridge.id}/picos", else: nil)}
+    ] ++ if(@live_action == :show and @selected_pico, do: [%{label: @selected_pico.name}], else: [])
+  }
+  flash={@flash}
+>
+  <:actions>
+    <button
         id="pico-sync-button"
         type="button"
-        class="hw-button hw-button-on"
+        class="hw-button hw-button-primary"
         phx-click="sync_picos"
         disabled={@sync_status == :syncing}
       >
         <%= if @sync_status == :syncing, do: "Syncing Picos", else: "Sync Picos" %>
       </button>
-    </div>
-  </div>
-
-  <HueworksWeb.Layouts.app_flash_group flash={@flash} class="hw-flash-stack-inline" />
+  </:actions>
 
   <%= if @live_action == :index or is_nil(@selected_pico) do %>
     <section class="hw-panel">
@@ -614,4 +609,4 @@
       <% end %>
     </section>
   <% end %>
-</div>
+</HueworksWeb.ConfigComponents.page>

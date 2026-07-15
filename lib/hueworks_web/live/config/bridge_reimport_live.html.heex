@@ -1,0 +1,375 @@
+<HueworksWeb.ConfigComponents.page
+  active={:bridges}
+  title="Review Bridge Changes"
+  subtitle={"Compare the latest observation from #{@bridge.name} with your HueWorks configuration."}
+  breadcrumbs={[
+    %{label: "Config", to: "/config"},
+    %{label: "Bridges", to: "/config/bridges"},
+    %{label: @bridge.name, to: "/config/bridges"},
+    %{label: "Review Changes"}
+  ]}
+  flash={@flash}
+>
+  <div :if={@import_status == :loading} class="hw-import-loading" role="status" aria-live="polite">
+    <span class="hw-loading-mark" aria-hidden="true"></span>
+    <div>
+      <h2>Checking <%= @bridge.name %></h2>
+      <p>Fetching the latest bridge state and comparing it with HueWorks.</p>
+    </div>
+  </div>
+
+  <div :if={@import_status == :error and is_nil(@review)} class="hw-state-message hw-state-message-error">
+    <h2>Could not check the bridge</h2>
+    <p><%= @import_error %></p>
+    <button type="button" class="hw-button" phx-click="import_configuration">Try Again</button>
+  </div>
+
+  <%= if @review do %>
+    <section class="hw-review-summary" aria-label="Reimport summary">
+      <div class="hw-review-summary-intro">
+        <p class="hw-eyebrow">Bridge review</p>
+        <h2>What changed</h2>
+        <p>HueWorks-owned names, rooms, enablement, exports, scenes, and Pico configuration stay untouched unless you explicitly choose otherwise.</p>
+      </div>
+      <div class="hw-summary-strip">
+        <div class="hw-summary-stat hw-summary-stat-removed">
+          <strong><%= @review.summary.removed %></strong><span>Removed</span>
+        </div>
+        <div class="hw-summary-stat">
+          <strong><%= @review.summary.existing %></strong><span>Existing</span>
+        </div>
+        <div class="hw-summary-stat hw-summary-stat-new">
+          <strong><%= @review.summary.new %></strong><span>New</span>
+        </div>
+        <div class="hw-summary-stat hw-summary-stat-changed">
+          <strong><%= @review.summary.automatic_updates %></strong><span>Auto updates</span>
+        </div>
+        <div class="hw-summary-stat">
+          <strong><%= @review.summary.unchanged %></strong><span>Unchanged</span>
+        </div>
+        <div class={[
+          "hw-summary-stat",
+          @review.summary.membership_warnings > 0 && "hw-summary-stat-warning"
+        ]}>
+          <strong><%= @review.summary.membership_warnings %></strong><span>Warnings</span>
+        </div>
+      </div>
+    </section>
+
+    <div
+      :if={
+        @review.summary.removed == 0 and @review.summary.new == 0 and
+          @review.summary.automatic_updates == 0 and @review.summary.membership_warnings == 0
+      }
+      class="hw-state-message hw-state-message-success"
+    >
+      <p class="hw-eyebrow">Up to date</p>
+      <h2>No bridge changes need your attention</h2>
+      <p><%= @review.summary.unchanged %> existing entities match the latest bridge observation.</p>
+    </div>
+
+    <section
+      :if={HueworksWeb.BridgeReimportLive.review_attention?(@review.summary)}
+      class="hw-review-section hw-review-section-removed"
+      id="removed-from-bridge"
+    >
+      <header class="hw-review-section-header">
+        <div>
+          <p class="hw-eyebrow">01 / Lifecycle</p>
+          <h2>Removed From Bridge</h2>
+          <p>These entities still exist in HueWorks but were not reported by the bridge.</p>
+        </div>
+        <span class="hw-count"><%= @review.summary.removed %></span>
+      </header>
+
+      <div :if={@review.removed == []} class="hw-review-empty">Nothing was removed from the bridge.</div>
+
+      <div :for={room <- @review.removed} class="hw-review-room">
+        <h3 class="hw-review-room-title"><%= room.room %></h3>
+        <div class="hw-review-rows">
+          <article :for={item <- room.items} class="hw-review-row" id={"removed-#{item.type}-#{item.source_id}"}>
+            <div class="hw-review-entity">
+              <span class="hw-status-badge hw-status-badge-removed">Removed upstream</span>
+              <h4><%= item.name %></h4>
+              <p><%= item.type_label %> · <%= item.source_id %> · HueWorks room: <%= item.current_room %></p>
+            </div>
+            <div class="hw-review-decision">
+              <label for={"resolution-#{item.type}-#{item.source_id}"}>HueWorks action</label>
+              <form
+                phx-change="set_entity_resolution"
+                data-type={if item.type == :light, do: "lights", else: "groups"}
+                data-source-id={item.source_id}
+              >
+                <input type="hidden" name="type" value={if item.type == :light, do: "lights", else: "groups"} />
+                <input type="hidden" name="source_id" value={item.source_id} />
+                <select id={"resolution-#{item.type}-#{item.source_id}"} class="hw-select" name="resolution">
+                  <%= for {label, value} <- HueworksWeb.BridgeReimportLive.resolution_options(item.status) do %>
+                    <option value={value} selected={item.resolution == value}><%= label %></option>
+                  <% end %>
+                </select>
+              </form>
+              <%= if preview = HueworksWeb.BridgeReimportLive.destructive_preview(@destructive_preview, item.type, item.source_id) do %>
+                <div class="hw-dependency-warning">
+                  <strong><%= preview.action_label %> affects:</strong>
+                  <%= if preview.dependents == [] do %>
+                    <span>No dependent scenes or groups.</span>
+                  <% else %>
+                    <span><%= Enum.join(preview.dependents, ", ") %></span>
+                  <% end %>
+                </div>
+              <% end %>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section
+      :if={HueworksWeb.BridgeReimportLive.review_attention?(@review.summary)}
+      class="hw-review-section"
+      id="existing-entities"
+    >
+      <header class="hw-review-section-header">
+        <div>
+          <p class="hw-eyebrow">02 / Bridge facts</p>
+          <h2>Existing</h2>
+          <p>Existing entities stay in their current HueWorks rooms. Bridge-owned facts refresh automatically.</p>
+        </div>
+        <span class="hw-count"><%= @review.summary.existing %></span>
+      </header>
+
+      <div :if={@review.existing == []} class="hw-review-empty">No existing entities matched this bridge observation.</div>
+
+      <article :for={room <- @review.existing} class="hw-review-room">
+        <header class="hw-review-room-header">
+          <h3 class="hw-review-room-title"><%= room.room %></h3>
+          <span><%= length(room.items) %> entities</span>
+        </header>
+
+        <details :if={room.membership_warnings != []} class="hw-review-disclosure hw-review-disclosure-warning" open>
+          <summary>
+            <span>Membership Warnings</span>
+            <span class="hw-count"><%= length(room.membership_warnings) %></span>
+          </summary>
+          <div class="hw-review-rows">
+            <article :for={item <- room.membership_warnings} class="hw-review-row">
+              <div class="hw-review-entity">
+                <span class="hw-status-badge hw-status-badge-warning">Membership kept</span>
+                <h4><%= item.name %></h4>
+                <p>HueWorks cannot safely refresh this group because these bridge members are unresolved:</p>
+                <code><%= Enum.join(item.membership_warning.unresolved_source_ids, ", ") %></code>
+              </div>
+            </article>
+          </div>
+        </details>
+
+        <details :if={room.automatic_updates != []} class="hw-review-disclosure">
+          <summary>
+            <span>Automatic Updates</span>
+            <span class="hw-count"><%= length(room.automatic_updates) %></span>
+          </summary>
+          <div class="hw-review-rows">
+            <article :for={item <- room.automatic_updates} class="hw-review-row hw-review-row-comparison">
+              <div class="hw-review-entity">
+                <span class="hw-status-badge hw-status-badge-changed">Auto refresh</span>
+                <h4><%= item.name %></h4>
+                <p><%= item.type_label %> · stays in <%= item.current_room %></p>
+              </div>
+              <div class="hw-comparison-list">
+                <div :for={change <- item.changes} class="hw-comparison-row">
+                  <strong><%= change.label %></strong>
+                  <div>
+                    <span>Current</span>
+                    <code><%= HueworksWeb.BridgeReimportLive.format_review_value(change.current) %></code>
+                  </div>
+                  <div>
+                    <span>Bridge</span>
+                    <code><%= HueworksWeb.BridgeReimportLive.format_review_value(change.bridge) %></code>
+                  </div>
+                </div>
+              </div>
+            </article>
+          </div>
+        </details>
+
+        <details :if={room.unchanged != []} class="hw-review-disclosure">
+          <summary>
+            <span>Unchanged</span>
+            <span class="hw-count"><%= length(room.unchanged) %></span>
+          </summary>
+          <div class="hw-unchanged-grid">
+            <div :for={item <- room.unchanged}>
+              <strong><%= item.name %></strong>
+              <span><%= item.type_label %></span>
+            </div>
+          </div>
+        </details>
+      </article>
+    </section>
+
+    <section
+      :if={HueworksWeb.BridgeReimportLive.review_attention?(@review.summary)}
+      class="hw-review-section hw-review-section-new"
+      id="new-on-bridge"
+    >
+      <header class="hw-review-section-header">
+        <div>
+          <p class="hw-eyebrow">03 / Discovery</p>
+          <h2>New On Bridge</h2>
+          <p>New entities are not imported unless you explicitly choose Import.</p>
+        </div>
+        <div class="hw-row-actions">
+          <span class="hw-count"><%= @review.summary.new %></span>
+          <button
+            :if={@review.summary.new > 0}
+            type="button"
+            class="hw-button"
+            phx-click="bulk_resolution"
+            phx-value-status="new"
+            phx-value-resolution="import"
+          >
+            Import All New
+          </button>
+        </div>
+      </header>
+
+      <div :if={@review.new == []} class="hw-review-empty">No new entities were discovered.</div>
+
+      <article :for={room <- @review.new} class="hw-review-room">
+        <header class="hw-review-room-header">
+          <h3 class="hw-review-room-title"><%= room.room %></h3>
+          <span>Bridge room</span>
+        </header>
+        <div class="hw-review-rows">
+          <article :for={item <- room.items} class="hw-review-row" id={"new-#{item.type}-#{item.source_id}"}>
+            <div class="hw-review-entity">
+              <span class={[
+                "hw-status-badge",
+                item.status == :new && "hw-status-badge-new",
+                item.status in [:duplicate, :ambiguous_identity] && "hw-status-badge-warning"
+              ]}>
+                <%= HueworksWeb.BridgeReimportLive.status_label(item.status) %>
+              </span>
+              <h4><%= item.bridge_name || item.name %></h4>
+              <p><%= item.type_label %> · <%= item.source_id %> · Bridge room: <%= item.bridge_room %></p>
+              <p :if={item.status == :duplicate} class="hw-review-note">
+                This Home Assistant entity appears to mirror a native entity. The safe default imports hidden bookkeeping for bridge topology.
+              </p>
+              <p :if={item.status == :ambiguous_identity} class="hw-review-note">
+                HueWorks found conflicting identity information and will keep this entity separate.
+              </p>
+            </div>
+            <div class="hw-review-decision">
+              <label for={"resolution-#{item.type}-#{item.source_id}"}>Import choice</label>
+              <form
+                phx-change="set_entity_resolution"
+                data-type={if item.type == :light, do: "lights", else: "groups"}
+                data-source-id={item.source_id}
+              >
+                <input type="hidden" name="type" value={if item.type == :light, do: "lights", else: "groups"} />
+                <input type="hidden" name="source_id" value={item.source_id} />
+                <select id={"resolution-#{item.type}-#{item.source_id}"} class="hw-select" name="resolution">
+                  <%= for {label, value} <- HueworksWeb.BridgeReimportLive.resolution_options(item.status) do %>
+                    <option value={value} selected={item.resolution == value}><%= label %></option>
+                  <% end %>
+                </select>
+              </form>
+
+              <form
+                :if={item.resolution in ["import", "import_real"]}
+                phx-change="set_entity_room"
+                class="hw-destination-control"
+                data-type={if item.type == :light, do: "lights", else: "groups"}
+                data-source-id={item.source_id}
+              >
+                <input type="hidden" name="type" value={if item.type == :light, do: "lights", else: "groups"} />
+                <input type="hidden" name="source_id" value={item.source_id} />
+                <label for={"room-#{item.type}-#{item.source_id}"}>HueWorks destination</label>
+                <select id={"room-#{item.type}-#{item.source_id}"} class="hw-select" name="target_room_id">
+                  <option value="unassigned" selected={item.target_room_id in [nil, "unassigned"]}>Unassigned</option>
+                  <%= if create_value = HueworksWeb.BridgeReimportLive.create_room_value(@reimport.plan, item.incoming) do %>
+                    <option value={create_value} selected={item.target_room_id == "bridge_room"}>
+                      Create &quot;<%= item.bridge_room %>&quot;
+                    </option>
+                  <% end %>
+                  <%= for room_option <- @rooms do %>
+                    <option value={room_option.id} selected={item.target_room_id == to_string(room_option.id)}>
+                      <%= Hueworks.Util.display_name(room_option) %>
+                    </option>
+                  <% end %>
+                </select>
+              </form>
+            </div>
+          </article>
+        </div>
+      </article>
+    </section>
+
+    <aside class="hw-review-action-bar" aria-label="Apply bridge changes">
+      <div>
+        <p class="hw-eyebrow">Planned transaction</p>
+        <strong>
+          Import <%= @review.transaction.import %> · Disable <%= @review.transaction.disable %> · Delete <%= @review.transaction.delete %> · <%= @review.transaction.automatic_updates %> automatic updates
+        </strong>
+        <span :if={@review.transaction.membership_warnings > 0}>
+          <%= @review.transaction.membership_warnings %> membership warnings will keep current memberships.
+        </span>
+      </div>
+      <button
+        id="apply-reimport"
+        class="hw-button hw-button-primary"
+        type="button"
+        phx-click="apply_reimport"
+        phx-disable-with="Applying Bridge Changes..."
+      >
+        <%= if @review.transaction.import == 0 and @review.transaction.disable == 0 and @review.transaction.delete == 0,
+          do: "Apply Safe Refresh",
+          else: "Apply Bridge Changes" %>
+      </button>
+    </aside>
+
+    <div
+      :if={@destructive_confirmation != []}
+      id="destructive-reimport-confirmation"
+      class="hw-confirmation-backdrop"
+      role="presentation"
+    >
+      <section
+        class="hw-confirmation-dialog"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="destructive-confirmation-title"
+        aria-describedby="destructive-confirmation-description"
+      >
+        <p class="hw-eyebrow">Confirmation required</p>
+        <h2 id="destructive-confirmation-title">Confirm destructive bridge changes</h2>
+        <p id="destructive-confirmation-description">
+          These choices remove entities from active use and clean up the references listed below.
+        </p>
+
+        <div class="hw-confirmation-items">
+          <article :for={item <- @destructive_confirmation}>
+            <strong><%= item.action_label %> <%= item.type_label %>: <%= item.name %></strong>
+            <span :if={item.dependents == []}>No dependent scenes or groups found.</span>
+            <ul :if={item.dependents != []}>
+              <li :for={dependent <- item.dependents}><%= dependent %></li>
+            </ul>
+          </article>
+        </div>
+
+        <div class="hw-modal-actions">
+          <button class="hw-button" type="button" phx-click="cancel_destructive_confirmation">Cancel</button>
+          <button
+            class="hw-button hw-delete-button"
+            type="button"
+            phx-click="apply_reimport"
+            phx-value-confirmed="true"
+            phx-disable-with="Applying..."
+          >
+            Confirm and Apply
+          </button>
+        </div>
+      </section>
+    </div>
+  <% end %>
+</HueworksWeb.ConfigComponents.page>

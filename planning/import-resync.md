@@ -153,21 +153,6 @@ Invariant:
 
 Keeping imported group membership fresh matters for control planning and group optimization; stale memberships can cause HueWorks to choose inefficient or incorrect hardware calls.
 
-## Remaining UI Work
-The next pass should make the operator review experience easier to scan while preserving the invariants above.
-
-Required UI improvements:
-- Add the summary counts still missing from the current review header: unchanged, auto-refreshed, and membership warning items.
-- Collapse unchanged and auto-refreshed entities by default.
-- Make auto-refreshed bridge facts inspectable for debugging without presenting them as decisions.
-- Replace remaining generic checkbox-shaped controls with explicit resolution controls where that improves clarity.
-- For review items, show current HueWorks value and bridge value clearly enough that the operator can understand the consequence.
-- Use `Do Not Import` and `Import` for new entities.
-- Recompute affected HA group duplicate items in the UI when member-light resolutions change instead of waiting for apply-time validation.
-- Surface membership warnings when imported bridge group membership cannot be refreshed because a member is missing, unimported, or ambiguous.
-
-Avoid using "ignore" because it blurs "do nothing in this review" with durable acknowledgment. This feature does not include durable acknowledgment; if the review item remains true on the next manual reimport, it should appear again.
-
 ## Future Work
 Automatic reimport can build on this feature by adding a persistent inbox. That future inbox should treat stored diffs as derived cache, not queued commands or source-of-truth state.
 

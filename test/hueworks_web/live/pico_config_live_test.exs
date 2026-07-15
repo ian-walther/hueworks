@@ -97,7 +97,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
     |> Repo.insert!()
   end
 
-  test "config page shows Pico Config button for Caseta bridges", %{conn: conn} do
+  test "bridges page shows Pico Config button for Caseta bridges", %{conn: conn} do
     insert_bridge!(%{
       type: :caseta,
       name: "Caseta",
@@ -116,9 +116,9 @@ defmodule HueworksWeb.PicoConfigLiveTest do
       import_complete: true
     })
 
-    {:ok, _view, html} = live(conn, "/config")
+    {:ok, _view, html} = live(conn, "/config/bridges")
 
-    assert html =~ "/config/bridge/"
+    assert html =~ "/config/bridges/"
     assert html =~ "Pico Config"
   end
 
@@ -200,7 +200,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
 
     Repo.insert!(%GroupLight{group_id: override_group.id, light_id: override_overhead.id})
 
-    {:ok, view, html} = live(conn, "/config/bridge/#{bridge.id}/picos")
+    {:ok, view, html} = live(conn, "/config/bridges/#{bridge.id}/picos")
     assert html =~ "No Picos synced yet."
 
     render_click(element(view, "button[phx-click='sync_picos']"))
@@ -225,7 +225,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
 
     render_click(element(view, "button[phx-click='select_pico']"))
 
-    assert_patch(view, "/config/bridge/#{bridge.id}/picos/#{device.id}")
+    assert_patch(view, "/config/bridges/#{bridge.id}/picos/#{device.id}")
 
     html = render(view)
     assert html =~ "Configure Pico"
@@ -324,7 +324,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
         import_complete: true
       })
 
-    {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/picos")
+    {:ok, view, _html} = live(conn, "/config/bridges/#{bridge.id}/picos")
 
     html = render_click(element(view, "button[phx-click='sync_picos']"))
 
@@ -356,7 +356,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
         import_complete: true
       })
 
-    {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/picos")
+    {:ok, view, _html} = live(conn, "/config/bridges/#{bridge.id}/picos")
 
     render_click(element(view, "button[phx-click='sync_picos']"))
 
@@ -379,12 +379,12 @@ defmodule HueworksWeb.PicoConfigLiveTest do
         import_complete: true
       })
 
-    {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/picos")
+    {:ok, view, _html} = live(conn, "/config/bridges/#{bridge.id}/picos")
 
     render_click(element(view, "button[phx-click='sync_picos']"))
     assert_receive {:pico_sync_started, sync_pid}
 
-    render_patch(view, "/config/bridge/#{bridge.id}/picos")
+    render_patch(view, "/config/bridges/#{bridge.id}/picos")
     send(sync_pid, :finish_pico_sync)
 
     html = render_async(view)
@@ -439,7 +439,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
       enabled: true
     })
 
-    {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/picos/#{device.id}")
+    {:ok, view, _html} = live(conn, "/config/bridges/#{bridge.id}/picos/#{device.id}")
 
     render_click(element(view, "#pico-edit-control-group-group-a"))
 
@@ -499,7 +499,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
       enabled: true
     })
 
-    {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/picos/#{device.id}")
+    {:ok, view, _html} = live(conn, "/config/bridges/#{bridge.id}/picos/#{device.id}")
 
     refute has_element?(view, "#pico-edit-control-group-name-form")
     refute has_element?(view, "#pico-start-control-group-name-edit")
@@ -571,7 +571,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
       enabled: true
     })
 
-    {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/picos/#{device.id}")
+    {:ok, view, _html} = live(conn, "/config/bridges/#{bridge.id}/picos/#{device.id}")
 
     render_click(element(view, "#pico-create-control-group"))
 
@@ -658,7 +658,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
       enabled: true
     })
 
-    {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/picos/#{device.id}")
+    {:ok, view, _html} = live(conn, "/config/bridges/#{bridge.id}/picos/#{device.id}")
 
     render_click(element(view, "#pico-edit-control-group-group-a"))
 
@@ -754,7 +754,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
       enabled: true
     })
 
-    {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/picos/#{device.id}")
+    {:ok, view, _html} = live(conn, "/config/bridges/#{bridge.id}/picos/#{device.id}")
 
     render_click(element(view, "#pico-edit-control-group-group-a"))
 
@@ -833,7 +833,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
       enabled: true
     })
 
-    {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/picos/#{device.id}")
+    {:ok, view, _html} = live(conn, "/config/bridges/#{bridge.id}/picos/#{device.id}")
 
     render_click(element(view, "#pico-edit-control-group-group-a"))
 
@@ -890,7 +890,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
       enabled: true
     })
 
-    {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/picos/#{device.id}")
+    {:ok, view, _html} = live(conn, "/config/bridges/#{bridge.id}/picos/#{device.id}")
 
     refute has_element?(view, "#pico-control-group-group-form")
     assert has_element?(view, "#pico-edit-control-group-group-b", "Edit")
@@ -940,7 +940,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
       enabled: true
     })
 
-    {:ok, view, html} = live(conn, "/config/bridge/#{bridge.id}/picos/#{device.id}")
+    {:ok, view, html} = live(conn, "/config/bridges/#{bridge.id}/picos/#{device.id}")
 
     assert html =~ "Front Hall Pico"
     refute has_element?(view, "#pico-display-name-form")
@@ -963,7 +963,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
     reloaded = Repo.get!(PicoDevice, device.id)
     assert reloaded.display_name == "Entry Pico"
 
-    {:ok, list_view, _html} = live(conn, "/config/bridge/#{bridge.id}/picos")
+    {:ok, list_view, _html} = live(conn, "/config/bridges/#{bridge.id}/picos")
     assert render(list_view) =~ "Entry Pico"
 
     render_click(element(view, "#pico-start-display-name-edit"))
@@ -1008,7 +1008,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
       enabled: true
     })
 
-    {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/picos/#{device.id}")
+    {:ok, view, _html} = live(conn, "/config/bridges/#{bridge.id}/picos/#{device.id}")
 
     view
     |> form("form[phx-change='save_room_override']", %{
@@ -1045,7 +1045,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
         enabled: true
       })
 
-    {:ok, _view, html} = live(conn, "/config/bridge/#{bridge.id}/picos/#{device.id}")
+    {:ok, _view, html} = live(conn, "/config/bridges/#{bridge.id}/picos/#{device.id}")
 
     assert html =~ ~s(<option value="" selected="selected" disabled="disabled">)
     assert html =~ "<option value=\"\" selected=\"selected\" disabled=\"disabled\">"
@@ -1102,7 +1102,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
         enabled: true
       })
 
-    {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/picos/#{device.id}")
+    {:ok, view, _html} = live(conn, "/config/bridges/#{bridge.id}/picos/#{device.id}")
 
     html = render(view)
     assert html =~ "pico-clear-room-scope"
@@ -1151,7 +1151,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
         import_complete: true
       })
 
-    {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/picos")
+    {:ok, view, _html} = live(conn, "/config/bridges/#{bridge.id}/picos")
 
     render_click(element(view, "button[phx-click='sync_picos']"))
     render_async(view)
@@ -1168,7 +1168,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
       {:pico_button_press, device.id, "1"}
     )
 
-    assert_patch(view, "/config/bridge/#{bridge.id}/picos/#{device.id}")
+    assert_patch(view, "/config/bridges/#{bridge.id}/picos/#{device.id}")
     html = render(view)
     assert html =~ "Configure Pico"
     assert html =~ "Pico detected. Opening configuration."
@@ -1260,7 +1260,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
         "target_ids" => [control_group["id"]]
       })
 
-    {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/picos/#{destination.id}")
+    {:ok, view, _html} = live(conn, "/config/bridges/#{bridge.id}/picos/#{destination.id}")
 
     assert render(view) =~ "Clone From Another Pico"
     assert render(view) =~ "Source Pico"
@@ -1381,7 +1381,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
       enabled: true
     })
 
-    {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/picos/#{device.id}")
+    {:ok, view, _html} = live(conn, "/config/bridges/#{bridge.id}/picos/#{device.id}")
 
     render_click(element(view, "#pico-edit-control-group-group-a"))
 
@@ -1435,7 +1435,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
         %{light_state_id: to_string(state.id), light_ids: []}
       ])
 
-    {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/picos/#{device.id}")
+    {:ok, view, _html} = live(conn, "/config/bridges/#{bridge.id}/picos/#{device.id}")
 
     view
     |> form("#pico-binding-editor-form", %{"action" => "activate_scene"})
@@ -1509,7 +1509,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
       enabled: true
     })
 
-    {:ok, view, html} = live(conn, "/config/bridge/#{bridge.id}/picos/#{device.id}")
+    {:ok, view, html} = live(conn, "/config/bridges/#{bridge.id}/picos/#{device.id}")
 
     assert html =~ ~s(id="pico-binding-target-groups")
     assert html =~ ~s(name="target_ids[]")
@@ -1579,7 +1579,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
       enabled: true
     })
 
-    {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/picos/#{device.id}")
+    {:ok, view, _html} = live(conn, "/config/bridges/#{bridge.id}/picos/#{device.id}")
 
     view
     |> form("#pico-binding-editor-form", %{
@@ -1631,7 +1631,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
         }
       })
 
-    {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/picos/#{device.id}")
+    {:ok, view, _html} = live(conn, "/config/bridges/#{bridge.id}/picos/#{device.id}")
 
     view
     |> form("#pico-binding-editor-form", %{
@@ -1696,7 +1696,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
         enabled: true
       })
 
-    {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/picos/#{device.id}")
+    {:ok, view, _html} = live(conn, "/config/bridges/#{bridge.id}/picos/#{device.id}")
 
     view
     |> form("#pico-binding-editor-form", %{
@@ -1764,7 +1764,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
         "target_ids" => ["group-a"]
       })
 
-    {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/picos/#{device.id}")
+    {:ok, view, _html} = live(conn, "/config/bridges/#{bridge.id}/picos/#{device.id}")
 
     assert render(view) =~ "Overhead"
     assert render(view) =~ "Toggle Overhead"
@@ -1834,7 +1834,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
         "target_id" => scene.id
       })
 
-    {:ok, view, _html} = live(conn, "/config/bridge/#{bridge.id}/picos/#{device.id}")
+    {:ok, view, _html} = live(conn, "/config/bridges/#{bridge.id}/picos/#{device.id}")
 
     assert render(view) =~ "Activate Scene Movie Night"
 

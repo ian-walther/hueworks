@@ -77,12 +77,34 @@ defmodule HueworksWeb.ConfigLiveTest do
     :ok
   end
 
-  test "shows global solar settings form and saves values", %{conn: conn} do
+  test "config overview is a status hub with links to focused sections", %{conn: conn} do
     {:ok, view, html} = live(conn, "/config")
 
-    assert html =~ "Global Solar Settings"
-    assert html =~ "Light State Configs"
-    assert html =~ "Save Global Settings"
+    assert html =~ "See what is connected"
+    assert has_element?(view, "nav[aria-label='Configuration sections']")
+    assert has_element?(view, "a[href='/config'][aria-current='page']", "Overview")
+    assert has_element?(view, "a[href='/config/general']", "General")
+    assert has_element?(view, "a[href='/config/bridges']", "Bridges")
+    assert has_element?(view, "a[href='/config/light-states']", "Light States")
+    assert has_element?(view, "a[href='/config/integrations']", "Integrations")
+    assert has_element?(view, "nav[aria-label='Configuration sections'] .hw-config-content-frame")
+    assert has_element?(view, "main.hw-config-content-frame")
+    refute html =~ "Save General Settings"
+    refute html =~ "MQTT Password"
+  end
+
+  test "focused config pages keep their section active and show breadcrumbs", %{conn: conn} do
+    {:ok, view, _html} = live(conn, "/config/general")
+
+    assert has_element?(view, "a[href='/config/general'][aria-current='page']", "General")
+    assert has_element?(view, "nav[aria-label='Breadcrumb']", "Config")
+  end
+
+  test "shows global solar settings form and saves values", %{conn: conn} do
+    {:ok, view, html} = live(conn, "/config/general")
+
+    assert html =~ "Location and transitions"
+    assert html =~ "Save General Settings"
     assert html =~ "Default Transition (ms)"
     assert html =~ "Scale Transition By Brightness Delta"
     refute html =~ "Global solar settings saved."
@@ -119,7 +141,7 @@ defmodule HueworksWeb.ConfigLiveTest do
 
     HueworksApp.Cache.flush_namespace(:app_settings)
 
-    {:ok, view, _html} = live(conn, "/config")
+    {:ok, view, _html} = live(conn, "/config/general")
 
     view
     |> form("form[phx-submit='save_global_solar']", %{
@@ -150,10 +172,10 @@ defmodule HueworksWeb.ConfigLiveTest do
 
     HueworksApp.Cache.flush_namespace(:app_settings)
 
-    {:ok, view, html} = live(conn, "/config")
+    {:ok, view, html} = live(conn, "/config/integrations")
 
     assert html =~ "Home Assistant MQTT Export"
-    assert html =~ "Save Home Assistant Export"
+    assert html =~ "Save Home Assistant"
 
     view
     |> form("form[phx-submit='save_ha_export']", %{
@@ -203,7 +225,7 @@ defmodule HueworksWeb.ConfigLiveTest do
 
     HueworksApp.Cache.flush_namespace(:app_settings)
 
-    {:ok, view, _html} = live(conn, "/config")
+    {:ok, view, _html} = live(conn, "/config/integrations")
 
     view
     |> form("form[phx-submit='save_ha_export']", %{
@@ -235,12 +257,11 @@ defmodule HueworksWeb.ConfigLiveTest do
 
     HueworksApp.Cache.flush_namespace(:app_settings)
 
-    {:ok, view, html} = live(conn, "/config")
+    {:ok, view, html} = live(conn, "/config/integrations")
 
     assert html =~ "HomeKit Bridge"
     assert html =~ "Apple Home Setup Code"
     assert html =~ ~r/\d{3}-\d{2}-\d{3}/
-    assert html =~ "Pairing status:"
     assert html =~ "ready to pair"
     assert html =~ "Save HomeKit Bridge"
     assert html =~ "Reset Pairing"
@@ -265,7 +286,7 @@ defmodule HueworksWeb.ConfigLiveTest do
       clear_count: 1
     })
 
-    {:ok, view, html} = live(conn, "/config")
+    {:ok, view, html} = live(conn, "/config/integrations")
 
     assert html =~ "paired"
 
@@ -279,7 +300,7 @@ defmodule HueworksWeb.ConfigLiveTest do
   end
 
   test "AI API controls generate, reveal, disable, and rotate a persistent token", %{conn: conn} do
-    {:ok, view, html} = live(conn, "/config")
+    {:ok, view, html} = live(conn, "/config/integrations")
 
     assert html =~ "AI API"
     assert html =~ "API access is disabled."
@@ -303,6 +324,27 @@ defmodule HueworksWeb.ConfigLiveTest do
 
     token = AppSettings.get_global().api_token
     assert revealed_html =~ token
+
+    mcp_environment =
+      revealed_html
+      |> Floki.parse_document!()
+      |> Floki.find("#ai-api-mcp-env")
+      |> Floki.text()
+
+    assert mcp_environment ==
+             "HUEWORKS_API_URL=#{HueworksWeb.Endpoint.url()}\nHUEWORKS_API_TOKEN=#{token}"
+
+    refute revealed_html =~ ~S({"\n"})
+
+    assert has_element?(
+             view,
+             ".hw-api-value-row #copy-ai-api-token"
+           )
+
+    assert has_element?(
+             view,
+             ".hw-api-value-row #hide-ai-api-token"
+           )
 
     view
     |> element("#rotate-ai-api-token")
@@ -339,7 +381,7 @@ defmodule HueworksWeb.ConfigLiveTest do
 
     HueworksApp.Cache.flush_namespace(:app_settings)
 
-    {:ok, view, _html} = live(conn, "/config")
+    {:ok, view, _html} = live(conn, "/config/integrations")
 
     view
     |> form("form[phx-submit='save_ha_export']", %{
@@ -378,7 +420,7 @@ defmodule HueworksWeb.ConfigLiveTest do
 
     HueworksApp.Cache.flush_namespace(:app_settings)
 
-    {:ok, view, html} = live(conn, "/config")
+    {:ok, view, html} = live(conn, "/config/integrations")
 
     assert html =~ "Republish Exported Entities"
 
@@ -393,7 +435,7 @@ defmodule HueworksWeb.ConfigLiveTest do
     {:ok, _manual} = Scenes.create_manual_light_state("Soft", %{"brightness" => "40"})
     {:ok, _circadian} = Scenes.create_light_state("Circadian A", :circadian, %{})
 
-    {:ok, _view, html} = live(conn, "/config")
+    {:ok, _view, html} = live(conn, "/config/light-states")
 
     assert html =~ "New Manual"
     assert html =~ "New Circadian"
@@ -408,7 +450,7 @@ defmodule HueworksWeb.ConfigLiveTest do
       config: %{mode: :color, brightness: 75, hue: 210, saturation: 60}
     })
 
-    {:ok, _view, html} = live(conn, "/config")
+    {:ok, _view, html} = live(conn, "/config/light-states")
 
     assert html =~ "Blue (manual color)"
   end
@@ -416,7 +458,7 @@ defmodule HueworksWeb.ConfigLiveTest do
   test "duplicate light state action navigates to the copied editor", %{conn: conn} do
     {:ok, state} = Scenes.create_manual_light_state("Soft", %{"brightness" => "40"})
 
-    {:ok, view, _html} = live(conn, "/config")
+    {:ok, view, _html} = live(conn, "/config/light-states")
 
     assert {:error, {:live_redirect, %{to: to}}} =
              view
@@ -430,7 +472,7 @@ defmodule HueworksWeb.ConfigLiveTest do
   test "delete light state removes unused state from the list", %{conn: conn} do
     {:ok, state} = Scenes.create_manual_light_state("Soft", %{"brightness" => "40"})
 
-    {:ok, view, _html} = live(conn, "/config")
+    {:ok, view, _html} = live(conn, "/config/light-states")
 
     assert has_element?(
              view,
@@ -461,7 +503,7 @@ defmodule HueworksWeb.ConfigLiveTest do
       light_state_id: state.id
     })
 
-    {:ok, view, html} = live(conn, "/config")
+    {:ok, view, html} = live(conn, "/config/light-states")
 
     assert html =~ "Studio / Chill"
 
@@ -472,7 +514,7 @@ defmodule HueworksWeb.ConfigLiveTest do
   end
 
   test "handles geolocation event by prefilling lat/lon and timezone", %{conn: conn} do
-    {:ok, view, _html} = live(conn, "/config")
+    {:ok, view, _html} = live(conn, "/config/general")
 
     render_hook(view, "geolocation_success", %{
       "latitude" => 40.7128,
@@ -510,21 +552,23 @@ defmodule HueworksWeb.ConfigLiveTest do
 
     HueworksApp.Cache.flush_namespace(:app_settings)
 
-    {:ok, _view, html} = live(conn, "/config")
+    {:ok, _view, html} = live(conn, "/config/general")
 
     assert html =~ ~s(value="America/Indiana/Indianapolis")
     assert html =~ ~s(value="750")
     assert html =~ ~s(id="global_scale_transition_by_brightness")
     assert html =~ ~s(checked)
-    assert html =~ ~s(id="ha_export_scenes_enabled")
-    assert html =~ ~s(id="ha_export_room_selects_enabled")
-    assert html =~ ~s(value="mqtt.local")
-    assert html =~ ~s(value="1884")
-    assert html =~ ~s(value="ha_user")
-    assert html =~ ~s(value="custom_ha")
 
     assert html =~
              ~r/<option[^>]*value="America\/Indiana\/Indianapolis"[^>]*selected/
+
+    {:ok, _view, integrations_html} = live(conn, "/config/integrations")
+    assert integrations_html =~ ~s(id="ha_export_scenes_enabled")
+    assert integrations_html =~ ~s(id="ha_export_room_selects_enabled")
+    assert integrations_html =~ ~s(value="mqtt.local")
+    assert integrations_html =~ ~s(value="1884")
+    assert integrations_html =~ ~s(value="ha_user")
+    assert integrations_html =~ ~s(value="custom_ha")
   end
 
   test "shows Scene Import button for Home Assistant bridges", %{conn: conn} do
@@ -537,10 +581,10 @@ defmodule HueworksWeb.ConfigLiveTest do
       import_complete: true
     })
 
-    {:ok, _view, html} = live(conn, "/config")
+    {:ok, _view, html} = live(conn, "/config/bridges")
 
     assert html =~ "Scene Import"
-    assert html =~ "/config/bridge/"
+    assert html =~ "/config/bridges/"
     assert html =~ "/external-scenes"
   end
 
@@ -584,7 +628,7 @@ defmodule HueworksWeb.ConfigLiveTest do
       metadata: %{}
     })
 
-    {:ok, view, _html} = live(conn, "/config")
+    {:ok, view, _html} = live(conn, "/config/bridges")
 
     assert has_element?(
              view,
@@ -613,7 +657,7 @@ defmodule HueworksWeb.ConfigLiveTest do
         import_complete: false
       })
 
-    {:ok, view, _html} = live(conn, "/config")
+    {:ok, view, _html} = live(conn, "/config/bridges")
 
     assert has_element?(
              view,

@@ -2,6 +2,8 @@ defmodule HueworksWeb.Layouts do
   use Phoenix.Component
 
   def root(assigns) do
+    assigns = assign(assigns, :current_path, current_path(assigns))
+
     ~H"""
     <!DOCTYPE html>
     <html lang="en">
@@ -18,10 +20,10 @@ defmodule HueworksWeb.Layouts do
           <div class="hw-nav-inner">
             <div class="hw-nav-title">HueWorks</div>
             <div class="hw-nav-links">
-              <a href="/control">Control</a>
-              <a href="/lights">Lights</a>
-              <a href="/rooms">Rooms</a>
-              <a href="/config">Config</a>
+              <a href="/control" class={nav_class(@current_path, "/control")} aria-current={nav_current(@current_path, "/control")}>Control</a>
+              <a href="/lights" class={nav_class(@current_path, "/lights")} aria-current={nav_current(@current_path, "/lights")}>Lights</a>
+              <a href="/rooms" class={nav_class(@current_path, "/rooms")} aria-current={nav_current(@current_path, "/rooms")}>Rooms</a>
+              <a href="/config" class={nav_class(@current_path, "/config")} aria-current={nav_current(@current_path, "/config")}>Config</a>
             </div>
           </div>
         </nav>
@@ -29,6 +31,17 @@ defmodule HueworksWeb.Layouts do
       </body>
     </html>
     """
+  end
+
+  defp current_path(%{conn: %{request_path: path}}), do: path
+  defp current_path(_assigns), do: ""
+
+  defp nav_class(path, root) do
+    ["hw-nav-link", String.starts_with?(path, root) && "hw-nav-link-active"]
+  end
+
+  defp nav_current(path, root) do
+    if String.starts_with?(path, root), do: "page"
   end
 
   attr(:flash, :map, default: nil)

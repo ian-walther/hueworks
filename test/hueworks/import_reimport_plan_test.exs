@@ -45,7 +45,12 @@ defmodule Hueworks.Import.ReimportPlanTest do
       ReimportPlan.build(normalized_import, normalized_db, rooms)
 
     assert plan.lights["light-1"] == true
-    assert plan.lights["light-2"] == false
+
+    assert plan.lights["light-2"] == %{
+             "selected" => false,
+             "resolution" => "do_not_import",
+             "target_room_id" => "unassigned"
+           }
 
     assert statuses.lights["light-1"] == :existing
     assert statuses.lights["light-2"] == :new
@@ -387,6 +392,58 @@ defmodule Hueworks.Import.ReimportPlanTest do
 
     assert plan.lights["zone-1"] == true
     assert statuses.lights["zone-1"] == :existing
+  end
+
+  test "new entities in unmatched bridge rooms default to do not import and unassigned" do
+    normalized_import = %{
+      rooms: [%{source_id: "bridge-office", name: "Bridge Office"}],
+      lights: [
+        %{
+          source: :hue,
+          source_id: "light-new",
+          name: "New Lamp",
+          room_source_id: "bridge-office",
+          metadata: %{}
+        }
+      ],
+      groups: [],
+      memberships: %{}
+    }
+
+    %{plan: plan} = ReimportPlan.build(normalized_import, %{lights: [], groups: []}, [])
+
+    assert plan.rooms["bridge-office"]["action"] == "skip"
+
+    assert plan.lights["light-new"] == %{
+             "selected" => false,
+             "resolution" => "do_not_import",
+             "target_room_id" => "unassigned"
+           }
+  end
+
+  test "new entities preselect an existing HueWorks room only for a normalized name match" do
+    normalized_import = %{
+      rooms: [%{source_id: "bridge-office", name: "Office", normalized_name: "office"}],
+      lights: [
+        %{
+          source: :hue,
+          source_id: "light-new",
+          name: "New Lamp",
+          room_source_id: "bridge-office",
+          metadata: %{}
+        }
+      ],
+      groups: [],
+      memberships: %{}
+    }
+
+    %{plan: plan} =
+      ReimportPlan.build(normalized_import, %{lights: [], groups: []}, [
+        %{id: 42, name: "OFFICE"}
+      ])
+
+    assert plan.rooms["bridge-office"]["action"] == "merge"
+    assert plan.lights["light-new"]["target_room_id"] == "42"
   end
 
   defp insert_bridge(type) do

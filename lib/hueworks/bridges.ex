@@ -22,6 +22,8 @@ defmodule Hueworks.Bridges do
     Repo.all(Bridge)
   end
 
+  def get_bridge(id), do: Repo.get(Bridge, id)
+
   def imported?(%Bridge{} = bridge) do
     bridge.import_complete or bridge_has_entities?(bridge.id)
   end

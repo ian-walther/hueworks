@@ -234,6 +234,23 @@ defmodule HueworksWeb.RoomsLive do
     end
   end
 
+  defp count_label(items, singular) when is_list(items) do
+    count = length(items)
+    label = if count == 1, do: singular, else: singular <> "s"
+    "#{count} #{label}"
+  end
+
+  defp presence_summary([]), do: "No inputs configured"
+
+  defp presence_summary(inputs) when is_list(inputs) do
+    occupied_count = Enum.count(inputs, & &1.occupied)
+    "#{count_label(inputs, "input")}, #{occupied_count} occupied"
+  end
+
+  defp sort_by_display_name(items) when is_list(items) do
+    Enum.sort_by(items, &Hueworks.Util.display_name/1)
+  end
+
   defp normalize_toggle_result({:ok, :activated, scene, _diff, _updated}),
     do: {:ok, :activated, scene}
 

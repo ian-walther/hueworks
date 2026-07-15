@@ -185,7 +185,7 @@ defmodule HueworksWeb.BridgeLive do
 
         case Repo.insert(changeset) do
           {:ok, bridge} ->
-            {:noreply, push_navigate(socket, to: "/config/bridge/#{bridge.id}/setup")}
+            {:noreply, push_navigate(socket, to: "/config/bridges/#{bridge.id}/import")}
 
           {:error, changeset} ->
             {:noreply,
