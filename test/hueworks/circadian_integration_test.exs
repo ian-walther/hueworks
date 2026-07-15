@@ -803,8 +803,8 @@ defmodule Hueworks.CircadianIntegrationTest do
     group_only_html = render(view)
 
     assert_value(group_only_html, "#group-temp-value-#{fixture.hue_group.id}", "4000K")
-    assert_value(group_only_html, "#light-temp-value-#{fixture.hue_floor_a.id}", "4000K")
-    assert_value(group_only_html, "#light-temp-value-#{fixture.hue_floor_b.id}", "4000K")
+    assert_value(group_only_html, "#light-temp-value-#{fixture.hue_floor_a.id}", "2203K")
+    assert_value(group_only_html, "#light-temp-value-#{fixture.hue_floor_b.id}", "2203K")
 
     simulate_hue_group_members(
       warm_actions,
@@ -1043,6 +1043,13 @@ defmodule Hueworks.CircadianIntegrationTest do
 
     simulate_hue_action(actions, fixture.solo_hue, fixture.hue_mapper_state)
     simulate_hue_group_action(actions, fixture.hue_group, fixture.hue_mapper_state)
+
+    simulate_hue_group_members(
+      actions,
+      fixture.hue_group,
+      [fixture.hue_floor_a, fixture.hue_floor_b],
+      fixture.hue_mapper_state
+    )
 
     simulate_z2m_group_members(
       actions,

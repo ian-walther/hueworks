@@ -3,7 +3,7 @@ defmodule Hueworks.Subscription.HueEventStream.Mapper do
 
   import Ecto.Query, only: [from: 2]
 
-  alias Hueworks.Control.{DesiredState, GroupState, State}
+  alias Hueworks.Control.{GroupState, State}
   alias Hueworks.Control.StateParser
   alias Hueworks.Schemas.Group
   alias Hueworks.Schemas.GroupLight
@@ -31,7 +31,6 @@ defmodule Hueworks.Subscription.HueEventStream.Mapper do
          %{id: db_id} <- Map.get(state.groups_by_id, v1_id) do
       attrs = event_state_from_group(resource)
       State.put(:group, db_id, attrs)
-      maybe_update_lights_from_group(state, db_id, attrs)
     else
       _ -> :ok
     end
@@ -112,28 +111,6 @@ defmodule Hueworks.Subscription.HueEventStream.Mapper do
     end)
   end
 
-  defp maybe_update_lights_from_group(state, group_id, attrs) do
-    if attrs == %{} do
-      :ok
-    else
-      light_ids = Map.get(state.group_lights, group_id, [])
-
-      Enum.each(light_ids, fn light_id ->
-        State.put(
-          :light,
-          light_id,
-          GroupState.member_attrs_from_group(
-            attrs,
-            DesiredState.get(:light, light_id),
-            State.get(:light, light_id)
-          )
-        )
-      end)
-
-      refresh_groups_for_lights(state, light_ids)
-    end
-  end
-
   defp refresh_groups_for_light(_state, _light_id, attrs) when attrs == %{}, do: :ok
 
   defp refresh_groups_for_light(state, light_id, _attrs) do
@@ -146,8 +123,6 @@ defmodule Hueworks.Subscription.HueEventStream.Mapper do
     |> Enum.uniq()
     |> Enum.each(&refresh_group_from_members(state, &1))
   end
-
-  defp refresh_groups_for_lights(_state, _light_ids), do: :ok
 
   defp refresh_group_from_members(state, group_id) do
     with member_ids when is_list(member_ids) <- Map.get(state.group_lights, group_id),

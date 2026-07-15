@@ -1,7 +1,7 @@
 defmodule Hueworks.Subscription.HueEventStream.MapperTest do
   use Hueworks.DataCase, async: false
 
-  alias Hueworks.Control.{DesiredState, State}
+  alias Hueworks.Control.State
   alias Hueworks.Repo
   alias Hueworks.Schemas.{Group, GroupLight, Light, Room}
   alias Hueworks.Subscription.HueEventStream.Mapper
@@ -14,7 +14,7 @@ defmodule Hueworks.Subscription.HueEventStream.MapperTest do
     :ok
   end
 
-  test "grouped_light event fans out state updates to member lights" do
+  test "grouped_light aggregate state cannot satisfy member-light convergence" do
     room = Repo.insert!(%Room{name: "Hue Room"})
 
     bridge =
@@ -56,6 +56,9 @@ defmodule Hueworks.Subscription.HueEventStream.MapperTest do
     Repo.insert!(%GroupLight{group_id: group.id, light_id: light_a.id})
     Repo.insert!(%GroupLight{group_id: group.id, light_id: light_b.id})
 
+    _ = State.put(:light, light_a.id, %{power: :off, brightness: 1, kelvin: 2700})
+    _ = State.put(:light, light_b.id, %{power: :off, brightness: 1, kelvin: 2700})
+
     state = %{
       lights_by_id: %{},
       groups_by_id: %{group.source_id => %{id: group.id}},
@@ -75,11 +78,11 @@ defmodule Hueworks.Subscription.HueEventStream.MapperTest do
     )
 
     assert State.get(:group, group.id) == %{power: :on, brightness: 64, kelvin: 2500}
-    assert State.get(:light, light_a.id) == %{power: :on, brightness: 64, kelvin: 2500}
-    assert State.get(:light, light_b.id) == %{power: :on, brightness: 64, kelvin: 2500}
+    assert State.get(:light, light_a.id) == %{power: :off, brightness: 1, kelvin: 2700}
+    assert State.get(:light, light_b.id) == %{power: :off, brightness: 1, kelvin: 2700}
   end
 
-  test "grouped_light event refreshes overlapping child group state from member lights" do
+  test "grouped_light event does not fabricate state for overlapping child groups" do
     room = Repo.insert!(%Room{name: "Hue Room"})
 
     bridge =
@@ -157,12 +160,13 @@ defmodule Hueworks.Subscription.HueEventStream.MapperTest do
       state
     )
 
-    assert State.get(:light, light_a.id) == %{power: :on, brightness: 85, kelvin: 2062}
-    assert State.get(:light, light_b.id) == %{power: :on, brightness: 85, kelvin: 2062}
-    assert State.get(:group, child.id) == %{power: :on, brightness: 85, kelvin: 2062}
+    assert State.get(:group, parent.id) == %{power: :on, brightness: 85, kelvin: 2062}
+    assert State.get(:light, light_a.id) == nil
+    assert State.get(:light, light_b.id) == nil
+    assert State.get(:group, child.id) == %{power: :on, brightness: 97, kelvin: 2793}
   end
 
-  test "grouped_light aggregate on does not mark every member light on" do
+  test "grouped_light aggregate does not rewrite member power observations" do
     room = Repo.insert!(%Room{name: "Master Bedroom"})
 
     bridge =
@@ -216,8 +220,6 @@ defmodule Hueworks.Subscription.HueEventStream.MapperTest do
 
     _ = State.put(:light, bedroom_light.id, %{power: :on})
     _ = State.put(:light, sitting_light.id, %{power: :on})
-    _ = DesiredState.put(:light, bedroom_light.id, %{power: :on})
-    _ = DesiredState.put(:light, sitting_light.id, %{power: :off})
 
     state = %{
       lights_by_id: %{},
@@ -247,11 +249,11 @@ defmodule Hueworks.Subscription.HueEventStream.MapperTest do
 
     assert State.get(:group, parent.id) == %{power: :on, brightness: 60}
     assert State.get(:light, bedroom_light.id).power == :on
-    assert State.get(:light, sitting_light.id).power == :off
-    assert State.get(:group, sitting_area.id) == %{power: :off}
+    assert State.get(:light, sitting_light.id).power == :on
+    assert State.get(:group, sitting_area.id) == nil
   end
 
-  test "grouped_light owner fallback resolves group id and fans out to members" do
+  test "grouped_light owner fallback resolves group id without updating members" do
     room = Repo.insert!(%Room{name: "Hue Room"})
 
     bridge =
@@ -300,7 +302,7 @@ defmodule Hueworks.Subscription.HueEventStream.MapperTest do
     )
 
     assert State.get(:group, group.id) == %{power: :off}
-    assert State.get(:light, light.id) == %{power: :off}
+    assert State.get(:light, light.id) == nil
   end
 
   test "light event updates group kelvin average when member kelvins stay within tolerance" do
