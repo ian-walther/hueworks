@@ -29,17 +29,23 @@ defmodule HueworksWeb.SceneBuilderComponent do
   def render(assigns) do
     ~H"""
     <div class="hw-scene-builder" id={@id}>
-      <div class="hw-panel-header">
-        <h4>Scene Components</h4>
-        <button type="button" class="hw-button" phx-click="add_component" phx-target={@myself}>
+      <div class="hw-section-header hw-scene-builder-header">
+        <div>
+          <p class="hw-eyebrow">Lighting plan</p>
+          <h2>Scene Components</h2>
+        </div>
+        <button type="button" class="hw-button hw-button-primary" phx-click="add_component" phx-target={@myself}>
           Add Component
         </button>
       </div>
 
       <%= for component <- @components do %>
-        <div class="hw-card">
-          <div class="hw-row">
-            <div class="hw-row-title"><%= component.name %></div>
+        <article class="hw-card hw-scene-component-card">
+          <header class="hw-scene-component-header">
+            <div>
+              <p class="hw-eyebrow">Independent light state</p>
+              <h3><%= component.name %></h3>
+            </div>
             <button
               type="button"
               class="hw-edit-button hw-delete-button"
@@ -50,13 +56,13 @@ defmodule HueworksWeb.SceneBuilderComponent do
             >
               ×
             </button>
-          </div>
+          </header>
 
-          <div class="hw-row">
-            <label class="hw-modal-label">Light state</label>
+          <div class="hw-scene-component-state-row">
+            <label class="hw-field-label">Light state</label>
             <form phx-change="select_light_state" phx-target={@myself} data-component-id={component.id}>
               <input type="hidden" name="component_id" value={component.id} />
-              <select class="hw-select" name="light_state_id">
+              <select class="hw-field-select" name="light_state_id">
                 <option value="" selected={is_nil(selected_state_value(component))}>Select light state</option>
                 <option value="custom" selected={selected_state_value(component) == "custom"}>Custom</option>
                 <option value="custom_color" selected={selected_state_value(component) == "custom_color"}>
@@ -75,31 +81,31 @@ defmodule HueworksWeb.SceneBuilderComponent do
           </div>
 
           <%= if custom_manual?(component) do %>
-            <form phx-change="update_embedded_manual_config" phx-target={@myself} data-component-id={component.id}>
+            <form class="hw-embedded-state-editor" phx-change="update_embedded_manual_config" phx-target={@myself} data-component-id={component.id}>
               <input type="hidden" name="component_id" value={component.id} />
               <input type="hidden" name="mode" value="temperature" />
 
-              <div class="hw-row">
-                <label class="hw-modal-label">Brightness</label>
+              <div class="hw-control-slider-label">
+                <label class="hw-field-label">Brightness</label>
                 <span class="hw-slider-value"><%= custom_field_value(component, :brightness) %>%</span>
               </div>
               <input
                 type="range"
                 name="brightness"
-                class="hw-modal-input"
+                class="hw-field-input"
                 min="1"
                 max="100"
                 value={custom_field_value(component, :brightness)}
               />
 
-              <div class="hw-row">
-                <label class="hw-modal-label">Temperature</label>
+              <div class="hw-control-slider-label">
+                <label class="hw-field-label">Temperature</label>
                 <span class="hw-slider-value"><%= custom_field_value(component, :kelvin) %>K</span>
               </div>
               <input
                 type="range"
                 name="temperature"
-                class="hw-modal-input"
+                class="hw-field-input"
                 min="1000"
                 max="10000"
                 value={custom_field_value(component, :kelvin)}
@@ -108,18 +114,18 @@ defmodule HueworksWeb.SceneBuilderComponent do
           <% end %>
 
           <%= if custom_color?(component) do %>
-            <form phx-change="update_embedded_manual_config" phx-target={@myself} data-component-id={component.id}>
+            <form class="hw-embedded-state-editor" phx-change="update_embedded_manual_config" phx-target={@myself} data-component-id={component.id}>
               <input type="hidden" name="component_id" value={component.id} />
               <input type="hidden" name="mode" value="color" />
 
-              <div class="hw-row">
-                <label class="hw-modal-label">Brightness</label>
+              <div class="hw-control-slider-label">
+                <label class="hw-field-label">Brightness</label>
                 <span class="hw-slider-value"><%= custom_field_value(component, :brightness) %>%</span>
               </div>
               <input
                 type="range"
                 name="brightness"
-                class="hw-modal-input"
+                class="hw-field-input"
                 min="1"
                 max="100"
                 value={custom_field_value(component, :brightness)}
@@ -130,28 +136,28 @@ defmodule HueworksWeb.SceneBuilderComponent do
                 <span class="hw-muted"><%= custom_color_preview_label(component) %></span>
               </div>
 
-              <div class="hw-row">
-                <label class="hw-modal-label">Hue</label>
+              <div class="hw-control-slider-label">
+                <label class="hw-field-label">Hue</label>
                 <span class="hw-slider-value"><%= custom_field_value(component, :hue) %>°</span>
               </div>
               <input
                 type="range"
                 name="hue"
-                class="hw-modal-input"
+                class="hw-field-input"
                 min="0"
                 max="360"
                 value={custom_field_value(component, :hue)}
               />
               <div class="hw-color-scale hw-hue-scale" aria-hidden="true"></div>
 
-              <div class="hw-row">
-                <label class="hw-modal-label">Saturation</label>
+              <div class="hw-control-slider-label">
+                <label class="hw-field-label">Saturation</label>
                 <span class="hw-slider-value"><%= custom_field_value(component, :saturation) %>%</span>
               </div>
               <input
                 type="range"
                 name="saturation"
-                class="hw-modal-input"
+                class="hw-field-input"
                 min="0"
                 max="100"
                 value={custom_field_value(component, :saturation)}
@@ -161,11 +167,11 @@ defmodule HueworksWeb.SceneBuilderComponent do
           <% end %>
 
           <%= if @builder.available_lights != [] do %>
-            <div class="hw-row">
-              <label class="hw-modal-label">Add light</label>
+            <div class="hw-field-group hw-scene-add-field">
+              <label class="hw-field-label">Add light</label>
               <form phx-change="select_light" phx-target={@myself} data-component-id={component.id}>
                 <input type="hidden" name="component_id" value={component.id} />
-                <select class="hw-select" name="light_id">
+                <select class="hw-field-select" name="light_id">
                   <option value="">Select light</option>
                   <%= for light <- @builder.available_lights do %>
                     <option value={light.id}><%= display_name(light) %></option>
@@ -176,11 +182,11 @@ defmodule HueworksWeb.SceneBuilderComponent do
           <% end %>
 
           <%= if @builder.available_groups != [] do %>
-            <div class="hw-row">
-              <label class="hw-modal-label">Add group</label>
+            <div class="hw-field-group hw-scene-add-field">
+              <label class="hw-field-label">Add group</label>
               <form phx-change="select_group" phx-target={@myself} data-component-id={component.id}>
                 <input type="hidden" name="component_id" value={component.id} />
-                <select class="hw-select" name="group_id">
+                <select class="hw-field-select" name="group_id">
                   <option value="">Select group</option>
                   <%= for group <- @builder.available_groups do %>
                     <option value={group.id}><%= display_name(group) %></option>
@@ -192,7 +198,7 @@ defmodule HueworksWeb.SceneBuilderComponent do
 
           <% group_topology = component_group_topology(component, @groups, @builder.room_light_ids) %>
           <%= if group_topology.nodes != [] do %>
-            <div class="hw-room-list hw-group-tree">
+            <div class="hw-data-list hw-group-tree hw-scene-membership-list">
               <.group_node
                 :for={node <- group_topology.nodes}
                 node={node}
@@ -206,7 +212,7 @@ defmodule HueworksWeb.SceneBuilderComponent do
             </div>
           <% end %>
 
-          <div class="hw-room-list">
+          <div class="hw-data-list hw-scene-membership-list">
             <%= for light_id <- group_topology.ungrouped_light_ids do %>
               <.light_row
                 component={component}
@@ -217,13 +223,16 @@ defmodule HueworksWeb.SceneBuilderComponent do
               />
             <% end %>
             <%= if component.light_ids == [] do %>
-              <span class="hw-room-item hw-room-empty">No lights assigned</span>
+              <div class="hw-empty-state hw-empty-state-compact">
+                <h4>No lights assigned</h4>
+                <p>Choose a light or group above to include it in this component.</p>
+              </div>
             <% end %>
           </div>
-        </div>
+        </article>
       <% end %>
 
-      <div class="hw-scene-validation">
+      <div class="hw-scene-validation hw-scene-validation-summary">
         <%= if @builder.unassigned_light_ids != [] do %>
           <p class="hw-error">
             Unassigned lights: <%= Enum.count(@builder.unassigned_light_ids) %>
@@ -441,7 +450,7 @@ defmodule HueworksWeb.SceneBuilderComponent do
 
     ~H"""
     <div class="hw-group-node" id={"scene-component-#{@component.id}-group-#{@node.group_id}"}>
-      <span class="hw-room-item hw-room-item-row hw-group-node-row">
+      <div class="hw-data-row hw-scene-member-row hw-group-node-row">
         <button
           type="button"
           class="hw-group-toggle"
@@ -453,7 +462,7 @@ defmodule HueworksWeb.SceneBuilderComponent do
         >
           <%= if @expanded?, do: "-", else: "+" %>
           <%= display_name(@node.group) %>
-          <span class="hw-muted">(<%= Enum.count(@node.total_light_ids) %> lights)</span>
+          <span class="hw-muted">(<%= count_label(@node.total_light_ids, "light") %>)</span>
         </button>
         <.power_policy_controls
           component={@component}
@@ -474,7 +483,7 @@ defmodule HueworksWeb.SceneBuilderComponent do
         >
           ×
         </button>
-      </span>
+      </div>
 
       <div :if={@expanded?} class="hw-group-node-body">
         <.group_node
@@ -512,8 +521,8 @@ defmodule HueworksWeb.SceneBuilderComponent do
       |> assign_new(:class, fn -> nil end)
 
     ~H"""
-      <span id={@id} class={["hw-room-item hw-room-item-row", @class]}>
-        <span><%= light_name(@room_lights, @light_id) %></span>
+    <div id={@id} class={["hw-data-row hw-scene-member-row", @class]}>
+      <strong><%= light_name(@room_lights, @light_id) %></strong>
       <.power_policy_controls
         component={@component}
         target={@target}
@@ -533,7 +542,7 @@ defmodule HueworksWeb.SceneBuilderComponent do
       >
         ×
       </button>
-    </span>
+    </div>
     """
   end
 
@@ -575,6 +584,11 @@ defmodule HueworksWeb.SceneBuilderComponent do
 
   defp display_name(entity), do: State.display_name(entity)
 
+  defp count_label(items, noun) do
+    count = Enum.count(items)
+    "#{count} #{noun}#{if count == 1, do: "", else: "s"}"
+  end
+
   defp selected_state_value(component), do: State.selected_state_value(component)
 
   defp custom_manual?(component), do: State.custom_manual?(component)
@@ -594,7 +608,7 @@ defmodule HueworksWeb.SceneBuilderComponent do
       <form phx-change={power_policy_event(@target_kind)} phx-target={@target}>
         <input type="hidden" name="component_id" value={@component.id} />
         <input type="hidden" name={target_id_name(@target_kind)} value={@target_id} />
-        <select class="hw-select" name="default_power" aria-label="Power policy">
+        <select class="hw-field-select hw-field-select-compact" name="default_power" aria-label="Power policy">
           <%= for policy <- power_policy_options(@presence_inputs) do %>
             <option value={to_string(policy)} selected={@policy == policy}>
               <%= PowerPolicy.label(policy) %>
@@ -613,7 +627,7 @@ defmodule HueworksWeb.SceneBuilderComponent do
       >
         <input type="hidden" name="component_id" value={@component.id} />
         <input type="hidden" name={target_id_name(@target_kind)} value={@target_id} />
-        <select class="hw-select" name="presence_input_id" aria-label="Presence input">
+        <select class="hw-field-select hw-field-select-compact" name="presence_input_id" aria-label="Presence input">
           <%= for input <- @presence_inputs do %>
             <option value={input.id} selected={input.id == @presence_input_id}>
               <%= presence_input_name(@presence_inputs, input.id) %>

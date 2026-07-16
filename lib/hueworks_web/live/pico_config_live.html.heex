@@ -96,7 +96,7 @@
                     name="display_name"
                     type="text"
                     value={display_name_value(@selected_pico)}
-                    class="hw-modal-input hw-title-inline-input"
+                    class="hw-field-input hw-title-inline-input"
                     placeholder={@selected_pico.name}
                     autocomplete="off"
                   />
@@ -154,7 +154,7 @@
         <form class="hw-form hw-pico-section hw-pico-section-card" phx-change="save_room_override">
           <h3>Room Scope</h3>
 
-          <label class="hw-modal-label" for="pico-room-id">Room</label>
+          <label class="hw-field-label" for="pico-room-id">Room</label>
           <div class="hw-inline-control hw-field-4">
             <div class="hw-inline-field-stack hw-inline-grow">
               <select
@@ -208,7 +208,7 @@
               help="Copy room scope, control groups, and button bindings from another Pico on this bridge."
             />
 
-            <label class="hw-modal-label" for="pico-clone-source">Source Pico</label>
+            <label class="hw-field-label" for="pico-clone-source">Source Pico</label>
 
             <form id="pico-clone-source-form" phx-change="select_clone_source" class="hw-inline-control hw-field-4">
               <div class="hw-inline-field-stack hw-inline-grow">
@@ -281,7 +281,7 @@
                                 name="name"
                                 type="text"
                                 value={@control_group_name_draft}
-                                class="hw-modal-input hw-title-inline-input"
+                                class="hw-field-input hw-title-inline-input"
                                 placeholder="Control Group"
                                 autocomplete="off"
                               />
@@ -383,7 +383,7 @@
                           >
                             <div class="hw-inline-field-stack hw-field-4">
                               <label
-                                class="hw-modal-label"
+                                class="hw-field-label"
                                 for={control_group_picker_select_id("group", available_groups)}
                               >
                                 Add group
@@ -421,7 +421,7 @@
                           >
                             <div class="hw-inline-field-stack hw-field-4">
                               <label
-                                class="hw-modal-label"
+                                class="hw-field-label"
                                 for={control_group_picker_select_id("light", available_lights)}
                               >
                                 Add light
@@ -509,7 +509,7 @@
 
           <form id="pico-binding-editor-form" phx-change="update_binding_editor" class="hw-inline-fields">
             <div class="hw-inline-field-stack hw-inline-field-fit">
-              <label class="hw-modal-label" for="pico-binding-action">Action</label>
+              <label class="hw-field-label" for="pico-binding-action">Action</label>
               <select id="pico-binding-action" class="hw-select" name="action">
                 <option value="on" selected={@binding_action == "on"}>Turn On</option>
                 <option value="off" selected={@binding_action == "off"}>Turn Off</option>
@@ -524,7 +524,7 @@
 
             <%= if @binding_target_kind == "scene" do %>
               <div id="pico-binding-scene-container" class="hw-inline-field-stack hw-inline-field-fit">
-                <label class="hw-modal-label" for="pico-binding-target-id">Scene</label>
+                <label class="hw-field-label" for="pico-binding-target-id">Scene</label>
                 <select id="pico-binding-target-id" class="hw-select" name="target_id">
                   <option value="">Select scene</option>
                   <%= for scene <- @room_scenes do %>
@@ -536,7 +536,7 @@
               </div>
             <% else %>
               <fieldset id="pico-binding-target-groups" class="hw-inline-field-stack hw-field-4">
-                <legend class="hw-modal-label">Control groups</legend>
+                <legend class="hw-field-label">Control groups</legend>
                 <div class="hw-checkbox-list">
                   <%= for group <- @control_groups do %>
                     <label class="hw-checkbox-row">

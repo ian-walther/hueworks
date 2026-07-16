@@ -215,33 +215,42 @@ defmodule HueworksWeb.ControlLive do
     assigns = assign(assigns, control_target: selected_control_target(assigns))
 
     ~H"""
-    <div class="hw-shell">
-      <div class="hw-topbar">
-        <div>
-          <h1 class="hw-title">Control</h1>
-          <p class="hw-subtitle">Room-centered scenes and recursive light control.</p>
-        </div>
-        <div class="hw-actions">
+    <HueworksWeb.PageComponents.page
+      class="hw-control-page"
+      eyebrow="Live lighting"
+      title="Control"
+      subtitle="Choose a room scene or make a direct adjustment when no scene is active."
+      flash={@flash}
+    >
+      <:actions>
           <button class="hw-button" phx-click="refresh">Reload</button>
-        </div>
-      </div>
+      </:actions>
 
-      <HueworksWeb.Layouts.app_flash_group flash={@flash} class="hw-flash-stack-inline" />
-
-      <div class="hw-list">
+      <div class="hw-list hw-room-ledger-list">
         <%= for room_model <- @room_models do %>
-          <section class="hw-card hw-control-room-card" id={"control-room-#{room_model.room.id}"}>
-            <div class="hw-card-title">
-              <div>
-                <h3><%= display_name(room_model.room) %></h3>
-                <p class="hw-meta">
-                  <%= Enum.count(room_model.scenes) %> scenes · <%= Enum.count(room_model.lights) %> lights
-                </p>
+          <% active_scene_id = Map.get(@active_scene_by_room, room_model.room.id) %>
+          <% active_scene = Enum.find(room_model.scenes, &(&1.id == active_scene_id)) %>
+          <section class="hw-card hw-room-ledger-card hw-control-room-card" id={"control-room-#{room_model.room.id}"}>
+            <header class="hw-room-card-header">
+              <div class="hw-room-heading-copy">
+                <div class="hw-room-title-row">
+                  <h2><%= display_name(room_model.room) %></h2>
+                  <span class={[
+                    "hw-status-badge",
+                    active_scene && "hw-status-badge-success"
+                  ]}>
+                    <%= if active_scene, do: "#{display_name(active_scene)} active", else: "Direct control" %>
+                  </span>
+                </div>
+                <div class="hw-stat-list" aria-label="Room control summary">
+                  <span><%= count_label(room_model.scenes, "scene") %></span>
+                  <span><%= count_label(room_model.lights, "light") %></span>
+                </div>
               </div>
-              <div class="hw-actions">
+              <div class="hw-actions hw-room-actions">
                 <button
                   type="button"
-                  class="hw-button"
+                  class="hw-button hw-button-small"
                   phx-click="toggle_room_power"
                   phx-value-room_id={room_model.room.id}
                   phx-value-action="on"
@@ -250,7 +259,7 @@ defmodule HueworksWeb.ControlLive do
                 </button>
                 <button
                   type="button"
-                  class="hw-button hw-button-off"
+                  class="hw-button hw-button-small hw-button-off"
                   phx-click="toggle_room_power"
                   phx-value-room_id={room_model.room.id}
                   phx-value-action="off"
@@ -258,43 +267,60 @@ defmodule HueworksWeb.ControlLive do
                   All Off
                 </button>
               </div>
-            </div>
+            </header>
 
-            <div class="hw-control-room-grid">
-              <section class="hw-control-section">
-                <div class="hw-room-scenes-header">
-                  <p class="hw-room-label">Scenes</p>
-                  <a class="hw-edit-button hw-add-scene-button" href={"/rooms/#{room_model.room.id}/scenes/new"} aria-label="Add scene">
-                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                      <path d="M11 5h2v14h-2z"></path>
-                      <path d="M5 11h14v2H5z"></path>
-                    </svg>
+            <div class="hw-room-ledger-body hw-control-room-grid">
+              <section class="hw-ledger-section hw-control-section">
+                <div class="hw-section-header">
+                  <div>
+                    <p class="hw-eyebrow">Primary behavior</p>
+                    <h3>Scenes</h3>
+                  </div>
+                  <a class="hw-button hw-button-small" href={"/rooms/#{room_model.room.id}/scenes/new"}>
+                    New scene
                   </a>
                 </div>
-                <div class="hw-room-list">
+                <div class="hw-data-list">
                   <%= for scene <- room_model.scenes do %>
                     <% active? = Map.get(@active_scene_by_room, room_model.room.id) == scene.id %>
-                    <div class="hw-room-item hw-room-item-row">
-                      <span><%= display_name(scene) %></span>
-                      <button
-                        type="button"
-                        class={if active?, do: "hw-button hw-button-off", else: "hw-button"}
-                        phx-click="toggle_scene"
-                        phx-value-id={scene.id}
-                      >
-                        <%= if active?, do: "Deactivate", else: "Activate" %>
-                      </button>
+                    <div class={["hw-data-row", active? && "hw-data-row-active"]}>
+                      <div class="hw-data-row-main">
+                        <strong><%= display_name(scene) %></strong>
+                        <span class="hw-meta"><%= if active?, do: "Currently active", else: "Available scene" %></span>
+                      </div>
+                      <div class="hw-data-row-actions">
+                        <button
+                          type="button"
+                          class={[
+                            "hw-button hw-button-small",
+                            active? && "hw-button-off",
+                            !active? && "hw-button-primary"
+                          ]}
+                          phx-click="toggle_scene"
+                          phx-value-id={scene.id}
+                        >
+                          <%= if active?, do: "Deactivate", else: "Activate" %>
+                        </button>
+                      </div>
                     </div>
                   <% end %>
                   <%= if room_model.scenes == [] do %>
-                    <span class="hw-room-item hw-room-empty">No scenes yet</span>
+                    <div class="hw-empty-state hw-empty-state-compact">
+                      <h4>No scenes yet</h4>
+                      <p>Create a scene to define the room's normal behavior.</p>
+                    </div>
                   <% end %>
                 </div>
               </section>
 
-              <section class="hw-control-section">
-                <p class="hw-room-label">Lights</p>
-                <div class="hw-room-list hw-group-tree">
+              <section class="hw-ledger-section hw-control-section">
+                <div class="hw-section-header">
+                  <div>
+                    <p class="hw-eyebrow">Direct adjustment</p>
+                    <h3>Lights</h3>
+                  </div>
+                </div>
+                <div class="hw-data-list hw-group-tree">
                   <.group_node
                     :for={node <- room_model.topology.nodes}
                     node={node}
@@ -315,7 +341,10 @@ defmodule HueworksWeb.ControlLive do
                   />
 
                   <%= if room_model.topology.nodes == [] and room_model.topology.ungrouped_light_ids == [] do %>
-                    <span class="hw-room-item hw-room-empty">No controllable lights</span>
+                    <div class="hw-empty-state hw-empty-state-compact">
+                      <h4>No controllable lights</h4>
+                      <p>Assign lights to this room from the Lights page.</p>
+                    </div>
                   <% end %>
                 </div>
               </section>
@@ -330,7 +359,7 @@ defmodule HueworksWeb.ControlLive do
         target_type={@control_target.type}
         state_map={@control_target.state_map}
       />
-    </div>
+    </HueworksWeb.PageComponents.page>
     """
   end
 
@@ -353,7 +382,7 @@ defmodule HueworksWeb.ControlLive do
 
     ~H"""
     <div class="hw-group-node" id={"control-room-#{@room.id}-group-#{@node.group_id}"}>
-      <span class="hw-room-item hw-room-item-row hw-group-node-row">
+      <div class="hw-data-row hw-control-entity-row hw-group-node-row">
         <%= if @expandable? do %>
           <button
             type="button"
@@ -365,15 +394,15 @@ defmodule HueworksWeb.ControlLive do
           >
             <%= if @expanded?, do: "-", else: "+" %>
             <%= display_name(@node.group) %>
-            <span class="hw-muted">(<%= Enum.count(@node.total_light_ids) %> lights)</span>
+            <span class="hw-muted">(<%= count_label(@node.total_light_ids, "light") %>)</span>
           </button>
         <% else %>
           <span>
             <%= display_name(@node.group) %>
-            <span class="hw-muted">(<%= Enum.count(@node.total_light_ids) %> lights)</span>
+            <span class="hw-muted">(<%= count_label(@node.total_light_ids, "light") %>)</span>
           </span>
         <% end %>
-        <span class="hw-room-item-actions">
+        <span class="hw-data-row-actions">
           <button
             type="button"
             class={power_button_class(@group_state, @node.group_id)}
@@ -386,14 +415,14 @@ defmodule HueworksWeb.ControlLive do
           <button
             :if={@control_available?}
             type="button"
-            class="hw-button"
+            class="hw-button hw-button-small"
             phx-click="open_group_control"
             phx-value-id={@node.group_id}
           >
             Control
           </button>
         </span>
-      </span>
+      </div>
 
       <div :if={@expanded? and @expandable?} class="hw-group-node-body">
         <.group_node
@@ -441,9 +470,9 @@ defmodule HueworksWeb.ControlLive do
       )
 
     ~H"""
-    <span id={@id} class={["hw-room-item hw-room-item-row", @class]}>
-      <span><%= light_name(@lights, @light_id) %></span>
-      <span class="hw-room-item-actions">
+    <div id={@id} class={["hw-data-row hw-control-entity-row", @class]}>
+      <span class="hw-data-row-main"><strong><%= light_name(@lights, @light_id) %></strong></span>
+      <span class="hw-data-row-actions">
         <button
           type="button"
           class={power_button_class(@light_state, @light_id)}
@@ -456,28 +485,21 @@ defmodule HueworksWeb.ControlLive do
         <button
           :if={@control_available?}
           type="button"
-          class="hw-button"
+          class="hw-button hw-button-small"
           phx-click="open_light_control"
           phx-value-id={@light_id}
         >
           Control
         </button>
       </span>
-    </span>
+    </div>
     """
   end
 
   defp control_modal(assigns) do
     type = Atom.to_string(assigns.target_type)
 
-    assigns =
-      assigns
-      |> assign(
-        :brightness,
-        Presentation.state_value(assigns.state_map, assigns.target.id, :brightness, 75)
-      )
-      |> assign(:color_preview, Presentation.color_preview(assigns.state_map, assigns.target.id))
-      |> assign(:target_type_string, type)
+    assigns = assign(assigns, :target_type_string, type)
 
     ~H"""
     <div class="hw-modal-backdrop">
@@ -498,115 +520,12 @@ defmodule HueworksWeb.ControlLive do
           </button>
         </div>
 
-        <div class="hw-controls">
-          <div class="hw-control-slider">
-            <div class="hw-control-slider-label">
-              <span>Brightness</span>
-              <span id={"control-#{@target_type_string}-brightness-value-#{@target.id}"} class="hw-slider-value">
-                <%= @brightness %>%
-              </span>
-            </div>
-            <input
-              id={"control-#{@target_type_string}-brightness-#{@target.id}"}
-              type="range"
-              min="1"
-              max="100"
-              value={@brightness}
-              phx-hook="BrightnessSlider"
-              data-type={@target_type_string}
-              data-id={@target.id}
-              data-output-id={"control-#{@target_type_string}-brightness-value-#{@target.id}"}
-            />
-          </div>
-
-          <%= if @target.supports_temp do %>
-            <div class="hw-control-slider">
-              <% {min_k, max_k} = Hueworks.Kelvin.derive_range(@target) %>
-              <% kelvin = Presentation.state_value(@state_map, @target.id, :kelvin, round((min_k + max_k) / 2)) %>
-              <div class="hw-control-slider-label">
-                <span>Temperature</span>
-                <span id={"control-#{@target_type_string}-temp-value-#{@target.id}"} class="hw-slider-value">
-                  <%= kelvin %>K
-                </span>
-              </div>
-              <input
-                id={"control-#{@target_type_string}-temp-#{@target.id}"}
-                type="range"
-                min={min_k}
-                max={max_k}
-                value={kelvin}
-                phx-hook="TempSlider"
-                data-type={@target_type_string}
-                data-id={@target.id}
-                data-output-id={"control-#{@target_type_string}-temp-value-#{@target.id}"}
-              />
-            </div>
-          <% end %>
-
-          <%= if @target.supports_color do %>
-            <div class="hw-color-preview">
-              <span
-                class="hw-color-swatch"
-                style={Presentation.color_preview_style(@state_map, @target.id)}
-              >
-              </span>
-              <span class="hw-muted">
-                <%= Presentation.color_preview_label(@state_map, @target.id) %>
-              </span>
-            </div>
-
-            <div class="hw-control-slider">
-              <div class="hw-control-slider-label">
-                <span>Hue</span>
-                <span id={"control-#{@target_type_string}-hue-value-#{@target.id}"} class="hw-slider-value">
-                  <%= @color_preview.hue %>°
-                </span>
-              </div>
-              <input
-                id={"control-#{@target_type_string}-hue-#{@target.id}"}
-                type="range"
-                min="0"
-                max="360"
-                value={@color_preview.hue}
-                phx-hook="ColorHueSlider"
-                data-type={@target_type_string}
-                data-id={@target.id}
-                data-output-id={"control-#{@target_type_string}-hue-value-#{@target.id}"}
-                data-hue-input-id={"control-#{@target_type_string}-hue-#{@target.id}"}
-                data-saturation-input-id={"control-#{@target_type_string}-saturation-#{@target.id}"}
-              />
-            </div>
-            <div class="hw-color-scale hw-hue-scale" aria-hidden="true"></div>
-
-            <div class="hw-control-slider">
-              <div class="hw-control-slider-label">
-                <span>Saturation</span>
-                <span id={"control-#{@target_type_string}-saturation-value-#{@target.id}"} class="hw-slider-value">
-                  <%= @color_preview.saturation %>%
-                </span>
-              </div>
-              <input
-                id={"control-#{@target_type_string}-saturation-#{@target.id}"}
-                type="range"
-                min="0"
-                max="100"
-                value={@color_preview.saturation}
-                phx-hook="ColorSaturationSlider"
-                data-type={@target_type_string}
-                data-id={@target.id}
-                data-output-id={"control-#{@target_type_string}-saturation-value-#{@target.id}"}
-                data-hue-input-id={"control-#{@target_type_string}-hue-#{@target.id}"}
-                data-saturation-input-id={"control-#{@target_type_string}-saturation-#{@target.id}"}
-              />
-            </div>
-            <div
-              class="hw-color-scale"
-              style={Presentation.color_saturation_scale_style(@state_map, @target.id)}
-              aria-hidden="true"
-            >
-            </div>
-          <% end %>
-        </div>
+        <HueworksWeb.EntityControlComponents.controls
+          target={@target}
+          target_type={@target_type}
+          state_map={@state_map}
+          variant={:modal}
+        />
       </div>
     </div>
     """
@@ -834,6 +753,11 @@ defmodule HueworksWeb.ControlLive do
   end
 
   defp display_name(entity), do: Util.display_name(entity)
+
+  defp count_label(items, noun) do
+    count = Enum.count(items)
+    "#{count} #{noun}#{if count == 1, do: "", else: "s"}"
+  end
 
   defp light_name(lights, id) do
     lights

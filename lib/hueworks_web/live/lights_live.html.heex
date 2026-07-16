@@ -1,25 +1,26 @@
-<div class="hw-shell">
-  <div class="hw-topbar">
-    <div>
-      <h1 class="hw-title">HueWorks Lights</h1>
-      <p class="hw-subtitle">Live device testing and grouping logic.</p>
-    </div>
-    <div class="hw-actions">
+<HueworksWeb.PageComponents.page
+  class="hw-lights-page"
+  eyebrow="Device workspace"
+  title="Lights"
+  subtitle="Inspect, test, and configure the light and group entities HueWorks knows about."
+  flash={@flash}
+>
+  <:actions>
       <button class="hw-button" phx-click="refresh">Reload</button>
-    </div>
-  </div>
+  </:actions>
 
-  <HueworksWeb.Layouts.app_flash_group flash={@flash} class="hw-flash-stack-inline" />
-
-  <div class="hw-grid">
-    <section class="hw-panel">
-      <div class="hw-panel-header">
-        <h2>Groups</h2>
+  <div class="hw-entity-columns">
+    <section class="hw-panel hw-entity-panel">
+      <div class="hw-section-header hw-entity-section-header">
+        <div>
+          <p class="hw-eyebrow">Bridge controls</p>
+          <h2>Groups</h2>
+        </div>
         <span class="hw-count">
           <%= length(Filters.filter_entities(@groups, @group_filter, @group_room_filter, @show_disabled_groups)) %>
         </span>
       </div>
-      <div class="hw-filter-row">
+      <div class="hw-filter-row hw-filter-toolbar">
         <form class="hw-filter" phx-change="set_group_filter">
           <select name="group_filter" class="hw-select">
             <option value="all" selected={@group_filter == "all"}>All</option>
@@ -56,8 +57,8 @@
       </div>
       <div class="hw-list">
         <%= for group <- Filters.filter_entities(@groups, @group_filter, @group_room_filter, @show_disabled_groups) do %>
-          <div class="hw-card" id={"group-#{group.id}"}>
-            <div class="hw-card-title">
+          <article class="hw-card hw-entity-card" id={"group-#{group.id}"}>
+            <div class="hw-entity-card-header">
               <div>
                 <div class="hw-title-row">
                   <h3><%= Hueworks.Util.display_name(group) %></h3>
@@ -90,7 +91,7 @@
               <span class="hw-pill">group</span>
             </div>
 
-            <div class="hw-controls">
+            <div class="hw-entity-control-row">
               <% group_power = Presentation.state_value(@group_state, group.id, :power, :off) %>
               <% manual_adjustment_locked = Presentation.manual_adjustment_locked?(@active_scene_by_room, group.room_id) %>
               <button
@@ -99,114 +100,29 @@
                 phx-value-type="group"
                 phx-value-id={group.id}
               >On/Off</button>
-              <div class="hw-slider">
-                <% brightness = Presentation.state_value(@group_state, group.id, :brightness, 75) %>
-                <input
-                  id={"group-level-#{group.id}"}
-                  type="range"
-                  min="1"
-                  max="100"
-                  value={brightness}
-                  phx-hook="BrightnessSlider"
-                  data-type="group"
-                  data-id={group.id}
-                  data-output-id={"group-brightness-value-#{group.id}"}
-                  disabled={manual_adjustment_locked}
-                />
-                <span id={"group-brightness-label-#{group.id}"}>Brightness</span>
-                <span id={"group-brightness-value-#{group.id}"} class="hw-slider-value">
-                  <%= brightness %>%
-                </span>
-              </div>
-              <%= if group.supports_temp do %>
-                <div class="hw-slider">
-              <% {min_k, max_k} = Hueworks.Kelvin.derive_range(group) %>
-                  <% kelvin = Presentation.state_value(@group_state, group.id, :kelvin, round((min_k + max_k) / 2)) %>
-                  <input
-                    id={"group-temp-#{group.id}"}
-                    type="range"
-                    min={min_k}
-                    max={max_k}
-                    value={kelvin}
-                    phx-hook="TempSlider"
-                    data-type="group"
-                    data-id={group.id}
-                    data-output-id={"group-temp-value-#{group.id}"}
-                    disabled={manual_adjustment_locked}
-                  />
-                  <span id={"group-temp-label-#{group.id}"}>Temperature</span>
-                  <span id={"group-temp-value-#{group.id}"} class="hw-slider-value">
-                    <%= kelvin %>K
-                  </span>
-                </div>
-              <% end %>
-              <%= if group.supports_color do %>
-                <% color_preview = Presentation.color_preview(@group_state, group.id) %>
-                <div class="hw-color-preview">
-                  <span class="hw-color-swatch" style={Presentation.color_preview_style(@group_state, group.id)}></span>
-                  <span class="hw-muted"><%= Presentation.color_preview_label(@group_state, group.id) %></span>
-                </div>
-                <div class="hw-slider">
-                  <input
-                    id={"group-hue-#{group.id}"}
-                    type="range"
-                    min="0"
-                    max="360"
-                    value={color_preview.hue}
-                    phx-hook="ColorHueSlider"
-                    data-type="group"
-                    data-id={group.id}
-                    data-output-id={"group-hue-value-#{group.id}"}
-                    data-hue-input-id={"group-hue-#{group.id}"}
-                    data-saturation-input-id={"group-saturation-#{group.id}"}
-                    disabled={manual_adjustment_locked}
-                  />
-                  <span id={"group-hue-label-#{group.id}"}>Hue</span>
-                  <span id={"group-hue-value-#{group.id}"} class="hw-slider-value">
-                    <%= color_preview.hue %>°
-                  </span>
-                </div>
-                <div class="hw-color-scale hw-hue-scale" aria-hidden="true"></div>
-                <div class="hw-slider">
-                  <input
-                    id={"group-saturation-#{group.id}"}
-                    type="range"
-                    min="0"
-                    max="100"
-                    value={color_preview.saturation}
-                    phx-hook="ColorSaturationSlider"
-                    data-type="group"
-                    data-id={group.id}
-                    data-output-id={"group-saturation-value-#{group.id}"}
-                    data-hue-input-id={"group-hue-#{group.id}"}
-                    data-saturation-input-id={"group-saturation-#{group.id}"}
-                    disabled={manual_adjustment_locked}
-                  />
-                  <span id={"group-saturation-label-#{group.id}"}>Saturation</span>
-                  <span id={"group-saturation-value-#{group.id}"} class="hw-slider-value">
-                    <%= color_preview.saturation %>%
-                  </span>
-                </div>
-                <div
-                  class="hw-color-scale"
-                  style={Presentation.color_saturation_scale_style(@group_state, group.id)}
-                  aria-hidden="true"
-                ></div>
-              <% end %>
+              <HueworksWeb.EntityControlComponents.controls
+                target={group}
+                target_type={:group}
+                state_map={@group_state}
+                disabled={manual_adjustment_locked}
+              />
             </div>
-          </div>
+          </article>
         <% end %>
       </div>
     </section>
 
-    <section class="hw-panel">
-      <div class="hw-panel-header">
-        <h2>Lights</h2>
+    <section class="hw-panel hw-entity-panel">
+      <div class="hw-section-header hw-entity-section-header">
+        <div>
+          <p class="hw-eyebrow">Canonical devices</p>
+          <h2>Lights</h2>
+        </div>
         <span class="hw-count">
           <%= length(Filters.filter_lights(@lights, @light_filter, @light_room_filter, @show_disabled_lights, @show_linked_lights)) %>
         </span>
       </div>
-      <div class="hw-filter-row">
+      <div class="hw-filter-row hw-filter-toolbar">
         <form class="hw-filter" phx-change="set_light_filter">
           <select name="light_filter" class="hw-select">
             <option value="all" selected={@light_filter == "all"}>All</option>
@@ -254,8 +170,8 @@
       </div>
       <div class="hw-list">
         <%= for light <- Filters.filter_lights(@lights, @light_filter, @light_room_filter, @show_disabled_lights, @show_linked_lights) do %>
-          <div class="hw-card" id={"light-#{light.id}"}>
-            <div class="hw-card-title">
+          <article class="hw-card hw-entity-card" id={"light-#{light.id}"}>
+            <div class="hw-entity-card-header">
               <div>
                 <div class="hw-title-row">
                   <h3><%= Hueworks.Util.display_name(light) %></h3>
@@ -288,7 +204,7 @@
               <span class="hw-pill"><%= light.source_id %></span>
             </div>
 
-            <div class="hw-controls">
+            <div class="hw-entity-control-row">
               <% light_power = Presentation.state_value(@light_state, light.id, :power, :off) %>
               <% manual_adjustment_locked = Presentation.manual_adjustment_locked?(@active_scene_by_room, light.room_id) %>
               <button
@@ -297,107 +213,19 @@
                 phx-value-type="light"
                 phx-value-id={light.id}
               >On/Off</button>
-              <div class="hw-slider">
-                <% brightness = Presentation.state_value(@light_state, light.id, :brightness, 75) %>
-                <input
-                  id={"light-level-#{light.id}"}
-                  type="range"
-                  min="1"
-                  max="100"
-                  value={brightness}
-                  phx-hook="BrightnessSlider"
-                  data-type="light"
-                  data-id={light.id}
-                  data-output-id={"light-brightness-value-#{light.id}"}
-                  disabled={manual_adjustment_locked}
-                />
-                <span id={"light-brightness-label-#{light.id}"}>Brightness</span>
-                <span id={"light-brightness-value-#{light.id}"} class="hw-slider-value">
-                  <%= brightness %>%
-                </span>
-              </div>
-              <%= if light.supports_temp do %>
-                <div class="hw-slider">
-                  <% {min_k, max_k} = Hueworks.Kelvin.derive_range(light) %>
-                  <% kelvin = Presentation.state_value(@light_state, light.id, :kelvin, round((min_k + max_k) / 2)) %>
-                  <input
-                    id={"light-temp-#{light.id}"}
-                    type="range"
-                    min={min_k}
-                    max={max_k}
-                    value={kelvin}
-                    phx-hook="TempSlider"
-                    data-type="light"
-                    data-id={light.id}
-                    data-output-id={"light-temp-value-#{light.id}"}
-                    disabled={manual_adjustment_locked}
-                  />
-                  <span id={"light-temp-label-#{light.id}"}>Temperature</span>
-                  <span id={"light-temp-value-#{light.id}"} class="hw-slider-value">
-                    <%= kelvin %>K
-                  </span>
-                </div>
-              <% end %>
-              <%= if light.supports_color do %>
-                <% color_preview = Presentation.color_preview(@light_state, light.id) %>
-                <div class="hw-color-preview">
-                  <span class="hw-color-swatch" style={Presentation.color_preview_style(@light_state, light.id)}></span>
-                  <span class="hw-muted"><%= Presentation.color_preview_label(@light_state, light.id) %></span>
-                </div>
-                <div class="hw-slider">
-                  <input
-                    id={"light-hue-#{light.id}"}
-                    type="range"
-                    min="0"
-                    max="360"
-                    value={color_preview.hue}
-                    phx-hook="ColorHueSlider"
-                    data-type="light"
-                    data-id={light.id}
-                    data-output-id={"light-hue-value-#{light.id}"}
-                    data-hue-input-id={"light-hue-#{light.id}"}
-                    data-saturation-input-id={"light-saturation-#{light.id}"}
-                    disabled={manual_adjustment_locked}
-                  />
-                  <span id={"light-hue-label-#{light.id}"}>Hue</span>
-                  <span id={"light-hue-value-#{light.id}"} class="hw-slider-value">
-                    <%= color_preview.hue %>°
-                  </span>
-                </div>
-                <div class="hw-color-scale hw-hue-scale" aria-hidden="true"></div>
-                <div class="hw-slider">
-                  <input
-                    id={"light-saturation-#{light.id}"}
-                    type="range"
-                    min="0"
-                    max="100"
-                    value={color_preview.saturation}
-                    phx-hook="ColorSaturationSlider"
-                    data-type="light"
-                    data-id={light.id}
-                    data-output-id={"light-saturation-value-#{light.id}"}
-                    data-hue-input-id={"light-hue-#{light.id}"}
-                    data-saturation-input-id={"light-saturation-#{light.id}"}
-                    disabled={manual_adjustment_locked}
-                  />
-                  <span id={"light-saturation-label-#{light.id}"}>Saturation</span>
-                  <span id={"light-saturation-value-#{light.id}"} class="hw-slider-value">
-                    <%= color_preview.saturation %>%
-                  </span>
-                </div>
-                <div
-                  class="hw-color-scale"
-                  style={Presentation.color_saturation_scale_style(@light_state, light.id)}
-                  aria-hidden="true"
-                ></div>
-              <% end %>
+              <HueworksWeb.EntityControlComponents.controls
+                target={light}
+                target_type={:light}
+                state_map={@light_state}
+                disabled={manual_adjustment_locked}
+              />
             </div>
-          </div>
+          </article>
         <% end %>
       </div>
     </section>
   </div>
-</div>
+</HueworksWeb.PageComponents.page>
 
 <%= if @edit_modal_open do %>
   <div class="hw-modal-backdrop">
@@ -409,17 +237,17 @@
         </button>
       </div>
       <form phx-submit="save_edit_fields" phx-change="update_edit_fields">
-        <label class="hw-modal-label" for="display_name">Display name</label>
+        <label class="hw-field-label" for="display_name">Display name</label>
         <input
           id="display_name"
           name="display_name"
           type="text"
           value={@edit_display_name}
-          class="hw-modal-input"
+          class="hw-field-input"
           autocomplete="off"
         />
-        <label class="hw-modal-label" for="room_id">Room</label>
-        <select id="room_id" name="room_id" class="hw-select">
+        <label class="hw-field-label" for="room_id">Room</label>
+        <select id="room_id" name="room_id" class="hw-field-select">
           <option value="">Unassigned</option>
           <%= for room <- @rooms do %>
             <option value={room.id} selected={room.id == @edit_room_id}>
@@ -429,8 +257,8 @@
         </select>
         <%= if @edit_target_type == "light" do %>
           <%= if @edit_show_link_selector do %>
-            <label class="hw-modal-label" for="canonical_light_id">Linked canonical light</label>
-            <select id="canonical_light_id" name="canonical_light_id" class="hw-select">
+            <label class="hw-field-label" for="canonical_light_id">Linked canonical light</label>
+            <select id="canonical_light_id" name="canonical_light_id" class="hw-field-select">
               <option value="" selected={is_nil(@edit_canonical_light_id)}>No link</option>
               <%= for light <- @edit_link_targets do %>
                 <option
@@ -458,14 +286,14 @@
           />
           Enabled
         </label>
-        <label class="hw-modal-label" for="ha_export_mode">HA Export Mode</label>
-        <select id="ha_export_mode" name="ha_export_mode" class="hw-select">
+        <label class="hw-field-label" for="ha_export_mode">HA Export Mode</label>
+        <select id="ha_export_mode" name="ha_export_mode" class="hw-field-select">
           <option value="none" selected={@edit_ha_export_mode == "none"}>None</option>
           <option value="switch" selected={@edit_ha_export_mode == "switch"}>Switch</option>
           <option value="light" selected={@edit_ha_export_mode == "light"}>Light</option>
         </select>
-        <label class="hw-modal-label" for="homekit_export_mode">HomeKit Export Mode</label>
-        <select id="homekit_export_mode" name="homekit_export_mode" class="hw-select">
+        <label class="hw-field-label" for="homekit_export_mode">HomeKit Export Mode</label>
+        <select id="homekit_export_mode" name="homekit_export_mode" class="hw-field-select">
           <option value="none" selected={@edit_homekit_export_mode == "none"}>None</option>
           <option value="switch" selected={@edit_homekit_export_mode == "switch"}>
             On/Off Switch
@@ -486,7 +314,7 @@
           </label>
           <div class="hw-modal-grid">
             <div>
-              <label class="hw-modal-label" for="extended_min_kelvin">
+              <label class="hw-field-label" for="extended_min_kelvin">
                 Extended min kelvin
               </label>
               <input
@@ -495,11 +323,11 @@
                 type="number"
                 inputmode="numeric"
                 value={@edit_extended_min_kelvin}
-                class="hw-modal-input"
+                class="hw-field-input"
               />
             </div>
             <div>
-              <label class="hw-modal-label" for="actual_min_kelvin">
+              <label class="hw-field-label" for="actual_min_kelvin">
                 Actual min kelvin (<%= @edit_reported_min_kelvin %>)
               </label>
               <input
@@ -508,11 +336,11 @@
                 type="number"
                 inputmode="numeric"
                 value={@edit_actual_min_kelvin}
-                class="hw-modal-input"
+                class="hw-field-input"
               />
             </div>
             <div>
-              <label class="hw-modal-label" for="actual_max_kelvin">
+              <label class="hw-field-label" for="actual_max_kelvin">
                 Actual max kelvin (<%= @edit_reported_max_kelvin %>)
               </label>
               <input
@@ -521,7 +349,7 @@
                 type="number"
                 inputmode="numeric"
                 value={@edit_actual_max_kelvin}
-                class="hw-modal-input"
+                class="hw-field-input"
               />
             </div>
           </div>

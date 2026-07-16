@@ -34,19 +34,19 @@
       </div>
     <% end %>
 
-    <form phx-change="update_form" phx-submit="save">
-      <label class="hw-modal-label" for="light_state_name">Light state name</label>
+    <form class="hw-form" phx-change="update_form" phx-submit="save">
+      <label class="hw-field-label" for="light_state_name">Light state name</label>
       <input
         id="light_state_name"
         name="name"
         type="text"
-        class="hw-modal-input"
+        class="hw-field-input"
         autocomplete="off"
         value={@light_state_name}
       />
 
       <%= if @light_state_type == :manual do %>
-        <label class="hw-modal-label">Mode</label>
+        <label class="hw-field-label">Mode</label>
         <% manual_mode = manual_mode(assigns) %>
         <select class="hw-select" name="mode">
           <option value="temperature" selected={manual_mode == "temperature"}>Temperature</option>
@@ -54,13 +54,13 @@
         </select>
 
         <div class="hw-row">
-          <label class="hw-modal-label">Brightness</label>
+          <label class="hw-field-label">Brightness</label>
           <span class="hw-slider-value"><%= manual_field_value(assigns, :brightness) %>%</span>
         </div>
         <input
           type="range"
           name="brightness"
-          class="hw-modal-input"
+          class="hw-field-input"
           min="1"
           max="100"
           value={manual_field_value(assigns, :brightness)}
@@ -72,26 +72,26 @@
             <span class="hw-muted"><%= manual_color_preview_label(assigns) %></span>
           </div>
           <div class="hw-row">
-            <label class="hw-modal-label">Hue</label>
+            <label class="hw-field-label">Hue</label>
             <span class="hw-slider-value"><%= manual_field_value(assigns, :hue) %>°</span>
           </div>
           <input
             type="range"
             name="hue"
-            class="hw-modal-input"
+            class="hw-field-input"
             min="0"
             max="360"
             value={manual_field_value(assigns, :hue)}
           />
           <div class="hw-color-scale hw-hue-scale" aria-hidden="true"></div>
           <div class="hw-row">
-            <label class="hw-modal-label">Saturation</label>
+            <label class="hw-field-label">Saturation</label>
             <span class="hw-slider-value"><%= manual_field_value(assigns, :saturation) %>%</span>
           </div>
           <input
             type="range"
             name="saturation"
-            class="hw-modal-input"
+            class="hw-field-input"
             min="0"
             max="100"
             value={manual_field_value(assigns, :saturation)}
@@ -99,13 +99,13 @@
           <div class="hw-color-scale" style={manual_saturation_scale_style(assigns)} aria-hidden="true"></div>
         <% else %>
           <div class="hw-row">
-            <label class="hw-modal-label">Temperature</label>
+            <label class="hw-field-label">Temperature</label>
             <span class="hw-slider-value"><%= manual_field_value(assigns, :kelvin) %>K</span>
           </div>
           <input
             type="range"
             name="temperature"
-            class="hw-modal-input"
+            class="hw-field-input"
             min="1000"
             max="10000"
             value={manual_field_value(assigns, :kelvin)}
@@ -131,7 +131,7 @@
                 <input
                   id="preview_date"
                   type="date"
-                  class="hw-modal-input hw-compact-input"
+                  class="hw-field-input hw-compact-input"
                   name="preview_date"
                   value={@preview_date}
                 />
@@ -159,7 +159,7 @@
                 <input
                   id="preview_latitude"
                   type="text"
-                  class="hw-modal-input hw-compact-input"
+                  class="hw-field-input hw-compact-input"
                   name="preview_latitude"
                   value={@preview_latitude}
                 />
@@ -174,7 +174,7 @@
                 <input
                   id="preview_longitude"
                   type="text"
-                  class="hw-modal-input hw-compact-input"
+                  class="hw-field-input hw-compact-input"
                   name="preview_longitude"
                   value={@preview_longitude}
                 />
@@ -243,7 +243,7 @@
                     <input
                       id="light-state-sunrise_time"
                       type="time"
-                      class="hw-modal-input hw-compact-input"
+                      class="hw-field-input hw-compact-input"
                       name="sunrise_time"
                       step="1"
                       value={Preview.time_input_value(circadian_time_field_value(assigns, :sunrise_time))}
@@ -262,7 +262,7 @@
                         <input
                           id="light-state-min_sunrise_time"
                           type="time"
-                          class="hw-modal-input hw-compact-input"
+                          class="hw-field-input hw-compact-input"
                           name="min_sunrise_time"
                           step="1"
                           value={Preview.time_input_value(circadian_time_field_value(assigns, :min_sunrise_time))}
@@ -273,7 +273,7 @@
                         <input
                           id="light-state-max_sunrise_time"
                           type="time"
-                          class="hw-modal-input hw-compact-input"
+                          class="hw-field-input hw-compact-input"
                           name="max_sunrise_time"
                           step="1"
                           value={Preview.time_input_value(circadian_time_field_value(assigns, :max_sunrise_time))}
@@ -292,7 +292,7 @@
                     <input
                       id="light-state-sunrise_offset"
                       type="number"
-                      class="hw-modal-input hw-compact-input"
+                      class="hw-field-input hw-compact-input"
                       name="sunrise_offset"
                       min="-86400"
                       max="86400"
@@ -311,7 +311,7 @@
                     <input
                       id="light-state-sunset_time"
                       type="time"
-                      class="hw-modal-input hw-compact-input"
+                      class="hw-field-input hw-compact-input"
                       name="sunset_time"
                       step="1"
                       value={Preview.time_input_value(circadian_time_field_value(assigns, :sunset_time))}
@@ -330,7 +330,7 @@
                         <input
                           id="light-state-min_sunset_time"
                           type="time"
-                          class="hw-modal-input hw-compact-input"
+                          class="hw-field-input hw-compact-input"
                           name="min_sunset_time"
                           step="1"
                           value={Preview.time_input_value(circadian_time_field_value(assigns, :min_sunset_time))}
@@ -341,7 +341,7 @@
                         <input
                           id="light-state-max_sunset_time"
                           type="time"
-                          class="hw-modal-input hw-compact-input"
+                          class="hw-field-input hw-compact-input"
                           name="max_sunset_time"
                           step="1"
                           value={Preview.time_input_value(circadian_time_field_value(assigns, :max_sunset_time))}
@@ -360,7 +360,7 @@
                     <input
                       id="light-state-sunset_offset"
                       type="number"
-                      class="hw-modal-input hw-compact-input"
+                      class="hw-field-input hw-compact-input"
                       name="sunset_offset"
                       min="-86400"
                       max="86400"
@@ -480,7 +480,7 @@
                         <input
                           id="light-state-min_brightness"
                           type="number"
-                          class="hw-modal-input hw-compact-input"
+                          class="hw-field-input hw-compact-input"
                           name="min_brightness"
                           min="1"
                           max="100"
@@ -493,7 +493,7 @@
                         <input
                           id="light-state-max_brightness"
                           type="number"
-                          class="hw-modal-input hw-compact-input"
+                          class="hw-field-input hw-compact-input"
                           name="max_brightness"
                           min="1"
                           max="100"
@@ -516,7 +516,7 @@
                         <input
                           id="light-state-brightness_sunrise_offset"
                           type="number"
-                          class="hw-modal-input hw-compact-input"
+                          class="hw-field-input hw-compact-input"
                           name="brightness_sunrise_offset"
                           min="-86400"
                           max="86400"
@@ -529,7 +529,7 @@
                         <input
                           id="light-state-brightness_sunset_offset"
                           type="number"
-                          class="hw-modal-input hw-compact-input"
+                          class="hw-field-input hw-compact-input"
                           name="brightness_sunset_offset"
                           min="-86400"
                           max="86400"
@@ -552,7 +552,7 @@
                         <input
                           id="light-state-brightness_mode_time_dark"
                           type="number"
-                          class="hw-modal-input hw-compact-input"
+                          class="hw-field-input hw-compact-input"
                           name="brightness_mode_time_dark"
                           min="0"
                           max="86400"
@@ -565,7 +565,7 @@
                         <input
                           id="light-state-brightness_mode_time_light"
                           type="number"
-                          class="hw-modal-input hw-compact-input"
+                          class="hw-field-input hw-compact-input"
                           name="brightness_mode_time_light"
                           min="0"
                           max="86400"
@@ -668,7 +668,7 @@
                         <input
                           id="light-state-min_color_temp"
                           type="number"
-                          class="hw-modal-input hw-compact-input"
+                          class="hw-field-input hw-compact-input"
                           name="min_color_temp"
                           min="1000"
                           max="10000"
@@ -681,7 +681,7 @@
                         <input
                           id="light-state-max_color_temp"
                           type="number"
-                          class="hw-modal-input hw-compact-input"
+                          class="hw-field-input hw-compact-input"
                           name="max_color_temp"
                           min="1000"
                           max="10000"
@@ -694,7 +694,7 @@
                         <input
                           id="light-state-temperature_ceiling_kelvin"
                           type="number"
-                          class="hw-modal-input hw-compact-input"
+                          class="hw-field-input hw-compact-input"
                           name="temperature_ceiling_kelvin"
                           min="1000"
                           max="10000"
@@ -718,7 +718,7 @@
                         <input
                           id="light-state-temperature_sunrise_offset"
                           type="number"
-                          class="hw-modal-input hw-compact-input"
+                          class="hw-field-input hw-compact-input"
                           name="temperature_sunrise_offset"
                           min="-86400"
                           max="86400"
@@ -731,7 +731,7 @@
                         <input
                           id="light-state-temperature_sunset_offset"
                           type="number"
-                          class="hw-modal-input hw-compact-input"
+                          class="hw-field-input hw-compact-input"
                           name="temperature_sunset_offset"
                           min="-86400"
                           max="86400"

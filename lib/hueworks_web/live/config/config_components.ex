@@ -14,22 +14,21 @@ defmodule HueworksWeb.ConfigComponents do
     <div class="hw-config-page">
       <.section_nav active={@active} />
 
-      <main class="hw-shell hw-config-shell hw-content-frame hw-config-content-frame">
-        <.breadcrumbs :if={@breadcrumbs != []} items={@breadcrumbs} />
-
-        <HueworksWeb.PageComponents.header
-          eyebrow="Configuration"
-          title={@title}
-          subtitle={@subtitle}
-        >
-          <:actions :if={@actions != []}>
-            <%= render_slot(@actions) %>
-          </:actions>
-        </HueworksWeb.PageComponents.header>
-
-        <HueworksWeb.Layouts.app_flash_group flash={@flash} class="hw-flash-stack-inline" />
+      <HueworksWeb.PageComponents.page
+        class="hw-config-shell hw-config-content-frame"
+        eyebrow="Configuration"
+        title={@title}
+        subtitle={@subtitle}
+        flash={@flash}
+      >
+        <:preamble>
+          <.breadcrumbs :if={@breadcrumbs != []} items={@breadcrumbs} />
+        </:preamble>
+        <:actions :if={@actions != []}>
+          <%= render_slot(@actions) %>
+        </:actions>
         <%= render_slot(@inner_block) %>
-      </main>
+      </HueworksWeb.PageComponents.page>
     </div>
     """
   end

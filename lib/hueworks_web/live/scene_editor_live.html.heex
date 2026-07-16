@@ -1,93 +1,110 @@
-<div class="hw-shell">
-  <div class="hw-topbar">
-    <div>
-      <h1 class="hw-title"><%= if @scene_mode == :edit, do: "Edit Scene", else: "Add Scene" %></h1>
-      <p class="hw-subtitle">Room: <%= @room_name %></p>
-    </div>
-    <div class="hw-actions">
-      <a class="hw-button hw-button-off" href="/rooms">Back to Rooms</a>
+<HueworksWeb.PageComponents.page
+  class="hw-scene-editor-page"
+  flash={@flash}
+  eyebrow="Room scene"
+  title={if @scene_mode == :edit, do: "Edit Scene", else: "Add Scene"}
+  subtitle={"Build the lighting behavior for #{@room_name}."}
+>
+  <:actions>
+    <a class="hw-button" href="/rooms">Back to Rooms</a>
+  </:actions>
+
+  <div class="hw-scene-editor-layout">
+    <section class="hw-panel hw-scene-settings-panel" aria-labelledby="scene-settings-heading">
+      <div class="hw-section-header">
+        <div>
+          <p class="hw-eyebrow">Scene details</p>
+          <h2 id="scene-settings-heading">Identity and activation</h2>
+        </div>
+      </div>
+
+      <form class="hw-form-grid hw-scene-settings-form" phx-change="update_scene">
+        <div class="hw-field-group hw-field-full">
+          <label class="hw-field-label" for="scene_name">Name</label>
+          <input
+            id="scene_name"
+            name="name"
+            type="text"
+            value={@scene_name}
+            class="hw-field-input"
+            autocomplete="off"
+          />
+        </div>
+
+        <div class="hw-field-group">
+          <label class="hw-field-label" for="scene_activation_transition_mode">
+            Activation transition
+          </label>
+          <select
+            id="scene_activation_transition_mode"
+            name="activation_transition_mode"
+            class="hw-field-select"
+          >
+            <option value="default" selected={@activation_transition_mode == "default"}>Default</option>
+            <option value="custom" selected={@activation_transition_mode == "custom"}>Custom</option>
+          </select>
+          <p class="hw-field-help">Choose how quickly explicit scene activations should fade.</p>
+        </div>
+
+        <div :if={@activation_transition_mode == "custom"} class="hw-field-group">
+          <label class="hw-field-label" for="scene_activation_transition_value">
+            Custom duration
+          </label>
+          <div class="hw-inline-fields hw-duration-fields">
+            <input
+              id="scene_activation_transition_value"
+              name="activation_transition_value"
+              type="number"
+              min="1"
+              step="1"
+              value={@activation_transition_value}
+              class="hw-field-input"
+            />
+            <select
+              id="scene_activation_transition_unit"
+              name="activation_transition_unit"
+              class="hw-field-select"
+            >
+              <option value="milliseconds" selected={@activation_transition_unit == "milliseconds"}>
+                milliseconds
+              </option>
+              <option value="seconds" selected={@activation_transition_unit == "seconds"}>seconds</option>
+              <option value="minutes" selected={@activation_transition_unit == "minutes"}>minutes</option>
+            </select>
+          </div>
+        </div>
+      </form>
+    </section>
+
+    <section class="hw-panel hw-scene-components-panel" aria-label="Scene components">
+      <.live_component
+        module={HueworksWeb.SceneBuilderComponent}
+        id="scene-builder"
+        room_lights={@scene_room_lights}
+        groups={@scene_room_groups}
+        presence_inputs={@scene_presence_inputs}
+        components={@scene_components}
+        light_states={@scene_light_states}
+        scene_id={@scene_id}
+      />
+    </section>
+
+    <div class="hw-scene-editor-actions">
+      <span class="hw-meta">Changes stay on this page after saving so you can preview and refine them.</span>
+      <div class="hw-actions">
+        <a class="hw-button hw-button-off" href="/rooms">Cancel</a>
+        <%= if @scene_id do %>
+          <button
+            id="scene-toggle-activation"
+            type="button"
+            class="hw-button"
+            phx-click="toggle_scene_activation"
+          >
+            <%= if @active_scene_id == @scene_id, do: "Deactivate", else: "Activate" %>
+          </button>
+        <% end %>
+        <button type="button" class="hw-button hw-button-primary" phx-click="save_scene">Save scene</button>
+      </div>
     </div>
   </div>
-
-  <HueworksWeb.Layouts.app_flash_group flash={@flash} class="hw-flash-stack-inline" />
-
-  <section class="hw-panel">
-    <form phx-change="update_scene">
-      <label class="hw-modal-label" for="scene_name">Name</label>
-      <input
-        id="scene_name"
-        name="name"
-        type="text"
-        value={@scene_name}
-        class="hw-modal-input"
-        autocomplete="off"
-      />
-
-      <label class="hw-modal-label" for="scene_activation_transition_mode">
-        Activation Transition
-      </label>
-      <select
-        id="scene_activation_transition_mode"
-        name="activation_transition_mode"
-        class="hw-modal-select"
-      >
-        <option value="default" selected={@activation_transition_mode == "default"}>Default</option>
-        <option value="custom" selected={@activation_transition_mode == "custom"}>Custom</option>
-      </select>
-
-      <%= if @activation_transition_mode == "custom" do %>
-        <label class="hw-modal-label" for="scene_activation_transition_value">
-          Custom Duration
-        </label>
-        <div class="hw-inline-fields">
-          <input
-            id="scene_activation_transition_value"
-            name="activation_transition_value"
-            type="number"
-            min="1"
-            step="1"
-            value={@activation_transition_value}
-            class="hw-modal-input"
-          />
-          <select
-            id="scene_activation_transition_unit"
-            name="activation_transition_unit"
-            class="hw-modal-select"
-          >
-            <option value="milliseconds" selected={@activation_transition_unit == "milliseconds"}>
-              milliseconds
-            </option>
-            <option value="seconds" selected={@activation_transition_unit == "seconds"}>seconds</option>
-            <option value="minutes" selected={@activation_transition_unit == "minutes"}>minutes</option>
-          </select>
-        </div>
-      <% end %>
-    </form>
-
-    <.live_component
-      module={HueworksWeb.SceneBuilderComponent}
-      id="scene-builder"
-      room_lights={@scene_room_lights}
-      groups={@scene_room_groups}
-      presence_inputs={@scene_presence_inputs}
-      components={@scene_components}
-      light_states={@scene_light_states}
-      scene_id={@scene_id}
-    />
-
-    <div class="hw-modal-actions">
-      <a class="hw-button hw-button-off" href="/rooms">Cancel</a>
-      <%= if @scene_id do %>
-        <button
-          id="scene-toggle-activation"
-          type="button"
-          class="hw-button"
-          phx-click="toggle_scene_activation"
-        >
-          <%= if @active_scene_id == @scene_id, do: "Deactivate", else: "Activate" %>
-        </button>
-      <% end %>
-      <button type="button" class="hw-button hw-button-on" phx-click="save_scene">Save</button>
-    </div>
-  </section>
-</div>
+</HueworksWeb.PageComponents.page>

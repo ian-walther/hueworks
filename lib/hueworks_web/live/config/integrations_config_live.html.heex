@@ -28,7 +28,7 @@
       </p>
 
       <form class="hw-form" phx-change="update_ha_export" phx-submit="save_ha_export">
-        <label class="hw-modal-label" for="ha_export_scenes_enabled">Export Scenes</label>
+        <label class="hw-field-label" for="ha_export_scenes_enabled">Export Scenes</label>
         <input type="hidden" name="ha_export_scenes_enabled" value="false" />
         <label class="hw-toggle">
           <input
@@ -41,7 +41,7 @@
           <span>Publish HueWorks scenes into Home Assistant.</span>
         </label>
 
-        <label class="hw-modal-label" for="ha_export_room_selects_enabled">
+        <label class="hw-field-label" for="ha_export_room_selects_enabled">
           Export Room Scene Selectors
         </label>
         <input type="hidden" name="ha_export_room_selects_enabled" value="false" />
@@ -56,7 +56,7 @@
           <span>Publish room-level scene dropdown selectors into Home Assistant.</span>
         </label>
 
-        <label class="hw-modal-label" for="ha_export_lights_enabled">Export Lights and Groups</label>
+        <label class="hw-field-label" for="ha_export_lights_enabled">Export Lights and Groups</label>
         <input type="hidden" name="ha_export_lights_enabled" value="false" />
         <label class="hw-toggle">
           <input
@@ -71,19 +71,19 @@
 
         <div class="hw-form-grid">
           <div>
-            <label class="hw-modal-label" for="ha_export_mqtt_host">MQTT Host</label>
+            <label class="hw-field-label" for="ha_export_mqtt_host">MQTT Host</label>
             <input
               id="ha_export_mqtt_host"
               name="ha_export_mqtt_host"
               type="text"
               value={@ha_export_mqtt_host}
-              class="hw-modal-input"
+              class="hw-field-input"
               placeholder="mqtt.local"
               autocomplete="off"
             />
           </div>
           <div>
-            <label class="hw-modal-label" for="ha_export_mqtt_port">MQTT Port</label>
+            <label class="hw-field-label" for="ha_export_mqtt_port">MQTT Port</label>
             <input
               id="ha_export_mqtt_port"
               name="ha_export_mqtt_port"
@@ -92,7 +92,7 @@
               max="65535"
               step="1"
               value={@ha_export_mqtt_port}
-              class="hw-modal-input"
+              class="hw-field-input"
               placeholder="1883"
               autocomplete="off"
             />
@@ -101,37 +101,37 @@
 
         <div class="hw-form-grid">
           <div>
-            <label class="hw-modal-label" for="ha_export_mqtt_username">MQTT Username (optional)</label>
+            <label class="hw-field-label" for="ha_export_mqtt_username">MQTT Username (optional)</label>
             <input
               id="ha_export_mqtt_username"
               name="ha_export_mqtt_username"
               type="text"
               value={@ha_export_mqtt_username}
-              class="hw-modal-input"
+              class="hw-field-input"
               autocomplete="off"
             />
           </div>
           <div>
-            <label class="hw-modal-label" for="ha_export_mqtt_password">MQTT Password (optional)</label>
+            <label class="hw-field-label" for="ha_export_mqtt_password">MQTT Password (optional)</label>
             <input
               id="ha_export_mqtt_password"
               name="ha_export_mqtt_password"
               type="password"
               value={@ha_export_mqtt_password}
-              class="hw-modal-input"
+              class="hw-field-input"
               placeholder="Leave blank to keep current password"
               autocomplete="new-password"
             />
           </div>
         </div>
 
-        <label class="hw-modal-label" for="ha_export_discovery_prefix">Discovery Prefix</label>
+        <label class="hw-field-label" for="ha_export_discovery_prefix">Discovery Prefix</label>
         <input
           id="ha_export_discovery_prefix"
           name="ha_export_discovery_prefix"
           type="text"
           value={@ha_export_discovery_prefix}
-          class="hw-modal-input"
+          class="hw-field-input"
           placeholder="homeassistant"
           autocomplete="off"
         />
@@ -169,8 +169,8 @@
       </p>
 
       <div class="hw-form">
-        <label class="hw-modal-label" for="homekit_pairing_code">Apple Home Setup Code</label>
-        <code id="homekit_pairing_code" class="hw-modal-input"><%= @homekit_pairing_code %></code>
+        <label class="hw-field-label" for="homekit_pairing_code">Apple Home Setup Code</label>
+        <code id="homekit_pairing_code" class="hw-field-input"><%= @homekit_pairing_code %></code>
         <p class="hw-muted">Use this code when Apple Home asks to add the HueWorks bridge manually.</p>
         <p class="hw-muted">
           Pairing status: <strong><%= if @homekit_paired?, do: "paired", else: "ready to pair" %></strong>
@@ -178,18 +178,18 @@
       </div>
 
       <form class="hw-form" phx-change="update_homekit" phx-submit="save_homekit">
-        <label class="hw-modal-label" for="homekit_bridge_name">Bridge Name</label>
+        <label class="hw-field-label" for="homekit_bridge_name">Bridge Name</label>
         <input
           id="homekit_bridge_name"
           name="homekit_bridge_name"
           type="text"
           value={@homekit_bridge_name}
-          class="hw-modal-input"
+          class="hw-field-input"
           placeholder="HueWorks"
           autocomplete="off"
         />
 
-        <label class="hw-modal-label" for="homekit_scenes_enabled">Expose Scenes</label>
+        <label class="hw-field-label" for="homekit_scenes_enabled">Expose Scenes</label>
         <input type="hidden" name="homekit_scenes_enabled" value="false" />
         <label class="hw-toggle">
           <input
@@ -238,13 +238,13 @@
       <%= if @api_enabled do %>
         <p class="hw-muted">API access is enabled.</p>
         <div class="hw-form">
-          <label class="hw-modal-label" for="ai-api-url">API Base URL</label>
-          <code id="ai-api-url" class="hw-modal-input hw-api-code-value"><%= @api_base_url %></code>
+          <label class="hw-field-label" for="ai-api-url">API Base URL</label>
+          <code id="ai-api-url" class="hw-field-input hw-api-code-value"><%= @api_base_url %></code>
 
-          <label class="hw-modal-label" for="ai-api-token">API Token</label>
+          <label class="hw-field-label" for="ai-api-token">API Token</label>
           <%= if @api_token_revealed? do %>
             <div class="hw-api-value-row">
-              <code id="ai-api-token" class="hw-modal-input hw-api-code-value"><%= @api_token %></code>
+              <code id="ai-api-token" class="hw-field-input hw-api-code-value"><%= @api_token %></code>
               <div class="hw-api-utility-actions">
                 <button
                   id="copy-ai-api-token"
@@ -260,12 +260,12 @@
                 </button>
               </div>
             </div>
-            <label class="hw-modal-label" for="ai-api-mcp-env">MCP Environment</label>
-            <pre id="ai-api-mcp-env" class="hw-modal-input hw-api-env-value">HUEWORKS_API_URL=<%= @api_base_url %>
+            <label class="hw-field-label" for="ai-api-mcp-env">MCP Environment</label>
+            <pre id="ai-api-mcp-env" class="hw-field-input hw-api-env-value">HUEWORKS_API_URL=<%= @api_base_url %>
 HUEWORKS_API_TOKEN=<%= @api_token %></pre>
           <% else %>
             <div class="hw-api-value-row">
-              <code id="ai-api-token" class="hw-modal-input hw-api-code-value">Hidden until revealed</code>
+              <code id="ai-api-token" class="hw-field-input hw-api-code-value">Hidden until revealed</code>
               <div class="hw-api-utility-actions">
                 <button id="reveal-ai-api-token" type="button" class="hw-button" phx-click="reveal_api_token">
                   Reveal Token

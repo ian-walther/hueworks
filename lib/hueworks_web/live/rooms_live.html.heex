@@ -1,16 +1,16 @@
-<main class="hw-shell hw-content-frame hw-rooms-page">
-  <HueworksWeb.PageComponents.header
-    eyebrow="House structure"
-    title="Rooms"
-    subtitle="Organize scenes, presence inputs, and the lighting assigned to each part of the house."
-  >
-    <:actions>
+<HueworksWeb.PageComponents.page
+  class="hw-rooms-page"
+  flash={@flash}
+  eyebrow="House structure"
+  title="Rooms"
+  subtitle="Organize scenes, presence inputs, and the lighting assigned to each part of the house."
+>
+  <:actions>
       <button type="button" class="hw-button hw-button-primary" phx-click="open_new">
         <span class="hw-button-icon" aria-hidden="true">+</span>
         Add room
       </button>
-    </:actions>
-  </HueworksWeb.PageComponents.header>
+  </:actions>
 
   <div class="hw-list hw-room-ledger-list">
     <article :for={room <- @rooms} class="hw-card hw-room-ledger-card" id={"room-#{room.id}"}>
@@ -185,7 +185,7 @@
                         type="text"
                         name="name"
                         value={input.name}
-                        class="hw-modal-input"
+                        class="hw-field-input"
                         autocomplete="off"
                         aria-label="Presence input name"
                       />
@@ -221,7 +221,7 @@
                   <input
                     type="text"
                     name="name"
-                    class="hw-modal-input"
+                    class="hw-field-input"
                     placeholder="New presence input"
                     autocomplete="off"
                     aria-label="New presence input name"
@@ -273,7 +273,7 @@
       <p>Add a room to begin organizing lights, groups, scenes, and presence inputs.</p>
     </div>
   </div>
-</main>
+</HueworksWeb.PageComponents.page>
 
 <div :if={@modal_open} class="hw-modal-backdrop">
   <div class="hw-modal" phx-click-away="close_modal">
@@ -284,13 +284,13 @@
       </button>
     </div>
     <form phx-submit="save_room" phx-change="update_room">
-      <label class="hw-modal-label" for="room_name">Name</label>
+      <label class="hw-field-label" for="room_name">Name</label>
       <input
         id="room_name"
         name="name"
         type="text"
         value={@edit_name}
-        class="hw-modal-input"
+        class="hw-field-input"
         autocomplete="off"
       />
       <div class="hw-modal-actions">
