@@ -38,7 +38,7 @@ defmodule HueworksWeb.LightsLive.Presentation do
   def color_preview_style(state_map, id) do
     %{hue: hue, saturation: saturation, brightness: brightness} = color_preview(state_map, id)
     {r, g, b} = Color.hsb_to_rgb(hue, saturation, brightness) || {143, 177, 255}
-    "background-color: rgb(#{r} #{g} #{b});"
+    "--hw-color-preview: #{r} #{g} #{b};"
   end
 
   def color_preview_label(state_map, id) do
@@ -50,6 +50,6 @@ defmodule HueworksWeb.LightsLive.Presentation do
     %{hue: hue, brightness: brightness} = color_preview(state_map, id)
     {r1, g1, b1} = Color.hsb_to_rgb(hue, 0, brightness) || {255, 255, 255}
     {r2, g2, b2} = Color.hsb_to_rgb(hue, 100, brightness) || {255, 255, 255}
-    "background: linear-gradient(90deg, rgb(#{r1} #{g1} #{b1}), rgb(#{r2} #{g2} #{b2}));"
+    "--hw-saturation-start: #{r1} #{g1} #{b1}; --hw-saturation-end: #{r2} #{g2} #{b2};"
   end
 end

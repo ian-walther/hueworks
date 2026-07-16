@@ -17,8 +17,9 @@ defmodule HueworksWeb.LightsLive.PresentationTest do
     assert Presentation.color_preview_label(%{}, 1) ==
              "Color: 0°, 100% saturation, 100% brightness"
 
-    assert Presentation.color_preview_style(%{}, 1) =~ "background-color: rgb("
-    assert Presentation.color_saturation_scale_style(%{}, 1) =~ "linear-gradient"
+    assert Presentation.color_preview_style(%{}, 1) =~ "--hw-color-preview:"
+    assert Presentation.color_saturation_scale_style(%{}, 1) =~ "--hw-saturation-start:"
+    assert Presentation.color_saturation_scale_style(%{}, 1) =~ "--hw-saturation-end:"
   end
 
   test "state_value returns the keyed value or fallback" do
