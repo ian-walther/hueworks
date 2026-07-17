@@ -17,6 +17,19 @@ defmodule HueworksWeb.ThemeCssTest do
            "component CSS contains a hardcoded color outside the theme block"
   end
 
+  test "power buttons preserve the warm-on and cool-off visual language" do
+    css = File.read!(@stylesheet)
+
+    assert css =~ "--hw-power-on: var(--accent-2);"
+    assert css =~ "--hw-power-off: var(--accent);"
+
+    assert css =~
+             ~r/\.hw-button-on\s*\{[^}]*background:[^;]*var\(--hw-power-on\)/s
+
+    assert css =~
+             ~r/\.hw-button-off\s*\{[^}]*background:[^;]*var\(--hw-power-off\)/s
+  end
+
   test "web templates and presentation modules do not construct literal CSS colors" do
     files =
       Path.wildcard(Path.join(@root, "lib/hueworks_web/**/*.{ex,heex}")) ++

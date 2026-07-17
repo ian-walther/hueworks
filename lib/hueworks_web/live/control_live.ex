@@ -56,7 +56,7 @@ defmodule HueworksWeb.ControlLive do
     with room_id when is_integer(room_id) <- Util.parse_id(room_id),
          action when action in [:on, :off] <- parse_power_action(action),
          %{} = room_model <- room_model(socket.assigns.room_models, room_id),
-         light_ids when light_ids != [] <- Enum.map(room_model.lights, & &1.id),
+         light_ids when light_ids != [] <- room_model.control_light_ids,
          {:ok, attrs} <- ManualControl.apply_power_action(room_id, light_ids, action) do
       {:noreply,
        socket
@@ -244,7 +244,7 @@ defmodule HueworksWeb.ControlLive do
                 </div>
                 <div class="hw-stat-list" aria-label="Room control summary">
                   <span><%= count_label(room_model.scenes, "scene") %></span>
-                  <span><%= count_label(room_model.lights, "light") %></span>
+                  <span><%= count_label(room_model.control_light_ids, "light") %></span>
                 </div>
               </div>
               <div class="hw-actions hw-room-actions">
@@ -554,7 +554,7 @@ defmodule HueworksWeb.ControlLive do
       room_lights = Enum.filter(lights, &(&1.room_id == room.id))
       visible_light_ids = MapSet.new(Enum.map(room_lights, & &1.id))
 
-      topology_light_ids =
+      control_light_ids =
         room_groups
         |> Enum.flat_map(& &1.light_ids)
         |> Kernel.++(MapSet.to_list(visible_light_ids))
@@ -565,9 +565,10 @@ defmodule HueworksWeb.ControlLive do
         scenes: Enum.sort_by(room.scenes, &String.downcase(display_name(&1))),
         groups: room_groups,
         lights: room_lights,
+        control_light_ids: control_light_ids,
         topology:
           room_groups
-          |> Topology.presentation_tree(topology_light_ids)
+          |> Topology.presentation_tree(control_light_ids)
           |> filter_topology_lights(visible_light_ids)
       }
     end)

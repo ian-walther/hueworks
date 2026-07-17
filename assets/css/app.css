@@ -17,6 +17,8 @@
   --paper: light-dark(#f3f6fb, #0b1220);
   --accent: light-dark(#2457d6, #76a0ff);
   --accent-2: light-dark(#e7644a, #ff8a72);
+  --hw-power-on: var(--accent-2);
+  --hw-power-off: var(--accent);
   --border: light-dark(#c9d3e4, #2e4161);
   --hw-surface-raised: light-dark(#ffffff, #121d31);
   --hw-surface-quiet: light-dark(#e9effa, #1b2a45);
@@ -1482,13 +1484,13 @@ body {
 }
 
 .hw-button-on {
-  background: color-mix(in srgb, var(--accent) 15%, transparent);
-  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  background: color-mix(in srgb, var(--hw-power-on) 15%, transparent);
+  border-color: color-mix(in srgb, var(--hw-power-on) 40%, transparent);
 }
 
 .hw-button-off {
-  background: color-mix(in srgb, var(--accent-2) 15%, transparent);
-  border-color: color-mix(in srgb, var(--accent-2) 40%, transparent);
+  background: color-mix(in srgb, var(--hw-power-off) 15%, transparent);
+  border-color: color-mix(in srgb, var(--hw-power-off) 40%, transparent);
 }
 
 .hw-button.hw-button-primary {

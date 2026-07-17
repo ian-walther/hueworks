@@ -290,7 +290,7 @@ defmodule HueworksWeb.ControlLiveTest do
            end)
   end
 
-  test "control page shows enabled groups even when every member light is disabled", %{
+  test "control page shows and room-controls enabled groups whose member lights are disabled", %{
     conn: conn
   } do
     room = insert_room()
@@ -302,6 +302,7 @@ defmodule HueworksWeb.ControlLiveTest do
     {:ok, view, _html} = live(conn, "/control")
 
     assert has_element?(view, "#control-room-#{room.id}-group-#{group.id}", "Hidden Lamp Group")
+    assert has_element?(view, "#control-room-#{room.id} .hw-stat-list", "1 light")
 
     refute has_element?(
              view,
@@ -317,6 +318,16 @@ defmodule HueworksWeb.ControlLiveTest do
              view,
              "button[phx-click='toggle'][phx-value-type='light'][phx-value-id='#{disabled_light.id}']"
            )
+
+    html =
+      view
+      |> element(
+        "button[phx-click='toggle_room_power'][phx-value-room_id='#{room.id}'][phx-value-action='off']"
+      )
+      |> render_click()
+
+    refute html =~ "No lights in room"
+    assert DesiredState.get(:light, disabled_light.id) == %{power: :off}
   end
 
   test "control group power label shows ambiguity from member light state", %{conn: conn} do
