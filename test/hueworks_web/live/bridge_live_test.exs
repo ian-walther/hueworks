@@ -12,6 +12,7 @@ defmodule HueworksWeb.BridgeLiveTest do
     previous_hue_onboarding = Application.get_env(:hueworks, :hue_onboarding_module)
     previous_ha_onboarding = Application.get_env(:hueworks, :ha_onboarding_module)
     previous_test_pid = Application.get_env(:hueworks, :bridge_live_test_pid)
+    previous_runtime_io_disabled = Application.get_env(:hueworks, :runtime_io_disabled)
 
     Application.put_env(
       :hueworks,
@@ -30,9 +31,25 @@ defmodule HueworksWeb.BridgeLiveTest do
       restore_app_env(:hueworks, :hue_onboarding_module, previous_hue_onboarding)
       restore_app_env(:hueworks, :ha_onboarding_module, previous_ha_onboarding)
       restore_app_env(:hueworks, :bridge_live_test_pid, previous_test_pid)
+      restore_app_env(:hueworks, :runtime_io_disabled, previous_runtime_io_disabled)
     end)
 
     :ok
+  end
+
+  test "verification mode does not start bridge discovery or connection I/O", %{conn: conn} do
+    Application.put_env(:hueworks, :runtime_io_disabled, true)
+
+    {:ok, hue_view, hue_html} = live(conn, "/config/bridges/new")
+    assert hue_html =~ "Runtime I/O is disabled for this verification instance."
+    refute hue_html =~ "Searching..."
+
+    {:ok, ha_view, ha_html} = live(conn, "/config/bridges/new?type=ha")
+    assert ha_html =~ "Runtime I/O is disabled for this verification instance."
+    refute ha_html =~ "Searching..."
+
+    assert render(hue_view) =~ "Runtime I/O is disabled"
+    assert render(ha_view) =~ "Runtime I/O is disabled"
   end
 
   test "discovers and pairs a Hue bridge without asking for an API key", %{conn: conn} do

@@ -40,7 +40,9 @@ defmodule Hueworks.Import.Pipeline do
   end
 
   def fetch_raw(%Bridge{} = bridge) do
-    {:ok, do_fetch_raw(bridge)}
+    with :ok <- Hueworks.RuntimeIO.ensure_enabled() do
+      {:ok, do_fetch_raw(bridge)}
+    end
   rescue
     error -> {:error, Exception.message(error)}
   end

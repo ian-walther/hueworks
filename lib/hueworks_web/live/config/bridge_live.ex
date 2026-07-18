@@ -127,7 +127,15 @@ defmodule HueworksWeb.BridgeLive do
         %{"host" => host, "external_id" => external_id},
         socket
       ) do
-    pair_hue_bridge(socket, host, external_id)
+    if Hueworks.RuntimeIO.disabled?() do
+      {:noreply,
+       assign(socket,
+         hue_pair_status: :error,
+         hue_pair_error: "Runtime I/O is disabled for this verification instance."
+       )}
+    else
+      pair_hue_bridge(socket, host, external_id)
+    end
   end
 
   def handle_event("cancel_hue_pairing", _params, socket) do
@@ -510,7 +518,15 @@ defmodule HueworksWeb.BridgeLive do
   end
 
   defp test_bridge(socket) do
-    run_bridge_test(socket)
+    if Hueworks.RuntimeIO.disabled?() do
+      {:noreply,
+       assign(socket,
+         test_status: :error,
+         test_error: "Runtime I/O is disabled for this verification instance."
+       )}
+    else
+      run_bridge_test(socket)
+    end
   end
 
   defp pair_hue_bridge(socket, host, external_id) do
@@ -653,6 +669,20 @@ defmodule HueworksWeb.BridgeLive do
   end
 
   defp start_hue_discovery(socket) do
+    if Hueworks.RuntimeIO.disabled?() do
+      assign(socket,
+        hue_setup_mode: :guided,
+        hue_discovery_status: :error,
+        hue_discovery_error: "Runtime I/O is disabled for this verification instance.",
+        hue_discoveries: [],
+        hue_discovery_request_id: nil
+      )
+    else
+      do_start_hue_discovery(socket)
+    end
+  end
+
+  defp do_start_hue_discovery(socket) do
     request_id = System.unique_integer([:positive])
 
     socket
@@ -675,6 +705,20 @@ defmodule HueworksWeb.BridgeLive do
   end
 
   defp start_ha_discovery(socket) do
+    if Hueworks.RuntimeIO.disabled?() do
+      assign(socket,
+        ha_setup_mode: :guided,
+        ha_discovery_status: :error,
+        ha_discovery_error: "Runtime I/O is disabled for this verification instance.",
+        ha_discoveries: [],
+        ha_discovery_request_id: nil
+      )
+    else
+      do_start_ha_discovery(socket)
+    end
+  end
+
+  defp do_start_ha_discovery(socket) do
     request_id = System.unique_integer([:positive])
 
     socket

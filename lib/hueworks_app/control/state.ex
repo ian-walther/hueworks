@@ -39,8 +39,13 @@ defmodule Hueworks.Control.State do
     :ets.new(@table, [:named_table, :public, read_concurrency: true, write_concurrency: true])
     :ets.new(@observed_at_table, [:named_table, :public, read_concurrency: true])
 
-    {:ok, %{bootstrap_ref: nil, bootstrap_pid: nil, bootstrap_waiters: []},
-     {:continue, :bootstrap}}
+    state = %{bootstrap_ref: nil, bootstrap_pid: nil, bootstrap_waiters: []}
+
+    if Hueworks.RuntimeIO.disabled?() do
+      {:ok, state}
+    else
+      {:ok, state, {:continue, :bootstrap}}
+    end
   end
 
   @spec get(entity_type(), entity_id()) :: state_map() | nil
@@ -80,7 +85,11 @@ defmodule Hueworks.Control.State do
 
   @impl true
   def handle_cast(:refresh, state) do
-    {:noreply, start_bootstrap(state)}
+    if Hueworks.RuntimeIO.disabled?() do
+      {:noreply, state}
+    else
+      {:noreply, start_bootstrap(state)}
+    end
   end
 
   @impl true
@@ -93,12 +102,16 @@ defmodule Hueworks.Control.State do
 
   @impl true
   def handle_call(:bootstrap, from, state) do
-    state =
-      state
-      |> start_bootstrap()
-      |> enqueue_bootstrap_waiter(from)
+    if Hueworks.RuntimeIO.disabled?() do
+      {:reply, :ok, state}
+    else
+      state =
+        state
+        |> start_bootstrap()
+        |> enqueue_bootstrap_waiter(from)
 
-    {:noreply, state}
+      {:noreply, state}
+    end
   end
 
   @impl true

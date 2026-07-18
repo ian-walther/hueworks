@@ -7,6 +7,17 @@ advanced_debug_logging =
 
 config :hueworks, :advanced_debug_logging, advanced_debug_logging
 
+runtime_io_disabled =
+  System.get_env("HUEWORKS_RUNTIME_IO_DISABLED", "false")
+  |> String.downcase()
+  |> then(&(&1 in ["1", "true", "yes", "on"]))
+
+config :hueworks, :runtime_io_disabled, runtime_io_disabled
+
+if runtime_io_disabled do
+  config :mdns_lite, hosts: [], ipv4_only: true
+end
+
 homekit_runtime_enabled =
   case System.get_env("HOMEKIT_RUNTIME_ENABLED") do
     nil ->

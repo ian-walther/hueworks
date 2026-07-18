@@ -7,28 +7,38 @@ defmodule Hueworks.Application do
 
   @impl true
   def start(_type, _args) do
-    children =
-      [
-        Hueworks.Repo,
-        {Phoenix.PubSub, name: Hueworks.PubSub},
-        HueworksApp.Cache.Store,
-        Hueworks.Control.State,
-        Hueworks.Control.DesiredState,
-        Hueworks.Control.TraceBuffer,
-        Hueworks.Control.Executor,
-        maybe_circadian_poller(),
-        Hueworks.Subscription.HueEventStream,
-        Hueworks.Subscription.HomeAssistantEventStream,
-        Hueworks.Subscription.CasetaEventStream,
-        Hueworks.Subscription.Z2MEventStream,
-        maybe_home_assistant_export(),
-        maybe_homekit_bridge(),
-        HueworksWeb.Endpoint
-      ]
-      |> Enum.reject(&is_nil/1)
-
     opts = [strategy: :one_for_one, name: Hueworks.Supervisor]
-    Supervisor.start_link(children, opts)
+    Supervisor.start_link(children(), opts)
+  end
+
+  def children(runtime_io_disabled \\ Hueworks.RuntimeIO.disabled?()) do
+    safe_children = [
+      Hueworks.Repo,
+      {Phoenix.PubSub, name: Hueworks.PubSub},
+      HueworksApp.Cache.Store,
+      Hueworks.Control.State,
+      Hueworks.Control.DesiredState,
+      Hueworks.Control.TraceBuffer
+    ]
+
+    runtime_children =
+      if runtime_io_disabled do
+        []
+      else
+        [
+          Hueworks.Control.Executor,
+          maybe_circadian_poller(),
+          Hueworks.Subscription.HueEventStream,
+          Hueworks.Subscription.HomeAssistantEventStream,
+          Hueworks.Subscription.CasetaEventStream,
+          Hueworks.Subscription.Z2MEventStream,
+          maybe_home_assistant_export(),
+          maybe_homekit_bridge()
+        ]
+        |> Enum.reject(&is_nil/1)
+      end
+
+    safe_children ++ runtime_children ++ [HueworksWeb.Endpoint]
   end
 
   @impl true
