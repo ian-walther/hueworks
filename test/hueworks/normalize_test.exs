@@ -10,12 +10,14 @@ defmodule Hueworks.Import.NormalizeTest do
     bridge = %Bridge{id: 1, type: :hue, name: "Test Bridge", host: "10.0.0.1"}
     normalized = Normalize.normalize(bridge, raw)
 
-    assert normalized.schema_version == 1
+    assert normalized.schema_version == 2
     assert normalized.bridge.type == :hue
     assert length(normalized.areas) == 1
 
     [area] = normalized.areas
     assert area.source_id == "1"
+    assert area.kind == "hue_area"
+    assert area.external_id == "1"
     assert area.name == "Office"
     assert area.normalized_name == "office"
 
@@ -26,9 +28,22 @@ defmodule Hueworks.Import.NormalizeTest do
     assert ceiling.capabilities.reported_kelvin_min == 2000
     assert ceiling.capabilities.reported_kelvin_max == 6536
 
+    assert ceiling.space_refs == [
+             %{kind: "hue_area", external_id: "1", relationship: "direct"}
+           ]
+
     group = Enum.find(normalized.groups, &(&1.source_id == "2"))
     assert group.type == "zone"
     assert group.classification == "group_zone"
+
+    assert group.space_refs == [
+             %{kind: "hue_zone", external_id: "2", relationship: "direct"}
+           ]
+
+    assert Enum.any?(normalized.external_spaces, fn space ->
+             space.kind == "hue_zone" and space.external_id == "2"
+           end)
+
     assert Enum.any?(normalized.memberships.group_lights, &(&1.group_source_id == "2"))
   end
 
@@ -41,6 +56,7 @@ defmodule Hueworks.Import.NormalizeTest do
     assert length(normalized.areas) == 2
     [office] = Enum.filter(normalized.areas, &(&1.source_id == "office"))
     assert office.name == "Office"
+    assert office.kind == "ha_area"
 
     light = Enum.find(normalized.lights, &(&1.source_id == "light.office_lamp"))
     assert light.area_source_id == "office"
@@ -49,6 +65,10 @@ defmodule Hueworks.Import.NormalizeTest do
     assert light.capabilities.reported_kelvin_min == 2000
     assert light.capabilities.reported_kelvin_max == 6500
     assert light.identifiers["mac"] == "00:aa:bb:cc:dd:ee"
+
+    assert light.space_refs == [
+             %{kind: "ha_area", external_id: "office", relationship: "direct"}
+           ]
 
     kitchen = Enum.find(normalized.lights, &(&1.source_id == "light.kitchen_lamp"))
     assert kitchen.area_source_id == "kitchen"
@@ -185,6 +205,7 @@ defmodule Hueworks.Import.NormalizeTest do
     assert length(normalized.areas) == 1
     [area] = normalized.areas
     assert area.source_id == "area_1"
+    assert area.kind == "caseta_area"
     assert area.name == "Living room"
 
     [light] = normalized.lights
@@ -219,6 +240,7 @@ defmodule Hueworks.Import.NormalizeTest do
     normalized = Normalize.normalize(bridge, raw)
 
     assert normalized.areas == []
+    assert Enum.any?(normalized.external_spaces, &(&1.kind == "z2m_group"))
     assert length(normalized.lights) == 2
 
     strip = Enum.find(normalized.lights, &(&1.source_id == "kitchen_table_strip"))
@@ -238,6 +260,64 @@ defmodule Hueworks.Import.NormalizeTest do
              membership.group_source_id == "all_main" and
                membership.light_source_id == "garage_spot"
            end)
+  end
+
+  test "Home Assistant entity Areas override device Areas and Floors remain inherited" do
+    raw = %{
+      "floors" => [
+        %{"floor_id" => "main", "name" => "Main Floor"},
+        %{"floor_id" => "upper", "name" => "Upper Floor"}
+      ],
+      "areas" => [
+        %{"area_id" => "office", "name" => "Office", "floor_id" => "main"},
+        %{"area_id" => "bedroom", "name" => "Bedroom", "floor_id" => "upper"}
+      ],
+      "device_registry" => [
+        %{"id" => "device-1", "area_id" => "bedroom"},
+        %{"id" => "device-2", "area_id" => "office"}
+      ],
+      "light_entities" => [
+        %{
+          "entity_id" => "light.explicit_office",
+          "name" => "Explicit Office",
+          "area_id" => "office",
+          "device_id" => "device-1",
+          "platform" => "hue"
+        },
+        %{
+          "entity_id" => "light.device_office",
+          "name" => "Device Office",
+          "device_id" => "device-2",
+          "platform" => "hue"
+        }
+      ],
+      "group_entities" => [],
+      "light_states" => %{},
+      "zha_groups" => []
+    }
+
+    bridge = %Bridge{id: 8, type: :ha, name: "HA", host: "ha.home"}
+    normalized = Normalize.normalize(bridge, raw)
+
+    assert Enum.map(normalized.external_spaces, &{&1.kind, &1.external_id}) == [
+             {"ha_floor", "main"},
+             {"ha_floor", "upper"},
+             {"ha_area", "office"},
+             {"ha_area", "bedroom"}
+           ]
+
+    explicit = Enum.find(normalized.lights, &(&1.source_id == "light.explicit_office"))
+    fallback = Enum.find(normalized.lights, &(&1.source_id == "light.device_office"))
+
+    expected_refs = [
+      %{kind: "ha_area", external_id: "office", relationship: "direct"},
+      %{kind: "ha_floor", external_id: "main", relationship: "inherited"}
+    ]
+
+    assert explicit.area_source_id == "office"
+    assert explicit.space_refs == expected_refs
+    assert fallback.area_source_id == "office"
+    assert fallback.space_refs == expected_refs
   end
 
   test "aggregate_capabilities computes shared kelvin intersection for groups" do

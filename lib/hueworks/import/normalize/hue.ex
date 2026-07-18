@@ -16,6 +16,8 @@ defmodule Hueworks.Import.Normalize.Hue do
         %{
           source: :hue,
           source_id: id,
+          kind: "hue_area",
+          external_id: id,
           name: Normalize.normalize_area_display(name),
           normalized_name: Normalize.normalize_area_name(name),
           metadata: %{"type" => Normalize.fetch(group, :type)}
@@ -44,6 +46,10 @@ defmodule Hueworks.Import.Normalize.Hue do
           name: Normalize.fetch(light, :name) || "Hue Light #{id}",
           classification: "light",
           area_source_id: Map.get(light_area_map, id),
+          space_refs:
+            Normalize.space_refs([
+              Normalize.space_ref("hue_area", Map.get(light_area_map, id))
+            ]),
           capabilities: capabilities,
           identifiers: %{"mac" => Normalize.fetch(light, :mac)},
           metadata: %{
@@ -67,6 +73,13 @@ defmodule Hueworks.Import.Normalize.Hue do
         capabilities = Normalize.aggregate_capabilities(member_ids, light_capabilities_by_id)
         classification = hue_group_classification(group_type)
 
+        own_space_ref =
+          case group_type do
+            "Room" -> Normalize.space_ref("hue_area", id)
+            "Zone" -> Normalize.space_ref("hue_zone", id)
+            _ -> nil
+          end
+
         %{
           source: :hue,
           source_id: id,
@@ -78,10 +91,12 @@ defmodule Hueworks.Import.Normalize.Hue do
             else
               Normalize.shared_area_for_members(member_ids, light_area_map)
             end,
+          space_refs: Normalize.space_refs([own_space_ref]),
           type: normalized_type,
           capabilities: capabilities,
           metadata: %{
-            "type" => group_type
+            "type" => group_type,
+            "members" => member_ids
           }
         }
       end)
@@ -115,7 +130,26 @@ defmodule Hueworks.Import.Normalize.Hue do
         end)
     }
 
-    Normalize.base_normalized(bridge, areas, groups, lights, memberships)
+    zone_spaces =
+      raw_groups
+      |> Enum.filter(fn {_id, group} -> Normalize.fetch(group, :type) == "Zone" end)
+      |> Enum.map(fn {id, group} ->
+        name = Normalize.fetch(group, :name) || "Zone #{id}"
+
+        %{
+          source: :hue,
+          source_id: id,
+          kind: "hue_zone",
+          external_id: id,
+          name: Normalize.normalize_area_display(name),
+          normalized_name: Normalize.normalize_area_name(name),
+          metadata: %{"type" => "Zone"}
+        }
+      end)
+
+    bridge
+    |> Normalize.base_normalized(areas, groups, lights, memberships)
+    |> Map.put(:external_spaces, areas ++ zone_spaces)
   end
 
   defp hue_group_classification("Room"), do: "group_area"

@@ -1,7 +1,7 @@
 defmodule Hueworks.Import.ReimportPlan do
   @moduledoc false
 
-  alias Hueworks.Import.{Duplicates, Identifiers, Normalize, NormalizeJson}
+  alias Hueworks.Import.{Duplicates, Identifiers, Normalize, NormalizeJson, SpaceMappings}
   alias Hueworks.Util
 
   def build(normalized_import, normalized_db, areas) do
@@ -65,29 +65,32 @@ defmodule Hueworks.Import.ReimportPlan do
         )
     }
 
-    plan = %{
-      areas: area_plan,
-      lights:
-        build_selection(
-          import_lights,
-          existing_light_ids,
-          duplicate_light_targets,
-          ambiguous_light_ids,
-          :light,
-          area_plan
-        )
-        |> add_missing_selection(missing_lights, :light),
-      groups:
-        build_selection(
-          import_groups,
-          existing_group_ids,
-          duplicate_group_targets,
-          ambiguous_group_ids,
-          :group,
-          area_plan
-        )
-        |> add_missing_selection(missing_groups, :group)
-    }
+    plan =
+      %{
+        areas: area_plan,
+        external_space_mappings: %{},
+        lights:
+          build_selection(
+            import_lights,
+            existing_light_ids,
+            duplicate_light_targets,
+            ambiguous_light_ids,
+            :light,
+            area_plan
+          )
+          |> add_missing_selection(missing_lights, :light),
+        groups:
+          build_selection(
+            import_groups,
+            existing_group_ids,
+            duplicate_group_targets,
+            ambiguous_group_ids,
+            :group,
+            area_plan
+          )
+          |> add_missing_selection(missing_groups, :group)
+      }
+      |> SpaceMappings.apply_plan_defaults(normalized_import)
 
     merged_normalized =
       normalized_import

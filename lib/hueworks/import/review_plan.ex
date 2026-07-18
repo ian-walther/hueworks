@@ -51,6 +51,31 @@ defmodule Hueworks.Import.ReviewPlan do
     end
   end
 
+  def put_space_mapping(plan, key, attrs) when is_binary(key) and is_map(attrs) do
+    plan = plan || %{}
+    mappings = Normalize.fetch(plan, :external_space_mappings) || %{}
+    current = Normalize.fetch(mappings, key) || %{}
+    Map.put(plan, :external_space_mappings, Map.put(mappings, key, Map.merge(current, attrs)))
+  end
+
+  def space_mapping_action(plan, key) do
+    plan
+    |> Normalize.fetch(:external_space_mappings)
+    |> Kernel.||(%{})
+    |> Normalize.fetch(key)
+    |> Normalize.fetch(:action)
+    |> Kernel.||("skip")
+  end
+
+  def space_mapping_target(plan, key) do
+    plan
+    |> Normalize.fetch(:external_space_mappings)
+    |> Kernel.||(%{})
+    |> Normalize.fetch(key)
+    |> Normalize.fetch(:target_area_id)
+    |> Normalize.normalize_source_id()
+  end
+
   def put_entity_resolution(plan, type, source_id, resolution) do
     key = entity_key(type)
     source_id = Normalize.normalize_source_id(source_id)

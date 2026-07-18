@@ -15,6 +15,18 @@ defmodule Hueworks.Import.Fetch.HomeAssistant.Client do
     WebSockex.start_link(url, __MODULE__, state)
   end
 
+  def request(pid, type, params \\ %{}) do
+    ref = make_ref()
+
+    WebSockex.cast(pid, {:request, ref, self(), type, params, & &1})
+
+    receive do
+      {:response, ^ref, result} -> result
+    after
+      10_000 -> {:error, :timeout}
+    end
+  end
+
   def init(state) do
     {:ok, normalize_state(state)}
   end

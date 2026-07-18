@@ -33,6 +33,7 @@ defmodule Hueworks.Import.NormalizeFromDb do
         host: bridge.host
       },
       normalized_at: DateTime.utc_now() |> DateTime.to_iso8601(),
+      external_spaces: [],
       areas: [],
       groups: groups,
       lights: lights,

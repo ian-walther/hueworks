@@ -59,6 +59,20 @@ defmodule Hueworks.ExternalSpaces do
     )
   end
 
+  def mapping_ids_for_bridge(%Bridge{id: bridge_id}), do: mapping_ids_for_bridge(bridge_id)
+
+  def mapping_ids_for_bridge(bridge_id) when is_integer(bridge_id) do
+    Repo.all(
+      from(es in ExternalSpace,
+        join: mapping in ExternalSpaceMapping,
+        on: mapping.external_space_id == es.id,
+        where: es.bridge_id == ^bridge_id,
+        select: {es.kind, es.external_id, mapping.area_id}
+      )
+    )
+    |> Map.new(fn {kind, external_id, area_id} -> {{kind, external_id}, area_id} end)
+  end
+
   def sync_bridge_spaces(%Bridge{} = bridge, spaces, opts \\ []) when is_list(spaces) do
     seen_at = Keyword.get(opts, :seen_at, DateTime.utc_now()) |> DateTime.truncate(:microsecond)
 

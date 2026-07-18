@@ -6,7 +6,7 @@ defmodule HueworksWeb.BridgeSetupLive do
 
   alias Hueworks.Bridges
   alias Hueworks.Import
-  alias Hueworks.Import.{Normalize, Plan, ReviewPlan}
+  alias Hueworks.Import.{Normalize, Plan, ReviewPlan, SpaceMappings, SpaceSuggestions}
   alias Hueworks.Repo
   alias Hueworks.Schemas.{Bridge, Area}
 
@@ -26,6 +26,7 @@ defmodule HueworksWeb.BridgeSetupLive do
          import_error: nil,
          normalized: nil,
          plan: nil,
+         space_suggestions: nil,
          completion_summary: nil,
          areas: Repo.all(Area)
        )}
@@ -112,6 +113,27 @@ defmodule HueworksWeb.BridgeSetupLive do
         socket
       ) do
     plan = ReviewPlan.put_entity_area(socket.assigns.plan, type, source_id, target_area_id)
+    {:noreply, update_plan(socket, plan)}
+  end
+
+  def handle_event(
+        "set_space_mapping",
+        %{
+          "key" => key,
+          "kind" => kind,
+          "external_id" => external_id,
+          "target_area_id" => target_area_id
+        },
+        socket
+      ) do
+    attrs = %{
+      "kind" => kind,
+      "external_id" => external_id,
+      "action" => if(target_area_id == "", do: "skip", else: "map"),
+      "target_area_id" => if(target_area_id == "", do: nil, else: target_area_id)
+    }
+
+    plan = ReviewPlan.put_space_mapping(socket.assigns.plan, key, attrs)
     {:noreply, update_plan(socket, plan)}
   end
 
@@ -289,10 +311,18 @@ defmodule HueworksWeb.BridgeSetupLive do
 
         review_blob = bridge_import.review_blob
 
+        suggestions =
+          case SpaceSuggestions.build_from_available_ha(socket.assigns.bridge, normalized) do
+            {:ok, result} -> result
+            {:error, _reason} -> nil
+          end
+
         plan =
           review_blob
           |> Kernel.||(Plan.build_default(normalized))
           |> ReviewPlan.apply_area_merge_defaults(normalized, socket.assigns.areas)
+          |> SpaceMappings.apply_plan_defaults(normalized)
+          |> SpaceMappings.apply_suggestions(suggestions)
 
         socket
         |> assign(
@@ -300,7 +330,8 @@ defmodule HueworksWeb.BridgeSetupLive do
           import_error: nil,
           bridge_import: bridge_import,
           normalized: normalized,
-          plan: plan
+          plan: plan,
+          space_suggestions: suggestions
         )
         |> put_notice(:info, import_flash_info(bridge_import))
 
@@ -316,6 +347,66 @@ defmodule HueworksWeb.BridgeSetupLive do
   defp normalized_entries(normalized, key), do: Normalize.fetch(normalized, key) || []
   defp area_action(plan, source_id), do: ReviewPlan.area_action(plan, source_id)
   defp area_merge_target(plan, source_id), do: ReviewPlan.area_merge_target(plan, source_id)
+
+  defp supplemental_spaces(normalized) do
+    placement_keys =
+      normalized
+      |> normalized_entries(:areas)
+      |> MapSet.new(&SpaceMappings.identity/1)
+
+    normalized
+    |> Normalize.external_spaces()
+    |> Enum.reject(&MapSet.member?(placement_keys, SpaceMappings.identity(&1)))
+  end
+
+  defp space_key(space), do: space |> SpaceMappings.identity() |> SpaceMappings.key()
+
+  defp space_suggestion(nil, _space), do: nil
+
+  defp space_suggestion(%{spaces: suggestions}, space) do
+    Map.get(suggestions, SpaceMappings.identity(space))
+  end
+
+  defp suggestion_label(:confident), do: "Matched through Home Assistant"
+  defp suggestion_label(:partial), do: "Partial Home Assistant match"
+  defp suggestion_label(:conflict), do: "Placement evidence conflicts"
+  defp suggestion_label(:ambiguous_identity), do: "Identity match is ambiguous"
+  defp suggestion_label(:no_evidence), do: "No Home Assistant match"
+  defp suggestion_label(status), do: status |> to_string() |> String.replace("_", " ")
+
+  defp suggestion_message(suggestion, areas) do
+    target = area_name(areas, suggestion.suggested_area_id)
+
+    case suggestion.status do
+      :confident ->
+        "#{suggestion.matched_count} of #{suggestion.member_count} members agree on #{target}; this mapping is selected for review."
+
+      :partial ->
+        "#{suggestion.matched_count} of #{suggestion.member_count} members point to #{target}; confirm it before saving."
+
+      :conflict ->
+        "Matched members or an existing mapping point to different HueWorks Areas. Choose explicitly."
+
+      :ambiguous_identity ->
+        "At least one physical identifier matches more than one Home Assistant entity. Choose explicitly."
+
+      _ ->
+        "No reliable mapped counterpart was found."
+    end
+  end
+
+  defp area_name(areas, area_id) do
+    case Enum.find(areas, &(&1.id == area_id)) do
+      nil -> "an unavailable Area"
+      area -> Hueworks.Util.display_name(area)
+    end
+  end
+
+  defp space_kind_label("ha_floor"), do: "Home Assistant Floor"
+  defp space_kind_label("ha_area"), do: "Home Assistant Area"
+  defp space_kind_label("hue_zone"), do: "Hue Zone"
+  defp space_kind_label("z2m_group"), do: "Zigbee2MQTT group"
+  defp space_kind_label(kind), do: kind |> to_string() |> String.replace("_", " ")
 
   defp pipeline_module,
     do: Application.get_env(:hueworks, :import_pipeline, Hueworks.Import.Pipeline)

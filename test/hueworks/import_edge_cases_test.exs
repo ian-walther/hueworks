@@ -26,7 +26,7 @@ defmodule Hueworks.Import.EdgeCasesTest do
 
     for bridge <- [bridge_hue, bridge_ha, bridge_caseta, bridge_z2m] do
       normalized = Normalize.normalize(bridge, %{})
-      assert normalized.schema_version == 1
+      assert normalized.schema_version == 2
       assert normalized.areas == []
       assert normalized.lights == []
       assert normalized.groups == []

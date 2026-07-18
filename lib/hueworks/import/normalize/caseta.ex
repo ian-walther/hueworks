@@ -19,6 +19,7 @@ defmodule Hueworks.Import.Normalize.Caseta do
           name: name,
           classification: "light",
           area_source_id: area_source_id,
+          space_refs: Normalize.space_refs([Normalize.space_ref("caseta_area", area_source_id)]),
           capabilities: normalize_caseta_capabilities(light),
           identifiers: %{"serial" => to_string(Normalize.fetch(light, :serial) || "")},
           metadata: %{
@@ -83,6 +84,8 @@ defmodule Hueworks.Import.Normalize.Caseta do
         %{
           source: :caseta,
           source_id: id,
+          kind: "caseta_area",
+          external_id: id,
           name: Normalize.normalize_area_display(name),
           normalized_name: Normalize.normalize_area_name(name),
           metadata: %{}

@@ -3,7 +3,16 @@ defmodule Hueworks.Import.ReimportApply do
 
   import Ecto.Query, only: [from: 2]
 
-  alias Hueworks.Import.{Duplicates, EntityAttrs, EntityMatch, Identifiers, Normalize, Areas}
+  alias Hueworks.Import.{
+    Areas,
+    Duplicates,
+    EntityAttrs,
+    EntityMatch,
+    Identifiers,
+    Normalize,
+    SpaceMappings
+  }
+
   alias Hueworks.HomeAssistant.Export, as: HomeAssistantExport
   alias Hueworks.HomeKit
   alias Hueworks.Repo
@@ -57,18 +66,30 @@ defmodule Hueworks.Import.ReimportApply do
 
     area_map = upsert_needed_areas(areas, plan_areas, needed_area_source_ids)
 
+    {:ok, mapped_space_ids} =
+      SpaceMappings.sync_and_apply(bridge, normalized, plan, area_map)
+
     light_result =
       apply_lights(
         bridge,
         lights,
         area_map,
+        mapped_space_ids,
         plan_lights,
         existing_lights,
         duplicate_light_targets
       )
 
     group_result =
-      apply_groups(bridge, groups, area_map, plan_groups, existing_groups, light_result)
+      apply_groups(
+        bridge,
+        groups,
+        area_map,
+        mapped_space_ids,
+        plan_groups,
+        existing_groups,
+        light_result
+      )
 
     refresh_group_lights(
       groups,
@@ -142,7 +163,15 @@ defmodule Hueworks.Import.ReimportApply do
     end)
   end
 
-  defp apply_lights(bridge, lights, area_map, plan_lights, existing_lights, duplicate_targets) do
+  defp apply_lights(
+         bridge,
+         lights,
+         area_map,
+         mapped_space_ids,
+         plan_lights,
+         existing_lights,
+         duplicate_targets
+       ) do
     initial = %{
       source_id_to_db_id: %{},
       source_id_to_canonical_db_id: %{},
@@ -173,7 +202,12 @@ defmodule Hueworks.Import.ReimportApply do
                         insert_light!(
                           bridge,
                           light,
-                          Areas.target_id_for(light, area_map, plan_lights)
+                          SpaceMappings.target_id_for(
+                            light,
+                            area_map,
+                            plan_lights,
+                            mapped_space_ids
+                          )
                         )
 
                       {record, record.id, false}
@@ -194,7 +228,12 @@ defmodule Hueworks.Import.ReimportApply do
                         insert_light!(
                           bridge,
                           light,
-                          Areas.target_id_for(light, area_map, plan_lights)
+                          SpaceMappings.target_id_for(
+                            light,
+                            area_map,
+                            plan_lights,
+                            mapped_space_ids
+                          )
                         )
 
                       {record, record.id, false}
@@ -232,7 +271,15 @@ defmodule Hueworks.Import.ReimportApply do
     end)
   end
 
-  defp apply_groups(bridge, groups, area_map, plan_groups, existing_groups, light_result) do
+  defp apply_groups(
+         bridge,
+         groups,
+         area_map,
+         mapped_space_ids,
+         plan_groups,
+         existing_groups,
+         light_result
+       ) do
     initial = %{source_id_to_db_id: %{}, seen_existing_ids: MapSet.new()}
 
     Enum.reduce(groups, initial, fn group, acc ->
@@ -258,7 +305,12 @@ defmodule Hueworks.Import.ReimportApply do
                       {insert_group!(
                          bridge,
                          group,
-                         Areas.target_id_for(group, area_map, plan_groups),
+                         SpaceMappings.target_id_for(
+                           group,
+                           area_map,
+                           plan_groups,
+                           mapped_space_ids
+                         ),
                          nil
                        ), false}
                     else
@@ -276,7 +328,12 @@ defmodule Hueworks.Import.ReimportApply do
                       {insert_group!(
                          bridge,
                          group,
-                         Areas.target_id_for(group, area_map, plan_groups),
+                         SpaceMappings.target_id_for(
+                           group,
+                           area_map,
+                           plan_groups,
+                           mapped_space_ids
+                         ),
                          nil
                        ), false}
                     end

@@ -45,7 +45,22 @@ defmodule Hueworks.Import.Normalize.Z2M do
       group_lights: group_lights(groups)
     }
 
-    Normalize.base_normalized(bridge, [], groups, lights, memberships)
+    external_spaces =
+      Enum.map(groups, fn group ->
+        %{
+          source: :z2m,
+          source_id: group.source_id,
+          kind: "z2m_group",
+          external_id: group.source_id,
+          name: group.name,
+          normalized_name: Normalize.normalize_area_name(group.name),
+          metadata: %{"topology_only" => true}
+        }
+      end)
+
+    bridge
+    |> Normalize.base_normalized([], groups, lights, memberships)
+    |> Map.put(:external_spaces, external_spaces)
   end
 
   defp normalize_light(device) do
@@ -75,6 +90,7 @@ defmodule Hueworks.Import.Normalize.Z2M do
             name: Normalize.fetch(device, :friendly_name) || source_id,
             classification: "light",
             area_source_id: nil,
+            space_refs: [],
             capabilities: capabilities,
             identifiers: %{
               "ieee" => Normalize.fetch(device, :ieee_address)
@@ -112,6 +128,7 @@ defmodule Hueworks.Import.Normalize.Z2M do
         name: Normalize.fetch(group, :friendly_name) || "Z2M Group #{source_id}",
         classification: "group",
         area_source_id: nil,
+        space_refs: Normalize.space_refs([Normalize.space_ref("z2m_group", source_id)]),
         type: "group",
         capabilities: capabilities,
         metadata: %{

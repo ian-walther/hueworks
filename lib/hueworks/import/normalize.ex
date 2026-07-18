@@ -4,7 +4,7 @@ defmodule Hueworks.Import.Normalize do
   alias Hueworks.Schemas.Bridge
   alias Hueworks.Util
 
-  @schema_version 1
+  @schema_version 2
 
   def normalize(%Bridge{} = bridge, raw_blob) do
     normalize(bridge, raw_blob, %{})
@@ -29,12 +29,51 @@ defmodule Hueworks.Import.Normalize do
         host: bridge.host
       },
       normalized_at: DateTime.utc_now() |> DateTime.to_iso8601(),
+      external_spaces: areas,
       areas: areas,
       groups: groups,
       lights: lights,
       memberships: memberships
     }
   end
+
+  def external_spaces(normalized) when is_map(normalized) do
+    fetch(normalized, :external_spaces) || fetch(normalized, :areas) || []
+  end
+
+  def space_ref(kind, external_id, relationship \\ "direct") do
+    kind = normalize_space_kind(kind)
+    external_id = normalize_source_id(external_id)
+
+    if is_binary(kind) and is_binary(external_id) do
+      %{kind: kind, external_id: external_id, relationship: relationship}
+    end
+  end
+
+  def space_refs(refs) when is_list(refs) do
+    refs
+    |> Enum.filter(&is_map/1)
+    |> Enum.uniq_by(fn ref -> {fetch(ref, :kind), fetch(ref, :external_id)} end)
+  end
+
+  def space_refs(_refs), do: []
+
+  def entity_space_refs(entity) when is_map(entity) do
+    entity
+    |> fetch(:space_refs)
+    |> space_refs()
+  end
+
+  def normalize_space_kind(kind) when is_atom(kind), do: Atom.to_string(kind)
+
+  def normalize_space_kind(kind) when is_binary(kind) do
+    case String.trim(kind) do
+      "" -> nil
+      value -> value
+    end
+  end
+
+  def normalize_space_kind(_kind), do: nil
 
   def aggregate_capabilities(member_ids, light_capabilities_by_id) do
     capabilities =

@@ -31,7 +31,7 @@ defmodule Hueworks.Import.Fetch.HomeAssistant do
       Logger.info("Connecting to Home Assistant...")
     end
 
-    {:ok, pid} = Client.connect(bridge.host, token)
+    {:ok, pid} = client_module().connect(bridge.host, token)
 
     if log? do
       Logger.info("Fetching entity registry...")
@@ -50,6 +50,18 @@ defmodule Hueworks.Import.Fetch.HomeAssistant do
     end
 
     area_registry = get_area_registry(pid)
+
+    if log? do
+      Logger.info("Fetching floor registry...")
+    end
+
+    floor_registry = get_floor_registry(pid)
+
+    if log? do
+      Logger.info("Fetching integration registry...")
+    end
+
+    config_entries = get_config_entries(pid)
 
     if log? do
       Logger.info("Fetching light states...")
@@ -88,6 +100,9 @@ defmodule Hueworks.Import.Fetch.HomeAssistant do
     %{
       host: bridge.host,
       areas: area_registry,
+      floors: floor_registry,
+      config_entries: config_entries,
+      entity_registry: entity_registry,
       device_registry: device_registry,
       light_entities: light_entities,
       group_entities: group_entities,
@@ -136,6 +151,20 @@ defmodule Hueworks.Import.Fetch.HomeAssistant do
     case request(pid, "config/area_registry/list", %{}) do
       {:ok, areas} -> areas
       {:error, _reason} -> []
+    end
+  end
+
+  defp get_floor_registry(pid) do
+    case request(pid, "config/floor_registry/list", %{}) do
+      {:ok, floors} when is_list(floors) -> floors
+      _ -> []
+    end
+  end
+
+  defp get_config_entries(pid) do
+    case request(pid, "config_entries/get", %{}) do
+      {:ok, entries} when is_list(entries) -> entries
+      _ -> []
     end
   end
 
@@ -348,6 +377,8 @@ defmodule Hueworks.Import.Fetch.HomeAssistant do
         name: registry["name"] || registry["original_name"],
         unique_id: registry["unique_id"],
         platform: registry["platform"],
+        area_id: registry["area_id"],
+        config_entry_id: registry["config_entry_id"],
         device_id: entity["device_id"],
         zone_id: entity["zone_id"],
         source: entity["source"],
@@ -382,6 +413,8 @@ defmodule Hueworks.Import.Fetch.HomeAssistant do
         name: entity["name"] || entity["original_name"],
         unique_id: entity["unique_id"],
         platform: entity["platform"],
+        area_id: entity["area_id"],
+        config_entry_id: entity["config_entry_id"],
         members: members
       }
     end)
@@ -412,14 +445,10 @@ defmodule Hueworks.Import.Fetch.HomeAssistant do
   defp hueworks_managed_scene?(_scene), do: false
 
   defp request(pid, type, params) do
-    ref = make_ref()
+    client_module().request(pid, type, params)
+  end
 
-    WebSockex.cast(pid, {:request, ref, self(), type, params, & &1})
-
-    receive do
-      {:response, ^ref, result} -> result
-    after
-      10_000 -> {:error, :timeout}
-    end
+  defp client_module do
+    Application.get_env(:hueworks, :ha_import_client, Client)
   end
 end

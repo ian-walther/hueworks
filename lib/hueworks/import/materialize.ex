@@ -9,6 +9,7 @@ defmodule Hueworks.Import.Materialize do
     Normalize,
     Plan,
     ReimportApply,
+    SpaceMappings,
     Areas
   }
 
@@ -43,13 +44,27 @@ defmodule Hueworks.Import.Materialize do
     plan_groups = Normalize.fetch(plan, :groups) || %{}
 
     area_map = upsert_areas(areas, plan_areas)
+
+    {:ok, mapped_space_ids} =
+      SpaceMappings.sync_and_apply(bridge, normalized, plan, area_map)
+
     lights = filter_entities(lights, plan_lights)
     groups = filter_entities(groups, plan_groups)
     memberships = filter_memberships(memberships, plan_lights, plan_groups)
     duplicate_light_targets = Duplicates.light_targets(lights)
 
-    light_result = upsert_lights(bridge, lights, area_map, plan_lights, duplicate_light_targets)
-    group_map = upsert_groups(bridge, groups, area_map, plan_groups, light_result)
+    light_result =
+      upsert_lights(
+        bridge,
+        lights,
+        area_map,
+        mapped_space_ids,
+        plan_lights,
+        duplicate_light_targets
+      )
+
+    group_map =
+      upsert_groups(bridge, groups, area_map, mapped_space_ids, plan_groups, light_result)
 
     upsert_group_lights(memberships, light_result.source_id_to_db_id, group_map)
     infer_group_areas(group_map)
@@ -72,7 +87,14 @@ defmodule Hueworks.Import.Materialize do
     end)
   end
 
-  defp upsert_lights(bridge, lights, area_map, plan_lights, duplicate_targets) do
+  defp upsert_lights(
+         bridge,
+         lights,
+         area_map,
+         mapped_space_ids,
+         plan_lights,
+         duplicate_targets
+       ) do
     bridge_id = bridge.id
 
     initial = %{source_id_to_db_id: %{}, source_id_to_canonical_db_id: %{}}
@@ -84,7 +106,10 @@ defmodule Hueworks.Import.Materialize do
         attrs =
           bridge
           |> EntityAttrs.light_attrs(light)
-          |> Map.put(:area_id, Areas.target_id_for(light, area_map, plan_lights))
+          |> Map.put(
+            :area_id,
+            SpaceMappings.target_id_for(light, area_map, plan_lights, mapped_space_ids)
+          )
 
         canonical_light_id = Map.get(duplicate_targets, source_id)
 
@@ -122,7 +147,7 @@ defmodule Hueworks.Import.Materialize do
     end)
   end
 
-  defp upsert_groups(bridge, groups, area_map, plan_groups, light_result) do
+  defp upsert_groups(bridge, groups, area_map, mapped_space_ids, plan_groups, light_result) do
     bridge_id = bridge.id
 
     Enum.reduce(groups, %{}, fn group, acc ->
@@ -132,7 +157,10 @@ defmodule Hueworks.Import.Materialize do
         attrs =
           bridge
           |> EntityAttrs.group_attrs(group)
-          |> Map.put(:area_id, Areas.target_id_for(group, area_map, plan_groups))
+          |> Map.put(
+            :area_id,
+            SpaceMappings.target_id_for(group, area_map, plan_groups, mapped_space_ids)
+          )
 
         attrs =
           case Duplicates.group_target(group, light_result.source_id_to_canonical_db_id) do

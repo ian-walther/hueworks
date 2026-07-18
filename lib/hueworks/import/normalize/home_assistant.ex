@@ -18,6 +18,7 @@ defmodule Hueworks.Import.Normalize.HomeAssistant do
 
   def normalize(bridge, raw, _opts \\ %{}) do
     areas = Normalize.fetch(raw, :areas) |> Normalize.normalize_list()
+    floors = Normalize.fetch(raw, :floors) |> Normalize.normalize_list()
     device_registry = Normalize.fetch(raw, :device_registry) |> Normalize.normalize_list()
     light_states = Normalize.fetch(raw, :light_states) || %{}
 
@@ -32,6 +33,11 @@ defmodule Hueworks.Import.Normalize.HomeAssistant do
     state_members_by_entity_id = state_members_by_entity_id(light_states)
     zha_members_by_entity_id = zha_members_by_entity_id(zha_groups, lights_raw)
 
+    floor_by_area_id =
+      Map.new(areas, fn area ->
+        {Normalize.fetch(area, :area_id), Normalize.fetch(area, :floor_id)}
+      end)
+
     areas =
       Enum.map(areas, fn area ->
         name = Normalize.fetch(area, :name) || Normalize.fetch(area, :area_id) || "Area"
@@ -39,6 +45,10 @@ defmodule Hueworks.Import.Normalize.HomeAssistant do
         %{
           source: :ha,
           source_id: Normalize.fetch(area, :area_id),
+          kind: "ha_area",
+          external_id: Normalize.fetch(area, :area_id),
+          parent_kind: "ha_floor",
+          parent_external_id: Normalize.fetch(area, :floor_id),
           name: Normalize.normalize_area_display(name),
           normalized_name: Normalize.normalize_area_name(name),
           metadata: %{"raw" => area}
@@ -65,6 +75,7 @@ defmodule Hueworks.Import.Normalize.HomeAssistant do
           end)
 
         area_source_id = Normalize.fetch(light, :area_id) || device_area_id
+        floor_source_id = Map.get(floor_by_area_id, area_source_id)
 
         platform = Normalize.fetch(light, :platform)
         device = Normalize.fetch(light, :device) || %{}
@@ -84,6 +95,11 @@ defmodule Hueworks.Import.Normalize.HomeAssistant do
           name: name,
           classification: classification,
           area_source_id: area_source_id,
+          space_refs:
+            Normalize.space_refs([
+              Normalize.space_ref("ha_area", area_source_id, "direct"),
+              Normalize.space_ref("ha_floor", floor_source_id, "inherited")
+            ]),
           capabilities: normalize_ha_capabilities(light),
           identifiers: %{
             "mac" => Normalize.extract_device_connection(light, "mac"),
@@ -93,6 +109,7 @@ defmodule Hueworks.Import.Normalize.HomeAssistant do
           metadata: %{
             "entity_id" => Normalize.fetch(light, :entity_id),
             "platform" => platform,
+            "config_entry_id" => Normalize.fetch(light, :config_entry_id),
             "device_id" => Normalize.fetch(light, :device_id),
             "source" => Normalize.fetch(light, :source),
             "unique_id" => Normalize.fetch(light, :unique_id),
@@ -134,6 +151,8 @@ defmodule Hueworks.Import.Normalize.HomeAssistant do
         area_source_id = Normalize.shared_area_for_members(members, light_area_by_id)
         capabilities = Normalize.aggregate_capabilities(members, light_capabilities_by_id)
 
+        group_area_source_id = Normalize.fetch(group, :area_id) || area_source_id
+
         %{
           source: :ha,
           source_id: Normalize.fetch(group, :entity_id),
@@ -144,11 +163,13 @@ defmodule Hueworks.Import.Normalize.HomeAssistant do
               "HA Group"
             ]),
           classification: "ha_group",
-          area_source_id: Normalize.fetch(group, :area_id) || area_source_id,
+          area_source_id: group_area_source_id,
+          space_refs: group_space_refs(group_area_source_id, floor_by_area_id),
           type: "group",
           capabilities: capabilities,
           metadata: %{
             "platform" => Normalize.fetch(group, :platform),
+            "config_entry_id" => Normalize.fetch(group, :config_entry_id),
             "unique_id" => Normalize.fetch(group, :unique_id),
             "entity_id" => Normalize.fetch(group, :entity_id),
             "members" => members
@@ -179,7 +200,25 @@ defmodule Hueworks.Import.Normalize.HomeAssistant do
       group_lights: group_lights_from_groups(groups)
     }
 
-    Normalize.base_normalized(bridge, areas, groups, lights, memberships)
+    floor_spaces =
+      Enum.map(floors, fn floor ->
+        id = Normalize.fetch(floor, :floor_id)
+        name = Normalize.fetch(floor, :name) || id || "Floor"
+
+        %{
+          source: :ha,
+          source_id: id,
+          kind: "ha_floor",
+          external_id: id,
+          name: Normalize.normalize_area_display(name),
+          normalized_name: Normalize.normalize_area_name(name),
+          metadata: %{"raw" => floor}
+        }
+      end)
+
+    bridge
+    |> Normalize.base_normalized(areas, groups, lights, memberships)
+    |> Map.put(:external_spaces, floor_spaces ++ areas)
   end
 
   defp normalize_ha_capabilities(light) do
@@ -244,6 +283,7 @@ defmodule Hueworks.Import.Normalize.HomeAssistant do
       name: Normalize.fetch(light, :name) || "HA Group",
       classification: group_type,
       area_source_id: Normalize.fetch(light, :area_source_id),
+      space_refs: Normalize.fetch(light, :space_refs) || [],
       type: "group",
       capabilities: Normalize.fetch(light, :capabilities) || %{},
       metadata:
@@ -392,6 +432,13 @@ defmodule Hueworks.Import.Normalize.HomeAssistant do
       Map.get(entity_by_ieee, ieee, [])
     end)
     |> Enum.uniq()
+  end
+
+  defp group_space_refs(area_source_id, floor_by_area_id) do
+    Normalize.space_refs([
+      Normalize.space_ref("ha_area", area_source_id, "direct"),
+      Normalize.space_ref("ha_floor", Map.get(floor_by_area_id, area_source_id), "inherited")
+    ])
   end
 
   defp first_present(values) do
