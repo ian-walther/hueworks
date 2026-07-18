@@ -42,4 +42,32 @@ defmodule Hueworks.Migrations.RenameRoomsToAreasTest do
 
     assert RenameRoomsToAreas.rename_action_config_key(config, "room_id", "area_id") == config
   end
+
+  test "renames legacy Pico Area ownership metadata without changing source metadata" do
+    metadata = %{
+      "area_id" => "2",
+      "room_override" => true,
+      "detected_room_id" => 4,
+      "control_groups" => [%{"id" => "group-1", "light_ids" => [12]}]
+    }
+
+    assert %{
+             "area_id" => "2",
+             "area_override" => true,
+             "detected_area_id" => 4,
+             "control_groups" => [%{"id" => "group-1", "light_ids" => [12]}]
+           } = RenameRoomsToAreas.rename_pico_metadata(metadata)
+  end
+
+  test "preserves populated Area metadata while removing legacy Room keys" do
+    metadata = %{
+      "room_override" => false,
+      "area_override" => true,
+      "detected_room_id" => 4,
+      "detected_area_id" => 8
+    }
+
+    assert %{"area_override" => true, "detected_area_id" => 8} =
+             RenameRoomsToAreas.rename_pico_metadata(metadata)
+  end
 end

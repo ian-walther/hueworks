@@ -18,6 +18,7 @@ defmodule Hueworks.Repo.Migrations.RenameRoomsToAreas do
 
     flush()
     rewrite_pico_action_configs(repo(), "room_id", "area_id")
+    rewrite_pico_metadata(repo())
 
     drop_legacy_indexes()
     create_identity_presence_triggers()
@@ -64,6 +65,29 @@ defmodule Hueworks.Repo.Migrations.RenameRoomsToAreas do
       :error ->
         config
     end
+  end
+
+  def rewrite_pico_metadata(repo) do
+    repo.query!("SELECT id, metadata FROM pico_devices", []).rows
+    |> Enum.each(fn [id, encoded_metadata] ->
+      metadata = Jason.decode!(encoded_metadata)
+      renamed = rename_pico_metadata(metadata)
+
+      if renamed != metadata do
+        repo.query!("UPDATE pico_devices SET metadata = ? WHERE id = ?", [
+          Jason.encode!(renamed),
+          id
+        ])
+      end
+    end)
+
+    :ok
+  end
+
+  def rename_pico_metadata(metadata) when is_map(metadata) do
+    metadata
+    |> rename_action_config_key("room_override", "area_override")
+    |> rename_action_config_key("detected_room_id", "detected_area_id")
   end
 
   defp drop_legacy_indexes do
