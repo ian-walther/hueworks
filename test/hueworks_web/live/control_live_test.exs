@@ -110,6 +110,8 @@ defmodule HueworksWeb.ControlLiveTest do
     {:ok, view, html} = live(conn, "/control")
 
     assert html =~ "Control"
+    assert html =~ "Choose an Area scene"
+    refute html =~ "Choose a area scene"
     assert has_element?(view, "#control-area-#{area.id}", "Main Floor")
 
     assert has_element?(

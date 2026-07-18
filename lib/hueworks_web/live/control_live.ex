@@ -219,7 +219,7 @@ defmodule HueworksWeb.ControlLive do
       class="hw-control-page"
       eyebrow="Live lighting"
       title="Control"
-      subtitle="Choose a area scene or make a direct adjustment when no scene is active."
+      subtitle="Choose an Area scene or make a direct adjustment when no scene is active."
       flash={@flash}
     >
       <:actions>
