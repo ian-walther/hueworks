@@ -20,6 +20,7 @@ defmodule Hueworks.Schemas.Bridge do
     field(:import_complete, :boolean, default: false)
 
     has_many(:bridge_imports, Hueworks.Schemas.BridgeImport)
+    has_many(:external_spaces, Hueworks.Schemas.ExternalSpace)
 
     timestamps()
   end

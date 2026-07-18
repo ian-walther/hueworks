@@ -21,6 +21,7 @@ defmodule Hueworks.Schemas.Area do
     has_many(:groups, Hueworks.Schemas.Group)
     has_many(:scenes, Hueworks.Schemas.Scene)
     has_many(:presence_inputs, Hueworks.Schemas.PresenceInput)
+    has_many(:external_space_mappings, Hueworks.Schemas.ExternalSpaceMapping)
 
     timestamps()
   end
