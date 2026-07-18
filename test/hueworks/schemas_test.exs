@@ -267,6 +267,37 @@ defmodule Hueworks.SchemasTest do
     assert errors_on(changeset)[:name] == ["can't be blank"]
   end
 
+  test "room changeset generates immutable persisted Home Assistant identities" do
+    create_changeset = Room.changeset(%Room{}, %{name: "Office"})
+
+    assert "hueworks_room_" <> device_suffix =
+             Ecto.Changeset.get_change(create_changeset, :ha_device_identifier)
+
+    assert "hueworks_room_scene_select_" <> select_suffix =
+             Ecto.Changeset.get_change(create_changeset, :ha_scene_select_identifier)
+
+    assert device_suffix != ""
+    assert select_suffix != ""
+
+    room = Ecto.Changeset.apply_changes(create_changeset)
+
+    update_changeset =
+      Room.changeset(room, %{
+        name: "Renamed Office",
+        ha_device_identifier: "replacement-device",
+        ha_scene_select_identifier: "replacement-select"
+      })
+
+    refute Ecto.Changeset.get_change(update_changeset, :ha_device_identifier)
+    refute Ecto.Changeset.get_change(update_changeset, :ha_scene_select_identifier)
+
+    assert Ecto.Changeset.get_field(update_changeset, :ha_device_identifier) ==
+             room.ha_device_identifier
+
+    assert Ecto.Changeset.get_field(update_changeset, :ha_scene_select_identifier) ==
+             room.ha_scene_select_identifier
+  end
+
   test "scene requires name and room_id" do
     changeset = Scene.changeset(%Scene{}, %{})
     errors = errors_on(changeset)

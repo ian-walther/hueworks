@@ -4,6 +4,7 @@ defmodule Hueworks.HomeAssistant.Export.Messages.Discovery do
   alias Hueworks.ActiveScenes
   alias Hueworks.HomeAssistant.Export.Messages.State
   alias Hueworks.HomeAssistant.Export.Messages.Topics
+  alias Hueworks.PublishedIdentity
   alias Hueworks.Schemas.{Group, Light, PresenceInput, Room, Scene}
 
   def discovery_payload(%Scene{} = scene, config) do
@@ -20,7 +21,7 @@ defmodule Hueworks.HomeAssistant.Export.Messages.Discovery do
       "payload_not_available" => "offline",
       "json_attributes_topic" => Topics.attributes_topic(scene.id),
       "device" => %{
-        "identifiers" => ["hueworks_room_#{scene.room_id}"],
+        "identifiers" => [room_device_identifier(scene.room)],
         "name" => "HueWorks #{room_name}",
         "manufacturer" => "HueWorks",
         "model" => "Room Scenes"
@@ -43,7 +44,7 @@ defmodule Hueworks.HomeAssistant.Export.Messages.Discovery do
     %{
       "platform" => "select",
       "name" => "Scene",
-      "unique_id" => "hueworks_room_scene_select_#{room.id}",
+      "unique_id" => PublishedIdentity.fetch!(room, :ha_scene_select_identifier),
       "command_topic" => Topics.room_select_command_topic(room.id),
       "state_topic" => Topics.room_select_state_topic(room.id),
       "availability_topic" => Topics.availability_topic(),
@@ -52,7 +53,7 @@ defmodule Hueworks.HomeAssistant.Export.Messages.Discovery do
       "json_attributes_topic" => Topics.room_select_attributes_topic(room.id),
       "options" => room_select_option_labels(scenes),
       "device" => %{
-        "identifiers" => ["hueworks_room_#{room.id}"],
+        "identifiers" => [room_device_identifier(room)],
         "name" => "HueWorks #{room_name(room)}",
         "manufacturer" => "HueWorks",
         "model" => "Room Scenes"
@@ -143,7 +144,7 @@ defmodule Hueworks.HomeAssistant.Export.Messages.Discovery do
       "payload_not_available" => "offline",
       "json_attributes_topic" => Topics.presence_input_attributes_topic(input.id),
       "device" => %{
-        "identifiers" => ["hueworks_room_#{input.room_id}"],
+        "identifiers" => [room_device_identifier(input.room)],
         "name" => "HueWorks #{room_name(input.room)}",
         "manufacturer" => "HueWorks",
         "model" => "Presence Inputs"
@@ -169,10 +170,8 @@ defmodule Hueworks.HomeAssistant.Export.Messages.Discovery do
     do: State.active_scene_name(room_id, scenes)
 
   defp room_device(entity) do
-    room_id = entity.room_id || "unassigned"
-
     %{
-      "identifiers" => ["hueworks_room_#{room_id}"],
+      "identifiers" => [room_device_identifier(entity.room)],
       "name" => "HueWorks #{room_name(entity.room)}",
       "manufacturer" => "HueWorks",
       "model" => "Room Controls"
@@ -189,6 +188,11 @@ defmodule Hueworks.HomeAssistant.Export.Messages.Discovery do
 
   defp room_name(%Room{} = room), do: room.display_name || room.name
   defp room_name(_room), do: "Unknown Room"
+
+  defp room_device_identifier(%Room{} = room),
+    do: PublishedIdentity.fetch!(room, :ha_device_identifier)
+
+  defp room_device_identifier(_room), do: "hueworks_room_unassigned"
 
   defp scene_name(%Scene{} = scene), do: scene.display_name || scene.name
 

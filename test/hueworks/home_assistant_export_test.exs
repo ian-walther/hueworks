@@ -74,7 +74,13 @@ defmodule Hueworks.HomeAssistant.ExportTest do
   end
 
   test "discovery payload uses stable IDs and scene-only entity names" do
-    room = Repo.insert!(%Room{name: "Main Floor"})
+    room =
+      Repo.insert!(%Room{
+        name: "Main Floor",
+        ha_device_identifier: "persisted-main-floor-device",
+        ha_scene_select_identifier: "persisted-main-floor-select"
+      })
+
     scene = Repo.insert!(%Scene{name: "All Auto", room_id: room.id}) |> Repo.preload(:room)
 
     payload = Export.discovery_payload(scene)
@@ -83,7 +89,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
     assert payload["unique_id"] == "hueworks_scene_#{scene.id}"
     assert payload["command_topic"] == "hueworks/ha_export/scenes/#{scene.id}/set"
     assert payload["json_attributes_topic"] == "hueworks/ha_export/scenes/#{scene.id}/attributes"
-    assert payload["device"]["identifiers"] == ["hueworks_room_#{room.id}"]
+    assert payload["device"]["identifiers"] == ["persisted-main-floor-device"]
     assert payload["device"]["name"] == "HueWorks Main Floor"
   end
 
@@ -118,7 +124,12 @@ defmodule Hueworks.HomeAssistant.ExportTest do
   end
 
   test "room select discovery payload uses stable IDs and disambiguated options" do
-    room = Repo.insert!(%Room{name: "Main Floor"})
+    room =
+      Repo.insert!(%Room{
+        name: "Main Floor",
+        ha_device_identifier: "persisted-main-floor-device",
+        ha_scene_select_identifier: "persisted-main-floor-select"
+      })
 
     scene_a = Repo.insert!(%Scene{name: "All Auto", room_id: room.id}) |> Repo.preload(:room)
     scene_b = Repo.insert!(%Scene{name: "All Auto", room_id: room.id}) |> Repo.preload(:room)
@@ -126,7 +137,8 @@ defmodule Hueworks.HomeAssistant.ExportTest do
     payload = Export.room_select_discovery_payload(room, [scene_a, scene_b])
 
     assert payload["name"] == "Scene"
-    assert payload["unique_id"] == "hueworks_room_scene_select_#{room.id}"
+    assert payload["unique_id"] == "persisted-main-floor-select"
+    assert payload["device"]["identifiers"] == ["persisted-main-floor-device"]
     assert payload["command_topic"] == "hueworks/ha_export/rooms/#{room.id}/scene/set"
     assert payload["state_topic"] == "hueworks/ha_export/rooms/#{room.id}/scene/state"
     assert payload["device"]["name"] == "HueWorks Main Floor"
@@ -251,7 +263,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
     assert payload["json_attributes_topic"] ==
              "hueworks/ha_export/presence_inputs/#{input.id}/attributes"
 
-    assert payload["device"]["identifiers"] == ["hueworks_room_#{room.id}"]
+    assert payload["device"]["identifiers"] == [room.ha_device_identifier]
     assert payload["device"]["name"] == "HueWorks Office"
     assert payload["device"]["model"] == "Presence Inputs"
   end
