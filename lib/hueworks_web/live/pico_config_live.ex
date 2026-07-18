@@ -242,7 +242,7 @@ defmodule HueworksWeb.PicoConfigLive do
         socket
         |> assign(
           save_status: nil,
-          save_error: "The source Pico needs a area before it can be copied."
+          save_error: "The source Pico needs an Area before it can be copied."
         )
         |> reply_with_save_notice()
 

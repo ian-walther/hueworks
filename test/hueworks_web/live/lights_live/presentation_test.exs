@@ -3,7 +3,7 @@ defmodule HueworksWeb.LightsLive.PresentationTest do
 
   alias HueworksWeb.LightsLive.Presentation
 
-  test "manual_adjustment_locked? reflects whether a area has an active scene" do
+  test "manual_adjustment_locked? reflects whether an Area has an active scene" do
     assert Presentation.manual_adjustment_locked?(%{1 => 10}, 1)
     refute Presentation.manual_adjustment_locked?(%{1 => 10}, 2)
     refute Presentation.manual_adjustment_locked?(nil, 1)

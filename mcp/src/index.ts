@@ -165,7 +165,7 @@ export function createHueworksMcpServer(api: HueworksApi): McpServer {
     "hueworks_deactivate_area_scene",
     {
       description:
-        "Explicitly clear a area's active HueWorks scene. This does not toggle a scene and does not directly dispatch hardware commands.",
+        "Explicitly clear an Area's active HueWorks scene. This does not toggle a scene and does not directly dispatch hardware commands.",
       inputSchema: z.object({ area_id: positiveInteger }),
       annotations: writeAnnotations,
     },

@@ -1056,7 +1056,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
              ~s(id="pico-clear-area-scope" type="button" class="hw-button hw-delete-button" phx-click="clear_pico_config" disabled)
 
     assert html =~
-             "This Pico needs a area before control groups or button bindings can be configured."
+             "This Pico needs an Area before control groups or button bindings can be configured."
 
     assert html =~ "Hallway"
   end
@@ -1394,7 +1394,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
     refute html =~ "Disabled Group"
   end
 
-  test "pico config can bind a button press to a area scene", %{conn: conn} do
+  test "pico config can bind a button press to an Area scene", %{conn: conn} do
     area = Repo.insert!(%Area{name: "Movie Area"})
 
     bridge =

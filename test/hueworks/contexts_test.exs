@@ -365,11 +365,11 @@ defmodule Hueworks.ContextsTest do
   end
 
   test "Areas context supports CRUD and list ordering" do
-    _b = insert_area("B area")
-    _a = insert_area("A area")
+    _b = insert_area("Area B")
+    _a = insert_area("Area A")
 
     names = Areas.list_areas() |> Enum.map(& &1.name)
-    assert names == ["A area", "B area"]
+    assert names == ["Area A", "Area B"]
 
     {:ok, area} = Areas.create_area(%{name: "Office"})
     {:ok, updated} = Areas.update_area(area, %{name: "Office 2"})

@@ -36,7 +36,7 @@ defmodule Hueworks.PresenceInputsTest do
     Repo.insert!(struct(Light, Map.merge(defaults, attrs)))
   end
 
-  test "create_input persists a area-scoped boolean" do
+  test "create_input persists an Area-scoped boolean" do
     area = insert_area()
 
     assert {:ok, input} =

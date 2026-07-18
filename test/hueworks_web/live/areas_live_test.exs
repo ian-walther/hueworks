@@ -21,7 +21,7 @@ defmodule HueworksWeb.AreasLiveTest do
     assert has_element?(view, "#area-#{area.id} .hw-area-details", "Area details")
   end
 
-  test "areas page creates a area through the modal", %{conn: conn} do
+  test "areas page creates an Area through the modal", %{conn: conn} do
     {:ok, view, _html} = live(conn, "/areas")
 
     render_click(element(view, "button[phx-click='open_new']"))
@@ -37,7 +37,7 @@ defmodule HueworksWeb.AreasLiveTest do
     assert area.display_name == nil
   end
 
-  test "areas page updates a area display name through the modal", %{conn: conn} do
+  test "areas page updates an Area display name through the modal", %{conn: conn} do
     area = Repo.insert!(%Area{name: "Studio", metadata: %{}})
 
     {:ok, view, _html} = live(conn, "/areas")
@@ -55,7 +55,7 @@ defmodule HueworksWeb.AreasLiveTest do
     assert updated.display_name == "Creative Studio"
   end
 
-  test "areas page deletes a area", %{conn: conn} do
+  test "areas page deletes an Area", %{conn: conn} do
     area = Repo.insert!(%Area{name: "Guest Area", metadata: %{}})
 
     {:ok, view, _html} = live(conn, "/areas")

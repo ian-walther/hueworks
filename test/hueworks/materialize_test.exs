@@ -1433,7 +1433,7 @@ defmodule Hueworks.Import.MaterializeTest do
     assert Repo.reload!(group).area_id == group_area.id
   end
 
-  test "reimport does not recreate a area the user renamed when no new entities are imported" do
+  test "reimport does not recreate an Area the user renamed when no new entities are imported" do
     bridge = insert_bridge()
     renamed_area = insert_area("Workshop")
 
