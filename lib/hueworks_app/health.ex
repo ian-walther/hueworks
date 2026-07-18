@@ -3,26 +3,40 @@ defmodule Hueworks.Health do
 
   alias Hueworks.Control.{DesiredState, Executor, State}
   alias Hueworks.Repo
+  alias Hueworks.RuntimeIO
 
   def status do
     database = database_status()
+    runtime_io_disabled? = RuntimeIO.disabled?()
 
     runtime = %{
       control_state: process_status(State),
       desired_state: process_status(DesiredState),
-      executor: process_status(Executor)
+      executor: if(runtime_io_disabled?, do: "disabled", else: process_status(Executor))
     }
 
-    ready? = database == "ok" and Enum.all?(runtime, fn {_name, status} -> status == "ok" end)
+    required_runtime =
+      if runtime_io_disabled? do
+        Map.take(runtime, [:control_state, :desired_state])
+      else
+        runtime
+      end
+
+    ready? =
+      database == "ok" and Enum.all?(required_runtime, fn {_name, status} -> status == "ok" end)
+
+    body = %{
+      status: if(ready?, do: "ok", else: "unavailable"),
+      version: version(),
+      database: database,
+      runtime: runtime
+    }
+
+    body = if runtime_io_disabled?, do: Map.put(body, :runtime_io, "disabled"), else: body
 
     %{
       ready?: ready?,
-      body: %{
-        status: if(ready?, do: "ok", else: "unavailable"),
-        version: version(),
-        database: database,
-        runtime: runtime
-      }
+      body: body
     }
   end
 

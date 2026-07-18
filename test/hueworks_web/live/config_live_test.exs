@@ -30,6 +30,7 @@ defmodule HueworksWeb.ConfigLiveTest do
     original_supervisor_name = Application.get_env(:hueworks, :ha_export_tortoise_supervisor_name)
     original_pairing_state_module = Application.get_env(:hueworks, :homekit_pairing_state_module)
     original_pairing_stub = Application.get_env(:hueworks, :homekit_config_test_pairing)
+    original_runtime_io_disabled = Application.get_env(:hueworks, :runtime_io_disabled)
 
     Application.put_env(:hueworks, :ha_export_tortoise_module, __MODULE__.TortoiseStub)
 
@@ -73,6 +74,7 @@ defmodule HueworksWeb.ConfigLiveTest do
 
       restore_app_env(:hueworks, :homekit_pairing_state_module, original_pairing_state_module)
       restore_app_env(:hueworks, :homekit_config_test_pairing, original_pairing_stub)
+      restore_app_env(:hueworks, :runtime_io_disabled, original_runtime_io_disabled)
     end)
 
     :ok
@@ -94,6 +96,15 @@ defmodule HueworksWeb.ConfigLiveTest do
     assert has_element?(view, "#system-status .hw-status-badge", "Healthy")
     refute html =~ "Save General Settings"
     refute html =~ "MQTT Password"
+  end
+
+  test "config overview identifies an isolated verification runtime", %{conn: conn} do
+    Application.put_env(:hueworks, :runtime_io_disabled, true)
+
+    {:ok, view, _html} = live(conn, "/config")
+
+    assert has_element?(view, "#system-status .hw-status-badge", "Verification mode")
+    assert has_element?(view, "#system-status", "Runtime I/O: disabled")
   end
 
   test "an empty installation offers the dedicated first-run workspace", %{conn: conn} do

@@ -31,7 +31,8 @@ defmodule HueworksWeb.ConfigLive do
        homekit_enabled?: app_setting.homekit_scenes_enabled == true,
        api_enabled?: AppSettings.api_enabled?(),
        health: health.body,
-       healthy?: health.ready?
+       healthy?: health.ready?,
+       verification_mode?: health.body[:runtime_io] == "disabled"
      )}
   end
 

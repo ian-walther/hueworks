@@ -3,6 +3,7 @@ defmodule HueworksWeb.HealthControllerTest do
 
   setup do
     previous = Application.get_env(:hueworks, :health_module)
+    previous_runtime_io_disabled = Application.get_env(:hueworks, :runtime_io_disabled)
 
     on_exit(fn ->
       if previous do
@@ -10,6 +11,8 @@ defmodule HueworksWeb.HealthControllerTest do
       else
         Application.delete_env(:hueworks, :health_module)
       end
+
+      restore_app_env(:hueworks, :runtime_io_disabled, previous_runtime_io_disabled)
     end)
 
     :ok
@@ -38,6 +41,19 @@ defmodule HueworksWeb.HealthControllerTest do
 
     assert %{"status" => "unavailable", "database" => "error"} =
              conn |> get("/health") |> json_response(503)
+  end
+
+  test "reports an explicitly isolated but ready verification runtime", %{conn: conn} do
+    Application.put_env(:hueworks, :runtime_io_disabled, true)
+
+    response = conn |> get("/health") |> json_response(200)
+
+    assert response["status"] == "ok"
+    assert response["database"] == "ok"
+    assert response["runtime_io"] == "disabled"
+    assert response["runtime"]["control_state"] == "ok"
+    assert response["runtime"]["desired_state"] == "ok"
+    assert response["runtime"]["executor"] == "disabled"
   end
 
   defmodule UnavailableHealth do

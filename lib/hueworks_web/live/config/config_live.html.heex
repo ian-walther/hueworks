@@ -105,12 +105,27 @@
         "hw-status-badge",
         if(@healthy?, do: "hw-status-badge-success", else: "hw-status-badge-warning")
       ]}>
-        <%= if @healthy?, do: "Healthy", else: "Needs attention" %>
+        <%= cond do %>
+          <% @verification_mode? -> %>
+            Verification mode
+          <% @healthy? -> %>
+            Healthy
+          <% true -> %>
+            Needs attention
+        <% end %>
       </span>
     </div>
-    <p class="hw-muted">
-      Core control services: <strong><%= if @healthy?, do: "ready", else: "unavailable" %></strong>
-      · Database: <strong><%= @health.database %></strong>
-    </p>
+    <%= if @verification_mode? do %>
+      <p class="hw-muted">
+        Safe web and data services: <strong><%= if @healthy?, do: "ready", else: "unavailable" %></strong>
+        · Database: <strong><%= @health.database %></strong>
+        · Runtime I/O: <strong>disabled</strong>
+      </p>
+    <% else %>
+      <p class="hw-muted">
+        Core control services: <strong><%= if @healthy?, do: "ready", else: "unavailable" %></strong>
+        · Database: <strong><%= @health.database %></strong>
+      </p>
+    <% end %>
   </section>
 </HueworksWeb.ConfigComponents.page>
