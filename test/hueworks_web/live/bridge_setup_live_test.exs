@@ -262,6 +262,117 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
              Integer.to_string(existing_area.id)
   end
 
+  test "native import visibly preselects a full-coverage HA placement suggestion", %{conn: conn} do
+    destination = Repo.insert!(%Area{name: "Main Floor"})
+
+    ha_bridge =
+      %Bridge{}
+      |> Bridge.changeset(%{
+        type: :ha,
+        name: "Home Assistant",
+        host: "10.0.0.251",
+        credentials: %{"token" => "token"},
+        enabled: true
+      })
+      |> Repo.insert!()
+
+    {:ok, [ha_space]} =
+      Hueworks.ExternalSpaces.sync_bridge_spaces(ha_bridge, [
+        %{kind: "ha_area", external_id: "office", name: "Office"}
+      ])
+
+    {:ok, _mapping} = Hueworks.ExternalSpaces.put_mapping(ha_space, destination)
+
+    %BridgeImport{}
+    |> BridgeImport.changeset(%{
+      bridge_id: ha_bridge.id,
+      raw_blob: %{},
+      normalized_blob: %{
+        external_spaces: [],
+        areas: [],
+        lights: [
+          %{
+            source_id: "light.office",
+            identifiers: %{"mac" => "aa:bb:cc"},
+            space_refs: [
+              %{kind: "ha_area", external_id: "office", relationship: "direct"}
+            ]
+          }
+        ],
+        groups: []
+      },
+      review_blob: %{},
+      status: :normalized,
+      imported_at: DateTime.utc_now() |> DateTime.truncate(:second)
+    })
+    |> Repo.insert!()
+
+    hue_bridge =
+      %Bridge{}
+      |> Bridge.changeset(%{
+        type: :hue,
+        name: "Hue Bridge",
+        host: "10.0.0.252",
+        credentials: %{"api_key" => "key"},
+        enabled: true
+      })
+      |> Repo.insert!()
+
+    normalized = %{
+      external_spaces: [
+        %{
+          source: :hue,
+          source_id: "1",
+          kind: "hue_area",
+          external_id: "1",
+          name: "Office"
+        }
+      ],
+      areas: [
+        %{
+          source: :hue,
+          source_id: "1",
+          kind: "hue_area",
+          external_id: "1",
+          name: "Office",
+          normalized_name: "office"
+        }
+      ],
+      lights: [
+        %{
+          source: :hue,
+          source_id: "1",
+          name: "Office Lamp",
+          area_source_id: "1",
+          space_refs: [%{kind: "hue_area", external_id: "1", relationship: "direct"}],
+          identifiers: %{"mac" => "aa:bb:cc"},
+          capabilities: %{},
+          metadata: %{}
+        }
+      ],
+      groups: [],
+      memberships: %{}
+    }
+
+    Application.put_env(:hueworks, :import_pipeline_payload, normalized)
+
+    {:ok, view, _html} = live(conn, "/config/bridges/#{hue_bridge.id}/import")
+    html = render(view)
+
+    assert html =~ "Matched through Home Assistant"
+    assert html =~ "1 of 1 members agree on Main Floor"
+
+    assert get_in(get_assign(view, :plan), [:areas, "1", "target_area_id"]) ==
+             to_string(destination.id)
+
+    view
+    |> element("button[phx-click='apply_materialization']")
+    |> render_click()
+
+    assert Hueworks.ExternalSpaces.mapped_area_id(hue_bridge, "hue_area", "1") ==
+             destination.id
+  end
+
   test "check all preserves merge selection for matching areas", %{conn: conn} do
     existing_area =
       Repo.insert!(%Hueworks.Schemas.Area{
