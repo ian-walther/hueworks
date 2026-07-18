@@ -1,9 +1,16 @@
 defmodule HueworksWeb.RedirectController do
   use Phoenix.Controller
 
-  alias Hueworks.Bridges
+  alias Hueworks.{Bridges, Onboarding}
 
   def home(conn, _params) do
-    redirect(conn, to: if(Bridges.any_bridges?(), do: "/control", else: "/config"))
+    path =
+      cond do
+        Onboarding.status().auto_open? -> "/setup"
+        Bridges.any_bridges?() -> "/control"
+        true -> "/config"
+      end
+
+    redirect(conn, to: path)
   end
 end

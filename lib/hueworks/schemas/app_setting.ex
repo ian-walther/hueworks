@@ -22,6 +22,9 @@ defmodule Hueworks.Schemas.AppSetting do
     field(:homekit_bridge_name, :string)
     field(:api_enabled, :boolean, default: false)
     field(:api_token, :string)
+    field(:onboarding_path, :string)
+    field(:onboarding_completed_at, :utc_datetime_usec)
+    field(:onboarding_dismissed_at, :utc_datetime_usec)
 
     timestamps()
   end
@@ -47,7 +50,10 @@ defmodule Hueworks.Schemas.AppSetting do
       :homekit_scenes_enabled,
       :homekit_bridge_name,
       :api_enabled,
-      :api_token
+      :api_token,
+      :onboarding_path,
+      :onboarding_completed_at,
+      :onboarding_dismissed_at
     ])
     |> validate_required([:scope])
     |> validate_inclusion(:scope, ["global"])
@@ -64,6 +70,7 @@ defmodule Hueworks.Schemas.AppSetting do
     |> validate_length(:ha_export_discovery_prefix, min: 1, max: 255)
     |> validate_length(:homekit_bridge_name, max: 64)
     |> validate_length(:api_token, min: 32, max: 255)
+    |> validate_inclusion(:onboarding_path, ["ha_assisted", "direct"])
     |> validate_ha_export_requirements()
     |> unique_constraint(:scope)
   end

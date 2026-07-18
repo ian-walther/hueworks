@@ -1,10 +1,18 @@
 defmodule HueworksWeb.RedirectControllerTest do
   use HueworksWeb.ConnCase, async: false
 
-  alias Hueworks.Repo
+  alias Hueworks.{Onboarding, Repo}
   alias Hueworks.Schemas.Bridge
 
-  test "an empty installation routes to first-run configuration", %{conn: conn} do
+  test "an untouched installation routes to dedicated first-run setup", %{conn: conn} do
+    conn = get(conn, "/")
+
+    assert redirected_to(conn) == "/setup"
+  end
+
+  test "an explicitly dismissed empty setup routes to config", %{conn: conn} do
+    assert {:ok, _settings} = Onboarding.dismiss()
+
     conn = get(conn, "/")
 
     assert redirected_to(conn) == "/config"

@@ -115,6 +115,30 @@ defmodule Hueworks.AppSettings do
     end
   end
 
+  def update_onboarding_state(attrs) when is_map(attrs) do
+    current = get_global()
+
+    result =
+      current
+      |> AppSetting.changeset(attrs)
+      |> then(fn changeset ->
+        if current.id do
+          Repo.update(changeset)
+        else
+          Repo.insert(changeset)
+        end
+      end)
+
+    case result do
+      {:ok, %AppSetting{} = app_setting} ->
+        :ok = Cache.put(@cache_namespace, @cache_key, app_setting)
+        {:ok, app_setting}
+
+      other ->
+        other
+    end
+  end
+
   defp load_global do
     case Repo.get_by(AppSetting, scope: @global_scope) do
       %AppSetting{} = app_setting -> app_setting
@@ -208,7 +232,10 @@ defmodule Hueworks.AppSettings do
       homekit_scenes_enabled: s.homekit_scenes_enabled == true,
       homekit_bridge_name: s.homekit_bridge_name || HomeKitConfig.default_bridge_name(),
       api_enabled: s.api_enabled == true,
-      api_token: s.api_token
+      api_token: s.api_token,
+      onboarding_path: s.onboarding_path,
+      onboarding_completed_at: s.onboarding_completed_at,
+      onboarding_dismissed_at: s.onboarding_dismissed_at
     }
   end
 
