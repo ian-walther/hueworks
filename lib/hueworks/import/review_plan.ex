@@ -17,21 +17,21 @@ defmodule Hueworks.Import.ReviewPlan do
     end
   end
 
-  def put_room(plan, source_id, attrs) do
+  def put_area(plan, source_id, attrs) do
     source_id = Normalize.normalize_source_id(source_id)
     plan = plan || %{}
-    rooms = Normalize.fetch(plan, :rooms) || %{}
+    areas = Normalize.fetch(plan, :areas) || %{}
 
     if is_binary(source_id) do
-      current = Map.get(rooms, source_id, %{})
+      current = Map.get(areas, source_id, %{})
       updated = Map.merge(current, attrs)
-      Map.put(plan, :rooms, Map.put(rooms, source_id, updated))
+      Map.put(plan, :areas, Map.put(areas, source_id, updated))
     else
       plan
     end
   end
 
-  def put_entity_room(plan, type, source_id, target_room_id) do
+  def put_entity_area(plan, type, source_id, target_area_id) do
     key = entity_key(type)
     source_id = Normalize.normalize_source_id(source_id)
     plan = plan || %{}
@@ -43,7 +43,7 @@ defmodule Hueworks.Import.ReviewPlan do
       updated =
         current
         |> selection_map()
-        |> Map.put("target_room_id", blank_to_nil(target_room_id))
+        |> Map.put("target_area_id", blank_to_nil(target_area_id))
 
       Map.put(plan, key, Map.put(map, source_id, updated))
     else
@@ -87,7 +87,7 @@ defmodule Hueworks.Import.ReviewPlan do
     end
   end
 
-  def entity_target_room(plan, key, source_id) do
+  def entity_target_area(plan, key, source_id) do
     source_id = Normalize.normalize_source_id(source_id)
     map = Normalize.fetch(plan, key) || %{}
 
@@ -98,7 +98,7 @@ defmodule Hueworks.Import.ReviewPlan do
       _ ->
         map
         |> Map.get(source_id, %{})
-        |> Normalize.fetch(:target_room_id)
+        |> Normalize.fetch(:target_area_id)
         |> Normalize.normalize_source_id()
     end
   end
@@ -118,16 +118,16 @@ defmodule Hueworks.Import.ReviewPlan do
     end
   end
 
-  def room_action(plan, source_id) do
+  def area_action(plan, source_id) do
     source_id = Normalize.normalize_source_id(source_id)
-    rooms = Normalize.fetch(plan, :rooms) || %{}
+    areas = Normalize.fetch(plan, :areas) || %{}
 
     case source_id do
       nil ->
         "create"
 
       _ ->
-        rooms
+        areas
         |> Map.get(source_id, %{})
         |> Normalize.fetch(:action)
         |> case do
@@ -137,27 +137,27 @@ defmodule Hueworks.Import.ReviewPlan do
     end
   end
 
-  def room_merge_target(plan, source_id) do
+  def area_merge_target(plan, source_id) do
     source_id = Normalize.normalize_source_id(source_id)
-    rooms = Normalize.fetch(plan, :rooms) || %{}
+    areas = Normalize.fetch(plan, :areas) || %{}
 
     case source_id do
       nil ->
         nil
 
       _ ->
-        rooms
+        areas
         |> Map.get(source_id, %{})
-        |> Normalize.fetch(:target_room_id)
+        |> Normalize.fetch(:target_area_id)
         |> Normalize.normalize_source_id()
     end
   end
 
-  def apply_bulk_toggle(plan, normalized, rooms, value) do
-    rooms_entries = normalized_entries(normalized, :rooms)
+  def apply_bulk_toggle(plan, normalized, areas, value) do
+    areas_entries = normalized_entries(normalized, :areas)
     lights = normalized_entries(normalized, :lights)
     groups = normalized_entries(normalized, :groups)
-    room_ids = entity_ids(rooms_entries)
+    area_ids = entity_ids(areas_entries)
     light_ids = entity_ids(lights)
     group_ids = entity_ids(groups)
 
@@ -165,34 +165,34 @@ defmodule Hueworks.Import.ReviewPlan do
     selected = value == "check"
 
     plan
-    |> put_room_actions(room_ids, action, normalized, rooms)
+    |> put_area_actions(area_ids, action, normalized, areas)
     |> put_selection(:lights, light_ids, selected)
     |> put_selection(:groups, group_ids, selected)
   end
 
-  def apply_room_toggle(plan, normalized, rooms, room_id, value) do
+  def apply_area_toggle(plan, normalized, areas, area_id, value) do
     selected = value == "check"
     action = if selected, do: "check", else: "skip"
 
-    light_ids = room_entity_ids(normalized, room_id, :lights)
-    group_ids = room_entity_ids(normalized, room_id, :groups)
-    room_ids = room_entity_ids(normalized, room_id, :rooms)
+    light_ids = area_entity_ids(normalized, area_id, :lights)
+    group_ids = area_entity_ids(normalized, area_id, :groups)
+    area_ids = area_entity_ids(normalized, area_id, :areas)
 
     plan
-    |> put_room_actions(room_ids, action, normalized, rooms)
+    |> put_area_actions(area_ids, action, normalized, areas)
     |> put_selection(:lights, light_ids, selected)
     |> put_selection(:groups, group_ids, selected)
   end
 
-  def apply_room_section_toggle(plan, normalized, room_id, section, value) do
+  def apply_area_section_toggle(plan, normalized, area_id, section, value) do
     selected = value == "check"
     section_key = if section == "groups", do: :groups, else: :lights
 
     ids =
-      if room_id == "unassigned" do
+      if area_id == "unassigned" do
         unassigned_entity_ids(normalized, section_key)
       else
-        room_entity_ids(normalized, room_id, section_key)
+        area_entity_ids(normalized, area_id, section_key)
       end
 
     put_selection(plan, section_key, ids, selected)
@@ -206,10 +206,10 @@ defmodule Hueworks.Import.ReviewPlan do
     |> put_bulk_resolution(:groups, Normalize.fetch(statuses, :groups) || %{}, status, resolution)
   end
 
-  def apply_room_merge_defaults(plan, normalized, rooms) do
-    room_entries = normalized_entries(normalized, :rooms)
-    room_ids = entity_ids(room_entries)
-    put_room_actions(plan, room_ids, "check", normalized, rooms)
+  def apply_area_merge_defaults(plan, normalized, areas) do
+    area_entries = normalized_entries(normalized, :areas)
+    area_ids = entity_ids(area_entries)
+    put_area_actions(plan, area_ids, "check", normalized, areas)
   end
 
   def destructive_resolutions(plan) do
@@ -262,18 +262,18 @@ defmodule Hueworks.Import.ReviewPlan do
     end)
   end
 
-  defp put_room_actions(plan, room_ids, action, normalized, rooms) do
+  defp put_area_actions(plan, area_ids, action, normalized, areas) do
     plan = plan || %{}
-    plan_rooms = Normalize.fetch(plan, :rooms) || %{}
+    plan_areas = Normalize.fetch(plan, :areas) || %{}
 
     updated =
-      Enum.reduce(room_ids, plan_rooms, fn room_id, acc ->
-        current = Map.get(acc, room_id, %{})
-        new_attrs = room_action_for(room_id, action, normalized, rooms)
-        Map.put(acc, room_id, Map.merge(current, new_attrs))
+      Enum.reduce(area_ids, plan_areas, fn area_id, acc ->
+        current = Map.get(acc, area_id, %{})
+        new_attrs = area_action_for(area_id, action, normalized, areas)
+        Map.put(acc, area_id, Map.merge(current, new_attrs))
       end)
 
-    Map.put(plan, :rooms, updated)
+    Map.put(plan, :areas, updated)
   end
 
   defp put_selection(plan, key, ids, selected) do
@@ -288,37 +288,37 @@ defmodule Hueworks.Import.ReviewPlan do
     Map.put(plan, key, updated)
   end
 
-  defp room_action_for(_room_id, "skip", _normalized, _rooms) do
-    %{"action" => "skip", "target_room_id" => nil}
+  defp area_action_for(_area_id, "skip", _normalized, _areas) do
+    %{"action" => "skip", "target_area_id" => nil}
   end
 
-  defp room_action_for(room_id, _action, normalized, rooms) do
-    room_entries = normalized_entries(normalized, :rooms)
-    source_id = Normalize.normalize_source_id(room_id)
+  defp area_action_for(area_id, _action, normalized, areas) do
+    area_entries = normalized_entries(normalized, :areas)
+    source_id = Normalize.normalize_source_id(area_id)
 
-    room =
-      Enum.find(room_entries, fn entry ->
+    area =
+      Enum.find(area_entries, fn entry ->
         Normalize.normalize_source_id(Normalize.fetch(entry, :source_id)) == source_id
       end)
 
-    case matching_room_id(room, rooms) do
+    case matching_area_id(area, areas) do
       nil ->
-        %{"action" => "create", "target_room_id" => nil}
+        %{"action" => "create", "target_area_id" => nil}
 
       target_id ->
-        %{"action" => "merge", "target_room_id" => Integer.to_string(target_id)}
+        %{"action" => "merge", "target_area_id" => Integer.to_string(target_id)}
     end
   end
 
-  defp matching_room_id(nil, _rooms), do: nil
+  defp matching_area_id(nil, _areas), do: nil
 
-  defp matching_room_id(room, rooms) do
-    name = Normalize.fetch(room, :name) || "Room"
-    normalized_name = Normalize.fetch(room, :normalized_name) || Util.normalize_room_name(name)
+  defp matching_area_id(area, areas) do
+    name = Normalize.fetch(area, :name) || "Area"
+    normalized_name = Normalize.fetch(area, :normalized_name) || Util.normalize_area_name(name)
 
-    rooms
+    areas
     |> Enum.find_value(fn existing ->
-      if Util.normalize_room_name(existing.name) == normalized_name do
+      if Util.normalize_area_name(existing.name) == normalized_name do
         existing.id
       end
     end)
@@ -334,26 +334,26 @@ defmodule Hueworks.Import.ReviewPlan do
     |> Enum.filter(&is_binary/1)
   end
 
-  defp room_entity_ids(_normalized, room_id, :rooms) do
-    case Normalize.normalize_source_id(room_id) do
+  defp area_entity_ids(_normalized, area_id, :areas) do
+    case Normalize.normalize_source_id(area_id) do
       nil -> []
       id -> [id]
     end
   end
 
-  defp room_entity_ids(normalized, room_id, type) when type in [:lights, :groups] do
-    room_key = Normalize.normalize_source_id(room_id)
+  defp area_entity_ids(normalized, area_id, type) when type in [:lights, :groups] do
+    area_key = Normalize.normalize_source_id(area_id)
     entries = normalized_entries(normalized, type)
 
-    if is_binary(room_key) do
+    if is_binary(area_key) do
       entries
       |> Enum.reduce([], fn entry, acc ->
-        entry_room =
+        entry_area =
           entry
-          |> Normalize.fetch(:room_source_id)
+          |> Normalize.fetch(:area_source_id)
           |> Normalize.normalize_source_id()
 
-        if entry_room == room_key do
+        if entry_area == area_key do
           case Normalize.normalize_source_id(Normalize.fetch(entry, :source_id)) do
             nil -> acc
             id -> [id | acc]
@@ -369,10 +369,10 @@ defmodule Hueworks.Import.ReviewPlan do
   end
 
   defp unassigned_entity_ids(normalized, type) when type in [:lights, :groups] do
-    room_keys =
-      normalized_entries(normalized, :rooms)
-      |> Enum.map(fn room ->
-        room
+    area_keys =
+      normalized_entries(normalized, :areas)
+      |> Enum.map(fn area ->
+        area
         |> Normalize.fetch(:source_id)
         |> Normalize.normalize_source_id()
       end)
@@ -380,12 +380,12 @@ defmodule Hueworks.Import.ReviewPlan do
 
     normalized_entries(normalized, type)
     |> Enum.reduce([], fn entry, acc ->
-      room_key =
+      area_key =
         entry
-        |> Normalize.fetch(:room_source_id)
+        |> Normalize.fetch(:area_source_id)
         |> Normalize.normalize_source_id()
 
-      if not is_binary(room_key) or not Enum.member?(room_keys, room_key) do
+      if not is_binary(area_key) or not Enum.member?(area_keys, area_key) do
         case Normalize.normalize_source_id(Normalize.fetch(entry, :source_id)) do
           nil -> acc
           id -> [id | acc]

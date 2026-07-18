@@ -4,7 +4,7 @@ defmodule HueworksWeb.PicoConfigLive.Loader do
   import Phoenix.Component, only: [assign: 2]
 
   alias Hueworks.Picos
-  alias Hueworks.Rooms
+  alias Hueworks.Areas
   alias Hueworks.Scenes
   alias HueworksWeb.PicoConfigLive.{BindingEditor, ControlGroupEditor}
 
@@ -17,12 +17,12 @@ defmodule HueworksWeb.PicoConfigLive.Loader do
         _ -> nil
       end
 
-    rooms = Rooms.list_rooms()
+    areas = Areas.list_areas()
 
     socket
     |> assign(
       bridge: bridge,
-      all_rooms: rooms,
+      all_areas: areas,
       sync_status: :idle,
       sync_request_id: nil,
       sync_selected_pico_id: nil
@@ -34,14 +34,14 @@ defmodule HueworksWeb.PicoConfigLive.Loader do
     selected = Enum.find(devices, &(&1.id == selected_id))
 
     {groups, lights} =
-      case selected && selected.room_id do
-        room_id when is_integer(room_id) -> Picos.list_room_targets(room_id)
+      case selected && selected.area_id do
+        area_id when is_integer(area_id) -> Picos.list_area_targets(area_id)
         _ -> {[], []}
       end
 
-    room_scenes =
-      case selected && selected.room_id do
-        room_id when is_integer(room_id) -> Scenes.list_scenes_for_room(room_id)
+    area_scenes =
+      case selected && selected.area_id do
+        area_id when is_integer(area_id) -> Scenes.list_scenes_for_area(area_id)
         _ -> []
       end
 
@@ -63,11 +63,11 @@ defmodule HueworksWeb.PicoConfigLive.Loader do
             else: false
           ),
         selected_pico: selected,
-        room_groups: groups,
-        room_lights: lights,
-        room_scenes: room_scenes,
-        selectable_room_groups: selectable_groups(groups),
-        selectable_room_lights: selectable_lights(lights),
+        area_groups: groups,
+        area_lights: lights,
+        area_scenes: area_scenes,
+        selectable_area_groups: selectable_groups(groups),
+        selectable_area_lights: selectable_lights(lights),
         control_groups: control_groups,
         clone_source_pico_id:
           normalize_clone_source_id(devices, selected, socket.assigns[:clone_source_pico_id]),

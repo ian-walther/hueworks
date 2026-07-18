@@ -27,7 +27,7 @@ test("MCP server advertises safe read tools, resolves names, and maps explicit c
 
   const searchResult = await client.callTool({
     name: "hueworks_search_entities",
-    arguments: { query: "Office Lamps", kind: "group", room_id: 7 },
+    arguments: { query: "Office Lamps", kind: "group", area_id: 7 },
   });
 
   assert.equal("isError" in searchResult ? searchResult.isError : undefined, undefined);
@@ -38,7 +38,7 @@ test("MCP server advertises safe read tools, resolves names, and maps explicit c
     exact_controllable_match_count: 1,
     results: [{ id: 8, kind: "group", match: "exact", controllable: true }],
   });
-  assert.deepEqual(api.searchRequests, [{ query: "Office Lamps", kind: "group", roomId: 7 }]);
+  assert.deepEqual(api.searchRequests, [{ query: "Office Lamps", kind: "group", areaId: 7 }]);
 
   const result = await client.callTool({
     name: "hueworks_control_entity",
@@ -56,18 +56,18 @@ test("MCP server advertises safe read tools, resolves names, and maps explicit c
 
 class FakeHueworksApi implements HueworksApi {
   controlRequests: Array<{ kind: "light" | "group"; id: number; command: Record<string, unknown> }> = [];
-  searchRequests: Array<{ query: string; kind?: "light" | "group"; roomId?: number; limit?: number }> = [];
+  searchRequests: Array<{ query: string; kind?: "light" | "group"; areaId?: number; limit?: number }> = [];
 
   async status(): Promise<unknown> {
     return { api_version: "v1" };
   }
 
-  async listRooms(): Promise<unknown> {
-    return { rooms: [] };
+  async listAreas(): Promise<unknown> {
+    return { areas: [] };
   }
 
-  async room(): Promise<unknown> {
-    return { kind: "room" };
+  async area(): Promise<unknown> {
+    return { kind: "area" };
   }
 
   async entity(): Promise<unknown> {
@@ -77,7 +77,7 @@ class FakeHueworksApi implements HueworksApi {
   async searchEntities(filters: {
     query: string;
     kind?: "light" | "group";
-    roomId?: number;
+    areaId?: number;
     limit?: number;
   }): Promise<unknown> {
     this.searchRequests.push(filters);
@@ -98,8 +98,8 @@ class FakeHueworksApi implements HueworksApi {
     return { operation: "scene_activate" };
   }
 
-  async deactivateRoomScene(): Promise<unknown> {
-    return { operation: "room_scene_deactivate" };
+  async deactivateAreaScene(): Promise<unknown> {
+    return { operation: "area_scene_deactivate" };
   }
 
   async controlEntity(

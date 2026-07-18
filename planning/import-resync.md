@@ -27,7 +27,7 @@ Preserve this model:
 ## Field Ownership
 HueWorks-authored intent must be protected by default:
 - `display_name`
-- `room_id`
+- `area_id`
 - `enabled`
 - `ha_export_mode`
 - `homekit_export_mode`
@@ -85,7 +85,7 @@ The review builder should produce composable review items, not a single status e
 
 Auto-refresh records should be visible as collapsed details or audit information, but they are not review items unless they require operator judgment.
 
-Manual reimport should not produce `returned_entity`, `room_drift`, `label_drift`, or `link_suggested` review items.
+Manual reimport should not produce `returned_entity`, `area_drift`, `label_drift`, or `link_suggested` review items.
 
 ## Duplicate And Dedup Behavior
 Canonical linking's reimport role is deduplication.
@@ -101,8 +101,8 @@ Rules to preserve:
 - HA group duplicates should not be inferred when member canonicalization is incomplete, missing, or non-unique.
 - Reimport never mutates canonical links on existing rows.
 - The only link-bearing operation in reimport is the explicit duplicate resolution that creates a new row born linked.
-- Hidden duplicate rows must be `enabled: false`, canonical-linked, export-disabled, and `room_id: nil`.
-- Hidden duplicate rows are excluded from rooms, control planning, exports, and normal UI target lists.
+- Hidden duplicate rows must be `enabled: false`, canonical-linked, export-disabled, and `area_id: nil`.
+- Hidden duplicate rows are excluded from areas, control planning, exports, and normal UI target lists.
 - Hidden duplicate rows may still participate in imported bridge group topology as bridge-owned bookkeeping.
 - A missing hidden duplicate row should be auto-deleted instead of surfaced as a recurring `missing_entity` decision.
 - Deleting a native entity should also delete hidden duplicate rows whose canonical links target that entity.
@@ -116,7 +116,7 @@ Defaults should make "Apply" safe even when the user changes nothing.
 | --- | --- | --- |
 | Existing matched entity with only bridge-owned fact changes | Auto-refresh bridge facts | None, details only |
 | Confident technical identity drift | Auto-refresh identity/control fields | None, details only |
-| New upstream light or group | Do not import | Import, with room destination |
+| New upstream light or group | Do not import | Import, with area destination |
 | Duplicate upstream entity | Import hidden duplicate | Import as real entity |
 | Missing upstream light or group | Keep existing entity | Disable, delete |
 | Missing hidden duplicate row | Auto-delete bookkeeping row | None, details only |
@@ -126,20 +126,20 @@ Defaults should make "Apply" safe even when the user changes nothing.
 | Bridge group membership references missing, unimported, or ambiguous members | Keep current membership and warn | Import missing members, choose matches, or skip those members |
 | Destructive action selected | Require dependency disclosure and confirmation | Confirm or cancel |
 
-HueWorks-managed entities that appear through a Home Assistant bridge import should be filtered before matching so HueWorks exports do not re-enter HueWorks as new upstream entities. Recognition should use the HA entity registry `unique_id` convention for exported HueWorks entities, especially `hueworks_light_*`, `hueworks_group_*`, `hueworks_scene_*`, `hueworks_room_*`, and `hueworks_presence_input_*`.
+HueWorks-managed entities that appear through a Home Assistant bridge import should be filtered before matching so HueWorks exports do not re-enter HueWorks as new upstream entities. Recognition should use the HA entity registry `unique_id` convention for exported HueWorks entities, especially `hueworks_light_*`, `hueworks_group_*`, `hueworks_scene_*`, `hueworks_area_*`, and `hueworks_presence_input_*`.
 
-## Room Mapping
-Upstream rooms are used only for placing new entities during manual reimport.
+## Area Mapping
+Upstream areas are used only for placing new entities during manual reimport.
 
 During a reimport review:
-- For a new real entity, show a room destination control.
-- Preselect an existing HueWorks room only when the upstream room name clearly matches a current HueWorks room by normalized name.
-- If no clear match exists, default the new real entity to unassigned and offer `Create room` or `Choose room`.
-- Upstream rooms with no imported entities should not create rooms or require decisions.
-- Existing entities never receive room suggestions from manual reimport.
-- Hidden duplicate rows are always roomless.
+- For a new real entity, show a area destination control.
+- Preselect an existing HueWorks area only when the upstream area name clearly matches a current HueWorks area by normalized name.
+- If no clear match exists, default the new real entity to unassigned and offer `Create area` or `Choose area`.
+- Upstream areas with no imported entities should not create areas or require decisions.
+- Existing entities never receive area suggestions from manual reimport.
+- Hidden duplicate rows are always arealess.
 
-Hue-specific rule: Hue rooms arrive as both normalized rooms and groups of type `Room`. If a light moves rooms in the Hue app, the imported room-group membership refreshes as a bridge-owned fact while the light's HueWorks `room_id` stays put as authored intent. That divergence is correct. Reimport must not infer or update HueWorks `room_id` from Hue group membership.
+Hue-specific rule: Hue areas arrive as both normalized areas and groups of type `Area`. If a light moves areas in the Hue app, the imported area-group membership refreshes as a bridge-owned fact while the light's HueWorks `area_id` stays put as authored intent. That divergence is correct. Reimport must not infer or update HueWorks `area_id` from Hue group membership.
 
 ## Imported Group Membership
 Imported bridge group membership is bridge-owned and auto-refreshes when every referenced member resolves unambiguously.
@@ -166,7 +166,7 @@ Potential future enhancements:
 Future changes must not:
 - Reintroduce global `Hueworks.Import.Link.apply/0` into initial import or manual reimport.
 - Call `Hueworks.Bridges.delete_unchecked_entities/3` from manual reimport.
-- Infer existing HueWorks `room_id` from upstream room/group membership.
+- Infer existing HueWorks `area_id` from upstream area/group membership.
 - Mutate canonical links on existing rows during reimport.
 - Store HueWorks-authored intent in light/group `metadata`.
 - Allow a default reimport to delete or disable visible entities.

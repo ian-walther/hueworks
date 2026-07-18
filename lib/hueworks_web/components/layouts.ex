@@ -22,7 +22,7 @@ defmodule HueworksWeb.Layouts do
             <div class="hw-nav-links">
               <a href="/control" class={nav_class(@current_path, "/control")} aria-current={nav_current(@current_path, "/control")}>Control</a>
               <a href="/lights" class={nav_class(@current_path, "/lights")} aria-current={nav_current(@current_path, "/lights")}>Lights</a>
-              <a href="/rooms" class={nav_class(@current_path, "/rooms")} aria-current={nav_current(@current_path, "/rooms")}>Rooms</a>
+              <a href="/areas" class={nav_class(@current_path, "/areas")} aria-current={nav_current(@current_path, "/areas")}>Areas</a>
               <a href="/config" class={nav_class(@current_path, "/config")} aria-current={nav_current(@current_path, "/config")}>Config</a>
             </div>
           </div>

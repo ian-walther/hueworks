@@ -14,11 +14,11 @@ defmodule Hueworks.HomeAssistant.Export.Sync.Entities do
     :ok
   end
 
-  def publish_room(publish_fun, room_id, config)
-      when is_function(publish_fun, 3) and is_integer(room_id) do
+  def publish_area(publish_fun, area_id, config)
+      when is_function(publish_fun, 3) and is_integer(area_id) do
     if Runtime.export_enabled?(config) and Runtime.lights_enabled?(config) do
-      publish_each(publish_fun, :light, Entities.list_exportable_lights_for_room(room_id), config)
-      publish_each(publish_fun, :group, Entities.list_exportable_groups_for_room(room_id), config)
+      publish_each(publish_fun, :light, Entities.list_exportable_lights_for_area(area_id), config)
+      publish_each(publish_fun, :group, Entities.list_exportable_groups_for_area(area_id), config)
     end
 
     :ok

@@ -4,7 +4,7 @@ defmodule HueworksWeb.SceneEditorLive do
   alias Hueworks.ActiveScenes
   alias Hueworks.Groups
   alias Hueworks.Repo
-  alias Hueworks.Rooms
+  alias Hueworks.Areas
   alias Hueworks.Scenes
   alias Hueworks.Scenes.Builder
   alias HueworksWeb.SceneBuilderComponent.Component
@@ -16,8 +16,8 @@ defmodule HueworksWeb.SceneEditorLive do
 
     {:ok,
      assign(socket,
-       room_id: nil,
-       room_name: "",
+       area_id: nil,
+       area_name: "",
        scene_mode: :new,
        scene_id: nil,
        scene_name: "",
@@ -26,8 +26,8 @@ defmodule HueworksWeb.SceneEditorLive do
        activation_transition_unit: "seconds",
        scene_components: [Component.new()],
        scene_builder: nil,
-       scene_room_lights: [],
-       scene_room_groups: [],
+       scene_area_lights: [],
+       scene_area_groups: [],
        scene_presence_inputs: [],
        scene_light_states: [],
        active_scene_id: nil,
@@ -36,22 +36,22 @@ defmodule HueworksWeb.SceneEditorLive do
   end
 
   def handle_params(params, _uri, socket) do
-    room_id = parse_id(params["room_id"])
+    area_id = parse_id(params["area_id"])
     clone_scene_id = parse_id(params["clone_scene_id"])
 
     cond do
-      is_nil(room_id) ->
-        {:noreply, push_navigate(socket, to: "/rooms")}
+      is_nil(area_id) ->
+        {:noreply, push_navigate(socket, to: "/areas")}
 
       socket.assigns.live_action == :new ->
-        {:noreply, load_new_scene(socket, room_id, clone_scene_id)}
+        {:noreply, load_new_scene(socket, area_id, clone_scene_id)}
 
       socket.assigns.live_action == :edit ->
         scene_id = parse_id(params["id"])
-        {:noreply, load_existing_scene(socket, room_id, scene_id)}
+        {:noreply, load_existing_scene(socket, area_id, scene_id)}
 
       true ->
-        {:noreply, push_navigate(socket, to: "/rooms")}
+        {:noreply, push_navigate(socket, to: "/areas")}
     end
   end
 
@@ -112,7 +112,7 @@ defmodule HueworksWeb.SceneEditorLive do
          |> put_flash(:info, "Scene activated.")}
 
       {:error, :not_found} ->
-        {:noreply, push_navigate(socket, to: "/rooms")}
+        {:noreply, push_navigate(socket, to: "/areas")}
 
       {:error, _reason} ->
         {:noreply, put_scene_error(socket, "Unable to activate scene.")}
@@ -128,27 +128,27 @@ defmodule HueworksWeb.SceneEditorLive do
     {:noreply, socket}
   end
 
-  def handle_info({:active_scene_updated, room_id, scene_id}, socket) do
+  def handle_info({:active_scene_updated, area_id, scene_id}, socket) do
     {:noreply,
-     if socket.assigns.room_id == room_id do
+     if socket.assigns.area_id == area_id do
        assign(socket, active_scene_id: scene_id)
      else
        socket
      end}
   end
 
-  defp load_new_scene(socket, room_id, clone_scene_id) do
-    case clone_source(room_id, clone_scene_id) do
+  defp load_new_scene(socket, area_id, clone_scene_id) do
+    case clone_source(area_id, clone_scene_id) do
       {:error, :invalid_clone} ->
-        push_navigate(socket, to: "/rooms")
+        push_navigate(socket, to: "/areas")
 
-      {:ok, room, nil} ->
-        assign_new_scene(socket, room, "", [Component.new()])
+      {:ok, area, nil} ->
+        assign_new_scene(socket, area, "", [Component.new()])
 
-      {:ok, room, scene} ->
+      {:ok, area, scene} ->
         assign_new_scene(
           socket,
-          room,
+          area,
           cloned_scene_name(scene),
           load_scene_components(scene),
           scene.activation_transition_ms
@@ -156,28 +156,28 @@ defmodule HueworksWeb.SceneEditorLive do
     end
   end
 
-  defp load_existing_scene(socket, room_id, scene_id) do
-    case {Rooms.get_room(room_id), scene_id && Scenes.get_scene(scene_id)} do
+  defp load_existing_scene(socket, area_id, scene_id) do
+    case {Areas.get_area(area_id), scene_id && Scenes.get_scene(scene_id)} do
       {nil, _} ->
-        push_navigate(socket, to: "/rooms")
+        push_navigate(socket, to: "/areas")
 
       {_, nil} ->
-        push_navigate(socket, to: "/rooms")
+        push_navigate(socket, to: "/areas")
 
-      {room, scene} ->
-        if scene.room_id != room_id do
-          push_navigate(socket, to: "/rooms")
+      {area, scene} ->
+        if scene.area_id != area_id do
+          push_navigate(socket, to: "/areas")
         else
-          {room_lights, room_groups, presence_inputs} = scene_room_data(room_id)
+          {area_lights, area_groups, presence_inputs} = scene_area_data(area_id)
           light_states = Scenes.list_editable_light_states()
           components = load_scene_components(scene)
-          builder = Builder.build(room_lights, room_groups, components)
-          active_scene_id = active_scene_id_for_room(room_id)
+          builder = Builder.build(area_lights, area_groups, components)
+          active_scene_id = active_scene_id_for_area(area_id)
           {transition_value, transition_unit} = transition_fields(scene.activation_transition_ms)
 
           assign(socket,
-            room_id: room_id,
-            room_name: Hueworks.Util.display_name(room),
+            area_id: area_id,
+            area_name: Hueworks.Util.display_name(area),
             scene_mode: :edit,
             scene_id: scene.id,
             scene_name: Hueworks.Util.display_name(scene),
@@ -186,8 +186,8 @@ defmodule HueworksWeb.SceneEditorLive do
             activation_transition_unit: transition_unit,
             scene_components: components,
             scene_builder: builder,
-            scene_room_lights: room_lights,
-            scene_room_groups: room_groups,
+            scene_area_lights: area_lights,
+            scene_area_groups: area_groups,
             scene_presence_inputs: presence_inputs,
             scene_light_states: light_states,
             active_scene_id: active_scene_id,
@@ -199,7 +199,7 @@ defmodule HueworksWeb.SceneEditorLive do
 
   defp save_new_scene(socket, name) do
     with {:ok, transition_attrs} <- transition_attrs(socket) do
-      attrs = %{name: name, room_id: socket.assigns.room_id} |> Map.merge(transition_attrs)
+      attrs = %{name: name, area_id: socket.assigns.area_id} |> Map.merge(transition_attrs)
 
       case Scenes.create_scene(attrs) do
         {:ok, scene} ->
@@ -208,7 +208,7 @@ defmodule HueworksWeb.SceneEditorLive do
               {:noreply,
                socket
                |> put_flash(:info, "Scene saved.")
-               |> push_patch(to: "/rooms/#{scene.room_id}/scenes/#{scene.id}/edit")}
+               |> push_patch(to: "/areas/#{scene.area_id}/scenes/#{scene.id}/edit")}
 
             {:error, :invalid_light_state} ->
               _ = Scenes.delete_scene(scene)
@@ -245,7 +245,7 @@ defmodule HueworksWeb.SceneEditorLive do
   defp save_existing_scene(socket, name) do
     case Scenes.get_scene(socket.assigns.scene_id) do
       nil ->
-        {:noreply, push_navigate(socket, to: "/rooms")}
+        {:noreply, push_navigate(socket, to: "/areas")}
 
       scene ->
         with {:ok, transition_attrs} <- transition_attrs(socket) do
@@ -265,7 +265,7 @@ defmodule HueworksWeb.SceneEditorLive do
 
                   {:noreply,
                    socket
-                   |> assign(active_scene_id: active_scene_id_for_room(updated.room_id))
+                   |> assign(active_scene_id: active_scene_id_for_area(updated.area_id))
                    |> put_flash(:info, "Scene saved.")}
 
                 {:error, :invalid_light_state} ->
@@ -296,16 +296,16 @@ defmodule HueworksWeb.SceneEditorLive do
     end
   end
 
-  defp assign_new_scene(socket, room, scene_name, components, activation_transition_ms \\ nil) do
-    room_id = room.id
-    {room_lights, room_groups, presence_inputs} = scene_room_data(room_id)
+  defp assign_new_scene(socket, area, scene_name, components, activation_transition_ms \\ nil) do
+    area_id = area.id
+    {area_lights, area_groups, presence_inputs} = scene_area_data(area_id)
     light_states = Scenes.list_editable_light_states()
-    builder = Builder.build(room_lights, room_groups, components)
+    builder = Builder.build(area_lights, area_groups, components)
     {transition_value, transition_unit} = transition_fields(activation_transition_ms)
 
     assign(socket,
-      room_id: room_id,
-      room_name: Hueworks.Util.display_name(room),
+      area_id: area_id,
+      area_name: Hueworks.Util.display_name(area),
       scene_mode: :new,
       scene_id: nil,
       scene_name: scene_name,
@@ -314,35 +314,35 @@ defmodule HueworksWeb.SceneEditorLive do
       activation_transition_unit: transition_unit,
       scene_components: components,
       scene_builder: builder,
-      scene_room_lights: room_lights,
-      scene_room_groups: room_groups,
+      scene_area_lights: area_lights,
+      scene_area_groups: area_groups,
       scene_presence_inputs: presence_inputs,
       scene_light_states: light_states,
-      active_scene_id: active_scene_id_for_room(room_id),
+      active_scene_id: active_scene_id_for_area(area_id),
       scene_save_error: nil
     )
   end
 
-  defp clone_source(room_id, nil) do
-    case Rooms.get_room(room_id) do
+  defp clone_source(area_id, nil) do
+    case Areas.get_area(area_id) do
       nil -> {:error, :invalid_clone}
-      room -> {:ok, room, nil}
+      area -> {:ok, area, nil}
     end
   end
 
-  defp clone_source(room_id, clone_scene_id) do
-    case {Rooms.get_room(room_id), Scenes.get_scene(clone_scene_id)} do
+  defp clone_source(area_id, clone_scene_id) do
+    case {Areas.get_area(area_id), Scenes.get_scene(clone_scene_id)} do
       {nil, _} ->
         {:error, :invalid_clone}
 
       {_, nil} ->
         {:error, :invalid_clone}
 
-      {_room, scene} when scene.room_id != room_id ->
+      {_area, scene} when scene.area_id != area_id ->
         {:error, :invalid_clone}
 
-      {room, scene} ->
-        {:ok, room, scene}
+      {area, scene} ->
+        {:ok, area, scene}
     end
   end
 
@@ -379,14 +379,14 @@ defmodule HueworksWeb.SceneEditorLive do
     end
   end
 
-  defp scene_room_data(room_id) do
-    case Rooms.get_room(room_id) do
+  defp scene_area_data(area_id) do
+    case Areas.get_area(area_id) do
       nil ->
         {[], [], []}
 
-      room ->
-        room = Repo.preload(room, [:lights, :groups, :presence_inputs])
-        groups = room.groups
+      area ->
+        area = Repo.preload(area, [:lights, :groups, :presence_inputs])
+        groups = area.groups
         group_ids = Enum.map(groups, & &1.id)
         group_light_map = Groups.light_ids_by_group(group_ids)
 
@@ -396,18 +396,18 @@ defmodule HueworksWeb.SceneEditorLive do
             Map.put(group, :light_ids, light_ids)
           end)
 
-        {room.lights, groups_with_lights, room.presence_inputs}
+        {area.lights, groups_with_lights, area.presence_inputs}
     end
   end
 
-  defp active_scene_id_for_room(room_id) when is_integer(room_id) do
-    case ActiveScenes.get_for_room(room_id) do
+  defp active_scene_id_for_area(area_id) when is_integer(area_id) do
+    case ActiveScenes.get_for_area(area_id) do
       %{scene_id: scene_id} -> scene_id
       _ -> nil
     end
   end
 
-  defp active_scene_id_for_room(_room_id), do: nil
+  defp active_scene_id_for_area(_area_id), do: nil
 
   defp transition_attrs(%{assigns: %{activation_transition_mode: "default"}}),
     do: {:ok, %{activation_transition_ms: nil}}

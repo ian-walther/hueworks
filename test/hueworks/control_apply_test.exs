@@ -3,7 +3,7 @@ defmodule Hueworks.Control.ApplyTest do
 
   alias Hueworks.Control.{Apply, DesiredState, TraceBuffer}
   alias Hueworks.Repo
-  alias Hueworks.Schemas.{Light, Room}
+  alias Hueworks.Schemas.{Light, Area}
 
   setup do
     TraceBuffer.clear()
@@ -40,18 +40,18 @@ defmodule Hueworks.Control.ApplyTest do
     assert result.plan_diff == %{{:light, 2} => %{power: :off}}
   end
 
-  test "commit_and_enqueue returns invalid room errors unchanged" do
+  test "commit_and_enqueue returns invalid area errors unchanged" do
     txn =
       :scene_a
       |> DesiredState.begin()
       |> DesiredState.apply(:light, 3, %{power: :on})
 
-    assert {:error, {:invalid_room_id, :bad_room}} =
-             Apply.commit_and_enqueue(txn, :bad_room, enqueue_mode: :append)
+    assert {:error, {:invalid_area_id, :bad_area}} =
+             Apply.commit_and_enqueue(txn, :bad_area, enqueue_mode: :append)
   end
 
   test "records structured intent, planning, and enqueue evidence for traced control work" do
-    room = Repo.insert!(%Room{name: "Trace Room"})
+    area = Repo.insert!(%Area{name: "Trace Area"})
 
     bridge =
       insert_bridge!(%{
@@ -67,7 +67,7 @@ defmodule Hueworks.Control.ApplyTest do
         source: :hue,
         source_id: "trace-light",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         enabled: true
       })
 
@@ -79,12 +79,12 @@ defmodule Hueworks.Control.ApplyTest do
     trace = %{
       trace_id: "api-control-plan-1",
       source: "api.manual_control",
-      room_id: room.id,
+      area_id: area.id,
       started_at_ms: System.monotonic_time(:millisecond)
     }
 
     assert {:ok, %{plan: [%{id: light_id}]}} =
-             Apply.commit_and_enqueue(txn, room.id, trace: trace)
+             Apply.commit_and_enqueue(txn, area.id, trace: trace)
 
     assert light_id == light.id
 

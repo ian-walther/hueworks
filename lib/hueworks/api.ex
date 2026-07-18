@@ -15,9 +15,9 @@ defmodule Hueworks.Api do
   alias Hueworks.Groups
   alias Hueworks.Kelvin
   alias Hueworks.Repo
-  alias Hueworks.Rooms
+  alias Hueworks.Areas
   alias Hueworks.Util
-  alias Hueworks.Schemas.{ActiveScene, Group, GroupLight, Light, Room, Scene}
+  alias Hueworks.Schemas.{ActiveScene, Group, GroupLight, Light, Area, Scene}
 
   @safe_state_keys [:power, :brightness, :kelvin, :x, :y]
 
@@ -37,7 +37,7 @@ defmodule Hueworks.Api do
         homekit_scenes: settings.homekit_scenes_enabled
       },
       counts: %{
-        rooms: Repo.aggregate(Room, :count),
+        areas: Repo.aggregate(Area, :count),
         lights: Repo.aggregate(Light, :count),
         groups: Repo.aggregate(Group, :count),
         active_scenes: Repo.aggregate(ActiveScene, :count)
@@ -45,19 +45,19 @@ defmodule Hueworks.Api do
     }
   end
 
-  def rooms do
-    Rooms.list_rooms_with_children()
-    |> Enum.map(&room_index_projection/1)
+  def areas do
+    Areas.list_areas_with_children()
+    |> Enum.map(&area_index_projection/1)
   end
 
-  def room(id) when is_integer(id) do
-    case Repo.get(Room, id) do
+  def area(id) when is_integer(id) do
+    case Repo.get(Area, id) do
       nil -> {:error, :not_found}
-      room -> {:ok, room |> preload_room() |> room_projection()}
+      area -> {:ok, area |> preload_area() |> area_projection()}
     end
   end
 
-  def room(_id), do: {:error, :not_found}
+  def area(_id), do: {:error, :not_found}
 
   def light(id) when is_integer(id) do
     case Repo.get(Light, id) do
@@ -90,14 +90,14 @@ defmodule Hueworks.Api do
   def search_entities(query, filters) when is_binary(query) and is_list(filters) do
     normalized_query = normalize_search_value(query)
     kind = Keyword.get(filters, :kind)
-    room_id = Keyword.get(filters, :room_id)
+    area_id = Keyword.get(filters, :area_id)
     limit = normalize_search_limit(Keyword.get(filters, :limit))
 
     results =
       entity_search_candidates(kind)
       |> Enum.map(&entity_search_projection(&1, normalized_query))
       |> Enum.filter(&(&1.match != nil))
-      |> maybe_filter_by_room(room_id)
+      |> maybe_filter_by_area(area_id)
       |> Enum.sort_by(&entity_search_sort_key/1)
 
     %{
@@ -112,14 +112,14 @@ defmodule Hueworks.Api do
   def search_entities(_query, _filters),
     do: %{query: "", exact_match_count: 0, exact_controllable_match_count: 0, results: []}
 
-  def debug_room(id) do
-    with {:ok, room} <- room(id) do
+  def debug_area(id) do
+    with {:ok, area} <- area(id) do
       {:ok,
-       Map.put(room, :diagnostics, %{
-         recent_traces: trace_events(room_id: room.id, limit: 20),
-         active_scene: room.active_scene,
-         light_count: length(room.lights),
-         group_count: length(room.groups)
+       Map.put(area, :diagnostics, %{
+         recent_traces: trace_events(area_id: area.id, limit: 20),
+         active_scene: area.active_scene,
+         light_count: length(area.lights),
+         group_count: length(area.groups)
        })}
     end
   end
@@ -131,7 +131,7 @@ defmodule Hueworks.Api do
          physical_state_keys: state_keys(State.get(:light, light.id)),
          desired_state_keys: state_keys(DesiredState.get(:light, light.id)),
          recent_traces: trace_events(entity_kind: :light, entity_id: light.id, limit: 20),
-         active_scene: active_scene_for_room(light.room_id)
+         active_scene: active_scene_for_area(light.area_id)
        })}
     end
   end
@@ -155,40 +155,40 @@ defmodule Hueworks.Api do
 
   def control_entity(kind, id, command), do: Control.control_entity(kind, id, command)
   def activate_scene(scene_id), do: Control.activate_scene(scene_id)
-  def deactivate_room_scene(room_id), do: Control.deactivate_room_scene(room_id)
+  def deactivate_area_scene(area_id), do: Control.deactivate_area_scene(area_id)
   def refresh_physical_state, do: Control.refresh_physical_state()
 
-  defp room_projection(%Room{} = room) do
-    active_scene = active_scene_for_room(room.id, room.scenes)
+  defp area_projection(%Area{} = area) do
+    active_scene = active_scene_for_area(area.id, area.scenes)
 
     %{
-      id: room.id,
-      kind: "room",
-      name: room.name,
-      display_name: room.display_name || room.name,
+      id: area.id,
+      kind: "area",
+      name: area.name,
+      display_name: area.display_name || area.name,
       active_scene: active_scene,
-      scenes: room.scenes |> Enum.map(&scene_projection/1) |> sort_by_name(),
+      scenes: area.scenes |> Enum.map(&scene_projection/1) |> sort_by_name(),
       presence_inputs:
-        room.presence_inputs
+        area.presence_inputs
         |> Enum.map(&presence_input_projection/1)
         |> sort_by_name(),
-      lights: room.lights |> Enum.map(&light_projection/1) |> sort_by_name(),
-      groups: room.groups |> Enum.map(&group_projection/1) |> sort_by_name()
+      lights: area.lights |> Enum.map(&light_projection/1) |> sort_by_name(),
+      groups: area.groups |> Enum.map(&group_projection/1) |> sort_by_name()
     }
   end
 
-  defp room_index_projection(%Room{} = room) do
+  defp area_index_projection(%Area{} = area) do
     %{
-      id: room.id,
-      kind: "room",
-      name: room.name,
-      display_name: room.display_name || room.name,
-      active_scene: active_scene_for_room(room.id, room.scenes),
+      id: area.id,
+      kind: "area",
+      name: area.name,
+      display_name: area.display_name || area.name,
+      active_scene: active_scene_for_area(area.id, area.scenes),
       entity_counts: %{
-        lights: length(room.lights),
-        groups: length(room.groups),
-        scenes: length(room.scenes),
-        presence_inputs: length(room.presence_inputs)
+        lights: length(area.lights),
+        groups: length(area.groups),
+        scenes: length(area.scenes),
+        presence_inputs: length(area.presence_inputs)
       }
     }
   end
@@ -206,7 +206,7 @@ defmodule Hueworks.Api do
       source: enum(light.source),
       source_id: light.source_id,
       bridge_id: light.bridge_id,
-      room_id: light.room_id,
+      area_id: light.area_id,
       canonical_id: light.canonical_light_id,
       capabilities: capabilities(light),
       exports: exports(light),
@@ -217,7 +217,7 @@ defmodule Hueworks.Api do
       desired_updated_at: timestamp(DesiredState.updated_at(:light, light.id)),
       canonical_dependents: canonical_light_dependents(light.id),
       groups: groups_for_light(light.id),
-      active_scene: active_scene_for_room(light.room_id)
+      active_scene: active_scene_for_area(light.area_id)
     }
   end
 
@@ -236,7 +236,7 @@ defmodule Hueworks.Api do
       source: enum(group.source),
       source_id: group.source_id,
       bridge_id: group.bridge_id,
-      room_id: group.room_id,
+      area_id: group.area_id,
       parent_group_id: group.parent_group_id,
       canonical_id: group.canonical_group_id,
       capabilities: capabilities(group),
@@ -255,16 +255,16 @@ defmodule Hueworks.Api do
     }
   end
 
-  defp preload_room(room) do
-    Repo.preload(room, [:groups, :lights, :scenes, :presence_inputs])
+  defp preload_area(area) do
+    Repo.preload(area, [:groups, :lights, :scenes, :presence_inputs])
   end
 
-  defp active_scene_for_room(room_id, scenes \\ [])
+  defp active_scene_for_area(area_id, scenes \\ [])
 
-  defp active_scene_for_room(nil, _scenes), do: nil
+  defp active_scene_for_area(nil, _scenes), do: nil
 
-  defp active_scene_for_room(room_id, scenes) do
-    case ActiveScenes.get_for_room(room_id) do
+  defp active_scene_for_area(area_id, scenes) do
+    case ActiveScenes.get_for_area(area_id) do
       nil ->
         nil
 
@@ -277,7 +277,7 @@ defmodule Hueworks.Api do
           id: active_scene.scene_id,
           kind: "scene",
           name: scene_name(scene),
-          room_id: room_id,
+          area_id: area_id,
           last_applied_at: timestamp(active_scene.last_applied_at),
           power_overrides: power_overrides(active_scene)
         }
@@ -290,7 +290,7 @@ defmodule Hueworks.Api do
       kind: "scene",
       name: scene_name(scene),
       display_name: scene.display_name || scene.name,
-      room_id: scene.room_id
+      area_id: scene.area_id
     }
   end
 
@@ -300,19 +300,19 @@ defmodule Hueworks.Api do
       kind: "presence_input",
       name: input.name,
       occupied: input.occupied == true,
-      room_id: input.room_id
+      area_id: input.area_id
     }
   end
 
   defp entity_search_candidates(kind) when kind in [nil, :light] do
     lights =
       from(light in Light,
-        left_join: room in Room,
-        on: room.id == light.room_id,
-        select: {light, room}
+        left_join: area in Area,
+        on: area.id == light.area_id,
+        select: {light, area}
       )
       |> Repo.all()
-      |> Enum.map(fn {entity, room} -> %{entity: entity, room: room, kind: "light"} end)
+      |> Enum.map(fn {entity, area} -> %{entity: entity, area: area, kind: "light"} end)
 
     if kind == :light, do: lights, else: lights ++ entity_search_candidates(:group)
   end
@@ -327,15 +327,15 @@ defmodule Hueworks.Api do
       |> MapSet.new()
 
     from(group in Group,
-      left_join: room in Room,
-      on: room.id == group.room_id,
-      select: {group, room}
+      left_join: area in Area,
+      on: area.id == group.area_id,
+      select: {group, area}
     )
     |> Repo.all()
-    |> Enum.map(fn {entity, room} ->
+    |> Enum.map(fn {entity, area} ->
       %{
         entity: entity,
-        room: room,
+        area: area,
         kind: "group",
         has_members: MapSet.member?(groups_with_members, entity.id)
       }
@@ -344,7 +344,7 @@ defmodule Hueworks.Api do
 
   defp entity_search_candidates(_kind), do: []
 
-  defp entity_search_projection(%{entity: entity, room: room, kind: kind} = candidate, query) do
+  defp entity_search_projection(%{entity: entity, area: area, kind: kind} = candidate, query) do
     display_name = entity.display_name || entity.name
     match = entity_search_match([display_name, entity.name], query)
     canonical_id = canonical_id(entity, kind)
@@ -354,8 +354,8 @@ defmodule Hueworks.Api do
       kind: kind,
       name: entity.name,
       display_name: display_name,
-      room_id: entity.room_id,
-      room_name: room && (room.display_name || room.name),
+      area_id: entity.area_id,
+      area_name: area && (area.display_name || area.name),
       enabled: entity.enabled == true,
       canonical_id: canonical_id,
       source: enum(entity.source),
@@ -369,7 +369,7 @@ defmodule Hueworks.Api do
   defp canonical_id(entity, "group"), do: entity.canonical_group_id
 
   defp controllable_search_result?(entity, kind, canonical_id, candidate) do
-    entity.enabled == true and is_integer(entity.room_id) and is_nil(canonical_id) and
+    entity.enabled == true and is_integer(entity.area_id) and is_nil(canonical_id) and
       (kind == "light" or candidate.has_members == true)
   end
 
@@ -389,8 +389,8 @@ defmodule Hueworks.Api do
     end
   end
 
-  defp maybe_filter_by_room(results, nil), do: results
-  defp maybe_filter_by_room(results, room_id), do: Enum.filter(results, &(&1.room_id == room_id))
+  defp maybe_filter_by_area(results, nil), do: results
+  defp maybe_filter_by_area(results, area_id), do: Enum.filter(results, &(&1.area_id == area_id))
 
   defp entity_search_sort_key(result) do
     {
@@ -513,7 +513,7 @@ defmodule Hueworks.Api do
       recorded_at: timestamp(event.recorded_at),
       trace_id: event.trace_id,
       source: event.source,
-      room_id: event.room_id,
+      area_id: event.area_id,
       scene_id: event.scene_id,
       stage: enum(event.stage),
       entity_kind: enum(event.entity_kind),

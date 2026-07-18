@@ -38,14 +38,14 @@ defmodule HueworksWeb.SceneBuilderComponent.State.Membership do
     end)
   end
 
-  def add_group(components, component_id, group, room_light_ids) do
+  def add_group(components, component_id, group, area_light_ids) do
     component_id = Util.parse_id(component_id)
 
     Enum.map(components, fn component ->
       component = Component.new(component)
 
       if component.id == component_id and group do
-        group_light_ids = Builder.group_room_light_ids(group, room_light_ids)
+        group_light_ids = Builder.group_area_light_ids(group, area_light_ids)
 
         defaults =
           group_light_ids
@@ -86,14 +86,14 @@ defmodule HueworksWeb.SceneBuilderComponent.State.Membership do
     end)
   end
 
-  def remove_group(components, component_id, group, room_light_ids) do
+  def remove_group(components, component_id, group, area_light_ids) do
     component_id = Util.parse_id(component_id)
 
     Enum.map(components, fn component ->
       component = Component.new(component)
 
       if component.id == component_id and group do
-        group_light_ids = Builder.group_room_light_ids(group, room_light_ids)
+        group_light_ids = Builder.group_area_light_ids(group, area_light_ids)
 
         %{
           component

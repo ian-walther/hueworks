@@ -40,8 +40,8 @@ defmodule Hueworks.Import.Normalize.Z2M do
       |> Enum.filter(&is_map/1)
 
     memberships = %{
-      room_groups: [],
-      room_lights: [],
+      area_groups: [],
+      area_lights: [],
       group_lights: group_lights(groups)
     }
 
@@ -74,7 +74,7 @@ defmodule Hueworks.Import.Normalize.Z2M do
             source_id: source_id,
             name: Normalize.fetch(device, :friendly_name) || source_id,
             classification: "light",
-            room_source_id: nil,
+            area_source_id: nil,
             capabilities: capabilities,
             identifiers: %{
               "ieee" => Normalize.fetch(device, :ieee_address)
@@ -111,7 +111,7 @@ defmodule Hueworks.Import.Normalize.Z2M do
         source_id: source_id,
         name: Normalize.fetch(group, :friendly_name) || "Z2M Group #{source_id}",
         classification: "group",
-        room_source_id: nil,
+        area_source_id: nil,
         type: "group",
         capabilities: capabilities,
         metadata: %{

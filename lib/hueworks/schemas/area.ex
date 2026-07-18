@@ -1,20 +1,20 @@
-defmodule Hueworks.Schemas.Room do
+defmodule Hueworks.Schemas.Area do
   use Ecto.Schema
   import Ecto.Changeset
 
   alias Hueworks.PublishedIdentity
 
-  schema "rooms" do
+  schema "areas" do
     field(:name, :string)
     field(:display_name, :string)
     field(:metadata, :map, default: %{})
 
     field(:ha_device_identifier, :string,
-      autogenerate: {PublishedIdentity, :room_device_identifier, []}
+      autogenerate: {PublishedIdentity, :area_device_identifier, []}
     )
 
     field(:ha_scene_select_identifier, :string,
-      autogenerate: {PublishedIdentity, :room_scene_select_identifier, []}
+      autogenerate: {PublishedIdentity, :area_scene_select_identifier, []}
     )
 
     has_many(:lights, Hueworks.Schemas.Light)
@@ -25,8 +25,8 @@ defmodule Hueworks.Schemas.Room do
     timestamps()
   end
 
-  def changeset(room, attrs) do
-    room
+  def changeset(area, attrs) do
+    area
     |> cast(attrs, [:name, :display_name, :metadata])
     |> put_new_published_identities()
     |> validate_required([:name])
@@ -35,7 +35,7 @@ defmodule Hueworks.Schemas.Room do
   end
 
   defp put_new_published_identities(%Ecto.Changeset{data: %__MODULE__{id: nil}} = changeset) do
-    :room
+    :area
     |> PublishedIdentity.space_identifiers()
     |> Enum.reduce(changeset, fn {field, value}, acc ->
       if get_field(acc, field) do

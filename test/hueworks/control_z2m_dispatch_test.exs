@@ -5,7 +5,7 @@ defmodule Hueworks.Control.Z2MDispatchTest do
   alias Hueworks.Repo
   alias Hueworks.Schemas.Group, as: GroupSchema
   alias Hueworks.Schemas.Light, as: LightSchema
-  alias Hueworks.Schemas.Room
+  alias Hueworks.Schemas.Area
 
   setup do
     original_tortoise = Application.get_env(:hueworks, :z2m_tortoise_module)
@@ -29,7 +29,7 @@ defmodule Hueworks.Control.Z2MDispatchTest do
   end
 
   test "Light.set_state publishes z2m set topic" do
-    room = Repo.insert!(%Room{name: "Kitchen"})
+    area = Repo.insert!(%Area{name: "Kitchen"})
 
     bridge =
       insert_bridge!(%{
@@ -46,7 +46,7 @@ defmodule Hueworks.Control.Z2MDispatchTest do
         source: :z2m,
         source_id: "kitchen_strip",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6500
@@ -64,7 +64,7 @@ defmodule Hueworks.Control.Z2MDispatchTest do
   end
 
   test "Group.set_state publishes z2m set topic" do
-    room = Repo.insert!(%Room{name: "Main"})
+    area = Repo.insert!(%Area{name: "Main"})
 
     bridge =
       insert_bridge!(%{
@@ -81,7 +81,7 @@ defmodule Hueworks.Control.Z2MDispatchTest do
         source: :z2m,
         source_id: "main_group",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6500
@@ -108,7 +108,7 @@ defmodule Hueworks.Control.Z2MDispatchTest do
       :ets.delete_all_objects(:hueworks_desired_state)
     end
 
-    room = Repo.insert!(%Room{name: "Kitchen"})
+    area = Repo.insert!(%Area{name: "Kitchen"})
 
     bridge =
       insert_bridge!(%{
@@ -125,7 +125,7 @@ defmodule Hueworks.Control.Z2MDispatchTest do
         source: :z2m,
         source_id: "kitchen_strip",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_temp: true,
         extended_kelvin_range: true,
         actual_min_kelvin: 2700,
@@ -138,7 +138,7 @@ defmodule Hueworks.Control.Z2MDispatchTest do
     DesiredState.put(:light, light.id, desired)
     diff = %{{:light, light.id} => desired}
 
-    plan = Planner.plan_room(room.id, diff)
+    plan = Planner.plan_area(area.id, diff)
     light_id = light.id
     assert [%{type: :light, id: ^light_id, desired: %{kelvin: 2000}}] = plan
 

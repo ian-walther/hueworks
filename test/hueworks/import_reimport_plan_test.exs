@@ -7,8 +7,8 @@ defmodule Hueworks.Import.ReimportPlanTest do
 
   test "build marks existing entries as selected and new as unchecked" do
     normalized_import = %{
-      rooms: [
-        %{source: :hue, source_id: "room-1", name: "Office", normalized_name: "office"}
+      areas: [
+        %{source: :hue, source_id: "area-1", name: "Office", normalized_name: "office"}
       ],
       lights: [
         %{
@@ -31,7 +31,7 @@ defmodule Hueworks.Import.ReimportPlanTest do
     }
 
     normalized_db = %{
-      rooms: [],
+      areas: [],
       lights: [
         %{"source" => "hue", "source_id" => "light-1", "metadata" => %{"uniqueid" => "hue-1"}}
       ],
@@ -39,24 +39,24 @@ defmodule Hueworks.Import.ReimportPlanTest do
       memberships: %{}
     }
 
-    rooms = [%{id: 1, name: "Office"}]
+    areas = [%{id: 1, name: "Office"}]
 
     %{plan: plan, statuses: statuses} =
-      ReimportPlan.build(normalized_import, normalized_db, rooms)
+      ReimportPlan.build(normalized_import, normalized_db, areas)
 
     assert plan.lights["light-1"] == true
 
     assert plan.lights["light-2"] == %{
              "selected" => false,
              "resolution" => "do_not_import",
-             "target_room_id" => "unassigned"
+             "target_area_id" => "unassigned"
            }
 
     assert statuses.lights["light-1"] == :existing
     assert statuses.lights["light-2"] == :new
 
-    assert plan.rooms["room-1"]["action"] == "merge"
-    assert plan.rooms["room-1"]["target_room_id"] == "1"
+    assert plan.areas["area-1"]["action"] == "merge"
+    assert plan.areas["area-1"]["target_area_id"] == "1"
   end
 
   test "build selects HA wrapper light duplicates by default and filters HueWorks exports" do
@@ -70,7 +70,7 @@ defmodule Hueworks.Import.ReimportPlanTest do
       })
 
     normalized_import = %{
-      rooms: [],
+      areas: [],
       lights: [
         %{
           source: :ha,
@@ -122,7 +122,7 @@ defmodule Hueworks.Import.ReimportPlanTest do
     Repo.insert!(%GroupLight{group_id: hue_group.id, light_id: hue_light.id})
 
     normalized_import = %{
-      rooms: [],
+      areas: [],
       lights: [
         %{
           source: :ha,
@@ -177,7 +177,7 @@ defmodule Hueworks.Import.ReimportPlanTest do
       external_id: "ha-hue-lamp",
       canonical_light_id: hue_light.id,
       enabled: false,
-      room_id: nil,
+      area_id: nil,
       normalized_json: %{
         "source" => "ha",
         "source_id" => "light.hue_lamp",
@@ -186,7 +186,7 @@ defmodule Hueworks.Import.ReimportPlanTest do
     })
 
     normalized_import = %{
-      rooms: [],
+      areas: [],
       lights: [
         %{
           source: :ha,
@@ -249,7 +249,7 @@ defmodule Hueworks.Import.ReimportPlanTest do
     })
 
     normalized_import = %{
-      rooms: [],
+      areas: [],
       lights: [
         %{
           source: :ha,
@@ -285,7 +285,7 @@ defmodule Hueworks.Import.ReimportPlanTest do
 
   test "build surfaces source id and stable identifier conflicts as ambiguous identity" do
     normalized_import = %{
-      rooms: [],
+      areas: [],
       lights: [
         %{
           source: :caseta,
@@ -300,7 +300,7 @@ defmodule Hueworks.Import.ReimportPlanTest do
     }
 
     normalized_db = %{
-      rooms: [],
+      areas: [],
       lights: [
         %{
           "source" => "caseta",
@@ -326,7 +326,7 @@ defmodule Hueworks.Import.ReimportPlanTest do
 
   test "build uses HA entity_id as stable identifier" do
     normalized_import = %{
-      rooms: [],
+      areas: [],
       lights: [
         %{
           source: :ha,
@@ -340,7 +340,7 @@ defmodule Hueworks.Import.ReimportPlanTest do
     }
 
     normalized_db = %{
-      rooms: [],
+      areas: [],
       lights: [
         %{
           "source" => "ha",
@@ -361,7 +361,7 @@ defmodule Hueworks.Import.ReimportPlanTest do
 
   test "build uses Caseta device_id as stable identifier" do
     normalized_import = %{
-      rooms: [],
+      areas: [],
       lights: [
         %{
           source: :caseta,
@@ -375,7 +375,7 @@ defmodule Hueworks.Import.ReimportPlanTest do
     }
 
     normalized_db = %{
-      rooms: [],
+      areas: [],
       lights: [
         %{
           "source" => "caseta",
@@ -394,15 +394,15 @@ defmodule Hueworks.Import.ReimportPlanTest do
     assert statuses.lights["zone-1"] == :existing
   end
 
-  test "new entities in unmatched bridge rooms default to do not import and unassigned" do
+  test "new entities in unmatched bridge areas default to do not import and unassigned" do
     normalized_import = %{
-      rooms: [%{source_id: "bridge-office", name: "Bridge Office"}],
+      areas: [%{source_id: "bridge-office", name: "Bridge Office"}],
       lights: [
         %{
           source: :hue,
           source_id: "light-new",
           name: "New Lamp",
-          room_source_id: "bridge-office",
+          area_source_id: "bridge-office",
           metadata: %{}
         }
       ],
@@ -412,24 +412,24 @@ defmodule Hueworks.Import.ReimportPlanTest do
 
     %{plan: plan} = ReimportPlan.build(normalized_import, %{lights: [], groups: []}, [])
 
-    assert plan.rooms["bridge-office"]["action"] == "skip"
+    assert plan.areas["bridge-office"]["action"] == "skip"
 
     assert plan.lights["light-new"] == %{
              "selected" => false,
              "resolution" => "do_not_import",
-             "target_room_id" => "unassigned"
+             "target_area_id" => "unassigned"
            }
   end
 
-  test "new entities preselect an existing HueWorks room only for a normalized name match" do
+  test "new entities preselect an existing HueWorks area only for a normalized name match" do
     normalized_import = %{
-      rooms: [%{source_id: "bridge-office", name: "Office", normalized_name: "office"}],
+      areas: [%{source_id: "bridge-office", name: "Office", normalized_name: "office"}],
       lights: [
         %{
           source: :hue,
           source_id: "light-new",
           name: "New Lamp",
-          room_source_id: "bridge-office",
+          area_source_id: "bridge-office",
           metadata: %{}
         }
       ],
@@ -442,8 +442,8 @@ defmodule Hueworks.Import.ReimportPlanTest do
         %{id: 42, name: "OFFICE"}
       ])
 
-    assert plan.rooms["bridge-office"]["action"] == "merge"
-    assert plan.lights["light-new"]["target_room_id"] == "42"
+    assert plan.areas["bridge-office"]["action"] == "merge"
+    assert plan.lights["light-new"]["target_area_id"] == "42"
   end
 
   defp insert_bridge(type) do

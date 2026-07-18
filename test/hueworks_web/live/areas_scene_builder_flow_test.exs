@@ -1,4 +1,4 @@
-defmodule Hueworks.RoomsSceneBuilderFlowTest do
+defmodule Hueworks.AreasSceneBuilderFlowTest do
   use HueworksWeb.ConnCase, async: false
 
   import Ecto.Query, only: [from: 2]
@@ -14,14 +14,14 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
     GroupLight,
     Light,
     PresenceInput,
-    Room,
+    Area,
     Scene,
     SceneComponent,
     SceneComponentLight
   }
 
-  defp insert_room do
-    Repo.insert!(%Room{name: "Studio", metadata: %{}})
+  defp insert_area do
+    Repo.insert!(%Area{name: "Studio", metadata: %{}})
   end
 
   defp insert_bridge do
@@ -35,13 +35,13 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
     })
   end
 
-  defp insert_light(room, bridge, attrs) do
+  defp insert_light(area, bridge, attrs) do
     defaults = %{
       name: "Light",
       source: :hue,
       source_id: Integer.to_string(System.unique_integer([:positive])),
       bridge_id: bridge.id,
-      room_id: room.id,
+      area_id: area.id,
       metadata: %{}
     }
 
@@ -51,13 +51,13 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
     Repo.insert!(struct(Light, attrs))
   end
 
-  defp insert_group(room, bridge, attrs) do
+  defp insert_group(area, bridge, attrs) do
     defaults = %{
       name: "Group",
       source: :hue,
       source_id: Integer.to_string(System.unique_integer([:positive])),
       bridge_id: bridge.id,
-      room_id: room.id,
+      area_id: area.id,
       metadata: %{}
     }
 
@@ -84,32 +84,32 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
 
   defp eventually(_fun, 0), do: false
 
-  test "rooms page add-scene action navigates to scene editor", %{conn: conn} do
-    room = insert_room()
+  test "areas page add-scene action navigates to scene editor", %{conn: conn} do
+    area = insert_area()
 
-    {:ok, view, _html} = live(conn, "/rooms")
+    {:ok, view, _html} = live(conn, "/areas")
 
     assert {:error, {:live_redirect, %{to: to}}} =
              view
-             |> element("#room-#{room.id} .hw-section-header button[phx-click='open_scene_new']")
+             |> element("#area-#{area.id} .hw-section-header button[phx-click='open_scene_new']")
              |> render_click()
 
-    assert to == "/rooms/#{room.id}/scenes/new"
+    assert to == "/areas/#{area.id}/scenes/new"
   end
 
-  test "rooms page can create rename and delete presence inputs", %{conn: conn} do
-    room = insert_room()
+  test "areas page can create rename and delete presence inputs", %{conn: conn} do
+    area = insert_area()
 
-    {:ok, view, _html} = live(conn, "/rooms")
+    {:ok, view, _html} = live(conn, "/areas")
 
     view
-    |> form("#room-#{room.id} form[phx-submit='create_presence_input']", %{
-      "room_id" => Integer.to_string(room.id),
+    |> form("#area-#{area.id} form[phx-submit='create_presence_input']", %{
+      "area_id" => Integer.to_string(area.id),
       "name" => "Desk Presence"
     })
     |> render_submit()
 
-    input = Repo.get_by!(PresenceInput, room_id: room.id, name: "Desk Presence")
+    input = Repo.get_by!(PresenceInput, area_id: area.id, name: "Desk Presence")
     assert input.occupied == false
     assert render(view) =~ ~s(id="presence-input-#{input.id}")
     assert render(view) =~ ~s(value="Desk Presence")
@@ -139,95 +139,95 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
     refute has_element?(view, "#presence-input-#{input.id}")
   end
 
-  test "rooms page edit-scene action navigates to scene editor", %{conn: conn} do
-    room = insert_room()
-    {:ok, scene} = Hueworks.Scenes.create_scene(%{name: "Chill", room_id: room.id})
+  test "areas page edit-scene action navigates to scene editor", %{conn: conn} do
+    area = insert_area()
+    {:ok, scene} = Hueworks.Scenes.create_scene(%{name: "Chill", area_id: area.id})
 
-    {:ok, view, _html} = live(conn, "/rooms")
-
-    assert {:error, {:live_redirect, %{to: to}}} =
-             view
-             |> element("#room-#{room.id} [phx-click='open_scene_edit']")
-             |> render_click()
-
-    assert to == "/rooms/#{room.id}/scenes/#{scene.id}/edit"
-  end
-
-  test "rooms page clone-scene action navigates to a prefilled new scene editor", %{conn: conn} do
-    room = insert_room()
-    {:ok, scene} = Hueworks.Scenes.create_scene(%{name: "Chill", room_id: room.id})
-
-    {:ok, view, _html} = live(conn, "/rooms")
+    {:ok, view, _html} = live(conn, "/areas")
 
     assert {:error, {:live_redirect, %{to: to}}} =
              view
-             |> element("#room-#{room.id} [phx-click='open_scene_clone']")
+             |> element("#area-#{area.id} [phx-click='open_scene_edit']")
              |> render_click()
 
-    assert to == "/rooms/#{room.id}/scenes/new?clone_scene_id=#{scene.id}"
+    assert to == "/areas/#{area.id}/scenes/#{scene.id}/edit"
   end
 
-  test "rooms page shows active scenes and toggles activate button to deactivate", %{conn: conn} do
-    room = insert_room()
-    {:ok, scene} = Hueworks.Scenes.create_scene(%{name: "Chill", room_id: room.id})
+  test "areas page clone-scene action navigates to a prefilled new scene editor", %{conn: conn} do
+    area = insert_area()
+    {:ok, scene} = Hueworks.Scenes.create_scene(%{name: "Chill", area_id: area.id})
 
-    {:ok, view, _html} = live(conn, "/rooms")
+    {:ok, view, _html} = live(conn, "/areas")
+
+    assert {:error, {:live_redirect, %{to: to}}} =
+             view
+             |> element("#area-#{area.id} [phx-click='open_scene_clone']")
+             |> render_click()
+
+    assert to == "/areas/#{area.id}/scenes/new?clone_scene_id=#{scene.id}"
+  end
+
+  test "areas page shows active scenes and toggles activate button to deactivate", %{conn: conn} do
+    area = insert_area()
+    {:ok, scene} = Hueworks.Scenes.create_scene(%{name: "Chill", area_id: area.id})
+
+    {:ok, view, _html} = live(conn, "/areas")
 
     assert has_element?(
              view,
-             "#room-#{room.id} button[phx-click='activate_scene'][phx-value-id='#{scene.id}']",
+             "#area-#{area.id} button[phx-click='activate_scene'][phx-value-id='#{scene.id}']",
              "Activate"
            )
 
     view
-    |> element("#room-#{room.id} button[phx-click='activate_scene'][phx-value-id='#{scene.id}']")
+    |> element("#area-#{area.id} button[phx-click='activate_scene'][phx-value-id='#{scene.id}']")
     |> render_click()
 
     assert has_element?(
              view,
-             "#room-#{room.id} button[phx-click='activate_scene'][phx-value-id='#{scene.id}']",
+             "#area-#{area.id} button[phx-click='activate_scene'][phx-value-id='#{scene.id}']",
              "Deactivate"
            )
 
-    assert has_element?(view, "#room-#{room.id} .hw-muted", "Active")
-    assert Repo.get_by!(ActiveScene, room_id: room.id).scene_id == scene.id
+    assert has_element?(view, "#area-#{area.id} .hw-muted", "Active")
+    assert Repo.get_by!(ActiveScene, area_id: area.id).scene_id == scene.id
   end
 
   test "clicking deactivate removes active_scene entry", %{conn: conn} do
-    room = insert_room()
-    {:ok, scene} = Hueworks.Scenes.create_scene(%{name: "Chill", room_id: room.id})
+    area = insert_area()
+    {:ok, scene} = Hueworks.Scenes.create_scene(%{name: "Chill", area_id: area.id})
     {:ok, _} = Hueworks.ActiveScenes.set_active(scene)
 
-    {:ok, view, _html} = live(conn, "/rooms")
+    {:ok, view, _html} = live(conn, "/areas")
 
     assert has_element?(
              view,
-             "#room-#{room.id} button[phx-click='activate_scene'][phx-value-id='#{scene.id}']",
+             "#area-#{area.id} button[phx-click='activate_scene'][phx-value-id='#{scene.id}']",
              "Deactivate"
            )
 
     view
-    |> element("#room-#{room.id} button[phx-click='activate_scene'][phx-value-id='#{scene.id}']")
+    |> element("#area-#{area.id} button[phx-click='activate_scene'][phx-value-id='#{scene.id}']")
     |> render_click()
 
     assert has_element?(
              view,
-             "#room-#{room.id} button[phx-click='activate_scene'][phx-value-id='#{scene.id}']",
+             "#area-#{area.id} button[phx-click='activate_scene'][phx-value-id='#{scene.id}']",
              "Activate"
            )
 
-    refute Repo.get_by(ActiveScene, room_id: room.id)
+    refute Repo.get_by(ActiveScene, area_id: area.id)
   end
 
-  test "rooms page updates active scene status when scene changes live", %{conn: conn} do
-    room = insert_room()
-    {:ok, scene} = Hueworks.Scenes.create_scene(%{name: "Chill", room_id: room.id})
+  test "areas page updates active scene status when scene changes live", %{conn: conn} do
+    area = insert_area()
+    {:ok, scene} = Hueworks.Scenes.create_scene(%{name: "Chill", area_id: area.id})
 
-    {:ok, view, _html} = live(conn, "/rooms")
+    {:ok, view, _html} = live(conn, "/areas")
 
     assert has_element?(
              view,
-             "#room-#{room.id} button[phx-click='activate_scene'][phx-value-id='#{scene.id}']",
+             "#area-#{area.id} button[phx-click='activate_scene'][phx-value-id='#{scene.id}']",
              "Activate"
            )
 
@@ -236,28 +236,28 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
     assert eventually(fn ->
              has_element?(
                view,
-               "#room-#{room.id} button[phx-click='activate_scene'][phx-value-id='#{scene.id}']",
+               "#area-#{area.id} button[phx-click='activate_scene'][phx-value-id='#{scene.id}']",
                "Deactivate"
-             ) and has_element?(view, "#room-#{room.id} .hw-muted", "Active")
+             ) and has_element?(view, "#area-#{area.id} .hw-muted", "Active")
            end)
 
-    :ok = Hueworks.ActiveScenes.clear_for_room(room.id)
+    :ok = Hueworks.ActiveScenes.clear_for_area(area.id)
 
     assert eventually(fn ->
              has_element?(
                view,
-               "#room-#{room.id} button[phx-click='activate_scene'][phx-value-id='#{scene.id}']",
+               "#area-#{area.id} button[phx-click='activate_scene'][phx-value-id='#{scene.id}']",
                "Activate"
-             ) and not has_element?(view, "#room-#{room.id} .hw-muted", "Active")
+             ) and not has_element?(view, "#area-#{area.id} .hw-muted", "Active")
            end)
   end
 
   test "creates a scene with components, lights, and manual light state via the UI", %{conn: conn} do
-    room = insert_room()
+    area = insert_area()
     bridge = insert_bridge()
-    light1 = insert_light(room, bridge, %{name: "Lamp"})
-    light2 = insert_light(room, bridge, %{name: "Ceiling"})
-    group = insert_group(room, bridge, %{name: "All"})
+    light1 = insert_light(area, bridge, %{name: "Lamp"})
+    light2 = insert_light(area, bridge, %{name: "Ceiling"})
+    group = insert_group(area, bridge, %{name: "All"})
     insert_group_light(group, light1)
     insert_group_light(group, light2)
 
@@ -267,7 +267,7 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
         "temperature" => "3000"
       })
 
-    {:ok, view, _html} = live(conn, "/rooms/#{room.id}/scenes/new")
+    {:ok, view, _html} = live(conn, "/areas/#{area.id}/scenes/new")
 
     view
     |> form("form[phx-change='select_light_state'][data-component-id='1']", %{
@@ -308,9 +308,9 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
     |> render_click()
 
     scene =
-      Repo.one(from(s in Scene, where: s.room_id == ^room.id and s.name == "Chill"))
+      Repo.one(from(s in Scene, where: s.area_id == ^area.id and s.name == "Chill"))
 
-    assert_patch(view, "/rooms/#{room.id}/scenes/#{scene.id}/edit")
+    assert_patch(view, "/areas/#{area.id}/scenes/#{scene.id}/edit")
 
     assert scene
 
@@ -356,15 +356,15 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
   end
 
   test "editing a scene updates components and light state via the UI", %{conn: conn} do
-    room = insert_room()
+    area = insert_area()
     bridge = insert_bridge()
-    light1 = insert_light(room, bridge, %{name: "Lamp"})
-    light2 = insert_light(room, bridge, %{name: "Ceiling"})
-    group = insert_group(room, bridge, %{name: "All"})
+    light1 = insert_light(area, bridge, %{name: "Lamp"})
+    light2 = insert_light(area, bridge, %{name: "Ceiling"})
+    group = insert_group(area, bridge, %{name: "All"})
     insert_group_light(group, light1)
     insert_group_light(group, light2)
 
-    {:ok, scene} = Hueworks.Scenes.create_scene(%{name: "Chill", room_id: room.id})
+    {:ok, scene} = Hueworks.Scenes.create_scene(%{name: "Chill", area_id: area.id})
 
     {:ok, state} =
       Hueworks.Scenes.create_manual_light_state("Warm", %{
@@ -383,7 +383,7 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
         %{name: "Component 1", light_ids: [light1.id], light_state_id: to_string(state.id)}
       ])
 
-    {:ok, view, _html} = live(conn, "/rooms/#{room.id}/scenes/#{scene.id}/edit")
+    {:ok, view, _html} = live(conn, "/areas/#{area.id}/scenes/#{scene.id}/edit")
 
     view
     |> form("form[phx-change='select_light'][data-component-id='1']", %{
@@ -408,7 +408,7 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
 
     updated =
       Repo.one(
-        from(s in Scene, where: s.room_id == ^room.id and s.display_name == "Chill Updated")
+        from(s in Scene, where: s.area_id == ^area.id and s.display_name == "Chill Updated")
       )
 
     assert updated
@@ -429,11 +429,11 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
   end
 
   test "creates a scene with an embedded custom manual light state via the UI", %{conn: conn} do
-    room = insert_room()
+    area = insert_area()
     bridge = insert_bridge()
-    light = insert_light(room, bridge, %{name: "Lamp"})
+    light = insert_light(area, bridge, %{name: "Lamp"})
 
-    {:ok, view, _html} = live(conn, "/rooms/#{room.id}/scenes/new")
+    {:ok, view, _html} = live(conn, "/areas/#{area.id}/scenes/new")
 
     view
     |> form("form[phx-change='select_light'][data-component-id='1']", %{
@@ -466,11 +466,11 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
     |> render_click()
 
     scene =
-      Repo.one(from(s in Scene, where: s.room_id == ^room.id and s.name == "Custom Scene"))
+      Repo.one(from(s in Scene, where: s.area_id == ^area.id and s.name == "Custom Scene"))
 
     component = Repo.one(from(sc in SceneComponent, where: sc.scene_id == ^scene.id))
 
-    assert_patch(view, "/rooms/#{room.id}/scenes/#{scene.id}/edit")
+    assert_patch(view, "/areas/#{area.id}/scenes/#{scene.id}/edit")
     assert component.light_state_id == nil
 
     assert component.embedded_manual_config == %{
@@ -481,11 +481,11 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
   end
 
   test "saving untouched Custom controls persists the displayed defaults", %{conn: conn} do
-    room = insert_room()
+    area = insert_area()
     bridge = insert_bridge()
-    light = insert_light(room, bridge, %{name: "Lamp", supports_temp: true})
+    light = insert_light(area, bridge, %{name: "Lamp", supports_temp: true})
 
-    {:ok, view, _html} = live(conn, "/rooms/#{room.id}/scenes/new")
+    {:ok, view, _html} = live(conn, "/areas/#{area.id}/scenes/new")
 
     view
     |> form("form[phx-change='select_light'][data-component-id='1']", %{
@@ -513,7 +513,7 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
 
     scene =
       Repo.one(
-        from(s in Scene, where: s.room_id == ^room.id and s.name == "Default Custom Scene")
+        from(s in Scene, where: s.area_id == ^area.id and s.name == "Default Custom Scene")
       )
 
     component = Repo.one(from(sc in SceneComponent, where: sc.scene_id == ^scene.id))
@@ -526,11 +526,11 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
   end
 
   test "saving untouched Custom Color controls persists the displayed defaults", %{conn: conn} do
-    room = insert_room()
+    area = insert_area()
     bridge = insert_bridge()
-    light = insert_light(room, bridge, %{name: "Lamp", supports_color: true})
+    light = insert_light(area, bridge, %{name: "Lamp", supports_color: true})
 
-    {:ok, view, _html} = live(conn, "/rooms/#{room.id}/scenes/new")
+    {:ok, view, _html} = live(conn, "/areas/#{area.id}/scenes/new")
 
     view
     |> form("form[phx-change='select_light'][data-component-id='1']", %{
@@ -560,7 +560,7 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
     scene =
       Repo.one(
         from(s in Scene,
-          where: s.room_id == ^room.id and s.name == "Default Custom Color Scene"
+          where: s.area_id == ^area.id and s.name == "Default Custom Color Scene"
         )
       )
 
@@ -576,11 +576,11 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
 
   test "saved scenes can be activated from the editor and active scene edits refresh desired state",
        %{conn: conn} do
-    room = insert_room()
+    area = insert_area()
     bridge = insert_bridge()
-    light = insert_light(room, bridge, %{name: "Lamp", supports_temp: true})
+    light = insert_light(area, bridge, %{name: "Lamp", supports_temp: true})
 
-    {:ok, scene} = Hueworks.Scenes.create_scene(%{name: "Custom Scene", room_id: room.id})
+    {:ok, scene} = Hueworks.Scenes.create_scene(%{name: "Custom Scene", area_id: area.id})
 
     {:ok, _} =
       Hueworks.Scenes.replace_scene_components(scene, [
@@ -595,7 +595,7 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
         }
       ])
 
-    {:ok, view, _html} = live(conn, "/rooms/#{room.id}/scenes/#{scene.id}/edit")
+    {:ok, view, _html} = live(conn, "/areas/#{area.id}/scenes/#{scene.id}/edit")
 
     assert has_element?(view, "#scene-toggle-activation", "Activate")
 
@@ -604,7 +604,7 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
     |> render_click()
 
     assert has_element?(view, "#scene-toggle-activation", "Deactivate")
-    assert Hueworks.ActiveScenes.get_for_room(room.id).scene_id == scene.id
+    assert Hueworks.ActiveScenes.get_for_area(area.id).scene_id == scene.id
     assert DesiredState.get(:light, light.id) == %{power: :on, brightness: 35, kelvin: 2700}
 
     view
@@ -635,14 +635,14 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
        %{
          conn: conn
        } do
-    room = insert_room()
+    area = insert_area()
     bridge = insert_bridge()
 
     light1 =
-      insert_light(room, bridge, %{name: "Lamp 1", supports_color: true, supports_temp: true})
+      insert_light(area, bridge, %{name: "Lamp 1", supports_color: true, supports_temp: true})
 
     light2 =
-      insert_light(room, bridge, %{name: "Lamp 2", supports_color: true, supports_temp: true})
+      insert_light(area, bridge, %{name: "Lamp 2", supports_color: true, supports_temp: true})
 
     {:ok, circadian} =
       Hueworks.Scenes.create_light_state("Circadian", :circadian, %{
@@ -662,7 +662,7 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
         "saturation" => "60"
       })
 
-    {:ok, scene} = Hueworks.Scenes.create_scene(%{name: "Color Mix", room_id: room.id})
+    {:ok, scene} = Hueworks.Scenes.create_scene(%{name: "Color Mix", area_id: area.id})
 
     {:ok, _} =
       Hueworks.Scenes.replace_scene_components(scene, [
@@ -678,7 +678,7 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
 
     assert DesiredState.get(:light, light2.id)[:kelvin]
 
-    {:ok, view, _html} = live(conn, "/rooms/#{room.id}/scenes/#{scene.id}/edit")
+    {:ok, view, _html} = live(conn, "/areas/#{area.id}/scenes/#{scene.id}/edit")
 
     view
     |> element("button[phx-click='add_component']")
@@ -740,10 +740,10 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
   end
 
   test "cloning a scene preloads its inputs and saves a new copy", %{conn: conn} do
-    room = insert_room()
+    area = insert_area()
     bridge = insert_bridge()
-    light1 = insert_light(room, bridge, %{name: "Lamp", supports_color: true})
-    light2 = insert_light(room, bridge, %{name: "Ceiling", supports_color: true})
+    light1 = insert_light(area, bridge, %{name: "Lamp", supports_color: true})
+    light2 = insert_light(area, bridge, %{name: "Ceiling", supports_color: true})
 
     {:ok, warm} =
       Hueworks.Scenes.create_manual_light_state("Warm", %{
@@ -759,7 +759,7 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
         "saturation" => "60"
       })
 
-    {:ok, scene} = Hueworks.Scenes.create_scene(%{name: "Original", room_id: room.id})
+    {:ok, scene} = Hueworks.Scenes.create_scene(%{name: "Original", area_id: area.id})
 
     {:ok, _} =
       Hueworks.Scenes.replace_scene_components(scene, [
@@ -777,7 +777,7 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
         }
       ])
 
-    {:ok, view, _html} = live(conn, "/rooms/#{room.id}/scenes/new?clone_scene_id=#{scene.id}")
+    {:ok, view, _html} = live(conn, "/areas/#{area.id}/scenes/new?clone_scene_id=#{scene.id}")
 
     html = render(view)
     assert html =~ ~s(value="Original Copy")
@@ -791,24 +791,24 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
     |> render_click()
 
     clones =
-      Repo.all(from(s in Scene, where: s.room_id == ^room.id, order_by: [asc: s.id]))
+      Repo.all(from(s in Scene, where: s.area_id == ^area.id, order_by: [asc: s.id]))
 
     assert Enum.count(clones) == 2
 
     cloned_scene = List.last(clones)
     refute cloned_scene.id == scene.id
     assert cloned_scene.name == "Original Copy"
-    assert_patch(view, "/rooms/#{room.id}/scenes/#{cloned_scene.id}/edit")
+    assert_patch(view, "/areas/#{area.id}/scenes/#{cloned_scene.id}/edit")
 
     assert scene_component_fingerprint(cloned_scene.id) == scene_component_fingerprint(scene.id)
   end
 
   test "selecting an existing circadian state saves it on the scene component", %{conn: conn} do
-    room = insert_room()
+    area = insert_area()
     bridge = insert_bridge()
-    light1 = insert_light(room, bridge, %{name: "Lamp"})
-    light2 = insert_light(room, bridge, %{name: "Ceiling"})
-    group = insert_group(room, bridge, %{name: "All"})
+    light1 = insert_light(area, bridge, %{name: "Lamp"})
+    light2 = insert_light(area, bridge, %{name: "Ceiling"})
+    group = insert_group(area, bridge, %{name: "All"})
     insert_group_light(group, light1)
     insert_group_light(group, light2)
 
@@ -831,7 +831,7 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
         "brightness_mode_time_light" => "5400"
       })
 
-    {:ok, view, _html} = live(conn, "/rooms/#{room.id}/scenes/new")
+    {:ok, view, _html} = live(conn, "/areas/#{area.id}/scenes/new")
 
     view
     |> form("form[phx-change='select_group'][data-component-id='1']", %{
@@ -855,29 +855,29 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
     |> render_click()
 
     scene =
-      Repo.one(from(s in Scene, where: s.room_id == ^room.id and s.name == "Circadian Scene"))
+      Repo.one(from(s in Scene, where: s.area_id == ^area.id and s.name == "Circadian Scene"))
 
     component =
       Repo.one(
         from(sc in SceneComponent, where: sc.scene_id == ^scene.id, preload: [:light_state])
       )
 
-    assert_patch(view, "/rooms/#{room.id}/scenes/#{scene.id}/edit")
+    assert_patch(view, "/areas/#{area.id}/scenes/#{scene.id}/edit")
     assert component.light_state_id == state.id
     assert component.light_state.type == :circadian
     assert component.light_state.name == "Circadian Day"
   end
 
   test "saving a scene without a saved light state shows a validation error", %{conn: conn} do
-    room = insert_room()
+    area = insert_area()
     bridge = insert_bridge()
-    light1 = insert_light(room, bridge, %{name: "Lamp"})
-    light2 = insert_light(room, bridge, %{name: "Ceiling"})
-    group = insert_group(room, bridge, %{name: "All"})
+    light1 = insert_light(area, bridge, %{name: "Lamp"})
+    light2 = insert_light(area, bridge, %{name: "Ceiling"})
+    group = insert_group(area, bridge, %{name: "All"})
     insert_group_light(group, light1)
     insert_group_light(group, light2)
 
-    {:ok, view, _html} = live(conn, "/rooms/#{room.id}/scenes/new")
+    {:ok, view, _html} = live(conn, "/areas/#{area.id}/scenes/new")
 
     view
     |> form("form[phx-change='select_group'][data-component-id='1']", %{
@@ -899,16 +899,16 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
              "Each component must use a saved light state or custom manual state before saving."
            )
 
-    refute Repo.one(from(s in Scene, where: s.room_id == ^room.id and s.name == "Off Scene"))
+    refute Repo.one(from(s in Scene, where: s.area_id == ^area.id and s.name == "Off Scene"))
   end
 
   test "saving with unassigned lights shows a validation error banner", %{conn: conn} do
-    room = insert_room()
+    area = insert_area()
     bridge = insert_bridge()
-    _light1 = insert_light(room, bridge, %{name: "Lamp"})
-    _light2 = insert_light(room, bridge, %{name: "Ceiling"})
+    _light1 = insert_light(area, bridge, %{name: "Lamp"})
+    _light2 = insert_light(area, bridge, %{name: "Ceiling"})
 
-    {:ok, view, _html} = live(conn, "/rooms/#{room.id}/scenes/new")
+    {:ok, view, _html} = live(conn, "/areas/#{area.id}/scenes/new")
 
     view
     |> form("form[phx-change='update_scene']", %{"name" => "Blocked"})
@@ -921,14 +921,14 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
     assert has_element?(view, ".hw-flash-bar-error", "Assign all lights once before saving.")
   end
 
-  test "disabled room lights are excluded from scene builder options and unassigned counts",
+  test "disabled area lights are excluded from scene builder options and unassigned counts",
        %{conn: conn} do
-    room = insert_room()
+    area = insert_area()
     bridge = insert_bridge()
-    _enabled = insert_light(room, bridge, %{name: "Lamp", enabled: true})
-    _disabled = insert_light(room, bridge, %{name: "Disabled", enabled: false})
+    _enabled = insert_light(area, bridge, %{name: "Lamp", enabled: true})
+    _disabled = insert_light(area, bridge, %{name: "Disabled", enabled: false})
 
-    {:ok, view, _html} = live(conn, "/rooms/#{room.id}/scenes/new")
+    {:ok, view, _html} = live(conn, "/areas/#{area.id}/scenes/new")
 
     html = render(view)
 
@@ -939,28 +939,28 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
   end
 
   test "scene editor uses a click save button instead of nested save form", %{conn: conn} do
-    room = insert_room()
+    area = insert_area()
     bridge = insert_bridge()
-    _light1 = insert_light(room, bridge, %{name: "Lamp"})
-    _light2 = insert_light(room, bridge, %{name: "Ceiling"})
+    _light1 = insert_light(area, bridge, %{name: "Lamp"})
+    _light2 = insert_light(area, bridge, %{name: "Ceiling"})
 
-    {:ok, view, _html} = live(conn, "/rooms/#{room.id}/scenes/new")
+    {:ok, view, _html} = live(conn, "/areas/#{area.id}/scenes/new")
 
     refute has_element?(view, "form[phx-submit='save_scene']")
     assert has_element?(view, "button[phx-click='save_scene']")
   end
 
   test "scene editor persists a custom activation transition", %{conn: conn} do
-    room = insert_room()
+    area = insert_area()
 
     scene =
       Repo.insert!(%Scene{
         name: "Evening",
-        room_id: room.id,
+        area_id: area.id,
         metadata: %{}
       })
 
-    {:ok, view, _html} = live(conn, "/rooms/#{room.id}/scenes/#{scene.id}/edit")
+    {:ok, view, _html} = live(conn, "/areas/#{area.id}/scenes/#{scene.id}/edit")
 
     assert has_element?(view, "#scene_activation_transition_mode option[value='default']")
 
@@ -997,17 +997,17 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
   test "scene editor reloads a persisted custom transition with its mode and unit selected", %{
     conn: conn
   } do
-    room = insert_room()
+    area = insert_area()
 
     scene =
       Repo.insert!(%Scene{
         name: "Slow Evening",
-        room_id: room.id,
+        area_id: area.id,
         activation_transition_ms: 600_000,
         metadata: %{}
       })
 
-    {:ok, view, _html} = live(conn, "/rooms/#{room.id}/scenes/#{scene.id}/edit")
+    {:ok, view, _html} = live(conn, "/areas/#{area.id}/scenes/#{scene.id}/edit")
 
     assert has_element?(
              view,
@@ -1023,10 +1023,10 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
   end
 
   test "scene editor rejects a blank custom activation transition", %{conn: conn} do
-    room = insert_room()
-    scene = Repo.insert!(%Scene{name: "Evening", room_id: room.id, metadata: %{}})
+    area = insert_area()
+    scene = Repo.insert!(%Scene{name: "Evening", area_id: area.id, metadata: %{}})
 
-    {:ok, view, _html} = live(conn, "/rooms/#{room.id}/scenes/#{scene.id}/edit")
+    {:ok, view, _html} = live(conn, "/areas/#{area.id}/scenes/#{scene.id}/edit")
 
     view
     |> form("form[phx-change='update_scene']", %{
@@ -1056,27 +1056,27 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
   end
 
   test "scene editor activation publishes a single active scene update", %{conn: conn} do
-    room = insert_room()
+    area = insert_area()
 
     scene =
       Repo.insert!(%Scene{
         name: "Evening",
-        room_id: room.id,
+        area_id: area.id,
         metadata: %{}
       })
 
     Phoenix.PubSub.subscribe(Hueworks.PubSub, ActiveScenes.topic())
 
-    {:ok, view, _html} = live(conn, "/rooms/#{room.id}/scenes/#{scene.id}/edit")
+    {:ok, view, _html} = live(conn, "/areas/#{area.id}/scenes/#{scene.id}/edit")
 
     view
     |> element("#scene-toggle-activation", "Activate")
     |> render_click()
 
-    assert_receive {:active_scene_updated, room_id, scene_id}, 100
-    assert room_id == room.id
+    assert_receive {:active_scene_updated, area_id, scene_id}, 100
+    assert area_id == area.id
     assert scene_id == scene.id
-    refute_receive {:active_scene_updated, ^room_id, ^scene_id}, 50
+    refute_receive {:active_scene_updated, ^area_id, ^scene_id}, 50
   end
 
   defp scene_component_fingerprint(scene_id) do

@@ -8,7 +8,7 @@ defmodule Hueworks.Schemas.Light do
     field(:source, Ecto.Enum, values: [:hue, :caseta, :ha, :z2m])
     field(:source_id, :string)
     belongs_to(:bridge, Hueworks.Schemas.Bridge)
-    belongs_to(:room, Hueworks.Schemas.Room)
+    belongs_to(:area, Hueworks.Schemas.Area)
     belongs_to(:canonical_light, __MODULE__)
     has_many(:scene_component_lights, Hueworks.Schemas.SceneComponentLight)
     has_many(:scene_components, through: [:scene_component_lights, :scene_component])
@@ -38,7 +38,7 @@ defmodule Hueworks.Schemas.Light do
       :source,
       :source_id,
       :bridge_id,
-      :room_id,
+      :area_id,
       :canonical_light_id,
       :reported_min_kelvin,
       :reported_max_kelvin,

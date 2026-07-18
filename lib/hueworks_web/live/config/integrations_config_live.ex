@@ -14,7 +14,7 @@ defmodule HueworksWeb.IntegrationsConfigLive do
     {:ok,
      assign(socket,
        ha_export_scenes_enabled: app_setting.ha_export_scenes_enabled == true,
-       ha_export_room_selects_enabled: app_setting.ha_export_room_selects_enabled == true,
+       ha_export_area_selects_enabled: app_setting.ha_export_area_selects_enabled == true,
        ha_export_lights_enabled: app_setting.ha_export_lights_enabled == true,
        ha_export_mqtt_host: app_setting.ha_export_mqtt_host || "",
        ha_export_mqtt_port: ConfigHelpers.format_integer(app_setting.ha_export_mqtt_port || 1883),
@@ -37,8 +37,8 @@ defmodule HueworksWeb.IntegrationsConfigLive do
     {:noreply,
      assign(socket,
        ha_export_scenes_enabled: boolean_param(params, "ha_export_scenes_enabled", socket),
-       ha_export_room_selects_enabled:
-         boolean_param(params, "ha_export_room_selects_enabled", socket),
+       ha_export_area_selects_enabled:
+         boolean_param(params, "ha_export_area_selects_enabled", socket),
        ha_export_lights_enabled: boolean_param(params, "ha_export_lights_enabled", socket),
        ha_export_mqtt_host:
          Map.get(params, "ha_export_mqtt_host", socket.assigns.ha_export_mqtt_host),
@@ -57,8 +57,8 @@ defmodule HueworksWeb.IntegrationsConfigLive do
     attrs =
       %{
         ha_export_scenes_enabled: boolean_param(params, "ha_export_scenes_enabled", socket),
-        ha_export_room_selects_enabled:
-          boolean_param(params, "ha_export_room_selects_enabled", socket),
+        ha_export_area_selects_enabled:
+          boolean_param(params, "ha_export_area_selects_enabled", socket),
         ha_export_lights_enabled: boolean_param(params, "ha_export_lights_enabled", socket),
         ha_export_mqtt_host:
           Map.get(params, "ha_export_mqtt_host", socket.assigns.ha_export_mqtt_host),
@@ -81,7 +81,7 @@ defmodule HueworksWeb.IntegrationsConfigLive do
          socket
          |> assign(
            ha_export_scenes_enabled: app_setting.ha_export_scenes_enabled == true,
-           ha_export_room_selects_enabled: app_setting.ha_export_room_selects_enabled == true,
+           ha_export_area_selects_enabled: app_setting.ha_export_area_selects_enabled == true,
            ha_export_lights_enabled: app_setting.ha_export_lights_enabled == true,
            ha_export_mqtt_host: app_setting.ha_export_mqtt_host || "",
            ha_export_mqtt_port:

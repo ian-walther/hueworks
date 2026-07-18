@@ -7,7 +7,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
   alias Hueworks.Repo
   alias Hueworks.Scenes
   alias Hueworks.Schemas.PicoButton.ActionConfig, as: StoredActionConfig
-  alias Hueworks.Schemas.{Group, GroupLight, Light, PicoButton, PicoDevice, Room, Scene}
+  alias Hueworks.Schemas.{Group, GroupLight, Light, PicoButton, PicoDevice, Area, Scene}
 
   defmodule CasetaPicoPayload do
     def raw do
@@ -123,8 +123,8 @@ defmodule HueworksWeb.PicoConfigLiveTest do
   end
 
   test "pico config uses a dedicated detail page for editing", %{conn: conn} do
-    room = Repo.insert!(%Room{name: "Main Floor"})
-    override_room = Repo.insert!(%Room{name: "Override Room"})
+    area = Repo.insert!(%Area{name: "Main Floor"})
+    override_area = Repo.insert!(%Area{name: "Override Area"})
 
     bridge =
       insert_bridge!(%{
@@ -142,7 +142,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
         source: :caseta,
         source_id: "42",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         enabled: true
       })
 
@@ -152,7 +152,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
         source: :caseta,
         source_id: "43",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         enabled: true
       })
 
@@ -162,7 +162,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
         source: :caseta,
         source_id: "44",
         bridge_id: bridge.id,
-        room_id: override_room.id,
+        area_id: override_area.id,
         enabled: true
       })
 
@@ -172,7 +172,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
         source: :caseta,
         source_id: "45",
         bridge_id: bridge.id,
-        room_id: override_room.id,
+        area_id: override_area.id,
         enabled: true
       })
 
@@ -182,7 +182,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
         source: :caseta,
         source_id: "group-1",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         enabled: true
       })
 
@@ -194,7 +194,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
         source: :caseta,
         source_id: "group-2",
         bridge_id: bridge.id,
-        room_id: override_room.id,
+        area_id: override_area.id,
         enabled: true
       })
 
@@ -211,7 +211,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
         bridge_id: bridge.id,
         source_id: "device-2",
         name: "Hallway Pico",
-        room_id: room.id,
+        area_id: area.id,
         metadata: %{},
         hardware_profile: "5_button",
         enabled: true
@@ -232,23 +232,23 @@ defmodule HueworksWeb.PicoConfigLiveTest do
     assert html =~ "Control Groups"
     assert html =~ "hw-section-block"
     assert html =~ ~s(class="hw-pico-section-row")
-    assert String.contains?(html, "Room Scope")
+    assert String.contains?(html, "Area Scope")
     assert String.contains?(html, "Clone From Another Pico")
-    assert match?({_, _}, :binary.match(html, "Room Scope"))
+    assert match?({_, _}, :binary.match(html, "Area Scope"))
     assert match?({_, _}, :binary.match(html, "Clone From Another Pico"))
-    assert :binary.match(html, "Room Scope") < :binary.match(html, "Clone From Another Pico")
+    assert :binary.match(html, "Area Scope") < :binary.match(html, "Clone From Another Pico")
     assert html =~ "Main Floor (Auto-Detected)"
     assert html =~ ~s(id="pico-clone-source-form")
     refute html =~ "hw-inline-control-stack-mobile"
-    refute html =~ "Pico room updated."
+    refute html =~ "Pico area updated."
 
     view
-    |> form("form[phx-change='save_room_override']", %{
-      "room_id" => Integer.to_string(override_room.id)
+    |> form("form[phx-change='save_area_override']", %{
+      "area_id" => Integer.to_string(override_area.id)
     })
     |> render_change()
 
-    assert render(view) =~ "Pico room updated."
+    assert render(view) =~ "Pico area updated."
 
     render_click(element(view, "#pico-create-control-group"))
 
@@ -288,7 +288,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
 
     buttons = Repo.all(PicoButton) |> Enum.sort_by(& &1.button_number)
 
-    assert device.room_id == override_room.id
+    assert device.area_id == override_area.id
 
     assert Picos.control_groups(Repo.get_by!(PicoDevice, source_id: "device-1")) == [
              %{
@@ -394,7 +394,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
   end
 
   test "selecting control group lights adds them immediately", %{conn: conn} do
-    room = Repo.insert!(%Room{name: "Bedroom"})
+    area = Repo.insert!(%Area{name: "Bedroom"})
 
     bridge =
       insert_bridge!(%{
@@ -412,19 +412,19 @@ defmodule HueworksWeb.PicoConfigLiveTest do
         source: :caseta,
         source_id: "69",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         enabled: true
       })
 
     device =
       Repo.insert!(%PicoDevice{
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         source_id: "bedroom-pico",
         name: "Bedroom Pico",
         hardware_profile: "5_button",
         metadata: %{
-          "room_override" => true,
+          "area_override" => true,
           "control_groups" => [
             %{"id" => "group-a", "name" => "Bedroom", "group_ids" => [], "light_ids" => []}
           ]
@@ -464,7 +464,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
   end
 
   test "control group names can be edited inline", %{conn: conn} do
-    room = Repo.insert!(%Room{name: "Office"})
+    area = Repo.insert!(%Area{name: "Office"})
 
     bridge =
       insert_bridge!(%{
@@ -479,12 +479,12 @@ defmodule HueworksWeb.PicoConfigLiveTest do
     device =
       Repo.insert!(%PicoDevice{
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         source_id: "office-pico",
         name: "Office Pico",
         hardware_profile: "5_button",
         metadata: %{
-          "room_override" => true,
+          "area_override" => true,
           "control_groups" => [
             %{"id" => "group-a", "name" => "Overhead", "group_ids" => [], "light_ids" => []}
           ]
@@ -530,7 +530,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
   end
 
   test "creating control groups auto-generates the next available name", %{conn: conn} do
-    room = Repo.insert!(%Room{name: "Den"})
+    area = Repo.insert!(%Area{name: "Den"})
 
     bridge =
       insert_bridge!(%{
@@ -545,12 +545,12 @@ defmodule HueworksWeb.PicoConfigLiveTest do
     device =
       Repo.insert!(%PicoDevice{
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         source_id: "den-pico",
         name: "Den Pico",
         hardware_profile: "5_button",
         metadata: %{
-          "room_override" => true,
+          "area_override" => true,
           "control_groups" => [
             %{
               "id" => "group-a",
@@ -586,7 +586,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
   end
 
   test "add light dropdown excludes lights already covered by selected groups", %{conn: conn} do
-    room = Repo.insert!(%Room{name: "Hallway"})
+    area = Repo.insert!(%Area{name: "Hallway"})
 
     bridge =
       insert_bridge!(%{
@@ -604,7 +604,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
         source: :caseta,
         source_id: "691",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         enabled: true
       })
 
@@ -614,7 +614,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
         source: :caseta,
         source_id: "692",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         enabled: true
       })
 
@@ -624,7 +624,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
         source: :caseta,
         source_id: "group-691",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         enabled: true
       })
 
@@ -633,12 +633,12 @@ defmodule HueworksWeb.PicoConfigLiveTest do
     device =
       Repo.insert!(%PicoDevice{
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         source_id: "hallway-pico",
         name: "Hallway Pico",
         hardware_profile: "5_button",
         metadata: %{
-          "room_override" => true,
+          "area_override" => true,
           "control_groups" => [
             %{
               "id" => "group-a",
@@ -671,7 +671,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
   test "add group dropdown excludes groups that overlap already selected direct lights", %{
     conn: conn
   } do
-    room = Repo.insert!(%Room{name: "Kitchen"})
+    area = Repo.insert!(%Area{name: "Kitchen"})
 
     bridge =
       insert_bridge!(%{
@@ -689,7 +689,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
         source: :caseta,
         source_id: "693",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         enabled: true
       })
 
@@ -699,7 +699,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
         source: :caseta,
         source_id: "694",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         enabled: true
       })
 
@@ -709,7 +709,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
         source: :caseta,
         source_id: "group-692",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         enabled: true
       })
 
@@ -719,7 +719,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
         source: :caseta,
         source_id: "group-693",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         enabled: true
       })
 
@@ -729,12 +729,12 @@ defmodule HueworksWeb.PicoConfigLiveTest do
     device =
       Repo.insert!(%PicoDevice{
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         source_id: "kitchen-pico",
         name: "Kitchen Pico",
         hardware_profile: "5_button",
         metadata: %{
-          "room_override" => true,
+          "area_override" => true,
           "control_groups" => [
             %{
               "id" => "group-a",
@@ -767,7 +767,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
   test "add group dropdown hides after selecting the last group with uncovered lights", %{
     conn: conn
   } do
-    room = Repo.insert!(%Room{name: "Living Room"})
+    area = Repo.insert!(%Area{name: "Living Area"})
 
     bridge =
       insert_bridge!(%{
@@ -785,7 +785,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
         source: :caseta,
         source_id: "695",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         enabled: true
       })
 
@@ -795,7 +795,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
         source: :caseta,
         source_id: "group-694",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         enabled: true
       })
 
@@ -806,19 +806,19 @@ defmodule HueworksWeb.PicoConfigLiveTest do
       source: :caseta,
       source_id: "group-695",
       bridge_id: bridge.id,
-      room_id: room.id,
+      area_id: area.id,
       enabled: true
     })
 
     device =
       Repo.insert!(%PicoDevice{
         bridge_id: bridge.id,
-        room_id: room.id,
-        source_id: "living-room-pico",
-        name: "Living Room Pico",
+        area_id: area.id,
+        source_id: "living-area-pico",
+        name: "Living Area Pico",
         hardware_profile: "5_button",
         metadata: %{
-          "room_override" => true,
+          "area_override" => true,
           "control_groups" => [
             %{"id" => "group-a", "name" => "Custom", "group_ids" => [], "light_ids" => []}
           ]
@@ -854,7 +854,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
   end
 
   test "control group inputs only show inside the card being edited", %{conn: conn} do
-    room = Repo.insert!(%Room{name: "Family Room"})
+    area = Repo.insert!(%Area{name: "Family Area"})
 
     bridge =
       insert_bridge!(%{
@@ -869,12 +869,12 @@ defmodule HueworksWeb.PicoConfigLiveTest do
     device =
       Repo.insert!(%PicoDevice{
         bridge_id: bridge.id,
-        room_id: room.id,
-        source_id: "family-room-pico",
-        name: "Family Room Pico",
+        area_id: area.id,
+        source_id: "family-area-pico",
+        name: "Family Area Pico",
         hardware_profile: "5_button",
         metadata: %{
-          "room_override" => true,
+          "area_override" => true,
           "control_groups" => [
             %{"id" => "group-a", "name" => "Overhead", "group_ids" => [], "light_ids" => []},
             %{"id" => "group-b", "name" => "Lamps", "group_ids" => [], "light_ids" => []}
@@ -910,7 +910,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
   end
 
   test "pico config saves and displays Pico display_name with fallback to name", %{conn: conn} do
-    room = Repo.insert!(%Room{name: "Main Floor"})
+    area = Repo.insert!(%Area{name: "Main Floor"})
 
     bridge =
       insert_bridge!(%{
@@ -925,11 +925,11 @@ defmodule HueworksWeb.PicoConfigLiveTest do
     device =
       Repo.insert!(%PicoDevice{
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         source_id: "rename-pico",
         name: "Front Hall Pico",
         hardware_profile: "5_button",
-        metadata: %{"room_override" => true}
+        metadata: %{"area_override" => true}
       })
 
     insert_pico_button(%{
@@ -976,9 +976,9 @@ defmodule HueworksWeb.PicoConfigLiveTest do
     assert render(view) =~ "Front Hall Pico"
   end
 
-  test "room override saves immediately on selection", %{conn: conn} do
-    room = Repo.insert!(%Room{name: "Main Floor"})
-    override_room = Repo.insert!(%Room{name: "Library"})
+  test "area override saves immediately on selection", %{conn: conn} do
+    area = Repo.insert!(%Area{name: "Main Floor"})
+    override_area = Repo.insert!(%Area{name: "Library"})
 
     bridge =
       insert_bridge!(%{
@@ -993,11 +993,11 @@ defmodule HueworksWeb.PicoConfigLiveTest do
     device =
       Repo.insert!(%PicoDevice{
         bridge_id: bridge.id,
-        room_id: room.id,
-        source_id: "auto-save-room-pico",
-        name: "Auto Save Room Pico",
+        area_id: area.id,
+        source_id: "auto-save-area-pico",
+        name: "Auto Save Area Pico",
         hardware_profile: "5_button",
-        metadata: %{"room_override" => false, "detected_room_id" => room.id}
+        metadata: %{"area_override" => false, "detected_area_id" => area.id}
       })
 
     insert_pico_button(%{
@@ -1011,17 +1011,17 @@ defmodule HueworksWeb.PicoConfigLiveTest do
     {:ok, view, _html} = live(conn, "/config/bridges/#{bridge.id}/picos/#{device.id}")
 
     view
-    |> form("form[phx-change='save_room_override']", %{
-      "room_id" => Integer.to_string(override_room.id)
+    |> form("form[phx-change='save_area_override']", %{
+      "area_id" => Integer.to_string(override_area.id)
     })
     |> render_change()
 
     updated = Repo.get!(PicoDevice, device.id)
-    assert updated.room_id == override_room.id
-    assert render(view) =~ "Pico room updated."
+    assert updated.area_id == override_area.id
+    assert render(view) =~ "Pico area updated."
   end
 
-  test "room selector shows disabled dash when no room can be auto-detected", %{conn: conn} do
+  test "area selector shows disabled dash when no area can be auto-detected", %{conn: conn} do
     bridge =
       insert_bridge!(%{
         type: :caseta,
@@ -1032,15 +1032,15 @@ defmodule HueworksWeb.PicoConfigLiveTest do
         import_complete: true
       })
 
-    _room = Repo.insert!(%Room{name: "Hallway"})
+    _area = Repo.insert!(%Area{name: "Hallway"})
 
     device =
       Repo.insert!(%PicoDevice{
         bridge_id: bridge.id,
-        source_id: "device-no-detected-room",
-        name: "No Room Pico",
-        room_id: nil,
-        metadata: %{"room_override" => false},
+        source_id: "device-no-detected-area",
+        name: "No Area Pico",
+        area_id: nil,
+        metadata: %{"area_override" => false},
         hardware_profile: "5_button",
         enabled: true
       })
@@ -1050,20 +1050,20 @@ defmodule HueworksWeb.PicoConfigLiveTest do
     assert html =~ ~s(<option value="" selected="selected" disabled="disabled">)
     assert html =~ "<option value=\"\" selected=\"selected\" disabled=\"disabled\">"
     assert html =~ "\n-\n"
-    assert html =~ ~s(id="pico-clear-room-scope")
+    assert html =~ ~s(id="pico-clear-area-scope")
 
     assert html =~
-             ~s(id="pico-clear-room-scope" type="button" class="hw-button hw-delete-button" phx-click="clear_pico_config" disabled)
+             ~s(id="pico-clear-area-scope" type="button" class="hw-button hw-delete-button" phx-click="clear_pico_config" disabled)
 
     assert html =~
-             "This Pico needs a room before control groups or button bindings can be configured."
+             "This Pico needs a area before control groups or button bindings can be configured."
 
     assert html =~ "Hallway"
   end
 
-  test "room override is locked until existing pico config is cleared", %{conn: conn} do
-    auto_room = Repo.insert!(%Room{name: "Auto Room"})
-    new_room = Repo.insert!(%Room{name: "New Room"})
+  test "area override is locked until existing pico config is cleared", %{conn: conn} do
+    auto_area = Repo.insert!(%Area{name: "Auto Area"})
+    new_area = Repo.insert!(%Area{name: "New Area"})
 
     bridge =
       insert_bridge!(%{
@@ -1078,13 +1078,13 @@ defmodule HueworksWeb.PicoConfigLiveTest do
     device =
       Repo.insert!(%PicoDevice{
         bridge_id: bridge.id,
-        room_id: new_room.id,
-        source_id: "locked-room-pico",
-        name: "Locked Room Pico",
+        area_id: new_area.id,
+        source_id: "locked-area-pico",
+        name: "Locked Area Pico",
         hardware_profile: "5_button",
         metadata: %{
-          "detected_room_id" => auto_room.id,
-          "room_override" => true,
+          "detected_area_id" => auto_area.id,
+          "area_override" => true,
           "control_groups" => [
             %{"id" => "group-a", "name" => "Accent", "group_ids" => [], "light_ids" => []}
           ]
@@ -1105,37 +1105,37 @@ defmodule HueworksWeb.PicoConfigLiveTest do
     {:ok, view, _html} = live(conn, "/config/bridges/#{bridge.id}/picos/#{device.id}")
 
     html = render(view)
-    assert html =~ "pico-clear-room-scope"
+    assert html =~ "pico-clear-area-scope"
     assert html =~ "Clear Config"
-    assert html =~ ~s(id="pico-room-id")
-    assert html =~ ~s(id="pico-clear-room-scope")
+    assert html =~ ~s(id="pico-area-id")
+    assert html =~ ~s(id="pico-clear-area-scope")
 
     assert has_element?(
              view,
-             "#pico-clear-room-scope[data-confirm*='removes all control groups and button bindings']"
+             "#pico-clear-area-scope[data-confirm*='removes all control groups and button bindings']"
            )
 
     view
-    |> element("#pico-clear-room-scope")
+    |> element("#pico-clear-area-scope")
     |> render_click()
 
     updated = Repo.get!(PicoDevice, device.id)
     updated_button = Repo.get!(PicoButton, button.id)
 
-    assert updated.room_id == auto_room.id
-    assert render(view) =~ "pico-clear-room-scope"
+    assert updated.area_id == auto_area.id
+    assert render(view) =~ "pico-clear-area-scope"
     assert render(view) =~ "Clear Config"
     assert render(view) =~ "Pico config cleared."
     assert updated_button.action_type == nil
 
     view
-    |> form("form[phx-change='save_room_override']", %{
-      "room_id" => Integer.to_string(new_room.id)
+    |> form("form[phx-change='save_area_override']", %{
+      "area_id" => Integer.to_string(new_area.id)
     })
     |> render_change()
 
-    assert Repo.get!(PicoDevice, device.id).room_id == new_room.id
-    assert render(view) =~ "Pico room updated."
+    assert Repo.get!(PicoDevice, device.id).area_id == new_area.id
+    assert render(view) =~ "Pico area updated."
   end
 
   test "detect pico mode redirects from the list page into the matching pico config", %{
@@ -1175,7 +1175,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
   end
 
   test "pico config can be cloned from another pico on the detail page", %{conn: conn} do
-    room = Repo.insert!(%Room{name: "Main Floor"})
+    area = Repo.insert!(%Area{name: "Main Floor"})
 
     bridge =
       insert_bridge!(%{
@@ -1193,7 +1193,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
         source: :caseta,
         source_id: "42",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         enabled: true
       })
 
@@ -1203,7 +1203,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
         source: :caseta,
         source_id: "group-1",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         enabled: true
       })
 
@@ -1212,21 +1212,21 @@ defmodule HueworksWeb.PicoConfigLiveTest do
     source =
       Repo.insert!(%PicoDevice{
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         source_id: "source-pico",
         name: "Source Pico",
         hardware_profile: "5_button",
-        metadata: %{"room_override" => true}
+        metadata: %{"area_override" => true}
       })
 
     destination =
       Repo.insert!(%PicoDevice{
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         source_id: "destination-pico",
         name: "Destination Pico",
         hardware_profile: "5_button",
-        metadata: %{"room_override" => true}
+        metadata: %{"area_override" => true}
       })
 
     for {device_id, source_id, button_number, slot_index} <- [
@@ -1267,7 +1267,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
 
     assert has_element?(
              view,
-             "#pico-clone-config[data-confirm*='current room, control groups, and button bindings will be replaced']"
+             "#pico-clone-config[data-confirm*='current area, control groups, and button bindings will be replaced']"
            )
 
     view
@@ -1293,7 +1293,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
   end
 
   test "pico control group dropdowns hide disabled and linked targets", %{conn: conn} do
-    room = Repo.insert!(%Room{name: "Office"})
+    area = Repo.insert!(%Area{name: "Office"})
 
     bridge =
       insert_bridge!(%{
@@ -1311,7 +1311,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
         source: :caseta,
         source_id: "51",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         enabled: true
       })
 
@@ -1321,7 +1321,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
         source: :caseta,
         source_id: "52",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         enabled: false
       })
 
@@ -1331,7 +1331,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
         source: :caseta,
         source_id: "53",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         enabled: true,
         canonical_light_id: root_light.id
       })
@@ -1342,7 +1342,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
         source: :caseta,
         source_id: "group-51",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         enabled: true
       })
 
@@ -1352,7 +1352,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
         source: :caseta,
         source_id: "group-52",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         enabled: false
       })
 
@@ -1361,12 +1361,12 @@ defmodule HueworksWeb.PicoConfigLiveTest do
     device =
       Repo.insert!(%PicoDevice{
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         source_id: "office-pico",
         name: "Office Pico",
         hardware_profile: "5_button",
         metadata: %{
-          "room_override" => true,
+          "area_override" => true,
           "control_groups" => [
             %{"id" => "group-a", "name" => "Overhead", "group_ids" => [], "light_ids" => []}
           ]
@@ -1394,8 +1394,8 @@ defmodule HueworksWeb.PicoConfigLiveTest do
     refute html =~ "Disabled Group"
   end
 
-  test "pico config can bind a button press to a room scene", %{conn: conn} do
-    room = Repo.insert!(%Room{name: "Movie Room"})
+  test "pico config can bind a button press to a area scene", %{conn: conn} do
+    area = Repo.insert!(%Area{name: "Movie Area"})
 
     bridge =
       insert_bridge!(%{
@@ -1410,11 +1410,11 @@ defmodule HueworksWeb.PicoConfigLiveTest do
     device =
       Repo.insert!(%PicoDevice{
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         source_id: "movie-pico",
         name: "Movie Pico",
         hardware_profile: "5_button",
-        metadata: %{"room_override" => true}
+        metadata: %{"area_override" => true}
       })
 
     insert_pico_button(%{
@@ -1428,7 +1428,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
     {:ok, state} =
       Scenes.create_manual_light_state("Movie", %{"brightness" => "25", "temperature" => "2600"})
 
-    {:ok, scene} = Scenes.create_scene(%{name: "Movie Night", room_id: room.id})
+    {:ok, scene} = Scenes.create_scene(%{name: "Movie Night", area_id: area.id})
 
     {:ok, _} =
       Scenes.replace_scene_components(scene, [
@@ -1473,7 +1473,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
   end
 
   test "bind button by press uses control-group checkboxes", %{conn: conn} do
-    room = Repo.insert!(%Room{name: "Office"})
+    area = Repo.insert!(%Area{name: "Office"})
 
     bridge =
       insert_bridge!(%{
@@ -1488,12 +1488,12 @@ defmodule HueworksWeb.PicoConfigLiveTest do
     device =
       Repo.insert!(%PicoDevice{
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         source_id: "checkbox-pico",
         name: "Checkbox Pico",
         hardware_profile: "5_button",
         metadata: %{
-          "room_override" => true,
+          "area_override" => true,
           "control_groups" => [
             %{"id" => "group-a", "name" => "Overhead", "group_ids" => [], "light_ids" => []},
             %{"id" => "group-b", "name" => "Lamps", "group_ids" => [], "light_ids" => []}
@@ -1544,7 +1544,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
   end
 
   test "binding editor can clear the final selected control group", %{conn: conn} do
-    room = Repo.insert!(%Room{name: "Office"})
+    area = Repo.insert!(%Area{name: "Office"})
 
     bridge =
       insert_bridge!(%{
@@ -1559,12 +1559,12 @@ defmodule HueworksWeb.PicoConfigLiveTest do
     device =
       Repo.insert!(%PicoDevice{
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         source_id: "clear-checkbox-pico",
         name: "Clear Checkbox Pico",
         hardware_profile: "5_button",
         metadata: %{
-          "room_override" => true,
+          "area_override" => true,
           "control_groups" => [
             %{"id" => "group-a", "name" => "Overhead", "group_ids" => [], "light_ids" => []}
           ]
@@ -1602,8 +1602,8 @@ defmodule HueworksWeb.PicoConfigLiveTest do
   test "binding editor restores selected control groups after scene-mode round trip", %{
     conn: conn
   } do
-    room = Repo.insert!(%Room{name: "Office"})
-    _scene = Repo.insert!(%Scene{name: "Evening", room_id: room.id, metadata: %{}})
+    area = Repo.insert!(%Area{name: "Office"})
+    _scene = Repo.insert!(%Scene{name: "Evening", area_id: area.id, metadata: %{}})
 
     bridge =
       insert_bridge!(%{
@@ -1618,12 +1618,12 @@ defmodule HueworksWeb.PicoConfigLiveTest do
     device =
       Repo.insert!(%PicoDevice{
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         source_id: "round-trip-checkbox-pico",
         name: "Round Trip Checkbox Pico",
         hardware_profile: "5_button",
         metadata: %{
-          "room_override" => true,
+          "area_override" => true,
           "control_groups" => [
             %{"id" => "group-a", "name" => "Overhead", "group_ids" => [], "light_ids" => []},
             %{"id" => "group-b", "name" => "Lamps", "group_ids" => [], "light_ids" => []}
@@ -1659,7 +1659,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
   test "discovered buttons can be assigned manually from the current binding editor state", %{
     conn: conn
   } do
-    room = Repo.insert!(%Room{name: "Office"})
+    area = Repo.insert!(%Area{name: "Office"})
 
     bridge =
       insert_bridge!(%{
@@ -1674,12 +1674,12 @@ defmodule HueworksWeb.PicoConfigLiveTest do
     device =
       Repo.insert!(%PicoDevice{
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         source_id: "manual-assign-pico",
         name: "Manual Assign Pico",
         hardware_profile: "5_button",
         metadata: %{
-          "room_override" => true,
+          "area_override" => true,
           "control_groups" => [
             %{"id" => "group-a", "name" => "Overhead", "group_ids" => [], "light_ids" => []},
             %{"id" => "group-b", "name" => "Lamps", "group_ids" => [], "light_ids" => []}
@@ -1722,7 +1722,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
   end
 
   test "pico config can delete a control group", %{conn: conn} do
-    room = Repo.insert!(%Room{name: "Studio"})
+    area = Repo.insert!(%Area{name: "Studio"})
 
     bridge =
       insert_bridge!(%{
@@ -1737,12 +1737,12 @@ defmodule HueworksWeb.PicoConfigLiveTest do
     device =
       Repo.insert!(%PicoDevice{
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         source_id: "delete-pico",
         name: "Delete Pico",
         hardware_profile: "5_button",
         metadata: %{
-          "room_override" => true,
+          "area_override" => true,
           "control_groups" => [
             %{"id" => "group-a", "name" => "Overhead", "group_ids" => [], "light_ids" => []}
           ]
@@ -1786,7 +1786,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
   end
 
   test "pico config can clear a learned button binding", %{conn: conn} do
-    room = Repo.insert!(%Room{name: "Movie Room"})
+    area = Repo.insert!(%Area{name: "Movie Area"})
 
     bridge =
       insert_bridge!(%{
@@ -1801,11 +1801,11 @@ defmodule HueworksWeb.PicoConfigLiveTest do
     device =
       Repo.insert!(%PicoDevice{
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         source_id: "clear-pico",
         name: "Clear Pico",
         hardware_profile: "5_button",
-        metadata: %{"room_override" => true}
+        metadata: %{"area_override" => true}
       })
 
     button =
@@ -1820,7 +1820,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
     {:ok, state} =
       Scenes.create_manual_light_state("Movie", %{"brightness" => "25", "temperature" => "2600"})
 
-    {:ok, scene} = Scenes.create_scene(%{name: "Movie Night", room_id: room.id})
+    {:ok, scene} = Scenes.create_scene(%{name: "Movie Night", area_id: area.id})
 
     {:ok, _} =
       Scenes.replace_scene_components(scene, [

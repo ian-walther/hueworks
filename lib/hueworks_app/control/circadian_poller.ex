@@ -50,14 +50,14 @@ defmodule Hueworks.Control.CircadianPoller do
         case Scenes.get_scene(active.scene_id) do
           nil ->
             Logger.warning(
-              "circadian_scene_apply result=missing_scene room_id=#{active.room_id} scene_id=#{active.scene_id}"
+              "circadian_scene_apply result=missing_scene area_id=#{active.area_id} scene_id=#{active.scene_id}"
             )
 
             {applied, failed + 1}
 
           scene ->
             trace = %{
-              trace_id: "circadian-#{active.room_id}-#{System.unique_integer([:positive])}",
+              trace_id: "circadian-#{active.area_id}-#{System.unique_integer([:positive])}",
               source: "circadian_poller.tick",
               started_at_ms: System.monotonic_time(:millisecond)
             }
@@ -65,21 +65,21 @@ defmodule Hueworks.Control.CircadianPoller do
             case apply_active_scene(scene, active, now, trace) do
               {:ok, diff, _updated} ->
                 DebugLogging.info(
-                  "circadian_scene_apply result=ok room_id=#{scene.room_id} scene_id=#{scene.id} diff_size=#{map_size(diff)}"
+                  "circadian_scene_apply result=ok area_id=#{scene.area_id} scene_id=#{scene.id} diff_size=#{map_size(diff)}"
                 )
 
                 {applied + 1, failed}
 
               {:error, reason} ->
                 Logger.warning(
-                  "circadian_scene_apply result=error room_id=#{scene.room_id} scene_id=#{scene.id} reason=#{inspect(reason)}"
+                  "circadian_scene_apply result=error area_id=#{scene.area_id} scene_id=#{scene.id} reason=#{inspect(reason)}"
                 )
 
                 {applied, failed + 1}
 
               other ->
                 Logger.warning(
-                  "circadian_scene_apply result=unexpected room_id=#{scene.room_id} scene_id=#{scene.id} value=#{inspect(other)}"
+                  "circadian_scene_apply result=unexpected area_id=#{scene.area_id} scene_id=#{scene.id} value=#{inspect(other)}"
                 )
 
                 {applied, failed + 1}

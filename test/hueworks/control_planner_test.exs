@@ -6,7 +6,7 @@ defmodule Hueworks.Control.PlannerTest do
   alias Hueworks.Control.Planner.Context
   alias Hueworks.Control.{DesiredState, Operation, Planner, State, TransitionPolicy}
   alias Hueworks.Repo
-  alias Hueworks.Schemas.{AppSetting, Group, GroupLight, Light, Room}
+  alias Hueworks.Schemas.{AppSetting, Group, GroupLight, Light, Area}
 
   setup do
     Repo.delete_all(AppSetting)
@@ -37,8 +37,8 @@ defmodule Hueworks.Control.PlannerTest do
     context =
       Context.from_snapshot(
         %{
-          room_id: 123,
-          room_lights: [
+          area_id: 123,
+          area_lights: [
             %{
               id: 1,
               bridge_id: 10,
@@ -63,8 +63,8 @@ defmodule Hueworks.Control.PlannerTest do
     assert Context.diff_light_ids(context, %{{:light, 1} => %{power: :on}}) == [1]
   end
 
-  test "plan_room prefers largest exact-match group and ignores in-state lights for individual actions" do
-    room = Repo.insert!(%Room{name: "Studio"})
+  test "plan_area prefers largest exact-match group and ignores in-state lights for individual actions" do
+    area = Repo.insert!(%Area{name: "Studio"})
 
     bridge =
       insert_bridge!(%{
@@ -74,12 +74,12 @@ defmodule Hueworks.Control.PlannerTest do
         credentials: %{}
       })
 
-    light_a = insert_light(room, bridge, "A")
-    light_b = insert_light(room, bridge, "B")
-    light_c = insert_light(room, bridge, "C")
+    light_a = insert_light(area, bridge, "A")
+    light_b = insert_light(area, bridge, "B")
+    light_c = insert_light(area, bridge, "C")
 
-    group_big = insert_group(room, bridge, "All")
-    group_small = insert_group(room, bridge, "Pair")
+    group_big = insert_group(area, bridge, "All")
+    group_small = insert_group(area, bridge, "Pair")
 
     insert_group_light(group_big, light_a)
     insert_group_light(group_big, light_b)
@@ -97,7 +97,7 @@ defmodule Hueworks.Control.PlannerTest do
       {:light, light_b.id} => %{power: :on, brightness: 50, kelvin: 3000}
     }
 
-    actions = Planner.plan_room(room.id, diff)
+    actions = Planner.plan_area(area.id, diff)
 
     assert [
              %{type: :group, id: group_id, desired: ^desired}
@@ -107,14 +107,14 @@ defmodule Hueworks.Control.PlannerTest do
   end
 
   test "strict candidate scope keeps a targeted operation from selecting unrelated group members" do
-    room = Repo.insert!(%Room{name: "Scoped Planner Room"})
+    area = Repo.insert!(%Area{name: "Scoped Planner Area"})
 
     bridge =
       insert_bridge!(%{name: "Hue", type: :hue, host: "scope-bridge", credentials: %{}})
 
-    light_a = insert_light(room, bridge, "A")
-    light_b = insert_light(room, bridge, "B")
-    group = insert_group(room, bridge, "Both")
+    light_a = insert_light(area, bridge, "A")
+    light_b = insert_light(area, bridge, "B")
+    group = insert_group(area, bridge, "Both")
     insert_group_light(group, light_a)
     insert_group_light(group, light_b)
 
@@ -125,7 +125,7 @@ defmodule Hueworks.Control.PlannerTest do
     State.put(:light, light_b.id, %{power: :off})
 
     assert [%{type: :light, id: light_id}] =
-             Planner.plan_room(room.id, %{{:light, light_b.id} => desired},
+             Planner.plan_area(area.id, %{{:light, light_b.id} => desired},
                group_candidate_light_ids: [light_b.id]
              )
 
@@ -133,14 +133,14 @@ defmodule Hueworks.Control.PlannerTest do
   end
 
   test "protected lights are excluded from convergence recovery group candidates" do
-    room = Repo.insert!(%Room{name: "Protected Planner Room"})
+    area = Repo.insert!(%Area{name: "Protected Planner Area"})
 
     bridge =
       insert_bridge!(%{name: "Hue", type: :hue, host: "protected-bridge", credentials: %{}})
 
-    light_a = insert_light(room, bridge, "A")
-    light_b = insert_light(room, bridge, "B")
-    group = insert_group(room, bridge, "Both")
+    light_a = insert_light(area, bridge, "A")
+    light_b = insert_light(area, bridge, "B")
+    group = insert_group(area, bridge, "Both")
     insert_group_light(group, light_a)
     insert_group_light(group, light_b)
 
@@ -151,7 +151,7 @@ defmodule Hueworks.Control.PlannerTest do
     State.put(:light, light_b.id, %{power: :off})
 
     assert [%{type: :light, id: light_id}] =
-             Planner.plan_room(room.id, %{{:light, light_b.id} => desired},
+             Planner.plan_area(area.id, %{{:light, light_b.id} => desired},
                protected_light_ids: [light_a.id]
              )
 
@@ -159,12 +159,12 @@ defmodule Hueworks.Control.PlannerTest do
   end
 
   test "an operation policy controls planner transitions independently of the global setting" do
-    room = Repo.insert!(%Room{name: "Circadian Policy Room"})
+    area = Repo.insert!(%Area{name: "Circadian Policy Area"})
 
     bridge =
       insert_bridge!(%{name: "Hue", type: :hue, host: "circadian-bridge", credentials: %{}})
 
-    light = insert_light(room, bridge, "Lamp")
+    light = insert_light(area, bridge, "Lamp")
     desired = %{power: :on, brightness: 60}
     DesiredState.put(:light, light.id, desired)
     State.put(:light, light.id, %{power: :on, brightness: 50})
@@ -176,15 +176,15 @@ defmodule Hueworks.Control.PlannerTest do
       )
 
     assert [%{apply_opts: %{transition_ms: 500}, operation: ^operation}] =
-             Planner.plan_room(room.id, %{{:light, light.id} => desired}, operation: operation)
+             Planner.plan_area(area.id, %{{:light, light.id} => desired}, operation: operation)
   end
 
-  test "plan_snapshot plans from a preloaded room snapshot without repo lookups" do
+  test "plan_snapshot plans from a preloaded area snapshot without repo lookups" do
     desired = %{power: :on, brightness: 50, kelvin: 3000}
 
     snapshot = %{
-      room_id: 123,
-      room_lights: [
+      area_id: 123,
+      area_lights: [
         %{
           id: 1,
           bridge_id: 10,
@@ -221,7 +221,7 @@ defmodule Hueworks.Control.PlannerTest do
            ] = Planner.plan_snapshot(snapshot, diff)
   end
 
-  test "plan_room attaches global transition apply_opts to actions" do
+  test "plan_area attaches global transition apply_opts to actions" do
     Repo.insert!(%AppSetting{
       scope: "global",
       latitude: 40.7128,
@@ -231,7 +231,7 @@ defmodule Hueworks.Control.PlannerTest do
       scale_transition_by_brightness: false
     })
 
-    room = Repo.insert!(%Room{name: "Transition Room"})
+    area = Repo.insert!(%Area{name: "Transition Area"})
 
     bridge =
       insert_bridge!(%{
@@ -241,20 +241,20 @@ defmodule Hueworks.Control.PlannerTest do
         credentials: %{}
       })
 
-    light = insert_light(room, bridge, "Lamp")
+    light = insert_light(area, bridge, "Lamp")
     desired = %{power: :on, brightness: 55}
 
     DesiredState.put(:light, light.id, desired)
 
     diff = %{{:light, light.id} => desired}
-    [action] = Planner.plan_room(room.id, diff)
+    [action] = Planner.plan_area(area.id, diff)
 
     assert action.type == :light
     assert action.id == light.id
     assert action.apply_opts == %{transition_ms: 800}
   end
 
-  test "plan_room scales transition for brightness-to-off using current brightness delta" do
+  test "plan_area scales transition for brightness-to-off using current brightness delta" do
     Repo.insert!(%AppSetting{
       scope: "global",
       latitude: 40.7128,
@@ -264,7 +264,7 @@ defmodule Hueworks.Control.PlannerTest do
       scale_transition_by_brightness: true
     })
 
-    room = Repo.insert!(%Room{name: "Scaled Transition Room"})
+    area = Repo.insert!(%Area{name: "Scaled Transition Area"})
 
     bridge =
       insert_bridge!(%{
@@ -274,17 +274,17 @@ defmodule Hueworks.Control.PlannerTest do
         credentials: %{}
       })
 
-    light = insert_light(room, bridge, "Lamp")
+    light = insert_light(area, bridge, "Lamp")
 
     DesiredState.put(:light, light.id, %{power: :off})
     State.put(:light, light.id, %{power: :on, brightness: 35})
 
-    [action] = Planner.plan_room(room.id, %{{:light, light.id} => %{power: :off}})
+    [action] = Planner.plan_area(area.id, %{{:light, light.id} => %{power: :off}})
 
     assert action.apply_opts == %{transition_ms: 350}
   end
 
-  test "plan_room keeps full transition for non-brightness changes when scaling is enabled" do
+  test "plan_area keeps full transition for non-brightness changes when scaling is enabled" do
     Repo.insert!(%AppSetting{
       scope: "global",
       latitude: 40.7128,
@@ -294,7 +294,7 @@ defmodule Hueworks.Control.PlannerTest do
       scale_transition_by_brightness: true
     })
 
-    room = Repo.insert!(%Room{name: "Kelvin Transition Room"})
+    area = Repo.insert!(%Area{name: "Kelvin Transition Area"})
 
     bridge =
       insert_bridge!(%{
@@ -304,17 +304,17 @@ defmodule Hueworks.Control.PlannerTest do
         credentials: %{}
       })
 
-    light = insert_light(room, bridge, "Lamp")
+    light = insert_light(area, bridge, "Lamp")
 
     DesiredState.put(:light, light.id, %{power: :on, kelvin: 3200})
     State.put(:light, light.id, %{power: :on, brightness: 40, kelvin: 2700})
 
-    [action] = Planner.plan_room(room.id, %{{:light, light.id} => %{power: :on, kelvin: 3200}})
+    [action] = Planner.plan_area(area.id, %{{:light, light.id} => %{power: :on, kelvin: 3200}})
 
     assert action.apply_opts == %{transition_ms: 1000}
   end
 
-  test "plan_room keeps full transition for power-on when target brightness is unknown" do
+  test "plan_area keeps full transition for power-on when target brightness is unknown" do
     Repo.insert!(%AppSetting{
       scope: "global",
       latitude: 40.7128,
@@ -324,7 +324,7 @@ defmodule Hueworks.Control.PlannerTest do
       scale_transition_by_brightness: true
     })
 
-    room = Repo.insert!(%Room{name: "Unknown Brightness Transition Room"})
+    area = Repo.insert!(%Area{name: "Unknown Brightness Transition Area"})
 
     bridge =
       insert_bridge!(%{
@@ -334,17 +334,17 @@ defmodule Hueworks.Control.PlannerTest do
         credentials: %{}
       })
 
-    light = insert_light(room, bridge, "Lamp")
+    light = insert_light(area, bridge, "Lamp")
 
     DesiredState.put(:light, light.id, %{power: :on})
     State.put(:light, light.id, %{power: :off})
 
-    [action] = Planner.plan_room(room.id, %{{:light, light.id} => %{power: :on}})
+    [action] = Planner.plan_area(area.id, %{{:light, light.id} => %{power: :on}})
 
     assert action.apply_opts == %{transition_ms: 1000}
   end
 
-  test "plan_room scales brightness-to-brightness changes by the brightness delta" do
+  test "plan_area scales brightness-to-brightness changes by the brightness delta" do
     Repo.insert!(%AppSetting{
       scope: "global",
       latitude: 40.7128,
@@ -354,7 +354,7 @@ defmodule Hueworks.Control.PlannerTest do
       scale_transition_by_brightness: true
     })
 
-    room = Repo.insert!(%Room{name: "Brightness Delta Transition Room"})
+    area = Repo.insert!(%Area{name: "Brightness Delta Transition Area"})
 
     bridge =
       insert_bridge!(%{
@@ -364,18 +364,18 @@ defmodule Hueworks.Control.PlannerTest do
         credentials: %{}
       })
 
-    light = insert_light(room, bridge, "Lamp")
+    light = insert_light(area, bridge, "Lamp")
 
     DesiredState.put(:light, light.id, %{power: :on, brightness: 80})
     State.put(:light, light.id, %{power: :on, brightness: 20})
 
     [action] =
-      Planner.plan_room(room.id, %{{:light, light.id} => %{power: :on, brightness: 80}})
+      Planner.plan_area(area.id, %{{:light, light.id} => %{power: :on, brightness: 80}})
 
     assert action.apply_opts == %{transition_ms: 600}
   end
 
-  test "plan_room uses the max brightness delta for grouped actions when scaling is enabled" do
+  test "plan_area uses the max brightness delta for grouped actions when scaling is enabled" do
     Repo.insert!(%AppSetting{
       scope: "global",
       latitude: 40.7128,
@@ -385,7 +385,7 @@ defmodule Hueworks.Control.PlannerTest do
       scale_transition_by_brightness: true
     })
 
-    room = Repo.insert!(%Room{name: "Grouped Transition Room"})
+    area = Repo.insert!(%Area{name: "Grouped Transition Area"})
 
     bridge =
       insert_bridge!(%{
@@ -395,10 +395,10 @@ defmodule Hueworks.Control.PlannerTest do
         credentials: %{}
       })
 
-    light_a = insert_light(room, bridge, "A")
-    light_b = insert_light(room, bridge, "B")
+    light_a = insert_light(area, bridge, "A")
+    light_b = insert_light(area, bridge, "B")
 
-    group = insert_group(room, bridge, "All")
+    group = insert_group(area, bridge, "All")
     insert_group_light(group, light_a)
     insert_group_light(group, light_b)
 
@@ -408,7 +408,7 @@ defmodule Hueworks.Control.PlannerTest do
     State.put(:light, light_b.id, %{power: :on, brightness: 80})
 
     [action] =
-      Planner.plan_room(room.id, %{
+      Planner.plan_area(area.id, %{
         {:light, light_a.id} => %{power: :off},
         {:light, light_b.id} => %{power: :off}
       })
@@ -418,7 +418,7 @@ defmodule Hueworks.Control.PlannerTest do
     assert action.apply_opts == %{transition_ms: 800}
   end
 
-  test "plan_room group scaling uses the max known brightness delta when one light is unknown" do
+  test "plan_area group scaling uses the max known brightness delta when one light is unknown" do
     Repo.insert!(%AppSetting{
       scope: "global",
       latitude: 40.7128,
@@ -428,7 +428,7 @@ defmodule Hueworks.Control.PlannerTest do
       scale_transition_by_brightness: true
     })
 
-    room = Repo.insert!(%Room{name: "Grouped Mixed Knowledge Transition Room"})
+    area = Repo.insert!(%Area{name: "Grouped Mixed Knowledge Transition Area"})
 
     bridge =
       insert_bridge!(%{
@@ -438,10 +438,10 @@ defmodule Hueworks.Control.PlannerTest do
         credentials: %{}
       })
 
-    light_a = insert_light(room, bridge, "A")
-    light_b = insert_light(room, bridge, "B")
+    light_a = insert_light(area, bridge, "A")
+    light_b = insert_light(area, bridge, "B")
 
-    group = insert_group(room, bridge, "All")
+    group = insert_group(area, bridge, "All")
     insert_group_light(group, light_a)
     insert_group_light(group, light_b)
 
@@ -451,7 +451,7 @@ defmodule Hueworks.Control.PlannerTest do
     State.put(:light, light_b.id, %{power: :on})
 
     [action] =
-      Planner.plan_room(room.id, %{
+      Planner.plan_area(area.id, %{
         {:light, light_a.id} => %{power: :off},
         {:light, light_b.id} => %{power: :off}
       })
@@ -461,8 +461,8 @@ defmodule Hueworks.Control.PlannerTest do
     assert action.apply_opts == %{transition_ms: 350}
   end
 
-  test "plan_room falls back to individual lights when no exact-match group exists" do
-    room = Repo.insert!(%Room{name: "Office"})
+  test "plan_area falls back to individual lights when no exact-match group exists" do
+    area = Repo.insert!(%Area{name: "Office"})
 
     bridge =
       insert_bridge!(%{
@@ -472,11 +472,11 @@ defmodule Hueworks.Control.PlannerTest do
         credentials: %{}
       })
 
-    light_a = insert_light(room, bridge, "A")
-    light_b = insert_light(room, bridge, "B")
-    light_c = insert_light(room, bridge, "C")
+    light_a = insert_light(area, bridge, "A")
+    light_b = insert_light(area, bridge, "B")
+    light_c = insert_light(area, bridge, "C")
 
-    group_big = insert_group(room, bridge, "All")
+    group_big = insert_group(area, bridge, "All")
 
     insert_group_light(group_big, light_a)
     insert_group_light(group_big, light_b)
@@ -492,14 +492,14 @@ defmodule Hueworks.Control.PlannerTest do
       {:light, light_b.id} => %{power: :on, brightness: 80, kelvin: 3200}
     }
 
-    actions = Planner.plan_room(room.id, diff)
+    actions = Planner.plan_area(area.id, diff)
 
     assert Enum.all?(actions, &(&1.type == :light))
     assert Enum.map(actions, & &1.id) |> Enum.sort() == [light_a.id, light_b.id]
   end
 
-  test "plan_room ignores groups on other bridges" do
-    room = Repo.insert!(%Room{name: "Den"})
+  test "plan_area ignores groups on other bridges" do
+    area = Repo.insert!(%Area{name: "Den"})
 
     bridge =
       insert_bridge!(%{
@@ -517,10 +517,10 @@ defmodule Hueworks.Control.PlannerTest do
         credentials: %{}
       })
 
-    light_a = insert_light(room, bridge, "A")
-    light_b = insert_light(room, bridge, "B")
+    light_a = insert_light(area, bridge, "A")
+    light_b = insert_light(area, bridge, "B")
 
-    group_other = insert_group(room, other_bridge, "Other")
+    group_other = insert_group(area, other_bridge, "Other")
     insert_group_light(group_other, light_a)
     insert_group_light(group_other, light_b)
 
@@ -533,14 +533,14 @@ defmodule Hueworks.Control.PlannerTest do
       {:light, light_b.id} => %{power: :on, brightness: 40, kelvin: 2700}
     }
 
-    actions = Planner.plan_room(room.id, diff)
+    actions = Planner.plan_area(area.id, diff)
 
     assert Enum.all?(actions, &(&1.type == :light))
     assert Enum.map(actions, & &1.id) |> Enum.sort() == [light_a.id, light_b.id]
   end
 
-  test "plan_room partitions clamped kelvin values and still optimizes with groups" do
-    room = Repo.insert!(%Room{name: "Kitchen"})
+  test "plan_area partitions clamped kelvin values and still optimizes with groups" do
+    area = Repo.insert!(%Area{name: "Kitchen"})
 
     bridge =
       insert_bridge!(%{
@@ -551,19 +551,19 @@ defmodule Hueworks.Control.PlannerTest do
       })
 
     ceiling_a =
-      insert_light(room, bridge, "CeilingA", reported_min_kelvin: 2000, reported_max_kelvin: 6500)
+      insert_light(area, bridge, "CeilingA", reported_min_kelvin: 2000, reported_max_kelvin: 6500)
 
     ceiling_b =
-      insert_light(room, bridge, "CeilingB", reported_min_kelvin: 2000, reported_max_kelvin: 6500)
+      insert_light(area, bridge, "CeilingB", reported_min_kelvin: 2000, reported_max_kelvin: 6500)
 
     table_a =
-      insert_light(room, bridge, "TableA", reported_min_kelvin: 2200, reported_max_kelvin: 4500)
+      insert_light(area, bridge, "TableA", reported_min_kelvin: 2200, reported_max_kelvin: 4500)
 
     table_b =
-      insert_light(room, bridge, "TableB", reported_min_kelvin: 2200, reported_max_kelvin: 4500)
+      insert_light(area, bridge, "TableB", reported_min_kelvin: 2200, reported_max_kelvin: 4500)
 
-    ceiling_group = insert_group(room, bridge, "Ceiling")
-    table_group = insert_group(room, bridge, "Table")
+    ceiling_group = insert_group(area, bridge, "Ceiling")
+    table_group = insert_group(area, bridge, "Table")
 
     insert_group_light(ceiling_group, ceiling_a)
     insert_group_light(ceiling_group, ceiling_b)
@@ -581,7 +581,7 @@ defmodule Hueworks.Control.PlannerTest do
         {{:light, light.id}, desired}
       end)
 
-    actions = Planner.plan_room(room.id, diff)
+    actions = Planner.plan_area(area.id, diff)
 
     assert length(actions) == 2
 
@@ -602,8 +602,8 @@ defmodule Hueworks.Control.PlannerTest do
              MapSet.new([table_group.id, ceiling_group.id])
   end
 
-  test "plan_room treats adjacent mirek kelvin drift as already in state" do
-    room = Repo.insert!(%Room{name: "Warm Drift"})
+  test "plan_area treats adjacent mirek kelvin drift as already in state" do
+    area = Repo.insert!(%Area{name: "Warm Drift"})
 
     bridge =
       insert_bridge!(%{
@@ -613,18 +613,18 @@ defmodule Hueworks.Control.PlannerTest do
         credentials: %{}
       })
 
-    light = insert_light(room, bridge, "A", supports_temp: true)
+    light = insert_light(area, bridge, "A", supports_temp: true)
     desired = %{power: :on, brightness: 100, kelvin: 3715}
     DesiredState.put(:light, light.id, desired)
     _ = State.put(:light, light.id, %{power: :on, brightness: 100, kelvin: 3704})
 
     diff = %{{:light, light.id} => desired}
 
-    assert Planner.plan_room(room.id, diff) == []
+    assert Planner.plan_area(area.id, diff) == []
   end
 
-  test "plan_room preserves xy desired state for color-capable lights" do
-    room = Repo.insert!(%Room{name: "Color Room"})
+  test "plan_area preserves xy desired state for color-capable lights" do
+    area = Repo.insert!(%Area{name: "Color Area"})
 
     bridge =
       insert_bridge!(%{
@@ -634,12 +634,12 @@ defmodule Hueworks.Control.PlannerTest do
         credentials: %{}
       })
 
-    light = insert_light(room, bridge, "Color Lamp", supports_color: true, supports_temp: true)
+    light = insert_light(area, bridge, "Color Lamp", supports_color: true, supports_temp: true)
 
     desired = %{power: :on, brightness: 75, x: 0.1854, y: 0.2234}
     DesiredState.put(:light, light.id, desired)
 
-    plan = Planner.plan_room(room.id, %{{:light, light.id} => desired})
+    plan = Planner.plan_area(area.id, %{{:light, light.id} => desired})
 
     assert [%{type: :light, id: planned_id, desired: planned_desired}] = plan
     assert planned_id == light.id
@@ -649,8 +649,8 @@ defmodule Hueworks.Control.PlannerTest do
     assert_in_delta planned_desired[:y], 0.2234, 0.0001
   end
 
-  test "plan_room drops xy desired state for non-color lights" do
-    room = Repo.insert!(%Room{name: "Mono Room"})
+  test "plan_area drops xy desired state for non-color lights" do
+    area = Repo.insert!(%Area{name: "Mono Area"})
 
     bridge =
       insert_bridge!(%{
@@ -660,12 +660,12 @@ defmodule Hueworks.Control.PlannerTest do
         credentials: %{}
       })
 
-    light = insert_light(room, bridge, "Mono Lamp", supports_color: false, supports_temp: true)
+    light = insert_light(area, bridge, "Mono Lamp", supports_color: false, supports_temp: true)
 
     desired = %{power: :on, brightness: 75, x: 0.1854, y: 0.2234}
     DesiredState.put(:light, light.id, desired)
 
-    plan = Planner.plan_room(room.id, %{{:light, light.id} => desired})
+    plan = Planner.plan_area(area.id, %{{:light, light.id} => desired})
 
     assert [%{type: :light, id: planned_id, desired: planned_desired}] = plan
     assert planned_id == light.id
@@ -675,8 +675,8 @@ defmodule Hueworks.Control.PlannerTest do
     refute Map.has_key?(planned_desired, :y)
   end
 
-  test "plan_room removes kelvin from non-temp partitions while preserving temp partitions" do
-    room = Repo.insert!(%Room{name: "Mixed"})
+  test "plan_area removes kelvin from non-temp partitions while preserving temp partitions" do
+    area = Repo.insert!(%Area{name: "Mixed"})
 
     bridge =
       insert_bridge!(%{
@@ -687,24 +687,24 @@ defmodule Hueworks.Control.PlannerTest do
       })
 
     temp_a =
-      insert_light(room, bridge, "TempA",
+      insert_light(area, bridge, "TempA",
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6500
       )
 
     temp_b =
-      insert_light(room, bridge, "TempB",
+      insert_light(area, bridge, "TempB",
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6500
       )
 
-    dim_a = insert_light(room, bridge, "DimA", supports_temp: false)
-    dim_b = insert_light(room, bridge, "DimB", supports_temp: false)
+    dim_a = insert_light(area, bridge, "DimA", supports_temp: false)
+    dim_b = insert_light(area, bridge, "DimB", supports_temp: false)
 
-    temp_group = insert_group(room, bridge, "TempGroup")
-    dim_group = insert_group(room, bridge, "DimGroup")
+    temp_group = insert_group(area, bridge, "TempGroup")
+    dim_group = insert_group(area, bridge, "DimGroup")
 
     insert_group_light(temp_group, temp_a)
     insert_group_light(temp_group, temp_b)
@@ -722,7 +722,7 @@ defmodule Hueworks.Control.PlannerTest do
         {{:light, light.id}, desired}
       end)
 
-    actions = Planner.plan_room(room.id, diff)
+    actions = Planner.plan_area(area.id, diff)
 
     assert length(actions) == 2
 
@@ -744,8 +744,8 @@ defmodule Hueworks.Control.PlannerTest do
              MapSet.new([temp_group.id, dim_group.id])
   end
 
-  test "plan_room clamps and partitions using full main-floor export topology" do
-    {room, _bridge, lights_by_source, groups_by_source} = insert_main_floor_fixture()
+  test "plan_area clamps and partitions using full main-floor export topology" do
+    {area, _bridge, lights_by_source, groups_by_source} = insert_main_floor_fixture()
 
     desired = %{power: :on, brightness: 55, kelvin: 2000}
 
@@ -758,7 +758,7 @@ defmodule Hueworks.Control.PlannerTest do
         {{:light, light.id}, desired}
       end)
 
-    actions = Planner.plan_room(room.id, diff)
+    actions = Planner.plan_area(area.id, diff)
 
     assert length(actions) < map_size(lights_by_source)
     assert Enum.any?(actions, &(&1.type == :group))
@@ -814,8 +814,8 @@ defmodule Hueworks.Control.PlannerTest do
     end)
   end
 
-  test "plan_room uses one group for uniform manual scene but five groups for clamped circadian scene on same main-floor lights" do
-    {room, _bridge, lights_by_source, groups_by_source} = insert_main_floor_fixture()
+  test "plan_area uses one group for uniform manual scene but five groups for clamped circadian scene on same main-floor lights" do
+    {area, _bridge, lights_by_source, groups_by_source} = insert_main_floor_fixture()
 
     uniform_desired = %{power: :on, brightness: 100, kelvin: 3501}
 
@@ -828,7 +828,7 @@ defmodule Hueworks.Control.PlannerTest do
         {{:light, light.id}, uniform_desired}
       end)
 
-    uniform_actions = Planner.plan_room(room.id, uniform_diff)
+    uniform_actions = Planner.plan_area(area.id, uniform_diff)
 
     assert [
              %{
@@ -851,7 +851,7 @@ defmodule Hueworks.Control.PlannerTest do
         {{:light, light.id}, clamped_desired}
       end)
 
-    clamped_actions = Planner.plan_room(room.id, clamped_diff)
+    clamped_actions = Planner.plan_area(area.id, clamped_diff)
 
     assert length(clamped_actions) == 5
     assert Enum.all?(clamped_actions, &(&1.type == :group))
@@ -868,7 +868,7 @@ defmodule Hueworks.Control.PlannerTest do
     assert action_source_ids ==
              MapSet.new([
                "light.main_floor_ceiling",
-               "light.living_room",
+               "light.living_area",
                "light.kitchen_ceiling",
                "light.ians_office",
                "light.kitchen_hanging"
@@ -882,8 +882,8 @@ defmodule Hueworks.Control.PlannerTest do
     assert kelvins == [2000, 2000, 2000, 2000, 2202]
   end
 
-  test "plan_room skips actions when effective desired already matches physical state" do
-    room = Repo.insert!(%Room{name: "Clamp Match"})
+  test "plan_area skips actions when effective desired already matches physical state" do
+    area = Repo.insert!(%Area{name: "Clamp Match"})
 
     bridge =
       insert_bridge!(%{
@@ -894,10 +894,10 @@ defmodule Hueworks.Control.PlannerTest do
       })
 
     light_a =
-      insert_light(room, bridge, "A", reported_min_kelvin: 2200, reported_max_kelvin: 4500)
+      insert_light(area, bridge, "A", reported_min_kelvin: 2200, reported_max_kelvin: 4500)
 
     light_b =
-      insert_light(room, bridge, "B", reported_min_kelvin: 2200, reported_max_kelvin: 4500)
+      insert_light(area, bridge, "B", reported_min_kelvin: 2200, reported_max_kelvin: 4500)
 
     desired = %{power: :on, brightness: 65, kelvin: 2000}
 
@@ -921,17 +921,17 @@ defmodule Hueworks.Control.PlannerTest do
       {:light, light_b.id} => desired
     }
 
-    assert Planner.plan_room(room.id, diff) == []
+    assert Planner.plan_area(area.id, diff) == []
   end
 
-  defp insert_light(room, bridge, name, opts \\ []) do
+  defp insert_light(area, bridge, name, opts \\ []) do
     Repo.insert!(%Light{
       name: name,
       display_name: name,
       source: :hue,
       source_id: "light-#{name}-#{System.unique_integer([:positive])}",
       bridge_id: bridge.id,
-      room_id: room.id,
+      area_id: area.id,
       supports_color: Keyword.get(opts, :supports_color, false),
       supports_temp: Keyword.get(opts, :supports_temp, true),
       reported_min_kelvin: Keyword.get(opts, :reported_min_kelvin, 2000),
@@ -939,14 +939,14 @@ defmodule Hueworks.Control.PlannerTest do
     })
   end
 
-  defp insert_group(room, bridge, name) do
+  defp insert_group(area, bridge, name) do
     Repo.insert!(%Group{
       name: name,
       display_name: name,
       source: :hue,
       source_id: "group-#{name}-#{System.unique_integer([:positive])}",
       bridge_id: bridge.id,
-      room_id: room.id
+      area_id: area.id
     })
   end
 
@@ -973,7 +973,7 @@ defmodule Hueworks.Control.PlannerTest do
   defp insert_main_floor_fixture do
     fixture = load_main_floor_fixture()
 
-    room = Repo.insert!(%Room{name: "Main Floor Fixture"})
+    area = Repo.insert!(%Area{name: "Main Floor Fixture"})
 
     bridge =
       insert_bridge!(%{
@@ -999,7 +999,7 @@ defmodule Hueworks.Control.PlannerTest do
             source: :ha,
             source_id: source_id,
             bridge_id: bridge.id,
-            room_id: room.id,
+            area_id: area.id,
             supports_temp: true,
             reported_min_kelvin: min_kelvin,
             reported_max_kelvin: max_kelvin
@@ -1021,7 +1021,7 @@ defmodule Hueworks.Control.PlannerTest do
             source: :ha,
             source_id: source_id,
             bridge_id: bridge.id,
-            room_id: room.id
+            area_id: area.id
           })
 
         Enum.each(group_data["members"] || [], fn light_source_id ->
@@ -1034,7 +1034,7 @@ defmodule Hueworks.Control.PlannerTest do
         Map.put(acc, source_id, group)
       end)
 
-    {room, bridge, lights_by_source, groups_by_source}
+    {area, bridge, lights_by_source, groups_by_source}
   end
 
   defp ranges_for_main_floor_lights(fixture) do

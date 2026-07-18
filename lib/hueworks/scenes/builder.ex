@@ -3,28 +3,28 @@ defmodule Hueworks.Scenes.Builder do
 
   alias Hueworks.Util
 
-  def build(room_lights, groups, components) do
-    filtered_lights = filter_canonical_lights(room_lights)
+  def build(area_lights, groups, components) do
+    filtered_lights = filter_canonical_lights(area_lights)
     filtered_groups = filter_canonical_groups(groups)
     selectable_lights = selectable_lights(filtered_lights)
-    room_light_ids = scene_relevant_light_ids(filtered_lights, filtered_groups)
-    normalized_groups = normalize_group_light_ids(filtered_groups, room_light_ids)
+    area_light_ids = scene_relevant_light_ids(filtered_lights, filtered_groups)
+    normalized_groups = normalize_group_light_ids(filtered_groups, area_light_ids)
 
     assigned_ids =
-      assigned_light_ids(components) |> MapSet.intersection(MapSet.new(room_light_ids))
+      assigned_light_ids(components) |> MapSet.intersection(MapSet.new(area_light_ids))
 
     available_lights = available_lights(selectable_lights, assigned_ids)
     available_groups = available_groups(normalized_groups, assigned_ids)
-    duplicate_ids = duplicate_light_ids(components, room_light_ids)
+    duplicate_ids = duplicate_light_ids(components, area_light_ids)
 
     %{
-      room_light_ids: room_light_ids,
+      area_light_ids: area_light_ids,
       assigned_light_ids: assigned_ids,
       available_lights: available_lights,
       available_groups: available_groups,
-      unassigned_light_ids: unassigned_light_ids(room_light_ids, assigned_ids),
+      unassigned_light_ids: unassigned_light_ids(area_light_ids, assigned_ids),
       duplicate_light_ids: duplicate_ids,
-      valid?: valid?(room_light_ids, assigned_ids, duplicate_ids)
+      valid?: valid?(area_light_ids, assigned_ids, duplicate_ids)
     }
   end
 
@@ -35,21 +35,21 @@ defmodule Hueworks.Scenes.Builder do
     |> MapSet.new()
   end
 
-  def duplicate_light_ids(components, room_light_ids) do
-    room_light_ids = MapSet.new(room_light_ids)
+  def duplicate_light_ids(components, area_light_ids) do
+    area_light_ids = MapSet.new(area_light_ids)
 
     components
     |> Enum.flat_map(&Map.get(&1, :light_ids, []))
     |> Enum.filter(&is_integer/1)
-    |> Enum.filter(&MapSet.member?(room_light_ids, &1))
+    |> Enum.filter(&MapSet.member?(area_light_ids, &1))
     |> Enum.frequencies()
     |> Enum.filter(fn {_id, count} -> count > 1 end)
     |> Enum.map(fn {id, _count} -> id end)
     |> Enum.sort()
   end
 
-  def available_lights(room_lights, assigned_ids) do
-    Enum.filter(room_lights, fn light ->
+  def available_lights(area_lights, assigned_ids) do
+    Enum.filter(area_lights, fn light ->
       id = Map.get(light, :id)
       is_integer(id) and not MapSet.member?(assigned_ids, id)
     end)
@@ -67,12 +67,12 @@ defmodule Hueworks.Scenes.Builder do
     end)
   end
 
-  def group_room_light_ids(group, room_light_ids) do
-    room_light_ids = MapSet.new(room_light_ids)
+  def group_area_light_ids(group, area_light_ids) do
+    area_light_ids = MapSet.new(area_light_ids)
 
     group
     |> Map.get(:light_ids, [])
-    |> Enum.filter(&MapSet.member?(room_light_ids, &1))
+    |> Enum.filter(&MapSet.member?(area_light_ids, &1))
     |> Enum.uniq()
   end
 
@@ -82,14 +82,14 @@ defmodule Hueworks.Scenes.Builder do
     |> Enum.filter(&is_integer/1)
   end
 
-  defp unassigned_light_ids(room_light_ids, assigned_ids) do
-    room_light_ids
+  defp unassigned_light_ids(area_light_ids, assigned_ids) do
+    area_light_ids
     |> Enum.reject(&MapSet.member?(assigned_ids, &1))
   end
 
-  defp valid?(room_light_ids, assigned_ids, duplicate_ids) do
+  defp valid?(area_light_ids, assigned_ids, duplicate_ids) do
     duplicate_ids == [] and
-      MapSet.new(room_light_ids) == assigned_ids
+      MapSet.new(area_light_ids) == assigned_ids
   end
 
   defp filter_canonical_lights(lights) do
@@ -104,9 +104,9 @@ defmodule Hueworks.Scenes.Builder do
     end)
   end
 
-  defp normalize_group_light_ids(groups, room_light_ids) do
+  defp normalize_group_light_ids(groups, area_light_ids) do
     Enum.map(groups, fn group ->
-      Map.put(group, :light_ids, group_room_light_ids(group, room_light_ids))
+      Map.put(group, :light_ids, group_area_light_ids(group, area_light_ids))
     end)
   end
 
@@ -115,12 +115,12 @@ defmodule Hueworks.Scenes.Builder do
   end
 
   defp scene_relevant_light_ids(lights, groups) do
-    all_room_light_ids = light_ids(lights)
+    all_area_light_ids = light_ids(lights)
     enabled_light_ids = lights |> selectable_lights() |> light_ids() |> MapSet.new()
 
     group_light_ids =
       groups
-      |> Enum.flat_map(&group_room_light_ids(&1, all_room_light_ids))
+      |> Enum.flat_map(&group_area_light_ids(&1, all_area_light_ids))
       |> MapSet.new()
 
     lights

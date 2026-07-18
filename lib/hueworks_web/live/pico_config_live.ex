@@ -18,12 +18,12 @@ defmodule HueworksWeb.PicoConfigLive do
        pico_devices: [],
        selected_pico: nil,
        detect_pico_mode: false,
-       all_rooms: [],
-       room_groups: [],
-       room_lights: [],
-       room_scenes: [],
-       selectable_room_groups: [],
-       selectable_room_lights: [],
+       all_areas: [],
+       area_groups: [],
+       area_lights: [],
+       area_scenes: [],
+       selectable_area_groups: [],
+       selectable_area_lights: [],
        control_groups: [],
        clone_source_pico_id: nil,
        selected_control_group_id: nil,
@@ -118,7 +118,7 @@ defmodule HueworksWeb.PicoConfigLive do
     |> reply_with_save_notice()
   end
 
-  def handle_event("save_room_override", %{"room_id" => room_id}, socket) do
+  def handle_event("save_area_override", %{"area_id" => area_id}, socket) do
     case socket.assigns.selected_pico do
       nil ->
         socket
@@ -126,12 +126,12 @@ defmodule HueworksWeb.PicoConfigLive do
         |> reply_with_save_notice()
 
       device ->
-        case maybe_set_pico_room(device, room_id) do
+        case maybe_set_pico_area(device, area_id) do
           {:ok, updated} ->
             devices = Picos.list_devices_for_bridge(socket.assigns.bridge.id)
 
             socket
-            |> assign(save_status: "Pico room updated.", save_error: nil)
+            |> assign(save_status: "Pico area updated.", save_error: nil)
             |> reload_from_devices(devices, updated.id)
             |> reply_with_save_notice()
 
@@ -139,7 +139,7 @@ defmodule HueworksWeb.PicoConfigLive do
             message =
               case reason do
                 :config_present ->
-                  "Clear this Pico's control groups and button bindings before changing rooms."
+                  "Clear this Pico's control groups and button bindings before changing areas."
 
                 _ ->
                   inspect(reason)
@@ -238,11 +238,11 @@ defmodule HueworksWeb.PicoConfigLive do
         |> assign(save_status: nil, save_error: "Choose a different Pico to copy from.")
         |> reply_with_save_notice()
 
-      {:error, :missing_source_room} ->
+      {:error, :missing_source_area} ->
         socket
         |> assign(
           save_status: nil,
-          save_error: "The source Pico needs a room before it can be copied."
+          save_error: "The source Pico needs a area before it can be copied."
         )
         |> reply_with_save_notice()
 
@@ -282,9 +282,9 @@ defmodule HueworksWeb.PicoConfigLive do
             |> ControlGroupEditor.select(group_id)
             |> reply_with_save_notice()
 
-          {:error, :missing_room} ->
+          {:error, :missing_area} ->
             socket
-            |> assign(save_status: nil, save_error: "Set the Pico room first.")
+            |> assign(save_status: nil, save_error: "Set the Pico area first.")
             |> reply_with_save_notice()
 
           {:error, reason} ->
@@ -413,7 +413,7 @@ defmodule HueworksWeb.PicoConfigLive do
             socket
             |> assign(
               save_status: nil,
-              save_error: "Control group targets must stay in the Pico room."
+              save_error: "Control group targets must stay in the Pico area."
             )
             |> reply_with_save_notice()
 
@@ -464,7 +464,7 @@ defmodule HueworksWeb.PicoConfigLive do
            BindingEditor.valid_learning_binding?(
              learning_binding,
              socket.assigns.control_groups,
-             socket.assigns.room_scenes
+             socket.assigns.area_scenes
            ) do
       socket
       |> assign(
@@ -499,7 +499,7 @@ defmodule HueworksWeb.PicoConfigLive do
            BindingEditor.valid_learning_binding?(
              binding,
              socket.assigns.control_groups,
-             socket.assigns.room_scenes
+             socket.assigns.area_scenes
            ),
          {:ok, _updated} <- Picos.assign_button_binding(device, button.source_id, binding) do
       socket
@@ -702,21 +702,21 @@ defmodule HueworksWeb.PicoConfigLive do
     end
   end
 
-  defp maybe_set_pico_room(device, room_id) do
-    requested_room_id = Util.parse_optional_integer(room_id)
+  defp maybe_set_pico_area(device, area_id) do
+    requested_area_id = Util.parse_optional_integer(area_id)
 
     cond do
-      Picos.configured?(device) and requested_room_id != device.room_id ->
+      Picos.configured?(device) and requested_area_id != device.area_id ->
         {:error, :config_present}
 
       true ->
-        Picos.set_device_room(device, room_id)
+        Picos.set_device_area(device, area_id)
     end
   end
 
-  defp available_control_group_lights(%{room_id: room_id}, lights, group_ids, light_ids)
-       when is_integer(room_id) and is_list(lights) do
-    ControlGroupEditor.available_lights(%{room_id: room_id}, lights, group_ids, light_ids)
+  defp available_control_group_lights(%{area_id: area_id}, lights, group_ids, light_ids)
+       when is_integer(area_id) and is_list(lights) do
+    ControlGroupEditor.available_lights(%{area_id: area_id}, lights, group_ids, light_ids)
   end
 
   defp available_control_group_lights(_device, lights, _group_ids, light_ids)
@@ -724,9 +724,9 @@ defmodule HueworksWeb.PicoConfigLive do
     ControlGroupEditor.available_lights(nil, lights, [], light_ids)
   end
 
-  defp available_control_group_groups(%{room_id: room_id}, groups, group_ids, light_ids)
-       when is_integer(room_id) and is_list(groups) do
-    ControlGroupEditor.available_groups(%{room_id: room_id}, groups, group_ids, light_ids)
+  defp available_control_group_groups(%{area_id: area_id}, groups, group_ids, light_ids)
+       when is_integer(area_id) and is_list(groups) do
+    ControlGroupEditor.available_groups(%{area_id: area_id}, groups, group_ids, light_ids)
   end
 
   defp available_control_group_groups(_device, groups, group_ids, _light_ids)
@@ -751,8 +751,8 @@ defmodule HueworksWeb.PicoConfigLive do
   defp pico_config_locked?(%{} = device), do: Picos.configured?(device)
   defp pico_config_locked?(_device), do: false
 
-  defp auto_detected_room_option_label(device, rooms) do
-    case auto_detected_room(device, rooms) do
+  defp auto_detected_area_option_label(device, areas) do
+    case auto_detected_area(device, areas) do
       %{display_name: display_name} when is_binary(display_name) and display_name != "" ->
         "#{display_name} (Auto-Detected)"
 
@@ -764,13 +764,13 @@ defmodule HueworksWeb.PicoConfigLive do
     end
   end
 
-  defp no_auto_detected_room?(device), do: is_nil(Picos.auto_detected_room_id(device))
-  defp room_scope_clear_disabled?(%{room_id: nil}), do: true
-  defp room_scope_clear_disabled?(_device), do: false
+  defp no_auto_detected_area?(device), do: is_nil(Picos.auto_detected_area_id(device))
+  defp area_scope_clear_disabled?(%{area_id: nil}), do: true
+  defp area_scope_clear_disabled?(_device), do: false
 
-  defp auto_detected_room(device, rooms) when is_list(rooms) do
-    detected_room_id = Picos.auto_detected_room_id(device)
-    Enum.find(rooms, &(&1.id == detected_room_id))
+  defp auto_detected_area(device, areas) when is_list(areas) do
+    detected_area_id = Picos.auto_detected_area_id(device)
+    Enum.find(areas, &(&1.id == detected_area_id))
   end
 
   attr(:label, :string, required: true)

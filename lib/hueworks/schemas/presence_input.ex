@@ -7,16 +7,16 @@ defmodule Hueworks.Schemas.PresenceInput do
     field(:occupied, :boolean, default: false)
     field(:metadata, :map, default: %{})
 
-    belongs_to(:room, Hueworks.Schemas.Room)
+    belongs_to(:area, Hueworks.Schemas.Area)
 
     timestamps()
   end
 
   def changeset(presence_input, attrs) do
     presence_input
-    |> cast(attrs, [:room_id, :name, :occupied, :metadata])
-    |> validate_required([:room_id, :name])
+    |> cast(attrs, [:area_id, :name, :occupied, :metadata])
+    |> validate_required([:area_id, :name])
     |> validate_length(:name, min: 1, max: 120)
-    |> foreign_key_constraint(:room_id)
+    |> foreign_key_constraint(:area_id)
   end
 end

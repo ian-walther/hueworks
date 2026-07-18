@@ -4,7 +4,7 @@ defmodule Hueworks.Import.NormalizeTest do
   alias Hueworks.Import.Normalize
   alias Hueworks.Schemas.Bridge
 
-  test "normalizes Hue raw data into rooms, groups, and lights" do
+  test "normalizes Hue raw data into areas, groups, and lights" do
     raw = load_fixture("hue_raw.json")
 
     bridge = %Bridge{id: 1, type: :hue, name: "Test Bridge", host: "10.0.0.1"}
@@ -12,16 +12,16 @@ defmodule Hueworks.Import.NormalizeTest do
 
     assert normalized.schema_version == 1
     assert normalized.bridge.type == :hue
-    assert length(normalized.rooms) == 1
+    assert length(normalized.areas) == 1
 
-    [room] = normalized.rooms
-    assert room.source_id == "1"
-    assert room.name == "Office"
-    assert room.normalized_name == "office"
+    [area] = normalized.areas
+    assert area.source_id == "1"
+    assert area.name == "Office"
+    assert area.normalized_name == "office"
 
     assert length(normalized.lights) == 2
     ceiling = Enum.find(normalized.lights, &(&1.source_id == "1"))
-    assert ceiling.room_source_id == "1"
+    assert ceiling.area_source_id == "1"
     assert ceiling.classification == "light"
     assert ceiling.capabilities.reported_kelvin_min == 2000
     assert ceiling.capabilities.reported_kelvin_max == 6536
@@ -32,18 +32,18 @@ defmodule Hueworks.Import.NormalizeTest do
     assert Enum.any?(normalized.memberships.group_lights, &(&1.group_source_id == "2"))
   end
 
-  test "normalizes Home Assistant raw data into rooms, groups, and lights" do
+  test "normalizes Home Assistant raw data into areas, groups, and lights" do
     raw = load_fixture("ha_raw.json")
 
     bridge = %Bridge{id: 2, type: :ha, name: "HA", host: "10.0.0.2"}
     normalized = Normalize.normalize(bridge, raw)
 
-    assert length(normalized.rooms) == 2
-    [office] = Enum.filter(normalized.rooms, &(&1.source_id == "office"))
+    assert length(normalized.areas) == 2
+    [office] = Enum.filter(normalized.areas, &(&1.source_id == "office"))
     assert office.name == "Office"
 
     light = Enum.find(normalized.lights, &(&1.source_id == "light.office_lamp"))
-    assert light.room_source_id == "office"
+    assert light.area_source_id == "office"
     assert light.classification == "light"
     assert light.capabilities.color_temp
     assert light.capabilities.reported_kelvin_min == 2000
@@ -51,7 +51,7 @@ defmodule Hueworks.Import.NormalizeTest do
     assert light.identifiers["mac"] == "00:aa:bb:cc:dd:ee"
 
     kitchen = Enum.find(normalized.lights, &(&1.source_id == "light.kitchen_lamp"))
-    assert kitchen.room_source_id == "kitchen"
+    assert kitchen.area_source_id == "kitchen"
     assert kitchen.classification == "zha_light"
 
     refute Enum.any?(normalized.lights, &(&1.source_id == "light.office_group"))
@@ -77,7 +77,7 @@ defmodule Hueworks.Import.NormalizeTest do
     assert zha_group_members.classification == "zha_group"
 
     group = Enum.find(normalized.groups, &(&1.source_id == "light.office_group"))
-    assert group.room_source_id == "office"
+    assert group.area_source_id == "office"
     assert group.classification == "ha_group"
 
     assert Enum.any?(
@@ -85,10 +85,10 @@ defmodule Hueworks.Import.NormalizeTest do
              &(&1.group_source_id == group.source_id)
            )
 
-    assert Enum.any?(normalized.memberships.room_groups, &(&1.group_source_id == group.source_id))
+    assert Enum.any?(normalized.memberships.area_groups, &(&1.group_source_id == group.source_id))
 
     mixed_group = Enum.find(normalized.groups, &(&1.source_id == "light.mixed_group"))
-    assert mixed_group.room_source_id == nil
+    assert mixed_group.area_source_id == nil
     assert mixed_group.classification == "ha_group"
 
     refute Enum.any?(normalized.groups, &(&1.source_id == "light.zha_group_missing"))
@@ -176,16 +176,16 @@ defmodule Hueworks.Import.NormalizeTest do
     assert [%{name: "light.blank_group"}] = normalized.groups
   end
 
-  test "normalizes Caseta raw data into rooms and lights" do
+  test "normalizes Caseta raw data into areas and lights" do
     raw = load_fixture("caseta_raw.json")
 
     bridge = %Bridge{id: 3, type: :caseta, name: "Caseta", host: "10.0.0.3"}
     normalized = Normalize.normalize(bridge, raw)
 
-    assert length(normalized.rooms) == 1
-    [room] = normalized.rooms
-    assert room.source_id == "area_1"
-    assert room.name == "Living room"
+    assert length(normalized.areas) == 1
+    [area] = normalized.areas
+    assert area.source_id == "area_1"
+    assert area.name == "Living room"
 
     [light] = normalized.lights
     assert light.source_id == "1"
@@ -218,7 +218,7 @@ defmodule Hueworks.Import.NormalizeTest do
     bridge = %Bridge{id: 4, type: :z2m, name: "Z2M", host: "10.0.0.4"}
     normalized = Normalize.normalize(bridge, raw)
 
-    assert normalized.rooms == []
+    assert normalized.areas == []
     assert length(normalized.lights) == 2
 
     strip = Enum.find(normalized.lights, &(&1.source_id == "kitchen_table_strip"))

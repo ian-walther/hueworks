@@ -23,8 +23,8 @@ defmodule Hueworks.Picos.Clone do
       destination.bridge_id != source.bridge_id ->
         {:error, :different_bridge}
 
-      not is_integer(source.room_id) ->
-        {:error, :missing_source_room}
+      not is_integer(source.area_id) ->
+        {:error, :missing_source_area}
 
       true ->
         cloned_groups = ControlGroups.clone_for_copy(source)
@@ -32,13 +32,13 @@ defmodule Hueworks.Picos.Clone do
 
         Repo.transaction(fn ->
           destination
-          |> PicoDevice.changeset(%{room_id: source.room_id})
+          |> PicoDevice.changeset(%{area_id: source.area_id})
           |> Repo.update!()
 
           update_device_metadata!(destination, fn metadata ->
             metadata
             |> Map.put("control_groups", Enum.map(cloned_groups, &Map.drop(&1, ["source_id"])))
-            |> Map.put("room_override", true)
+            |> Map.put("area_override", true)
           end)
 
           destination_buttons =
@@ -73,7 +73,7 @@ defmodule Hueworks.Picos.Clone do
                       Bindings.clone_action_config(
                         PicoButton.action_config_struct(source_button),
                         group_id_map,
-                        source.room_id
+                        source.area_id
                       ),
                     enabled: source_button.enabled
                   }

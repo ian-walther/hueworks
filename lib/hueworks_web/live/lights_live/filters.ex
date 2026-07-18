@@ -3,16 +3,16 @@ defmodule HueworksWeb.LightsLive.Filters do
 
   alias Hueworks.Util
 
-  def filter_entities(entities, filter, room_filter, show_disabled) do
+  def filter_entities(entities, filter, area_filter, show_disabled) do
     entities
     |> filter_by_source(filter)
-    |> filter_by_room(room_filter)
+    |> filter_by_area(area_filter)
     |> filter_by_enabled(show_disabled)
   end
 
-  def filter_lights(entities, filter, room_filter, show_disabled, show_linked) do
+  def filter_lights(entities, filter, area_filter, show_disabled, show_linked) do
     entities
-    |> filter_entities(filter, room_filter, show_disabled)
+    |> filter_entities(filter, area_filter, show_disabled)
     |> filter_by_linked(show_linked)
   end
 
@@ -39,12 +39,12 @@ defmodule HueworksWeb.LightsLive.Filters do
     Enum.filter(entities, &is_nil(&1.canonical_light_id))
   end
 
-  defp filter_by_room(entities, "all"), do: entities
-  defp filter_by_room(entities, "unassigned"), do: Enum.filter(entities, &is_nil(&1.room_id))
-  defp filter_by_room(entities, nil), do: entities
+  defp filter_by_area(entities, "all"), do: entities
+  defp filter_by_area(entities, "unassigned"), do: Enum.filter(entities, &is_nil(&1.area_id))
+  defp filter_by_area(entities, nil), do: entities
 
-  defp filter_by_room(entities, room_id) when is_integer(room_id),
-    do: Enum.filter(entities, &(&1.room_id == room_id))
+  defp filter_by_area(entities, area_id) when is_integer(area_id),
+    do: Enum.filter(entities, &(&1.area_id == area_id))
 
-  defp filter_by_room(entities, _room_id), do: entities
+  defp filter_by_area(entities, _area_id), do: entities
 end

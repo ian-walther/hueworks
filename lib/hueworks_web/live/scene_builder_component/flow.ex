@@ -35,7 +35,7 @@ defmodule HueworksWeb.SceneBuilderComponent.Flow do
     group = Enum.find(assigns.groups, &(&1.id == Util.parse_id(group_id)))
 
     assigns.components
-    |> State.add_group(component_id, group, assigns.builder.room_light_ids)
+    |> State.add_group(component_id, group, assigns.builder.area_light_ids)
     |> component_change(assigns)
   end
 
@@ -61,7 +61,7 @@ defmodule HueworksWeb.SceneBuilderComponent.Flow do
     group = Enum.find(assigns.groups, &(&1.id == Util.parse_id(group_id)))
 
     assigns.components
-    |> State.remove_group(component_id, group, assigns.builder.room_light_ids)
+    |> State.remove_group(component_id, group, assigns.builder.area_light_ids)
     |> component_change(assigns)
   end
 
@@ -81,7 +81,7 @@ defmodule HueworksWeb.SceneBuilderComponent.Flow do
     group = Enum.find(assigns.groups, &(&1.id == Util.parse_id(group_id)))
 
     assigns.components
-    |> State.toggle_group_default_power(component_id, group, assigns.builder.room_light_ids)
+    |> State.toggle_group_default_power(component_id, group, assigns.builder.area_light_ids)
     |> component_change(assigns)
   end
 
@@ -114,7 +114,7 @@ defmodule HueworksWeb.SceneBuilderComponent.Flow do
     |> State.set_group_default_power(
       component_id,
       group,
-      assigns.builder.room_light_ids,
+      assigns.builder.area_light_ids,
       policy,
       Map.get(assigns, :presence_inputs, [])
     )
@@ -128,7 +128,7 @@ defmodule HueworksWeb.SceneBuilderComponent.Flow do
     |> State.set_group_presence_input(
       component_id,
       group,
-      assigns.builder.room_light_ids,
+      assigns.builder.area_light_ids,
       presence_input_id,
       Map.get(assigns, :presence_inputs, [])
     )
@@ -143,7 +143,7 @@ defmodule HueworksWeb.SceneBuilderComponent.Flow do
   end
 
   defp build_builder(assigns, components) do
-    assigns.room_lights
+    assigns.area_lights
     |> List.wrap()
     |> then(&Builder.build(&1, List.wrap(assigns.groups), List.wrap(components)))
   end

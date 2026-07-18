@@ -109,7 +109,7 @@ defmodule Hueworks.Control.Executor.Trace do
     %{}
     |> maybe_put_trace(:trace_id, Map.get(action, :trace_id))
     |> maybe_put_trace(:source, Map.get(action, :trace_source))
-    |> maybe_put_trace(:room_id, Map.get(action, :trace_room_id))
+    |> maybe_put_trace(:area_id, Map.get(action, :trace_area_id))
     |> maybe_put_trace(:scene_id, Map.get(action, :trace_scene_id))
   end
 
@@ -117,7 +117,7 @@ defmodule Hueworks.Control.Executor.Trace do
     trace_keys = [
       :trace_id,
       :trace_source,
-      :trace_room_id,
+      :trace_area_id,
       :trace_scene_id,
       :trace_target_occupied,
       :trace_started_at_ms

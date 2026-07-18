@@ -18,7 +18,7 @@ defmodule HueworksWeb.LightsLive.Actions do
     with {:ok, light} <- Entities.fetch_light(id),
          {:ok, parsed} <- Util.parse_level(level),
          {:ok, _diff} <-
-           ManualControl.apply_updates(light.room_id, [light.id], %{brightness: parsed}) do
+           ManualControl.apply_updates(light.area_id, [light.id], %{brightness: parsed}) do
       {:ok,
        %Result{
          target_type: :light,
@@ -40,7 +40,7 @@ defmodule HueworksWeb.LightsLive.Actions do
          {:ok, parsed} <- Util.parse_level(level),
          light_ids when light_ids != [] <- group_light_ids(group.id),
          {:ok, _diff} <-
-           ManualControl.apply_updates(group.room_id, light_ids, %{brightness: parsed}) do
+           ManualControl.apply_updates(group.area_id, light_ids, %{brightness: parsed}) do
       {:ok,
        %Result{
          target_type: :group,
@@ -63,7 +63,7 @@ defmodule HueworksWeb.LightsLive.Actions do
   def dispatch("light", id, {:color_temp, kelvin}) do
     with {:ok, light} <- Entities.fetch_light(id),
          {:ok, parsed} <- Util.parse_kelvin(kelvin),
-         {:ok, _diff} <- ManualControl.apply_updates(light.room_id, [light.id], %{kelvin: parsed}) do
+         {:ok, _diff} <- ManualControl.apply_updates(light.area_id, [light.id], %{kelvin: parsed}) do
       {:ok,
        %Result{
          target_type: :light,
@@ -84,7 +84,7 @@ defmodule HueworksWeb.LightsLive.Actions do
     with {:ok, group} <- Entities.fetch_group(id),
          {:ok, parsed} <- Util.parse_kelvin(kelvin),
          light_ids when light_ids != [] <- group_light_ids(group.id),
-         {:ok, _diff} <- ManualControl.apply_updates(group.room_id, light_ids, %{kelvin: parsed}) do
+         {:ok, _diff} <- ManualControl.apply_updates(group.area_id, light_ids, %{kelvin: parsed}) do
       {:ok,
        %Result{
          target_type: :group,
@@ -108,7 +108,7 @@ defmodule HueworksWeb.LightsLive.Actions do
     with {:ok, light} <- Entities.fetch_light(id),
          {:ok, parsed_hue, parsed_saturation, x, y} <- parse_color(hue, saturation),
          {:ok, _diff} <-
-           ManualControl.apply_updates(light.room_id, [light.id], %{power: :on, x: x, y: y}) do
+           ManualControl.apply_updates(light.area_id, [light.id], %{power: :on, x: x, y: y}) do
       {:ok,
        %Result{
          target_type: :light,
@@ -131,7 +131,7 @@ defmodule HueworksWeb.LightsLive.Actions do
          {:ok, parsed_hue, parsed_saturation, x, y} <- parse_color(hue, saturation),
          light_ids when light_ids != [] <- group_light_ids(group.id),
          {:ok, _diff} <-
-           ManualControl.apply_updates(group.room_id, light_ids, %{power: :on, x: x, y: y}) do
+           ManualControl.apply_updates(group.area_id, light_ids, %{power: :on, x: x, y: y}) do
       {:ok,
        %Result{
          target_type: :group,
@@ -155,7 +155,7 @@ defmodule HueworksWeb.LightsLive.Actions do
   def dispatch("light", id, action) when action in [:on, :off] do
     with {:ok, light} <- Entities.fetch_light(id),
          {:ok, updated_attrs} <-
-           ManualControl.apply_power_action(light.room_id, [light.id], action) do
+           ManualControl.apply_power_action(light.area_id, [light.id], action) do
       {:ok,
        %Result{
          target_type: :light,
@@ -173,7 +173,7 @@ defmodule HueworksWeb.LightsLive.Actions do
     with {:ok, group} <- Entities.fetch_group(id),
          light_ids when light_ids != [] <- group_light_ids(group.id),
          {:ok, updated_attrs} <-
-           ManualControl.apply_power_action(group.room_id, light_ids, action) do
+           ManualControl.apply_power_action(group.area_id, light_ids, action) do
       {:ok,
        %Result{
          target_type: :group,

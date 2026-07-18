@@ -9,7 +9,7 @@ defmodule HueworksWeb.SceneBuilderComponent do
     {:ok,
      assign(socket,
        components: [State.blank_component()],
-       room_lights: [],
+       area_lights: [],
        groups: [],
        presence_inputs: [],
        light_states: [],
@@ -50,7 +50,7 @@ defmodule HueworksWeb.SceneBuilderComponent do
           <p>
             <strong>Default On/Off</strong> sets the starting scene intent while preserving later
             manual on/off choices. <strong>Force On/Off</strong> keeps the light fixed to that scene
-            intent. <strong>Follow Presence</strong> uses the selected room Presence Input.
+            intent. <strong>Follow Presence</strong> uses the selected area Presence Input.
           </p>
         </details>
       </div>
@@ -221,15 +221,15 @@ defmodule HueworksWeb.SceneBuilderComponent do
             </div>
           <% end %>
 
-          <% group_topology = component_group_topology(component, @groups, @builder.room_light_ids) %>
+          <% group_topology = component_group_topology(component, @groups, @builder.area_light_ids) %>
           <%= if group_topology.nodes != [] do %>
             <div class="hw-data-list hw-group-tree hw-scene-membership-list">
               <.group_node
                 :for={node <- group_topology.nodes}
                 node={node}
                 component={component}
-                room_lights={@room_lights}
-                room_light_ids={@builder.room_light_ids}
+                area_lights={@area_lights}
+                area_light_ids={@builder.area_light_ids}
                 presence_inputs={@presence_inputs}
                 expanded_group_keys={@expanded_group_keys}
                 target={@myself}
@@ -242,7 +242,7 @@ defmodule HueworksWeb.SceneBuilderComponent do
               <.light_row
                 component={component}
                 light_id={light_id}
-                room_lights={@room_lights}
+                area_lights={@area_lights}
                 presence_inputs={@presence_inputs}
                 target={@myself}
               />
@@ -494,8 +494,8 @@ defmodule HueworksWeb.SceneBuilderComponent do
           target={@target}
           target_kind={:group}
           target_id={@node.group_id}
-          policy={group_default_power(@component, @node.group, @room_light_ids)}
-          presence_input_id={group_presence_input_id(@component, @node.group, @room_light_ids)}
+          policy={group_default_power(@component, @node.group, @area_light_ids)}
+          presence_input_id={group_presence_input_id(@component, @node.group, @area_light_ids)}
           presence_inputs={@presence_inputs}
         />
         <button
@@ -516,8 +516,8 @@ defmodule HueworksWeb.SceneBuilderComponent do
           :for={child <- @node.children}
           node={child}
           component={@component}
-          room_lights={@room_lights}
-          room_light_ids={@room_light_ids}
+          area_lights={@area_lights}
+          area_light_ids={@area_light_ids}
           presence_inputs={@presence_inputs}
           expanded_group_keys={@expanded_group_keys}
           target={@target}
@@ -530,7 +530,7 @@ defmodule HueworksWeb.SceneBuilderComponent do
             class="hw-group-light"
             component={@component}
             light_id={light_id}
-            room_lights={@room_lights}
+            area_lights={@area_lights}
             presence_inputs={@presence_inputs}
             target={@target}
           />
@@ -548,7 +548,7 @@ defmodule HueworksWeb.SceneBuilderComponent do
 
     ~H"""
     <div id={@id} class={["hw-data-row hw-scene-member-row", @class]}>
-      <strong><%= light_name(@room_lights, @light_id) %></strong>
+      <strong><%= light_name(@area_lights, @light_id) %></strong>
       <.power_policy_controls
         component={@component}
         target={@target}
@@ -565,7 +565,7 @@ defmodule HueworksWeb.SceneBuilderComponent do
         phx-target={@target}
         phx-value-component_id={@component.id}
         phx-value-light_id={@light_id}
-        aria-label={"Remove #{light_name(@room_lights, @light_id)} from this component"}
+        aria-label={"Remove #{light_name(@area_lights, @light_id)} from this component"}
       >
         ×
       </button>
@@ -587,14 +587,14 @@ defmodule HueworksWeb.SceneBuilderComponent do
   defp light_default_power(component, light_id),
     do: State.light_default_power(component, light_id)
 
-  defp component_group_topology(component, groups, room_light_ids),
-    do: State.component_group_topology(component, groups, room_light_ids)
+  defp component_group_topology(component, groups, area_light_ids),
+    do: State.component_group_topology(component, groups, area_light_ids)
 
-  defp group_default_power(component, group, room_light_ids),
-    do: State.group_default_power(component, group, room_light_ids)
+  defp group_default_power(component, group, area_light_ids),
+    do: State.group_default_power(component, group, area_light_ids)
 
-  defp group_presence_input_id(component, group, room_light_ids),
-    do: State.group_presence_input_id(component, group, room_light_ids)
+  defp group_presence_input_id(component, group, area_light_ids),
+    do: State.group_presence_input_id(component, group, area_light_ids)
 
   defp light_presence_input_id(component, light_id),
     do: State.light_presence_input_id(component, light_id)

@@ -5,10 +5,10 @@ defmodule Hueworks.HomeAssistant.Export.Messages.Discovery do
   alias Hueworks.HomeAssistant.Export.Messages.State
   alias Hueworks.HomeAssistant.Export.Messages.Topics
   alias Hueworks.PublishedIdentity
-  alias Hueworks.Schemas.{Group, Light, PresenceInput, Room, Scene}
+  alias Hueworks.Schemas.{Group, Light, PresenceInput, Area, Scene}
 
   def discovery_payload(%Scene{} = scene, config) do
-    room_name = room_name(scene.room)
+    area_name = area_name(scene.area)
 
     %{
       "platform" => "scene",
@@ -21,10 +21,10 @@ defmodule Hueworks.HomeAssistant.Export.Messages.Discovery do
       "payload_not_available" => "offline",
       "json_attributes_topic" => Topics.attributes_topic(scene.id),
       "device" => %{
-        "identifiers" => [room_device_identifier(scene.room)],
-        "name" => "HueWorks #{room_name}",
+        "identifiers" => [area_device_identifier(scene.area)],
+        "name" => "HueWorks #{area_name}",
         "manufacturer" => "HueWorks",
-        "model" => "Room Scenes"
+        "model" => "Area Scenes"
       }
     }
     |> maybe_put("configuration_url", configuration_url(config))
@@ -34,44 +34,44 @@ defmodule Hueworks.HomeAssistant.Export.Messages.Discovery do
     %{
       "hueworks_managed" => true,
       "hueworks_scene_id" => scene.id,
-      "hueworks_room_id" => scene.room_id,
-      "room_name" => room_name(scene.room),
+      "hueworks_area_id" => scene.area_id,
+      "area_name" => area_name(scene.area),
       "scene_name" => scene_name(scene)
     }
   end
 
-  def room_select_discovery_payload(%Room{} = room, scenes, config) when is_list(scenes) do
+  def area_select_discovery_payload(%Area{} = area, scenes, config) when is_list(scenes) do
     %{
       "platform" => "select",
       "name" => "Scene",
-      "unique_id" => PublishedIdentity.fetch!(room, :ha_scene_select_identifier),
-      "command_topic" => Topics.room_select_command_topic(room.id),
-      "state_topic" => Topics.room_select_state_topic(room.id),
+      "unique_id" => PublishedIdentity.fetch!(area, :ha_scene_select_identifier),
+      "command_topic" => Topics.area_select_command_topic(area.id),
+      "state_topic" => Topics.area_select_state_topic(area.id),
       "availability_topic" => Topics.availability_topic(),
       "payload_available" => "online",
       "payload_not_available" => "offline",
-      "json_attributes_topic" => Topics.room_select_attributes_topic(room.id),
-      "options" => room_select_option_labels(scenes),
+      "json_attributes_topic" => Topics.area_select_attributes_topic(area.id),
+      "options" => area_select_option_labels(scenes),
       "device" => %{
-        "identifiers" => [room_device_identifier(room)],
-        "name" => "HueWorks #{room_name(room)}",
+        "identifiers" => [area_device_identifier(area)],
+        "name" => "HueWorks #{area_name(area)}",
         "manufacturer" => "HueWorks",
-        "model" => "Room Scenes"
+        "model" => "Area Scenes"
       }
     }
     |> maybe_put("configuration_url", configuration_url(config))
   end
 
-  def room_select_attributes_payload(%Room{} = room, scenes) when is_list(scenes) do
-    active_scene = ActiveScenes.get_for_room(room.id)
+  def area_select_attributes_payload(%Area{} = area, scenes) when is_list(scenes) do
+    active_scene = ActiveScenes.get_for_area(area.id)
 
     %{
       "hueworks_managed" => true,
-      "hueworks_room_id" => room.id,
-      "room_name" => room_name(room),
+      "hueworks_area_id" => area.id,
+      "area_name" => area_name(area),
       "active_scene_id" => active_scene && active_scene.scene_id,
-      "active_scene_name" => State.active_scene_name(room.id, scenes),
-      "scene_options" => room_select_option_labels(scenes)
+      "active_scene_name" => State.active_scene_name(area.id, scenes),
+      "scene_options" => area_select_option_labels(scenes)
     }
   end
 
@@ -89,7 +89,7 @@ defmodule Hueworks.HomeAssistant.Export.Messages.Discovery do
       "payload_available" => "online",
       "payload_not_available" => "offline",
       "json_attributes_topic" => Topics.entity_attributes_topic(kind, entity.id),
-      "device" => room_device(entity)
+      "device" => area_device(entity)
     }
     |> maybe_put("configuration_url", configuration_url(config))
   end
@@ -110,7 +110,7 @@ defmodule Hueworks.HomeAssistant.Export.Messages.Discovery do
       "brightness_scale" => 100,
       "supported_color_modes" => State.supported_color_modes(entity),
       "transition" => false,
-      "device" => room_device(entity)
+      "device" => area_device(entity)
     }
     |> maybe_put("configuration_url", configuration_url(config))
     |> State.maybe_put_kelvin_range(entity)
@@ -123,8 +123,8 @@ defmodule Hueworks.HomeAssistant.Export.Messages.Discovery do
       "hueworks_entity_kind" => Atom.to_string(kind),
       "hueworks_entity_id" => entity.id,
       "hueworks_export_mode" => Atom.to_string(State.entity_export_mode(entity)),
-      "hueworks_room_id" => entity.room_id,
-      "room_name" => room_name(entity.room),
+      "hueworks_area_id" => entity.area_id,
+      "area_name" => area_name(entity.area),
       "entity_name" => entity_name(entity),
       "source" => to_string(entity.source)
     }
@@ -144,8 +144,8 @@ defmodule Hueworks.HomeAssistant.Export.Messages.Discovery do
       "payload_not_available" => "offline",
       "json_attributes_topic" => Topics.presence_input_attributes_topic(input.id),
       "device" => %{
-        "identifiers" => [room_device_identifier(input.room)],
-        "name" => "HueWorks #{room_name(input.room)}",
+        "identifiers" => [area_device_identifier(input.area)],
+        "name" => "HueWorks #{area_name(input.area)}",
         "manufacturer" => "HueWorks",
         "model" => "Presence Inputs"
       }
@@ -158,23 +158,23 @@ defmodule Hueworks.HomeAssistant.Export.Messages.Discovery do
       "hueworks_managed" => true,
       "hueworks_entity_kind" => "presence_input",
       "hueworks_presence_input_id" => input.id,
-      "hueworks_room_id" => input.room_id,
-      "room_name" => room_name(input.room),
+      "hueworks_area_id" => input.area_id,
+      "area_name" => area_name(input.area),
       "presence_input_name" => presence_input_name(input)
     }
   end
 
-  def room_scene_options(scenes) when is_list(scenes), do: State.room_scene_options(scenes)
+  def area_scene_options(scenes) when is_list(scenes), do: State.area_scene_options(scenes)
 
-  def active_scene_name(room_id, scenes) when is_integer(room_id) and is_list(scenes),
-    do: State.active_scene_name(room_id, scenes)
+  def active_scene_name(area_id, scenes) when is_integer(area_id) and is_list(scenes),
+    do: State.active_scene_name(area_id, scenes)
 
-  defp room_device(entity) do
+  defp area_device(entity) do
     %{
-      "identifiers" => [room_device_identifier(entity.room)],
-      "name" => "HueWorks #{room_name(entity.room)}",
+      "identifiers" => [area_device_identifier(entity.area)],
+      "name" => "HueWorks #{area_name(entity.area)}",
       "manufacturer" => "HueWorks",
-      "model" => "Room Controls"
+      "model" => "Area Controls"
     }
   end
 
@@ -186,13 +186,13 @@ defmodule Hueworks.HomeAssistant.Export.Messages.Discovery do
   defp configuration_url(%{configuration_url: configuration_url}), do: configuration_url
   defp configuration_url(_config), do: nil
 
-  defp room_name(%Room{} = room), do: room.display_name || room.name
-  defp room_name(_room), do: "Unknown Room"
+  defp area_name(%Area{} = area), do: area.display_name || area.name
+  defp area_name(_area), do: "Unknown Area"
 
-  defp room_device_identifier(%Room{} = room),
-    do: PublishedIdentity.fetch!(room, :ha_device_identifier)
+  defp area_device_identifier(%Area{} = area),
+    do: PublishedIdentity.fetch!(area, :ha_device_identifier)
 
-  defp room_device_identifier(_room), do: "hueworks_room_unassigned"
+  defp area_device_identifier(_area), do: "hueworks_area_unassigned"
 
   defp scene_name(%Scene{} = scene), do: scene.display_name || scene.name
 
@@ -202,9 +202,9 @@ defmodule Hueworks.HomeAssistant.Export.Messages.Discovery do
 
   defp presence_input_name(%PresenceInput{} = input), do: input.name
 
-  defp room_select_option_labels(scenes) when is_list(scenes) do
+  defp area_select_option_labels(scenes) when is_list(scenes) do
     scenes
-    |> State.room_scene_options()
+    |> State.area_scene_options()
     |> Enum.map(& &1.label)
     |> then(&["Manual" | &1])
   end

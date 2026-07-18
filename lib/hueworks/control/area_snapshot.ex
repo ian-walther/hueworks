@@ -1,4 +1,4 @@
-defmodule Hueworks.Control.RoomSnapshot do
+defmodule Hueworks.Control.AreaSnapshot do
   @moduledoc false
 
   import Ecto.Query, only: [from: 2]
@@ -8,11 +8,11 @@ defmodule Hueworks.Control.RoomSnapshot do
   alias Hueworks.Repo
   alias Hueworks.Schemas.{Group, GroupLight, Light}
 
-  def load(room_id) when is_integer(room_id) do
-    room_lights =
+  def load(area_id) when is_integer(area_id) do
+    area_lights =
       Repo.all(
         from(l in Light,
-          where: l.room_id == ^room_id,
+          where: l.area_id == ^area_id,
           select: %{
             id: l.id,
             bridge_id: l.bridge_id,
@@ -29,34 +29,34 @@ defmodule Hueworks.Control.RoomSnapshot do
       )
 
     desired_snapshot =
-      room_lights
+      area_lights
       |> Enum.map(&{:light, &1.id})
       |> DesiredState.snapshot()
 
     %{
-      room_id: room_id,
-      room_lights: room_lights,
+      area_id: area_id,
+      area_lights: area_lights,
       desired_by_light:
-        Map.new(room_lights, fn light ->
+        Map.new(area_lights, fn light ->
           {light.id, Map.get(desired_snapshot.states, {:light, light.id})}
         end),
       desired_revisions_by_light:
-        Map.new(room_lights, fn light ->
+        Map.new(area_lights, fn light ->
           {light.id, Map.fetch!(desired_snapshot.revisions, {:light, light.id})}
         end),
       physical_by_light:
-        Map.new(room_lights, fn light ->
+        Map.new(area_lights, fn light ->
           {light.id, PhysicalState.get(:light, light.id) || %{}}
         end),
-      group_memberships: load_group_memberships(room_id)
+      group_memberships: load_group_memberships(area_id)
     }
   end
 
-  defp load_group_memberships(room_id) do
+  defp load_group_memberships(area_id) do
     groups =
       Repo.all(
         from(g in Group,
-          where: g.room_id == ^room_id,
+          where: g.area_id == ^area_id,
           select: %{id: g.id, bridge_id: g.bridge_id}
         )
       )
@@ -66,7 +66,7 @@ defmodule Hueworks.Control.RoomSnapshot do
         from(gl in GroupLight,
           join: g in Group,
           on: g.id == gl.group_id,
-          where: g.room_id == ^room_id,
+          where: g.area_id == ^area_id,
           select: {g.id, gl.light_id}
         )
       )

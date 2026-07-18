@@ -18,9 +18,9 @@ defmodule Hueworks.Scenes do
   @type scene_result :: {:ok, struct()} | {:error, term()}
   @type light_state_type :: :manual | :circadian
 
-  @spec list_scenes_for_room(integer()) :: list(struct())
-  def list_scenes_for_room(room_id) do
-    Repo.all(from(s in Scene, where: s.room_id == ^room_id, order_by: [asc: s.name]))
+  @spec list_scenes_for_area(integer()) :: list(struct())
+  def list_scenes_for_area(area_id) do
+    Repo.all(from(s in Scene, where: s.area_id == ^area_id, order_by: [asc: s.name]))
   end
 
   @spec list_manual_light_states() :: list(struct())
@@ -132,9 +132,9 @@ defmodule Hueworks.Scenes do
         {:error, :not_found}
 
       %Scene{} = scene ->
-        case ActiveScenes.get_for_room(scene.room_id) do
+        case ActiveScenes.get_for_area(scene.area_id) do
           %{scene_id: ^scene_id} ->
-            :ok = ActiveScenes.clear_for_room(scene.room_id)
+            :ok = ActiveScenes.clear_for_area(scene.area_id)
             {:ok, :deactivated, scene}
 
           current_active ->
@@ -162,25 +162,25 @@ defmodule Hueworks.Scenes do
 
   @spec recompute_active_scene_lights(integer(), list(integer()), keyword()) ::
           scene_apply_result()
-  def recompute_active_scene_lights(room_id, light_ids, opts \\ [])
+  def recompute_active_scene_lights(area_id, light_ids, opts \\ [])
 
-  def recompute_active_scene_lights(room_id, light_ids, opts)
-      when is_integer(room_id) and is_list(light_ids) do
-    Active.recompute_lights(room_id, light_ids, opts)
+  def recompute_active_scene_lights(area_id, light_ids, opts)
+      when is_integer(area_id) and is_list(light_ids) do
+    Active.recompute_lights(area_id, light_ids, opts)
   end
 
-  def recompute_active_scene_lights(_room_id, _light_ids, _opts), do: {:error, :invalid_args}
+  def recompute_active_scene_lights(_area_id, _light_ids, _opts), do: {:error, :invalid_args}
 
   @spec recompute_active_circadian_lights(integer(), list(integer()), keyword()) ::
           scene_apply_result()
-  def recompute_active_circadian_lights(room_id, light_ids, opts \\ [])
+  def recompute_active_circadian_lights(area_id, light_ids, opts \\ [])
 
-  def recompute_active_circadian_lights(room_id, light_ids, opts)
-      when is_integer(room_id) and is_list(light_ids) do
-    Active.recompute_circadian_lights(room_id, light_ids, opts)
+  def recompute_active_circadian_lights(area_id, light_ids, opts)
+      when is_integer(area_id) and is_list(light_ids) do
+    Active.recompute_circadian_lights(area_id, light_ids, opts)
   end
 
-  def recompute_active_circadian_lights(_room_id, _light_ids, _opts),
+  def recompute_active_circadian_lights(_area_id, _light_ids, _opts),
     do: {:error, :invalid_args}
 
   @spec replace_scene_components(struct(), list(map())) :: :ok | {:error, term()}
@@ -190,9 +190,9 @@ defmodule Hueworks.Scenes do
 
   defp activation_trace(scene, current_active, source) do
     %{
-      trace_id: "scene-toggle-#{scene.room_id}-#{System.unique_integer([:positive])}",
+      trace_id: "scene-toggle-#{scene.area_id}-#{System.unique_integer([:positive])}",
       source: to_string(source),
-      room_id: scene.room_id,
+      area_id: scene.area_id,
       previous_scene_id: Map.get(current_active || %{}, :scene_id),
       scene_id: scene.id,
       started_at_ms: System.monotonic_time(:millisecond)

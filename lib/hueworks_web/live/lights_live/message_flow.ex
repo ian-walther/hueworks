@@ -13,9 +13,9 @@ defmodule HueworksWeb.LightsLive.MessageFlow do
     |> Map.put(:status, "Reloaded database snapshot")
   end
 
-  def info_updates({:active_scene_updated, room_id, scene_id}, assigns)
-      when is_integer(room_id) and is_map(assigns) do
-    {:ok, StateUpdates.put_active_scene(assigns, room_id, scene_id)}
+  def info_updates({:active_scene_updated, area_id, scene_id}, assigns)
+      when is_integer(area_id) and is_map(assigns) do
+    {:ok, StateUpdates.put_active_scene(assigns, area_id, scene_id)}
   end
 
   def info_updates({:control_state, :light, id, state}, assigns)

@@ -89,7 +89,7 @@ defmodule Hueworks.Scenes.Apply do
     log_trace(
       trace,
       "apply_scene_start",
-      room_id: scene.room_id,
+      area_id: scene.area_id,
       scene_id: scene.id,
       preserve_power_latches: preserve_power_latches,
       force_apply: force_apply
@@ -98,7 +98,7 @@ defmodule Hueworks.Scenes.Apply do
     txn = Intent.build_transaction(scene, intent_opts)
 
     result =
-      Apply.commit_and_enqueue(txn, scene.room_id,
+      Apply.commit_and_enqueue(txn, scene.area_id,
         force_apply: force_apply,
         enqueue_mode: enqueue_mode,
         operation: operation,
@@ -152,7 +152,7 @@ defmodule Hueworks.Scenes.Apply do
 
   defp enrich_trace(trace, scene) when is_map(trace) do
     trace
-    |> Map.put_new(:trace_room_id, scene.room_id)
+    |> Map.put_new(:trace_area_id, scene.area_id)
     |> Map.put_new(:trace_scene_id, scene.id)
   end
 
@@ -163,7 +163,7 @@ defmodule Hueworks.Scenes.Apply do
       trace_id: "scene-#{scene.id}-#{System.unique_integer([:positive])}",
       source: "scenes.apply_scene",
       started_at_ms: System.monotonic_time(:millisecond),
-      trace_room_id: scene.room_id,
+      trace_area_id: scene.area_id,
       trace_scene_id: scene.id
     }
   end

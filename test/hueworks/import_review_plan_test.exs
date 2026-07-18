@@ -2,7 +2,7 @@ defmodule Hueworks.Import.ReviewPlanTest do
   use ExUnit.Case, async: true
 
   alias Hueworks.Import.ReviewPlan
-  alias Hueworks.Schemas.Room
+  alias Hueworks.Schemas.Area
 
   test "entity resolution writer matches destructive apply reader semantics" do
     plan = %{
@@ -52,11 +52,11 @@ defmodule Hueworks.Import.ReviewPlanTest do
     assert ReviewPlan.entity_resolution(updated, :lights, "new-light") == nil
   end
 
-  test "room merge defaults preserve existing-room matches" do
+  test "area merge defaults preserve existing-area matches" do
     normalized = %{
-      rooms: [
+      areas: [
         %{
-          source_id: "room-1",
+          source_id: "area-1",
           name: "Office",
           normalized_name: "office"
         }
@@ -65,11 +65,11 @@ defmodule Hueworks.Import.ReviewPlanTest do
       groups: []
     }
 
-    rooms = [%Room{id: 42, name: "Office"}]
+    areas = [%Area{id: 42, name: "Office"}]
 
-    updated = ReviewPlan.apply_room_merge_defaults(%{}, normalized, rooms)
+    updated = ReviewPlan.apply_area_merge_defaults(%{}, normalized, areas)
 
-    assert ReviewPlan.room_action(updated, "room-1") == "merge"
-    assert ReviewPlan.room_merge_target(updated, "room-1") == "42"
+    assert ReviewPlan.area_action(updated, "area-1") == "merge"
+    assert ReviewPlan.area_merge_target(updated, "area-1") == "42"
   end
 end

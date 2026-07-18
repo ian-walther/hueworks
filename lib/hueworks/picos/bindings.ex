@@ -14,7 +14,7 @@ defmodule Hueworks.Picos.Bindings do
 
   def assign_button_binding(%PicoDevice{} = device, button_source_id, attrs)
       when is_binary(button_source_id) and is_map(attrs) do
-    with room_id when is_integer(room_id) <- device.room_id,
+    with area_id when is_integer(area_id) <- device.area_id,
          {:ok, action_type} <- binding_action_type(attrs["action"]),
          {:ok, action_config} <- binding_action_config(device, attrs) do
       case Repo.one(
@@ -29,13 +29,13 @@ defmodule Hueworks.Picos.Bindings do
           button
           |> PicoButton.changeset(%{
             action_type: action_type,
-            action_config: Map.put(action_config, "room_id", room_id),
+            action_config: Map.put(action_config, "area_id", area_id),
             enabled: true
           })
           |> Repo.update()
       end
     else
-      nil -> {:error, :missing_room}
+      nil -> {:error, :missing_area}
       {:error, _} = error -> error
     end
   end
@@ -54,17 +54,17 @@ defmodule Hueworks.Picos.Bindings do
     device = Repo.preload(device, buttons: from(pb in PicoButton, order_by: [asc: pb.slot_index]))
 
     with :ok <- validate_five_button_device(device),
-         room_id when is_integer(room_id) <- device.room_id do
+         area_id when is_integer(area_id) <- device.area_id do
       primary =
-        Targets.expand_room_targets(
-          room_id,
+        Targets.expand_area_targets(
+          area_id,
           attrs["primary_group_ids"],
           attrs["primary_light_ids"]
         )
 
       secondary =
-        Targets.expand_room_targets(
-          room_id,
+        Targets.expand_area_targets(
+          area_id,
           attrs["secondary_group_ids"],
           attrs["secondary_light_ids"]
         )
@@ -116,7 +116,7 @@ defmodule Hueworks.Picos.Bindings do
 
       {:ok, Picos.get_device(device.id)}
     else
-      nil -> {:error, :missing_room}
+      nil -> {:error, :missing_area}
       {:error, _} = error -> error
     end
   end
@@ -126,7 +126,7 @@ defmodule Hueworks.Picos.Bindings do
   def clone_action_config(
         %StoredActionConfig{target_kind: :control_groups, target_ids: target_ids},
         group_id_map,
-        room_id
+        area_id
       ) do
     %{
       "target_kind" => "control_groups",
@@ -134,33 +134,33 @@ defmodule Hueworks.Picos.Bindings do
         target_ids
         |> Enum.map(&Map.get(group_id_map, &1))
         |> Enum.reject(&is_nil/1),
-      "room_id" => room_id
+      "area_id" => area_id
     }
   end
 
   def clone_action_config(
         %StoredActionConfig{target_kind: :scene} = config,
         _group_id_map,
-        room_id
+        area_id
       ) do
     target_id = StoredActionConfig.target_id(config)
 
     %{
       "target_kind" => "scene",
       "target_id" => target_id,
-      "room_id" => room_id
+      "area_id" => area_id
     }
   end
 
-  def clone_action_config(%StoredActionConfig{light_ids: light_ids}, _group_id_map, room_id)
+  def clone_action_config(%StoredActionConfig{light_ids: light_ids}, _group_id_map, area_id)
       when light_ids != [] do
     %{
       "light_ids" => Targets.normalize_integer_ids(light_ids),
-      "room_id" => room_id
+      "area_id" => area_id
     }
   end
 
-  def clone_action_config(_config, _group_id_map, _room_id), do: %{}
+  def clone_action_config(_config, _group_id_map, _area_id), do: %{}
 
   defp binding_action_type("on"), do: {:ok, "turn_on"}
   defp binding_action_type("off"), do: {:ok, "turn_off"}
@@ -193,7 +193,7 @@ defmodule Hueworks.Picos.Bindings do
   defp binding_action_config(device, %{"target_kind" => "scene", "target_id" => target_id}) do
     scene_id = Util.parse_optional_integer(target_id)
 
-    if is_integer(device.room_id) and Targets.scene_exists_in_room?(device.room_id, scene_id) do
+    if is_integer(device.area_id) and Targets.scene_exists_in_area?(device.area_id, scene_id) do
       StoredActionConfig.normalize(%{"target_kind" => "scene", "target_id" => scene_id})
     else
       {:error, :missing_target}

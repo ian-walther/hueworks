@@ -3,8 +3,9 @@ defmodule Hueworks.HomeAssistant.Export.Publisher do
 
   alias Hueworks.HomeAssistant.Export.Entities
   alias Hueworks.HomeAssistant.Export.Messages
+  alias Hueworks.PublishedIdentity
   alias Hueworks.Repo
-  alias Hueworks.Schemas.{PresenceInput, Room, Scene}
+  alias Hueworks.Schemas.{PresenceInput, Area, Scene}
 
   def publish_scene_payloads(publish_fun, %Scene{} = scene, config)
       when is_function(publish_fun, 3) do
@@ -49,48 +50,63 @@ defmodule Hueworks.HomeAssistant.Export.Publisher do
     end
   end
 
-  def publish_room_select_payloads(publish_fun, %Room{} = room, config)
+  def publish_area_select_payloads(publish_fun, %Area{} = area, config)
       when is_function(publish_fun, 3) do
-    scenes = Entities.list_exportable_scenes_for_room(room.id)
+    scenes = Entities.list_exportable_scenes_for_area(area.id)
 
     if scenes == [] do
-      unpublish_room_select_payloads(publish_fun, room.id, config)
+      unpublish_area_select_payloads(publish_fun, area, config)
     else
-      discovery = Messages.room_select_discovery_topic(room.id, config.discovery_prefix)
-      state_topic = Messages.room_select_state_topic(room.id)
-      attributes_topic = Messages.room_select_attributes_topic(room.id)
+      discovery =
+        Messages.area_select_discovery_topic(
+          PublishedIdentity.fetch!(area, :ha_scene_select_identifier),
+          config.discovery_prefix
+        )
+
+      state_topic = Messages.area_select_state_topic(area.id)
+      attributes_topic = Messages.area_select_attributes_topic(area.id)
 
       :ok =
         publish_fun.(
           discovery,
-          Jason.encode!(Messages.room_select_discovery_payload(room, scenes, config)),
+          Jason.encode!(Messages.area_select_discovery_payload(area, scenes, config)),
           retain: true
         )
 
       :ok =
         publish_fun.(
           attributes_topic,
-          Jason.encode!(Messages.room_select_attributes_payload(room, scenes)),
+          Jason.encode!(Messages.area_select_attributes_payload(area, scenes)),
           retain: true
         )
 
-      publish_fun.(state_topic, Messages.room_select_state_payload(room.id, scenes), retain: true)
+      publish_fun.(state_topic, Messages.area_select_state_payload(area.id, scenes), retain: true)
     end
   end
 
-  def publish_room_select_payloads(publish_fun, room_id, config)
-      when is_function(publish_fun, 3) and is_integer(room_id) do
-    case Repo.get(Room, room_id) do
-      %Room{} = room -> publish_room_select_payloads(publish_fun, room, config)
-      nil -> unpublish_room_select_payloads(publish_fun, room_id, config)
+  def publish_area_select_payloads(publish_fun, area_id, config)
+      when is_function(publish_fun, 3) and is_integer(area_id) do
+    case Repo.get(Area, area_id) do
+      %Area{} = area -> publish_area_select_payloads(publish_fun, area, config)
+      nil -> :ok
     end
   end
 
-  def unpublish_room_select_payloads(publish_fun, room_id, config)
-      when is_function(publish_fun, 3) and is_integer(room_id) do
-    discovery = Messages.room_select_discovery_topic(room_id, config.discovery_prefix)
-    attributes = Messages.room_select_attributes_topic(room_id)
-    state = Messages.room_select_state_topic(room_id)
+  def unpublish_area_select_payloads(publish_fun, %Area{} = area, config)
+      when is_function(publish_fun, 3) do
+    unpublish_area_select_payloads(
+      publish_fun,
+      area.id,
+      PublishedIdentity.fetch!(area, :ha_scene_select_identifier),
+      config
+    )
+  end
+
+  def unpublish_area_select_payloads(publish_fun, area_id, identifier, config)
+      when is_function(publish_fun, 3) and is_integer(area_id) and is_binary(identifier) do
+    discovery = Messages.area_select_discovery_topic(identifier, config.discovery_prefix)
+    attributes = Messages.area_select_attributes_topic(area_id)
+    state = Messages.area_select_state_topic(area_id)
 
     :ok = publish_fun.(discovery, "", retain: true)
     :ok = publish_fun.(attributes, "", retain: true)

@@ -41,7 +41,7 @@ defmodule Hueworks.Import.EntityAttrs do
 
   def hidden_duplicate_overlay(attrs, canonical_id, :light) do
     Map.merge(attrs, %{
-      room_id: nil,
+      area_id: nil,
       enabled: false,
       ha_export_mode: :none,
       homekit_export_mode: :none,
@@ -51,7 +51,7 @@ defmodule Hueworks.Import.EntityAttrs do
 
   def hidden_duplicate_overlay(attrs, canonical_id, :group) do
     Map.merge(attrs, %{
-      room_id: nil,
+      area_id: nil,
       enabled: false,
       ha_export_mode: :none,
       homekit_export_mode: :none,

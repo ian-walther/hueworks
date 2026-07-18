@@ -1,26 +1,26 @@
 <HueworksWeb.PageComponents.page
-  class="hw-rooms-page"
+  class="hw-areas-page"
   flash={@flash}
   eyebrow="House structure"
-  title="Rooms"
+  title="Areas"
   subtitle="Organize scenes, presence inputs, and the lighting assigned to each part of the house."
 >
   <:actions>
       <button type="button" class="hw-button hw-button-primary" phx-click="open_new">
         <span class="hw-button-icon" aria-hidden="true">+</span>
-        Add room
+        Add area
       </button>
   </:actions>
 
-  <div class="hw-list hw-room-ledger-list">
-    <article :for={room <- @rooms} class="hw-card hw-room-ledger-card" id={"room-#{room.id}"}>
-      <% active_scene_id = Map.get(@active_scene_by_room, room.id) %>
-      <% active_scene = Enum.find(room.scenes, &(&1.id == active_scene_id)) %>
+  <div class="hw-list hw-area-ledger-list">
+    <article :for={area <- @areas} class="hw-card hw-area-ledger-card" id={"area-#{area.id}"}>
+      <% active_scene_id = Map.get(@active_scene_by_area, area.id) %>
+      <% active_scene = Enum.find(area.scenes, &(&1.id == active_scene_id)) %>
 
-      <header class="hw-room-card-header">
-        <div class="hw-room-heading-copy">
-          <div class="hw-room-title-row">
-            <h2><%= Hueworks.Util.display_name(room) %></h2>
+      <header class="hw-area-card-header">
+        <div class="hw-area-heading-copy">
+          <div class="hw-area-title-row">
+            <h2><%= Hueworks.Util.display_name(area) %></h2>
             <span class={[
               "hw-status-badge",
               active_scene && "hw-status-badge-success"
@@ -32,57 +32,57 @@
               <% end %>
             </span>
           </div>
-          <div class="hw-stat-list" aria-label="Room contents">
-            <span><%= count_label(room.scenes, "scene") %></span>
-            <span><%= count_label(room.groups, "group") %></span>
-            <span><%= count_label(room.lights, "light") %></span>
+          <div class="hw-stat-list" aria-label="Area contents">
+            <span><%= count_label(area.scenes, "scene") %></span>
+            <span><%= count_label(area.groups, "group") %></span>
+            <span><%= count_label(area.lights, "light") %></span>
           </div>
         </div>
 
-        <div class="hw-actions hw-room-actions">
+        <div class="hw-actions hw-area-actions">
           <button
             type="button"
             class="hw-button"
             phx-click="open_edit"
-            phx-value-id={room.id}
-            aria-label="Edit room name"
+            phx-value-id={area.id}
+            aria-label="Edit area name"
           >
-            Edit room
+            Edit area
           </button>
           <button
             type="button"
             class="hw-button hw-delete-button"
-            phx-click="delete_room"
-            phx-value-id={room.id}
-            data-confirm="Delete this room and its scenes?"
-            aria-label="Delete room"
+            phx-click="delete_area"
+            phx-value-id={area.id}
+            data-confirm="Delete this area and its scenes?"
+            aria-label="Delete area"
           >
             Delete
           </button>
         </div>
       </header>
 
-      <div class="hw-room-ledger-body">
-        <section class="hw-ledger-section" aria-labelledby={"room-#{room.id}-scenes"}>
+      <div class="hw-area-ledger-body">
+        <section class="hw-ledger-section" aria-labelledby={"area-#{area.id}-scenes"}>
           <div class="hw-section-header">
             <div>
               <p class="hw-eyebrow">Primary behavior</p>
-              <h3 id={"room-#{room.id}-scenes"}>Scenes</h3>
+              <h3 id={"area-#{area.id}-scenes"}>Scenes</h3>
             </div>
             <button
               type="button"
               class="hw-button hw-button-small"
               phx-click="open_scene_new"
-              phx-value-id={room.id}
+              phx-value-id={area.id}
               aria-label="Add scene"
             >
               New scene
             </button>
           </div>
 
-          <div :if={room.scenes != []} class="hw-data-list">
+          <div :if={area.scenes != []} class="hw-data-list">
             <div
-              :for={scene <- sort_by_display_name(room.scenes)}
+              :for={scene <- sort_by_display_name(area.scenes)}
               id={"scene-#{scene.id}"}
               class={[
                 "hw-data-row hw-scene-row",
@@ -93,7 +93,7 @@
               <div class="hw-data-row-main">
                 <strong><%= Hueworks.Util.display_name(scene) %></strong>
                 <span class="hw-meta">
-                  <%= if active?, do: "Currently controlling this room", else: "Available scene" %>
+                  <%= if active?, do: "Currently controlling this area", else: "Available scene" %>
                 </span>
               </div>
 
@@ -148,17 +148,17 @@
             </div>
           </div>
 
-          <div :if={room.scenes == []} class="hw-empty-state hw-empty-state-compact">
+          <div :if={area.scenes == []} class="hw-empty-state hw-empty-state-compact">
             <h4>No scenes yet</h4>
-            <p>Create the first scene to define how this room should behave.</p>
+            <p>Create the first scene to define how this area should behave.</p>
           </div>
         </section>
 
-        <section class="hw-ledger-section hw-room-details" aria-labelledby={"room-#{room.id}-details"}>
+        <section class="hw-ledger-section hw-area-details" aria-labelledby={"area-#{area.id}-details"}>
           <div class="hw-section-header">
             <div>
               <p class="hw-eyebrow">Configuration</p>
-              <h3 id={"room-#{room.id}-details"}>Room details</h3>
+              <h3 id={"area-#{area.id}-details"}>Area details</h3>
             </div>
           </div>
 
@@ -167,15 +167,15 @@
               <summary class="hw-detail-summary">
                 <span class="hw-detail-summary-copy">
                   <strong>Presence inputs</strong>
-                  <span class="hw-meta"><%= presence_summary(room.presence_inputs) %></span>
+                  <span class="hw-meta"><%= presence_summary(area.presence_inputs) %></span>
                 </span>
                 <span class="hw-detail-summary-action">Manage</span>
               </summary>
 
               <div class="hw-detail-body">
-                <div :if={room.presence_inputs != []} class="hw-data-list hw-presence-list">
+                <div :if={area.presence_inputs != []} class="hw-data-list hw-presence-list">
                   <div
-                    :for={input <- Enum.sort_by(room.presence_inputs, & &1.name)}
+                    :for={input <- Enum.sort_by(area.presence_inputs, & &1.name)}
                     class="hw-data-row hw-presence-row"
                     id={"presence-input-#{input.id}"}
                   >
@@ -212,12 +212,12 @@
                   </div>
                 </div>
 
-                <p :if={room.presence_inputs == []} class="hw-meta hw-detail-empty">
-                  No presence inputs have been configured for this room.
+                <p :if={area.presence_inputs == []} class="hw-meta hw-detail-empty">
+                  No presence inputs have been configured for this area.
                 </p>
 
                 <form class="hw-inline-form hw-presence-create-form" phx-submit="create_presence_input">
-                  <input type="hidden" name="room_id" value={room.id} />
+                  <input type="hidden" name="area_id" value={area.id} />
                   <input
                     type="text"
                     name="name"
@@ -236,7 +236,7 @@
                 <span class="hw-detail-summary-copy">
                   <strong>Lighting membership</strong>
                   <span class="hw-meta">
-                    <%= count_label(room.groups, "group") %> and <%= count_label(room.lights, "light") %>
+                    <%= count_label(area.groups, "group") %> and <%= count_label(area.lights, "light") %>
                   </span>
                 </span>
                 <span class="hw-detail-summary-action">View</span>
@@ -245,21 +245,21 @@
               <div class="hw-detail-body hw-membership-grid">
                 <section>
                   <h4>Groups</h4>
-                  <ul :if={room.groups != []} class="hw-name-list">
-                    <li :for={group <- sort_by_display_name(room.groups)}>
+                  <ul :if={area.groups != []} class="hw-name-list">
+                    <li :for={group <- sort_by_display_name(area.groups)}>
                       <%= Hueworks.Util.display_name(group) %>
                     </li>
                   </ul>
-                  <p :if={room.groups == []} class="hw-meta hw-detail-empty">No groups assigned.</p>
+                  <p :if={area.groups == []} class="hw-meta hw-detail-empty">No groups assigned.</p>
                 </section>
                 <section>
                   <h4>Lights</h4>
-                  <ul :if={room.lights != []} class="hw-name-list">
-                    <li :for={light <- sort_by_display_name(room.lights)}>
+                  <ul :if={area.lights != []} class="hw-name-list">
+                    <li :for={light <- sort_by_display_name(area.lights)}>
                       <%= Hueworks.Util.display_name(light) %>
                     </li>
                   </ul>
-                  <p :if={room.lights == []} class="hw-meta hw-detail-empty">No lights assigned.</p>
+                  <p :if={area.lights == []} class="hw-meta hw-detail-empty">No lights assigned.</p>
                 </section>
               </div>
             </details>
@@ -268,10 +268,10 @@
       </div>
     </article>
 
-    <div :if={@rooms == []} class="hw-empty-state">
-      <h3>No rooms yet</h3>
+    <div :if={@areas == []} class="hw-empty-state">
+      <h3>No areas yet</h3>
       <p>
-        Rooms are normally created during bridge import. Add a bridge first, or create a room manually when you need a HueWorks-only layout.
+        Areas are normally created during bridge import. Add a bridge first, or create a area manually when you need a HueWorks-only layout.
       </p>
       <a class="hw-button hw-button-primary" href="/config/bridges/new">Add Bridge</a>
     </div>
@@ -281,15 +281,15 @@
 <div :if={@modal_open} class="hw-modal-backdrop">
   <div class="hw-modal" phx-click-away="close_modal">
     <div class="hw-modal-header">
-      <h3><%= if @edit_mode == :edit, do: "Edit Room", else: "Add Room" %></h3>
+      <h3><%= if @edit_mode == :edit, do: "Edit Area", else: "Add Area" %></h3>
       <button type="button" class="hw-modal-close" phx-click="close_modal" aria-label="Close">
         ×
       </button>
     </div>
-    <form phx-submit="save_room" phx-change="update_room">
-      <label class="hw-field-label" for="room_name">Name</label>
+    <form phx-submit="save_area" phx-change="update_area">
+      <label class="hw-field-label" for="area_name">Name</label>
       <input
-        id="room_name"
+        id="area_name"
         name="name"
         type="text"
         value={@edit_name}

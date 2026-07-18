@@ -11,7 +11,7 @@ defmodule Hueworks.SceneActivationRoundTripTest do
     GroupLight,
     Light,
     LightState,
-    Room,
+    Area,
     Scene,
     SceneComponent,
     SceneComponentLight
@@ -52,7 +52,7 @@ defmodule Hueworks.SceneActivationRoundTripTest do
     actions_agent: actions_agent,
     executor_server: executor_server
   } do
-    room = Repo.insert!(%Room{name: "Studio"})
+    area = Repo.insert!(%Area{name: "Studio"})
 
     bridge =
       insert_bridge!(%{
@@ -69,7 +69,7 @@ defmodule Hueworks.SceneActivationRoundTripTest do
         source: :hue,
         source_id: "1",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6500
@@ -82,7 +82,7 @@ defmodule Hueworks.SceneActivationRoundTripTest do
         source: :hue,
         source_id: "2",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6500
@@ -90,12 +90,12 @@ defmodule Hueworks.SceneActivationRoundTripTest do
 
     group =
       Repo.insert!(%Group{
-        name: "Room Group",
-        display_name: "Room Group",
+        name: "Area Group",
+        display_name: "Area Group",
         source: :hue,
         source_id: "10",
         bridge_id: bridge.id,
-        room_id: room.id
+        area_id: area.id
       })
 
     Repo.insert!(%GroupLight{group_id: group.id, light_id: light_1.id})
@@ -111,7 +111,7 @@ defmodule Hueworks.SceneActivationRoundTripTest do
     scene =
       Repo.insert!(%Scene{
         name: "Chill",
-        room_id: room.id,
+        area_id: area.id,
         metadata: %{}
       })
 
@@ -128,7 +128,7 @@ defmodule Hueworks.SceneActivationRoundTripTest do
 
     reset_states_for_lights([light_1.id, light_2.id])
 
-    {:ok, view, _html} = live(conn, "/rooms")
+    {:ok, view, _html} = live(conn, "/areas")
 
     view
     |> element("button[phx-click=\"activate_scene\"][phx-value-id=\"#{scene.id}\"]")
@@ -153,7 +153,7 @@ defmodule Hueworks.SceneActivationRoundTripTest do
     actions_agent: actions_agent,
     executor_server: executor_server
   } do
-    room = Repo.insert!(%Room{name: "Loft"})
+    area = Repo.insert!(%Area{name: "Loft"})
 
     bridge =
       insert_bridge!(%{
@@ -170,7 +170,7 @@ defmodule Hueworks.SceneActivationRoundTripTest do
         source: :hue,
         source_id: "101",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6500
@@ -183,7 +183,7 @@ defmodule Hueworks.SceneActivationRoundTripTest do
         source: :hue,
         source_id: "102",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6500
@@ -196,7 +196,7 @@ defmodule Hueworks.SceneActivationRoundTripTest do
         source: :hue,
         source_id: "103",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6500
@@ -209,7 +209,7 @@ defmodule Hueworks.SceneActivationRoundTripTest do
         source: :hue,
         source_id: "104",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6500
@@ -222,7 +222,7 @@ defmodule Hueworks.SceneActivationRoundTripTest do
         source: :hue,
         source_id: "201",
         bridge_id: bridge.id,
-        room_id: room.id
+        area_id: area.id
       })
 
     group_cd =
@@ -232,7 +232,7 @@ defmodule Hueworks.SceneActivationRoundTripTest do
         source: :hue,
         source_id: "202",
         bridge_id: bridge.id,
-        room_id: room.id
+        area_id: area.id
       })
 
     Repo.insert!(%GroupLight{group_id: group_ab.id, light_id: light_a.id})
@@ -257,7 +257,7 @@ defmodule Hueworks.SceneActivationRoundTripTest do
     scene =
       Repo.insert!(%Scene{
         name: "Mix",
-        room_id: room.id,
+        area_id: area.id,
         metadata: %{}
       })
 
@@ -299,7 +299,7 @@ defmodule Hueworks.SceneActivationRoundTripTest do
 
     reset_states_for_lights([light_a.id, light_b.id, light_c.id, light_d.id])
 
-    {:ok, view, _html} = live(conn, "/rooms")
+    {:ok, view, _html} = live(conn, "/areas")
 
     view
     |> element("button[phx-click=\"activate_scene\"][phx-value-id=\"#{scene.id}\"]")
@@ -328,7 +328,7 @@ defmodule Hueworks.SceneActivationRoundTripTest do
     actions_agent: actions_agent,
     executor_server: executor_server
   } do
-    room = Repo.insert!(%Room{name: "Kitchen"})
+    area = Repo.insert!(%Area{name: "Kitchen"})
 
     bridge =
       insert_bridge!(%{
@@ -345,7 +345,7 @@ defmodule Hueworks.SceneActivationRoundTripTest do
         source: :hue,
         source_id: "301",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6500
@@ -358,7 +358,7 @@ defmodule Hueworks.SceneActivationRoundTripTest do
         source: :hue,
         source_id: "302",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6500
@@ -371,7 +371,7 @@ defmodule Hueworks.SceneActivationRoundTripTest do
         source: :hue,
         source_id: "401",
         bridge_id: bridge.id,
-        room_id: room.id
+        area_id: area.id
       })
 
     Repo.insert!(%GroupLight{group_id: group.id, light_id: light_on.id})
@@ -387,7 +387,7 @@ defmodule Hueworks.SceneActivationRoundTripTest do
     scene =
       Repo.insert!(%Scene{
         name: "Evening",
-        room_id: room.id,
+        area_id: area.id,
         metadata: %{}
       })
 
@@ -425,7 +425,7 @@ defmodule Hueworks.SceneActivationRoundTripTest do
       :ets.delete(:hueworks_desired_state, {:light, light_off.id})
     end
 
-    {:ok, view, _html} = live(conn, "/rooms")
+    {:ok, view, _html} = live(conn, "/areas")
 
     view
     |> element("button[phx-click=\"activate_scene\"][phx-value-id=\"#{scene.id}\"]")
@@ -453,7 +453,7 @@ defmodule Hueworks.SceneActivationRoundTripTest do
          actions_agent: actions_agent,
          executor_server: executor_server
        } do
-    room = Repo.insert!(%Room{name: "Hallway"})
+    area = Repo.insert!(%Area{name: "Hallway"})
 
     bridge =
       insert_bridge!(%{
@@ -470,7 +470,7 @@ defmodule Hueworks.SceneActivationRoundTripTest do
         source: :hue,
         source_id: "501",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6500
@@ -486,7 +486,7 @@ defmodule Hueworks.SceneActivationRoundTripTest do
     scene =
       Repo.insert!(%Scene{
         name: "Night",
-        room_id: room.id,
+        area_id: area.id,
         metadata: %{}
       })
 
@@ -512,7 +512,7 @@ defmodule Hueworks.SceneActivationRoundTripTest do
       :ets.insert(:hueworks_desired_state, {{:light, light.id}, %{power: :off}})
     end
 
-    {:ok, view, _html} = live(conn, "/rooms")
+    {:ok, view, _html} = live(conn, "/areas")
 
     view
     |> element("button[phx-click=\"activate_scene\"][phx-value-id=\"#{scene.id}\"]")

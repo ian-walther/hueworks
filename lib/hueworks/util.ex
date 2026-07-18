@@ -113,15 +113,15 @@ defmodule Hueworks.Util do
     |> String.replace(~r/[^A-Za-z0-9._-]/, "_")
   end
 
-  def normalize_room_name(name) when is_binary(name) do
+  def normalize_area_name(name) when is_binary(name) do
     name
     |> String.trim()
     |> String.downcase()
   end
 
-  def normalize_room_name(_name), do: nil
+  def normalize_area_name(_name), do: nil
 
-  def normalize_room_display(name) when is_binary(name) do
+  def normalize_area_display(name) when is_binary(name) do
     trimmed = String.trim(name)
 
     case String.downcase(trimmed) do
@@ -130,7 +130,7 @@ defmodule Hueworks.Util do
     end
   end
 
-  def normalize_room_display(_name), do: nil
+  def normalize_area_display(_name), do: nil
 
   def parse_source_filter("hue"), do: {:ok, :hue}
   def parse_source_filter("ha"), do: {:ok, :ha}
@@ -141,30 +141,30 @@ defmodule Hueworks.Util do
   def parse_filter(filter) when filter in ["hue", "ha", "caseta", "z2m"], do: filter
   def parse_filter(_filter), do: "all"
 
-  def parse_room_filter(nil), do: "all"
-  def parse_room_filter(""), do: "all"
-  def parse_room_filter("all"), do: "all"
-  def parse_room_filter("unassigned"), do: "unassigned"
-  def parse_room_filter(value) when is_integer(value), do: value
+  def parse_area_filter(nil), do: "all"
+  def parse_area_filter(""), do: "all"
+  def parse_area_filter("all"), do: "all"
+  def parse_area_filter("unassigned"), do: "unassigned"
+  def parse_area_filter(value) when is_integer(value), do: value
 
-  def parse_room_filter(value) when is_binary(value) do
+  def parse_area_filter(value) when is_binary(value) do
     case Integer.parse(value) do
-      {room_id, ""} -> room_id
+      {area_id, ""} -> area_id
       _ -> "all"
     end
   end
 
-  def parse_room_filter(_value), do: "all"
+  def parse_area_filter(_value), do: "all"
 
-  def normalize_room_filter("all", _rooms), do: "all"
-  def normalize_room_filter("unassigned", _rooms), do: "unassigned"
-  def normalize_room_filter(nil, _rooms), do: "all"
+  def normalize_area_filter("all", _areas), do: "all"
+  def normalize_area_filter("unassigned", _areas), do: "unassigned"
+  def normalize_area_filter(nil, _areas), do: "all"
 
-  def normalize_room_filter(room_id, rooms) when is_integer(room_id) do
-    if Enum.any?(rooms, &(&1.id == room_id)), do: room_id, else: "all"
+  def normalize_area_filter(area_id, areas) when is_integer(area_id) do
+    if Enum.any?(areas, &(&1.id == area_id)), do: area_id, else: "all"
   end
 
-  def normalize_room_filter(_room_id, _rooms), do: "all"
+  def normalize_area_filter(_area_id, _areas), do: "all"
 
   def format_reason(reason), do: inspect(reason)
 

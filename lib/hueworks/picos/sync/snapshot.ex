@@ -25,24 +25,27 @@ defmodule Hueworks.Picos.Sync.Snapshot do
     )
   end
 
-  def room_ids_by_area_id(bridge_id, raw_lights)
+  def area_ids_by_source_area_id(bridge_id, raw_lights)
       when is_integer(bridge_id) and is_list(raw_lights) do
-    room_id_by_zone_id =
+    area_id_by_zone_id =
       Repo.all(
         from(l in Light,
           where: l.bridge_id == ^bridge_id and l.source == :caseta,
-          select: {l.source_id, l.room_id}
+          select: {l.source_id, l.area_id}
         )
       )
       |> Map.new()
 
     Enum.reduce(raw_lights, %{}, fn raw_light, acc ->
       zone_id = normalize_source_id(Map.get(raw_light, :zone_id) || Map.get(raw_light, "zone_id"))
-      area_id = normalize_source_id(Map.get(raw_light, :area_id) || Map.get(raw_light, "area_id"))
-      room_id = Map.get(room_id_by_zone_id, zone_id)
 
-      if is_binary(area_id) and is_integer(room_id) do
-        Map.put_new(acc, area_id, room_id)
+      source_area_id =
+        normalize_source_id(Map.get(raw_light, :area_id) || Map.get(raw_light, "area_id"))
+
+      area_id = Map.get(area_id_by_zone_id, zone_id)
+
+      if is_binary(source_area_id) and is_integer(area_id) do
+        Map.put_new(acc, source_area_id, area_id)
       else
         acc
       end

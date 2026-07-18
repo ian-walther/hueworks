@@ -1,8 +1,8 @@
 defmodule Hueworks.PresenceInputs do
   @moduledoc """
-  Room-scoped presence input helpers.
+  Area-scoped presence input helpers.
 
-  Presence inputs are room-scoped booleans configured in HueWorks and driven by
+  Presence inputs are area-scoped booleans configured in HueWorks and driven by
   Home Assistant. When an input changes, only active-scene lights that use
   Follow Presence with that input are recomputed.
   """
@@ -17,10 +17,10 @@ defmodule Hueworks.PresenceInputs do
   alias Hueworks.HomeAssistant.Export, as: HomeAssistantExport
   alias Hueworks.Schemas.PresenceInput
 
-  def list_for_room(room_id) when is_integer(room_id) do
+  def list_for_area(area_id) when is_integer(area_id) do
     Repo.all(
       from(pi in PresenceInput,
-        where: pi.room_id == ^room_id,
+        where: pi.area_id == ^area_id,
         order_by: [asc: pi.name]
       )
     )
@@ -30,8 +30,8 @@ defmodule Hueworks.PresenceInputs do
   def get_input(id) when is_binary(id), do: id |> Hueworks.Util.parse_id() |> get_input()
   def get_input(_id), do: nil
 
-  def create_input(room_id, attrs) when is_integer(room_id) and is_map(attrs) do
-    attrs = Map.put(attrs, :room_id, room_id)
+  def create_input(area_id, attrs) when is_integer(area_id) and is_map(attrs) do
+    attrs = Map.put(attrs, :area_id, area_id)
 
     %PresenceInput{}
     |> PresenceInput.changeset(attrs)
@@ -93,7 +93,7 @@ defmodule Hueworks.PresenceInputs do
             end
 
             if refresh_active_scene? do
-              refresh_room_active_scene(updated)
+              refresh_area_active_scene(updated)
             end
 
             {:ok, updated}
@@ -104,12 +104,12 @@ defmodule Hueworks.PresenceInputs do
     end
   end
 
-  defp refresh_room_active_scene(%PresenceInput{room_id: room_id, id: input_id}) do
-    case Hueworks.ActiveScenes.get_for_room(room_id) do
+  defp refresh_area_active_scene(%PresenceInput{area_id: area_id, id: input_id}) do
+    case Hueworks.ActiveScenes.get_for_area(area_id) do
       %{scene_id: scene_id} ->
         light_ids = Scenes.active_scene_follow_presence_light_ids(scene_id, input_id)
 
-        case Scenes.recompute_active_scene_lights(room_id, light_ids,
+        case Scenes.recompute_active_scene_lights(area_id, light_ids,
                origin: :presence,
                group_candidate_light_ids: light_ids
              ) do

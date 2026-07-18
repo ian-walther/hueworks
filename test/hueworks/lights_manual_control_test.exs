@@ -4,7 +4,7 @@ defmodule Hueworks.LightsManualControlTest do
   alias Hueworks.Control.{DesiredState, Executor, State, TraceBuffer}
   alias Hueworks.Lights.ManualControl
   alias Hueworks.Repo
-  alias Hueworks.Schemas.{Light, Room, Scene}
+  alias Hueworks.Schemas.{Light, Area, Scene}
 
   setup do
     TraceBuffer.clear()
@@ -48,7 +48,7 @@ defmodule Hueworks.LightsManualControlTest do
   test "manual updates preserve a caller-provided trace through planning", %{
     executor_server: executor_server
   } do
-    room = Repo.insert!(%Room{name: "Trace Office"})
+    area = Repo.insert!(%Area{name: "Trace Office"})
 
     bridge =
       insert_bridge!(%{
@@ -64,7 +64,7 @@ defmodule Hueworks.LightsManualControlTest do
         source: :hue,
         source_id: "trace-desk-lamp",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         enabled: true
       })
 
@@ -74,12 +74,12 @@ defmodule Hueworks.LightsManualControlTest do
     trace = %{
       trace_id: "api-manual-update-#{light.id}",
       source: "api.light_control",
-      room_id: room.id,
+      area_id: area.id,
       started_at_ms: System.monotonic_time(:millisecond)
     }
 
     assert {:ok, _diff} =
-             ManualControl.apply_updates(room.id, [light.id], %{brightness: 55}, trace: trace)
+             ManualControl.apply_updates(area.id, [light.id], %{brightness: 55}, trace: trace)
 
     assert %{events: events} = TraceBuffer.recent(trace_id: trace.trace_id)
     assert Enum.any?(events, &(&1.stage == :planned and &1.source == "api.light_control"))
@@ -91,7 +91,7 @@ defmodule Hueworks.LightsManualControlTest do
     actions_agent: actions_agent,
     executor_server: executor_server
   } do
-    room = Repo.insert!(%Room{name: "Kitchen"})
+    area = Repo.insert!(%Area{name: "Kitchen"})
 
     bridge =
       insert_bridge!(%{
@@ -107,7 +107,7 @@ defmodule Hueworks.LightsManualControlTest do
         source: :hue,
         source_id: "kitchen-accent",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         enabled: true,
         supports_temp: true,
         reported_min_kelvin: 2000,
@@ -118,7 +118,7 @@ defmodule Hueworks.LightsManualControlTest do
     _ = State.put(:light, light.id, %{power: :off})
 
     assert {:ok, %{power: :on, brightness: 100, kelvin: 3000}} =
-             ManualControl.apply_power_action(room.id, [light.id], :on)
+             ManualControl.apply_power_action(area.id, [light.id], :on)
 
     wait_for_action_count(actions_agent, 2)
     drain_executor(executor_server)
@@ -146,7 +146,7 @@ defmodule Hueworks.LightsManualControlTest do
     actions_agent: actions_agent,
     executor_server: executor_server
   } do
-    room = Repo.insert!(%Room{name: "Office"})
+    area = Repo.insert!(%Area{name: "Office"})
 
     bridge =
       insert_bridge!(%{
@@ -162,7 +162,7 @@ defmodule Hueworks.LightsManualControlTest do
         source: :hue,
         source_id: "office-lamp",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         enabled: true,
         supports_temp: true,
         reported_min_kelvin: 2000,
@@ -173,7 +173,7 @@ defmodule Hueworks.LightsManualControlTest do
     _ = State.put(:light, light.id, %{power: :off})
 
     assert {:ok, %{power: :on, brightness: 100, kelvin: 3000}} =
-             ManualControl.apply_power_action(room.id, [light.id], :on)
+             ManualControl.apply_power_action(area.id, [light.id], :on)
 
     _ = State.put(:light, light.id, %{power: :on, brightness: 100, kelvin: 3000})
 
@@ -194,16 +194,16 @@ defmodule Hueworks.LightsManualControlTest do
   end
 
   test "manual brightness changes are rejected while a scene is active" do
-    room = Repo.insert!(%Room{name: "Active Scene Room"})
-    scene = Repo.insert!(%Scene{name: "Evening", room_id: room.id, metadata: %{}})
+    area = Repo.insert!(%Area{name: "Active Scene Area"})
+    scene = Repo.insert!(%Scene{name: "Evening", area_id: area.id, metadata: %{}})
     {:ok, _} = Hueworks.ActiveScenes.set_active(scene)
 
     assert {:error, :scene_active_manual_adjustment_not_allowed} =
-             ManualControl.apply_updates(room.id, [123], %{brightness: 40})
+             ManualControl.apply_updates(area.id, [123], %{brightness: 40})
   end
 
   test "manual power updates remain eligible during circadian deferral" do
-    room = Repo.insert!(%Room{name: "Deferred Manual Room"})
+    area = Repo.insert!(%Area{name: "Deferred Manual Area"})
 
     bridge =
       insert_bridge!(%{
@@ -219,26 +219,26 @@ defmodule Hueworks.LightsManualControlTest do
         source: :hue,
         source_id: "deferred-manual-lamp",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         enabled: true
       })
 
-    scene = Repo.insert!(%Scene{name: "Deferred Evening", room_id: room.id, metadata: %{}})
+    scene = Repo.insert!(%Scene{name: "Deferred Evening", area_id: area.id, metadata: %{}})
     resume_at = DateTime.add(DateTime.utc_now(), 60, :second)
     {:ok, _} = Hueworks.ActiveScenes.set_active(scene, circadian_resume_at: resume_at)
     _ = DesiredState.put(:light, light.id, %{power: :on})
 
-    assert {:ok, diff} = ManualControl.apply_updates(room.id, [light.id], %{power: :off})
+    assert {:ok, diff} = ManualControl.apply_updates(area.id, [light.id], %{power: :off})
     assert diff[{:light, light.id}] == %{power: :off}
     assert DesiredState.get(:light, light.id) == %{power: :off}
-    assert Hueworks.ActiveScenes.get_for_room(room.id).circadian_resume_at == resume_at
+    assert Hueworks.ActiveScenes.get_for_area(area.id).circadian_resume_at == resume_at
   end
 
-  test "manual updates preserve queued work for other rooms on the same bridge", %{
+  test "manual updates preserve queued work for other areas on the same bridge", %{
     executor_server: executor_server
   } do
-    queued_room = Repo.insert!(%Room{name: "Queued Room"})
-    manual_room = Repo.insert!(%Room{name: "Manual Room"})
+    queued_area = Repo.insert!(%Area{name: "Queued Area"})
+    manual_area = Repo.insert!(%Area{name: "Manual Area"})
 
     bridge =
       insert_bridge!(%{
@@ -254,7 +254,7 @@ defmodule Hueworks.LightsManualControlTest do
         source: :hue,
         source_id: "queued-lamp",
         bridge_id: bridge.id,
-        room_id: queued_room.id,
+        area_id: queued_area.id,
         enabled: true,
         supports_temp: true,
         reported_min_kelvin: 2000,
@@ -267,7 +267,7 @@ defmodule Hueworks.LightsManualControlTest do
         source: :hue,
         source_id: "manual-lamp",
         bridge_id: bridge.id,
-        room_id: manual_room.id,
+        area_id: manual_area.id,
         enabled: true,
         supports_temp: true,
         reported_min_kelvin: 2000,
@@ -279,7 +279,7 @@ defmodule Hueworks.LightsManualControlTest do
       id: queued_light.id,
       bridge_id: bridge.id,
       desired: %{power: :on},
-      trace_room_id: queued_room.id,
+      trace_area_id: queued_area.id,
       not_before: System.monotonic_time(:millisecond) + 60_000
     }
 
@@ -289,7 +289,7 @@ defmodule Hueworks.LightsManualControlTest do
     _ = State.put(:light, manual_light.id, %{power: :off})
 
     assert {:ok, _diff} =
-             ManualControl.apply_updates(manual_room.id, [manual_light.id], %{power: :on})
+             ManualControl.apply_updates(manual_area.id, [manual_light.id], %{power: :on})
 
     assert queued_targets(executor_server, bridge.id) |> Enum.member?({:light, queued_light.id})
   end

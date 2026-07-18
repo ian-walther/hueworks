@@ -4,8 +4,8 @@ defmodule Hueworks.Import.ReimportPlan do
   alias Hueworks.Import.{Duplicates, Identifiers, Normalize, NormalizeJson}
   alias Hueworks.Util
 
-  def build(normalized_import, normalized_db, rooms) do
-    import_rooms = Normalize.fetch(normalized_import, :rooms) || []
+  def build(normalized_import, normalized_db, areas) do
+    import_areas = Normalize.fetch(normalized_import, :areas) || []
 
     import_lights =
       normalized_import
@@ -41,10 +41,10 @@ defmodule Hueworks.Import.ReimportPlan do
 
     missing_lights = missing_entries(db_lights, external_id_set(import_lights, :light), :light)
     missing_groups = missing_entries(db_groups, external_id_set(import_groups, :group), :group)
-    room_plan = build_room_plan(import_rooms, rooms)
+    area_plan = build_area_plan(import_areas, areas)
 
     statuses = %{
-      rooms: %{},
+      areas: %{},
       lights:
         status_map(
           import_lights,
@@ -66,7 +66,7 @@ defmodule Hueworks.Import.ReimportPlan do
     }
 
     plan = %{
-      rooms: room_plan,
+      areas: area_plan,
       lights:
         build_selection(
           import_lights,
@@ -74,7 +74,7 @@ defmodule Hueworks.Import.ReimportPlan do
           duplicate_light_targets,
           ambiguous_light_ids,
           :light,
-          room_plan
+          area_plan
         )
         |> add_missing_selection(missing_lights, :light),
       groups:
@@ -84,7 +84,7 @@ defmodule Hueworks.Import.ReimportPlan do
           duplicate_group_targets,
           ambiguous_group_ids,
           :group,
-          room_plan
+          area_plan
         )
         |> add_missing_selection(missing_groups, :group)
     }
@@ -97,31 +97,31 @@ defmodule Hueworks.Import.ReimportPlan do
     %{plan: plan, normalized: NormalizeJson.to_map(merged_normalized), statuses: statuses}
   end
 
-  defp build_room_plan(import_rooms, rooms) do
-    room_lookup =
-      Enum.reduce(rooms, %{}, fn room, acc ->
-        name = Util.normalize_room_name(room.name)
-        Map.put(acc, name, room.id)
+  defp build_area_plan(import_areas, areas) do
+    area_lookup =
+      Enum.reduce(areas, %{}, fn area, acc ->
+        name = Util.normalize_area_name(area.name)
+        Map.put(acc, name, area.id)
       end)
 
-    Enum.reduce(import_rooms, %{}, fn room, acc ->
-      source_id = Normalize.normalize_source_id(Normalize.fetch(room, :source_id))
-      name = Normalize.fetch(room, :name) || "Room"
-      normalized_name = Normalize.fetch(room, :normalized_name) || Util.normalize_room_name(name)
+    Enum.reduce(import_areas, %{}, fn area, acc ->
+      source_id = Normalize.normalize_source_id(Normalize.fetch(area, :source_id))
+      name = Normalize.fetch(area, :name) || "Area"
+      normalized_name = Normalize.fetch(area, :normalized_name) || Util.normalize_area_name(name)
 
       if is_binary(source_id) do
-        case Map.get(room_lookup, normalized_name) do
+        case Map.get(area_lookup, normalized_name) do
           nil ->
             Map.put(acc, source_id, %{
               "action" => "skip",
-              "target_room_id" => nil,
+              "target_area_id" => nil,
               "name" => name
             })
 
-          room_id ->
+          area_id ->
             Map.put(acc, source_id, %{
               "action" => "merge",
-              "target_room_id" => Integer.to_string(room_id),
+              "target_area_id" => Integer.to_string(area_id),
               "name" => name
             })
         end
@@ -137,7 +137,7 @@ defmodule Hueworks.Import.ReimportPlan do
          duplicate_targets,
          ambiguous_ids,
          type,
-         room_plan
+         area_plan
        ) do
     import_entries
     |> Enum.reduce(%{}, fn entry, acc ->
@@ -157,7 +157,7 @@ defmodule Hueworks.Import.ReimportPlan do
               %{"selected" => true, "resolution" => "import_hidden_duplicate"}
 
             true ->
-              new_entity_selection(entry, room_plan)
+              new_entity_selection(entry, area_plan)
           end
 
         Map.put(acc, source_id, value)
@@ -167,23 +167,23 @@ defmodule Hueworks.Import.ReimportPlan do
     end)
   end
 
-  defp new_entity_selection(entry, room_plan) do
-    room_source_id =
+  defp new_entity_selection(entry, area_plan) do
+    area_source_id =
       entry
-      |> Normalize.fetch(:room_source_id)
+      |> Normalize.fetch(:area_source_id)
       |> Normalize.normalize_source_id()
 
-    target_room_id =
-      room_plan
-      |> Map.get(room_source_id, %{})
-      |> Normalize.fetch(:target_room_id)
+    target_area_id =
+      area_plan
+      |> Map.get(area_source_id, %{})
+      |> Normalize.fetch(:target_area_id)
       |> Normalize.normalize_source_id()
       |> Kernel.||("unassigned")
 
     %{
       "selected" => false,
       "resolution" => "do_not_import",
-      "target_room_id" => target_room_id
+      "target_area_id" => target_area_id
     }
   end
 

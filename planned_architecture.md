@@ -35,7 +35,7 @@ Rules:
 
 ### Planner Owns Optimization
 
-The planner turns desired-vs-physical diffs and room topology into bridge actions.
+The planner turns desired-vs-physical diffs and area topology into bridge actions.
 
 Rules:
 - Keep group-vs-light optimization below the desired-state boundary.
@@ -166,7 +166,7 @@ Rules:
 - Prefer changing internals beneath stable public surfaces where that keeps the existing suite valuable.
 - If a test breaks for an expected architectural reason, first ask whether the assertion belongs higher, lower, or on a different public surface.
 - Prefer narrow, evidence-backed structural changes over broad speculative layers.
-- Production behavior should continue informing architecture decisions because the app controls real rooms, not just fixtures.
+- Production behavior should continue informing architecture decisions because the app controls real areas, not just fixtures.
 
 ## Relationship To Other Docs
 

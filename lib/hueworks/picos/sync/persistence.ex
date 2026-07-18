@@ -8,8 +8,8 @@ defmodule Hueworks.Picos.Sync.Persistence do
   alias Hueworks.Repo
   alias Hueworks.Schemas.{Bridge, PicoButton, PicoDevice}
 
-  def sync_devices(%Bridge{} = bridge, grouped_buttons, room_by_area_id)
-      when is_map(grouped_buttons) and is_map(room_by_area_id) do
+  def sync_devices(%Bridge{} = bridge, grouped_buttons, area_by_area_id)
+      when is_map(grouped_buttons) and is_map(area_by_area_id) do
     existing_devices =
       Repo.all(from(pd in PicoDevice, where: pd.bridge_id == ^bridge.id))
       |> Map.new(&{&1.source_id, &1})
@@ -25,7 +25,7 @@ defmodule Hueworks.Picos.Sync.Persistence do
               existing_devices[device_source_id],
               device_source_id,
               buttons,
-              room_by_area_id
+              area_by_area_id
             )
 
           upsert_buttons(device, buttons)
@@ -47,31 +47,31 @@ defmodule Hueworks.Picos.Sync.Persistence do
     :ok
   end
 
-  defp upsert_device(bridge, existing, source_id, buttons, room_by_area_id) do
+  defp upsert_device(bridge, existing, source_id, buttons, area_by_area_id) do
     sample = List.first(buttons) || %{}
 
     area_id =
       Snapshot.normalize_source_id(Map.get(sample, :area_id) || Map.get(sample, "area_id"))
 
-    detected_room_id = Map.get(room_by_area_id, area_id)
+    detected_area_id = Map.get(area_by_area_id, area_id)
     hardware_profile = Snapshot.hardware_profile(buttons)
     name = Map.get(sample, :device_name) || Map.get(sample, "device_name") || "Pico"
 
-    room_id =
+    area_id =
       cond do
-        existing && Devices.room_override?(existing) -> existing.room_id
-        true -> detected_room_id
+        existing && Devices.area_override?(existing) -> existing.area_id
+        true -> detected_area_id
       end
 
     metadata =
       (if(existing, do: existing.metadata, else: %{}) || %{})
       |> Map.put("area_id", area_id)
-      |> Map.put("detected_room_id", detected_room_id)
-      |> Map.put_new("room_override", false)
+      |> Map.put("detected_area_id", detected_area_id)
+      |> Map.put_new("area_override", false)
 
     attrs = %{
       bridge_id: bridge.id,
-      room_id: room_id,
+      area_id: area_id,
       source_id: source_id,
       name: name,
       hardware_profile: hardware_profile,

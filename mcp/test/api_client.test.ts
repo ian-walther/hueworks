@@ -65,7 +65,7 @@ test("API client encodes trace filters and preserves HueWorks error details", as
       if (error instanceof HueworksApiError) {
         assert.equal(error.status, 409);
         assert.equal(error.code, "scene_active_manual_adjustment_not_allowed");
-        assert.deepEqual(error.details, { room_id: 4 });
+        assert.deepEqual(error.details, { area_id: 4 });
         return true;
       }
 
@@ -87,13 +87,13 @@ test("API client encodes entity lookup filters", async (t) => {
   });
 
   assert.deepEqual(
-    await client.searchEntities({ query: "Office Lamps", kind: "group", roomId: 4, limit: 10 }),
+    await client.searchEntities({ query: "Office Lamps", kind: "group", areaId: 4, limit: 10 }),
     { query: "office lamps", results: [] },
   );
 
   assert.deepEqual(requests[0], {
     method: "GET",
-    url: "/api/v1/entities?query=Office+Lamps&kind=group&room_id=4&limit=10",
+    url: "/api/v1/entities?query=Office+Lamps&kind=group&area_id=4&limit=10",
     authorization: "Bearer test-api-token",
     body: undefined,
   });
@@ -120,7 +120,7 @@ async function startFixtureServer(requests: RecordedRequest[]): Promise<Server> 
       case "/api/v1/traces?entity_kind=group&entity_id=9&limit=20":
         return sendJson(response, 200, { events: [] });
 
-      case "/api/v1/entities?query=Office+Lamps&kind=group&room_id=4&limit=10":
+      case "/api/v1/entities?query=Office+Lamps&kind=group&area_id=4&limit=10":
         return sendJson(response, 200, { query: "office lamps", results: [] });
 
       case "/api/v1/error":
@@ -128,7 +128,7 @@ async function startFixtureServer(requests: RecordedRequest[]): Promise<Server> 
           error: {
             code: "scene_active_manual_adjustment_not_allowed",
             message: "Manual adjustment is blocked.",
-            details: { room_id: 4 },
+            details: { area_id: 4 },
           },
         });
 

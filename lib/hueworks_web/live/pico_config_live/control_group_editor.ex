@@ -64,7 +64,7 @@ defmodule HueworksWeb.PicoConfigLive.ControlGroupEditor do
             assign(
               socket,
               save_status: nil,
-              save_error: "Control group targets must stay in the Pico room."
+              save_error: "Control group targets must stay in the Pico area."
             )
 
           {:error, :invalid_name} ->
@@ -109,7 +109,7 @@ defmodule HueworksWeb.PicoConfigLive.ControlGroupEditor do
             assign(
               socket,
               save_status: nil,
-              save_error: "Control group targets must stay in the Pico room."
+              save_error: "Control group targets must stay in the Pico area."
             )
 
           {:error, :invalid_name} ->
@@ -141,9 +141,9 @@ defmodule HueworksWeb.PicoConfigLive.ControlGroupEditor do
     end)
   end
 
-  def available_lights(%{room_id: room_id}, lights, group_ids, light_ids)
-      when is_integer(room_id) and is_list(lights) do
-    covered_light_ids = covered_light_ids(room_id, group_ids, light_ids)
+  def available_lights(%{area_id: area_id}, lights, group_ids, light_ids)
+      when is_integer(area_id) and is_list(lights) do
+    covered_light_ids = covered_light_ids(area_id, group_ids, light_ids)
 
     Enum.reject(lights, &MapSet.member?(covered_light_ids, &1.id))
   end
@@ -152,14 +152,14 @@ defmodule HueworksWeb.PicoConfigLive.ControlGroupEditor do
     Enum.reject(lights, &(&1.id in light_ids))
   end
 
-  def available_groups(%{room_id: room_id}, groups, group_ids, light_ids)
-      when is_integer(room_id) and is_list(groups) do
-    covered_light_ids = covered_light_ids(room_id, group_ids, light_ids)
+  def available_groups(%{area_id: area_id}, groups, group_ids, light_ids)
+      when is_integer(area_id) and is_list(groups) do
+    covered_light_ids = covered_light_ids(area_id, group_ids, light_ids)
     selected_group_ids = MapSet.new(group_ids)
 
     Enum.reject(groups, fn group ->
       group.id in selected_group_ids or
-        available_group_light_ids(room_id, group.id, covered_light_ids) == []
+        available_group_light_ids(area_id, group.id, covered_light_ids) == []
     end)
   end
 
@@ -175,16 +175,16 @@ defmodule HueworksWeb.PicoConfigLive.ControlGroupEditor do
     "pico-control-group-#{kind}-select-#{picker_dom_suffix(entities)}"
   end
 
-  defp covered_light_ids(room_id, group_ids, light_ids) when is_integer(room_id) do
-    room_id
-    |> Hueworks.Picos.Targets.expand_room_targets(group_ids, light_ids)
+  defp covered_light_ids(area_id, group_ids, light_ids) when is_integer(area_id) do
+    area_id
+    |> Hueworks.Picos.Targets.expand_area_targets(group_ids, light_ids)
     |> MapSet.new()
   end
 
-  defp available_group_light_ids(room_id, group_id, covered_light_ids)
-       when is_integer(room_id) and is_integer(group_id) do
-    room_id
-    |> Hueworks.Picos.Targets.expand_room_targets([group_id], [])
+  defp available_group_light_ids(area_id, group_id, covered_light_ids)
+       when is_integer(area_id) and is_integer(group_id) do
+    area_id
+    |> Hueworks.Picos.Targets.expand_area_targets([group_id], [])
     |> Enum.reject(&MapSet.member?(covered_light_ids, &1))
   end
 

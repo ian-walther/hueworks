@@ -17,10 +17,10 @@ defmodule Hueworks.HomeAssistant.Export.Sync.Scenes do
     :ok
   end
 
-  def publish_room(publish_fun, room_id, config)
-      when is_function(publish_fun, 3) and is_integer(room_id) do
+  def publish_area(publish_fun, area_id, config)
+      when is_function(publish_fun, 3) and is_integer(area_id) do
     if Runtime.export_enabled?(config) and Runtime.scenes_enabled?(config) do
-      Entities.list_exportable_scenes_for_room(room_id)
+      Entities.list_exportable_scenes_for_area(area_id)
       |> Enum.each(fn scene ->
         :ok = Publisher.publish_scene_payloads(publish_fun, scene, config)
       end)

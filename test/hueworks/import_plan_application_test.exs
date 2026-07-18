@@ -3,7 +3,7 @@ defmodule Hueworks.Import.PlanApplicationTest do
 
   alias Hueworks.Import.Materialize
   alias Hueworks.Repo
-  alias Hueworks.Schemas.{Group, Light, Room}
+  alias Hueworks.Schemas.{Group, Light, Area}
 
   defp insert_bridge(attrs \\ %{}) do
     defaults = %{
@@ -18,11 +18,11 @@ defmodule Hueworks.Import.PlanApplicationTest do
     insert_bridge!(Map.merge(defaults, attrs))
   end
 
-  test "room skip plan does not create a new room" do
+  test "area skip plan does not create a new area" do
     bridge = insert_bridge()
 
     normalized = %{
-      rooms: [
+      areas: [
         %{
           source: :hue,
           source_id: "1",
@@ -37,7 +37,7 @@ defmodule Hueworks.Import.PlanApplicationTest do
     }
 
     plan = %{
-      "rooms" => %{
+      "areas" => %{
         "1" => %{"action" => "skip"}
       },
       "lights" => %{},
@@ -45,15 +45,15 @@ defmodule Hueworks.Import.PlanApplicationTest do
     }
 
     assert :ok == Materialize.materialize(bridge, normalized, plan)
-    assert Repo.aggregate(Room, :count) == 0
+    assert Repo.aggregate(Area, :count) == 0
   end
 
-  test "room merge plan assigns lights to target room" do
+  test "area merge plan assigns lights to target area" do
     bridge = insert_bridge(%{host: "10.0.0.201"})
-    target_room = Repo.insert!(%Room{name: "Existing"})
+    target_area = Repo.insert!(%Area{name: "Existing"})
 
     normalized = %{
-      rooms: [
+      areas: [
         %{
           source: :hue,
           source_id: "1",
@@ -67,7 +67,7 @@ defmodule Hueworks.Import.PlanApplicationTest do
           source: :hue,
           source_id: "1",
           name: "Lamp",
-          room_source_id: "1",
+          area_source_id: "1",
           capabilities: %{},
           identifiers: %{},
           metadata: %{}
@@ -78,7 +78,7 @@ defmodule Hueworks.Import.PlanApplicationTest do
           source: :hue,
           source_id: "2",
           name: "Office Group",
-          room_source_id: "1",
+          area_source_id: "1",
           type: "group",
           capabilities: %{},
           metadata: %{}
@@ -88,8 +88,8 @@ defmodule Hueworks.Import.PlanApplicationTest do
     }
 
     plan = %{
-      "rooms" => %{
-        "1" => %{"action" => "merge", "target_room_id" => Integer.to_string(target_room.id)}
+      "areas" => %{
+        "1" => %{"action" => "merge", "target_area_id" => Integer.to_string(target_area.id)}
       },
       "lights" => %{"1" => true},
       "groups" => %{"2" => true}
@@ -100,17 +100,17 @@ defmodule Hueworks.Import.PlanApplicationTest do
     light = Repo.get_by!(Light, bridge_id: bridge.id, source_id: "1")
     group = Repo.get_by!(Group, bridge_id: bridge.id, source_id: "2")
 
-    assert light.room_id == target_room.id
-    assert group.room_id == target_room.id
-    assert Repo.aggregate(Room, :count) == 1
+    assert light.area_id == target_area.id
+    assert group.area_id == target_area.id
+    assert Repo.aggregate(Area, :count) == 1
   end
 
-  test "room skip does not delete existing room" do
+  test "area skip does not delete existing area" do
     bridge = insert_bridge(%{host: "10.0.0.202"})
-    existing_room = Repo.insert!(%Room{name: "Office"})
+    existing_area = Repo.insert!(%Area{name: "Office"})
 
     normalized = %{
-      rooms: [
+      areas: [
         %{
           source: :hue,
           source_id: "1",
@@ -125,7 +125,7 @@ defmodule Hueworks.Import.PlanApplicationTest do
     }
 
     plan = %{
-      "rooms" => %{
+      "areas" => %{
         "1" => %{"action" => "skip"}
       },
       "lights" => %{},
@@ -133,22 +133,22 @@ defmodule Hueworks.Import.PlanApplicationTest do
     }
 
     assert :ok == Materialize.materialize(bridge, normalized, plan)
-    assert Repo.get(Room, existing_room.id)
-    assert Repo.aggregate(Room, :count) == 1
+    assert Repo.get(Area, existing_area.id)
+    assert Repo.aggregate(Area, :count) == 1
   end
 
-  test "per-entity target room assigns unassigned lights and groups to an existing room" do
+  test "per-entity target area assigns unassigned lights and groups to an existing area" do
     bridge = insert_bridge(%{host: "10.0.0.203"})
-    target_room = Repo.insert!(%Room{name: "Assigned"})
+    target_area = Repo.insert!(%Area{name: "Assigned"})
 
     normalized = %{
-      rooms: [],
+      areas: [],
       lights: [
         %{
           source: :hue,
           source_id: "1",
           name: "Lamp",
-          room_source_id: nil,
+          area_source_id: nil,
           capabilities: %{},
           identifiers: %{},
           metadata: %{}
@@ -159,7 +159,7 @@ defmodule Hueworks.Import.PlanApplicationTest do
           source: :hue,
           source_id: "2",
           name: "Group",
-          room_source_id: nil,
+          area_source_id: nil,
           type: "group",
           capabilities: %{},
           metadata: %{}
@@ -169,12 +169,12 @@ defmodule Hueworks.Import.PlanApplicationTest do
     }
 
     plan = %{
-      "rooms" => %{},
+      "areas" => %{},
       "lights" => %{
-        "1" => %{"selected" => true, "target_room_id" => Integer.to_string(target_room.id)}
+        "1" => %{"selected" => true, "target_area_id" => Integer.to_string(target_area.id)}
       },
       "groups" => %{
-        "2" => %{"selected" => true, "target_room_id" => Integer.to_string(target_room.id)}
+        "2" => %{"selected" => true, "target_area_id" => Integer.to_string(target_area.id)}
       }
     }
 
@@ -183,7 +183,7 @@ defmodule Hueworks.Import.PlanApplicationTest do
     light = Repo.get_by!(Light, bridge_id: bridge.id, source_id: "1")
     group = Repo.get_by!(Group, bridge_id: bridge.id, source_id: "2")
 
-    assert light.room_id == target_room.id
-    assert group.room_id == target_room.id
+    assert light.area_id == target_area.id
+    assert group.area_id == target_area.id
   end
 end

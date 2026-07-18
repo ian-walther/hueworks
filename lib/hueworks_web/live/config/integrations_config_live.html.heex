@@ -14,17 +14,17 @@
         </div>
         <span class={[
           "hw-status-badge",
-          (@ha_export_scenes_enabled or @ha_export_room_selects_enabled or @ha_export_lights_enabled) &&
+          (@ha_export_scenes_enabled or @ha_export_area_selects_enabled or @ha_export_lights_enabled) &&
             "hw-status-badge-success"
         ]}>
-          <%= if @ha_export_scenes_enabled or @ha_export_room_selects_enabled or @ha_export_lights_enabled,
+          <%= if @ha_export_scenes_enabled or @ha_export_area_selects_enabled or @ha_export_lights_enabled,
             do: "Enabled",
             else: "Off" %>
         </span>
       </div>
 
       <p class="hw-muted">
-        Publish HueWorks scenes, room scene selectors, and opt-in lights/groups into Home Assistant.
+        Publish HueWorks scenes, area scene selectors, and opt-in lights/groups into Home Assistant.
       </p>
 
       <form class="hw-form" phx-change="update_ha_export" phx-submit="save_ha_export">
@@ -41,19 +41,19 @@
           <span>Publish HueWorks scenes into Home Assistant.</span>
         </label>
 
-        <label class="hw-field-label" for="ha_export_room_selects_enabled">
-          Export Room Scene Selectors
+        <label class="hw-field-label" for="ha_export_area_selects_enabled">
+          Export Area Scene Selectors
         </label>
-        <input type="hidden" name="ha_export_room_selects_enabled" value="false" />
+        <input type="hidden" name="ha_export_area_selects_enabled" value="false" />
         <label class="hw-toggle">
           <input
-            id="ha_export_room_selects_enabled"
-            name="ha_export_room_selects_enabled"
+            id="ha_export_area_selects_enabled"
+            name="ha_export_area_selects_enabled"
             type="checkbox"
             value="true"
-            checked={@ha_export_room_selects_enabled}
+            checked={@ha_export_area_selects_enabled}
           />
-          <span>Publish room-level scene dropdown selectors into Home Assistant.</span>
+          <span>Publish area-level scene dropdown selectors into Home Assistant.</span>
         </label>
 
         <label class="hw-field-label" for="ha_export_lights_enabled">Export Lights and Groups</label>
@@ -142,7 +142,7 @@
             type="button"
             class="hw-button"
             phx-click="republish_ha_export_entities"
-            disabled={!(@ha_export_scenes_enabled or @ha_export_room_selects_enabled or @ha_export_lights_enabled)}
+            disabled={!(@ha_export_scenes_enabled or @ha_export_area_selects_enabled or @ha_export_lights_enabled)}
           >
             Republish Exported Entities
           </button>

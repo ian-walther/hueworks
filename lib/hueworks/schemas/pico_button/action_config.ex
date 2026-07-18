@@ -11,10 +11,10 @@ defmodule Hueworks.Schemas.PicoButton.ActionConfig do
     field(:scene_id, :integer)
     field(:target_ids, {:array, :string}, default: [])
     field(:light_ids, {:array, :integer}, default: [])
-    field(:room_id, :integer)
+    field(:area_id, :integer)
   end
 
-  @fields [:target_kind, :scene_id, :target_ids, :light_ids, :room_id]
+  @fields [:target_kind, :scene_id, :target_ids, :light_ids, :area_id]
 
   def load(%__MODULE__{} = config), do: config
 
@@ -69,7 +69,7 @@ defmodule Hueworks.Schemas.PicoButton.ActionConfig do
     |> maybe_put("target_id", target_id(config))
     |> maybe_put_if("target_ids", target_ids(config), fn ids -> ids != [] end)
     |> maybe_put_if("light_ids", config.light_ids, fn ids -> ids != [] end)
-    |> maybe_put("room_id", config.room_id)
+    |> maybe_put("area_id", config.area_id)
   end
 
   defp normalize_input(attrs) do
@@ -90,8 +90,8 @@ defmodule Hueworks.Schemas.PicoButton.ActionConfig do
       fn ids -> ids != [] end
     )
     |> maybe_put(
-      "room_id",
-      Util.parse_optional_integer(Map.get(attrs, :room_id) || Map.get(attrs, "room_id"))
+      "area_id",
+      Util.parse_optional_integer(Map.get(attrs, :area_id) || Map.get(attrs, "area_id"))
     )
   end
 

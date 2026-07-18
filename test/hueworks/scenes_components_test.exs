@@ -14,13 +14,13 @@ defmodule Hueworks.ScenesComponentsTest do
     Light,
     LightState,
     PresenceInput,
-    Room,
+    Area,
     SceneComponent,
     SceneComponentLight
   }
 
-  defp insert_room do
-    Repo.insert!(%Room{name: "Studio", metadata: %{}})
+  defp insert_area do
+    Repo.insert!(%Area{name: "Studio", metadata: %{}})
   end
 
   defp insert_bridge do
@@ -34,13 +34,13 @@ defmodule Hueworks.ScenesComponentsTest do
     })
   end
 
-  defp insert_light(room, bridge, attrs) do
+  defp insert_light(area, bridge, attrs) do
     defaults = %{
       name: "Light",
       source: :hue,
       source_id: Integer.to_string(System.unique_integer([:positive])),
       bridge_id: bridge.id,
-      room_id: room.id,
+      area_id: area.id,
       metadata: %{}
     }
 
@@ -48,13 +48,13 @@ defmodule Hueworks.ScenesComponentsTest do
   end
 
   test "replace_scene_components persists components and lights" do
-    room = insert_room()
+    area = insert_area()
     bridge = insert_bridge()
-    light1 = insert_light(room, bridge, %{name: "Lamp"})
-    light2 = insert_light(room, bridge, %{name: "Ceiling"})
+    light1 = insert_light(area, bridge, %{name: "Lamp"})
+    light2 = insert_light(area, bridge, %{name: "Ceiling"})
     {:ok, state} = Scenes.create_manual_light_state("Soft")
 
-    {:ok, scene} = Scenes.create_scene(%{name: "Chill", room_id: room.id})
+    {:ok, scene} = Scenes.create_scene(%{name: "Chill", area_id: area.id})
 
     components = [
       %{name: "Component 1", light_ids: [light1.id], light_state_id: to_string(state.id)},
@@ -72,11 +72,11 @@ defmodule Hueworks.ScenesComponentsTest do
   end
 
   test "replace_scene_components returns an error when no light state is specified" do
-    room = insert_room()
+    area = insert_area()
     bridge = insert_bridge()
-    light = insert_light(room, bridge, %{name: "Lamp"})
+    light = insert_light(area, bridge, %{name: "Lamp"})
 
-    {:ok, scene} = Scenes.create_scene(%{name: "Chill", room_id: room.id})
+    {:ok, scene} = Scenes.create_scene(%{name: "Chill", area_id: area.id})
 
     assert {:error, :invalid_light_state} =
              Scenes.replace_scene_components(scene, [
@@ -85,11 +85,11 @@ defmodule Hueworks.ScenesComponentsTest do
   end
 
   test "replace_scene_components persists embedded manual light state configs" do
-    room = insert_room()
+    area = insert_area()
     bridge = insert_bridge()
-    light = insert_light(room, bridge, %{name: "Lamp"})
+    light = insert_light(area, bridge, %{name: "Lamp"})
 
-    {:ok, scene} = Scenes.create_scene(%{name: "Chill", room_id: room.id})
+    {:ok, scene} = Scenes.create_scene(%{name: "Chill", area_id: area.id})
 
     {:ok, _} =
       Scenes.replace_scene_components(scene, [
@@ -121,9 +121,9 @@ defmodule Hueworks.ScenesComponentsTest do
   end
 
   test "replace_scene_components rejects manual color states for non-color lights" do
-    room = insert_room()
+    area = insert_area()
     bridge = insert_bridge()
-    light = insert_light(room, bridge, %{name: "Lamp", supports_color: false})
+    light = insert_light(area, bridge, %{name: "Lamp", supports_color: false})
 
     {:ok, state} =
       Scenes.create_manual_light_state("Color", %{
@@ -133,7 +133,7 @@ defmodule Hueworks.ScenesComponentsTest do
         "saturation" => "60"
       })
 
-    {:ok, scene} = Scenes.create_scene(%{name: "Chill", room_id: room.id})
+    {:ok, scene} = Scenes.create_scene(%{name: "Chill", area_id: area.id})
 
     assert {:error, :invalid_color_targets} =
              Scenes.replace_scene_components(scene, [
@@ -142,9 +142,9 @@ defmodule Hueworks.ScenesComponentsTest do
   end
 
   test "replace_scene_components rejects atom-keyed manual color states for non-color lights" do
-    room = insert_room()
+    area = insert_area()
     bridge = insert_bridge()
-    light = insert_light(room, bridge, %{name: "Lamp", supports_color: false})
+    light = insert_light(area, bridge, %{name: "Lamp", supports_color: false})
 
     state =
       Repo.insert!(%LightState{
@@ -153,7 +153,7 @@ defmodule Hueworks.ScenesComponentsTest do
         config: %{mode: :color, brightness: 70, hue: 210, saturation: 60}
       })
 
-    {:ok, scene} = Scenes.create_scene(%{name: "Chill", room_id: room.id})
+    {:ok, scene} = Scenes.create_scene(%{name: "Chill", area_id: area.id})
 
     assert {:error, :invalid_color_targets} =
              Scenes.replace_scene_components(scene, [
@@ -162,11 +162,11 @@ defmodule Hueworks.ScenesComponentsTest do
   end
 
   test "replace_scene_components rejects embedded custom color states for non-color lights" do
-    room = insert_room()
+    area = insert_area()
     bridge = insert_bridge()
-    light = insert_light(room, bridge, %{name: "Lamp", supports_color: false})
+    light = insert_light(area, bridge, %{name: "Lamp", supports_color: false})
 
-    {:ok, scene} = Scenes.create_scene(%{name: "Chill", room_id: room.id})
+    {:ok, scene} = Scenes.create_scene(%{name: "Chill", area_id: area.id})
 
     assert {:error, :invalid_color_targets} =
              Scenes.replace_scene_components(scene, [
@@ -184,12 +184,12 @@ defmodule Hueworks.ScenesComponentsTest do
   end
 
   test "replace_scene_components uses selected manual light states without creating new ones" do
-    room = insert_room()
+    area = insert_area()
     bridge = insert_bridge()
-    light = insert_light(room, bridge, %{name: "Lamp"})
+    light = insert_light(area, bridge, %{name: "Lamp"})
 
     {:ok, state} = Scenes.create_manual_light_state("Soft")
-    {:ok, scene} = Scenes.create_scene(%{name: "Chill", room_id: room.id})
+    {:ok, scene} = Scenes.create_scene(%{name: "Chill", area_id: area.id})
 
     {:ok, _} =
       Scenes.replace_scene_components(scene, [
@@ -209,13 +209,13 @@ defmodule Hueworks.ScenesComponentsTest do
   end
 
   test "replace_scene_components does not delete unused manual light states" do
-    room = insert_room()
+    area = insert_area()
     bridge = insert_bridge()
-    light = insert_light(room, bridge, %{name: "Lamp"})
+    light = insert_light(area, bridge, %{name: "Lamp"})
 
     {:ok, state} = Scenes.create_manual_light_state("Soft")
     {:ok, other_state} = Scenes.create_manual_light_state("Warm")
-    {:ok, scene} = Scenes.create_scene(%{name: "Chill", room_id: room.id})
+    {:ok, scene} = Scenes.create_scene(%{name: "Chill", area_id: area.id})
 
     {:ok, _} =
       Scenes.replace_scene_components(scene, [
@@ -239,13 +239,13 @@ defmodule Hueworks.ScenesComponentsTest do
   end
 
   test "replace_scene_components removes old join rows" do
-    room = insert_room()
+    area = insert_area()
     bridge = insert_bridge()
-    light1 = insert_light(room, bridge, %{name: "Lamp"})
-    light2 = insert_light(room, bridge, %{name: "Ceiling"})
+    light1 = insert_light(area, bridge, %{name: "Lamp"})
+    light2 = insert_light(area, bridge, %{name: "Ceiling"})
     {:ok, state} = Scenes.create_manual_light_state("Soft")
 
-    {:ok, scene} = Scenes.create_scene(%{name: "Chill", room_id: room.id})
+    {:ok, scene} = Scenes.create_scene(%{name: "Chill", area_id: area.id})
 
     {:ok, _} =
       Scenes.replace_scene_components(scene, [
@@ -275,13 +275,13 @@ defmodule Hueworks.ScenesComponentsTest do
   end
 
   test "replace_scene_components persists per-light default power values" do
-    room = insert_room()
+    area = insert_area()
     bridge = insert_bridge()
-    light1 = insert_light(room, bridge, %{name: "Lamp"})
-    light2 = insert_light(room, bridge, %{name: "Ceiling"})
+    light1 = insert_light(area, bridge, %{name: "Lamp"})
+    light2 = insert_light(area, bridge, %{name: "Ceiling"})
 
     {:ok, state} = Scenes.create_manual_light_state("Soft")
-    {:ok, scene} = Scenes.create_scene(%{name: "Chill", room_id: room.id})
+    {:ok, scene} = Scenes.create_scene(%{name: "Chill", area_id: area.id})
 
     {:ok, _} =
       Scenes.replace_scene_components(scene, [
@@ -309,13 +309,13 @@ defmodule Hueworks.ScenesComponentsTest do
   end
 
   test "replace_scene_components persists follow presence policy and selected presence input" do
-    room = insert_room()
+    area = insert_area()
     bridge = insert_bridge()
-    light = insert_light(room, bridge, %{name: "Lamp"})
-    presence_input = Repo.insert!(%PresenceInput{room_id: room.id, name: "Desk Presence"})
+    light = insert_light(area, bridge, %{name: "Lamp"})
+    presence_input = Repo.insert!(%PresenceInput{area_id: area.id, name: "Desk Presence"})
 
     {:ok, state} = Scenes.create_manual_light_state("Soft")
-    {:ok, scene} = Scenes.create_scene(%{name: "Chill", room_id: room.id})
+    {:ok, scene} = Scenes.create_scene(%{name: "Chill", area_id: area.id})
 
     {:ok, _} =
       Scenes.replace_scene_components(scene, [
@@ -342,17 +342,17 @@ defmodule Hueworks.ScenesComponentsTest do
   end
 
   test "apply_scene resolves follow presence from selected presence input state" do
-    room = insert_room()
+    area = insert_area()
     bridge = insert_bridge()
-    light = insert_light(room, bridge, %{name: "Lamp"})
+    light = insert_light(area, bridge, %{name: "Lamp"})
 
     presence_input =
-      Repo.insert!(%PresenceInput{room_id: room.id, name: "Desk Presence", occupied: true})
+      Repo.insert!(%PresenceInput{area_id: area.id, name: "Desk Presence", occupied: true})
 
     {:ok, state} =
       Scenes.create_manual_light_state("Soft", %{"brightness" => "40", "temperature" => "3000"})
 
-    {:ok, scene} = Scenes.create_scene(%{name: "Chill", room_id: room.id})
+    {:ok, scene} = Scenes.create_scene(%{name: "Chill", area_id: area.id})
 
     {:ok, _} =
       Scenes.replace_scene_components(scene, [
@@ -379,9 +379,9 @@ defmodule Hueworks.ScenesComponentsTest do
   end
 
   test "refresh_active_scene reapplies updated scene component state immediately" do
-    room = insert_room()
+    area = insert_area()
     bridge = insert_bridge()
-    light = insert_light(room, bridge, %{name: "Lamp"})
+    light = insert_light(area, bridge, %{name: "Lamp"})
 
     {:ok, state_a} =
       Scenes.create_manual_light_state("Soft", %{"brightness" => "40", "temperature" => "3000"})
@@ -389,7 +389,7 @@ defmodule Hueworks.ScenesComponentsTest do
     {:ok, state_b} =
       Scenes.create_manual_light_state("Warm", %{"brightness" => "60", "temperature" => "3500"})
 
-    {:ok, scene} = Scenes.create_scene(%{name: "Chill", room_id: room.id})
+    {:ok, scene} = Scenes.create_scene(%{name: "Chill", area_id: area.id})
 
     {:ok, _} =
       Scenes.replace_scene_components(scene, [
@@ -408,18 +408,18 @@ defmodule Hueworks.ScenesComponentsTest do
 
     assert {:ok, _diff, _updated} = Scenes.refresh_active_scene(scene.id)
     assert DesiredState.get(:light, light.id) == %{power: :on, brightness: 60, kelvin: 3500}
-    assert %ActiveScene{} = ActiveScenes.get_for_room(room.id)
+    assert %ActiveScene{} = ActiveScenes.get_for_area(area.id)
   end
 
   test "refresh_active_scenes_for_light_state reapplies active scenes using the updated light state" do
-    room = insert_room()
+    area = insert_area()
     bridge = insert_bridge()
-    light = insert_light(room, bridge, %{name: "Lamp"})
+    light = insert_light(area, bridge, %{name: "Lamp"})
 
     {:ok, state} =
       Scenes.create_manual_light_state("Soft", %{"brightness" => "40", "temperature" => "3000"})
 
-    {:ok, scene} = Scenes.create_scene(%{name: "Chill", room_id: room.id})
+    {:ok, scene} = Scenes.create_scene(%{name: "Chill", area_id: area.id})
 
     {:ok, _} =
       Scenes.replace_scene_components(scene, [
@@ -442,15 +442,15 @@ defmodule Hueworks.ScenesComponentsTest do
   end
 
   test "activate_scene updates desired state for scene lights" do
-    room = insert_room()
+    area = insert_area()
     bridge = insert_bridge()
-    light1 = insert_light(room, bridge, %{name: "Lamp"})
-    light2 = insert_light(room, bridge, %{name: "Ceiling"})
+    light1 = insert_light(area, bridge, %{name: "Lamp"})
+    light2 = insert_light(area, bridge, %{name: "Ceiling"})
 
     {:ok, state} =
       Scenes.create_manual_light_state("Soft", %{"brightness" => "40", "temperature" => "3000"})
 
-    {:ok, scene} = Scenes.create_scene(%{name: "Chill", room_id: room.id})
+    {:ok, scene} = Scenes.create_scene(%{name: "Chill", area_id: area.id})
 
     {:ok, _} =
       Scenes.replace_scene_components(scene, [
@@ -468,14 +468,14 @@ defmodule Hueworks.ScenesComponentsTest do
   end
 
   test "toggle_activation activates inactive scenes and deactivates active scenes" do
-    room = insert_room()
+    area = insert_area()
     bridge = insert_bridge()
-    light = insert_light(room, bridge, %{name: "Lamp"})
+    light = insert_light(area, bridge, %{name: "Lamp"})
 
     {:ok, state} =
       Scenes.create_manual_light_state("Soft", %{"brightness" => "40", "temperature" => "3000"})
 
-    {:ok, scene} = Scenes.create_scene(%{name: "Chill", room_id: room.id})
+    {:ok, scene} = Scenes.create_scene(%{name: "Chill", area_id: area.id})
 
     {:ok, _} =
       Scenes.replace_scene_components(scene, [
@@ -487,18 +487,18 @@ defmodule Hueworks.ScenesComponentsTest do
 
     assert activated_scene.id == scene.id
     assert diff[{:light, light.id}][:brightness] == 40
-    assert ActiveScenes.get_for_room(room.id).scene_id == scene.id
+    assert ActiveScenes.get_for_area(area.id).scene_id == scene.id
     assert DesiredState.get(:light, light.id)[:power] == :on
 
     assert {:ok, :deactivated, deactivated_scene} = Scenes.toggle_activation(scene.id, :test)
     assert deactivated_scene.id == scene.id
-    refute ActiveScenes.get_for_room(room.id)
+    refute ActiveScenes.get_for_area(area.id)
   end
 
   test "activate_scene materializes manual color states as xy desired state" do
-    room = insert_room()
+    area = insert_area()
     bridge = insert_bridge()
-    light = insert_light(room, bridge, %{name: "Lamp", supports_color: true})
+    light = insert_light(area, bridge, %{name: "Lamp", supports_color: true})
 
     {:ok, state} =
       Scenes.create_manual_light_state("Blue", %{
@@ -508,7 +508,7 @@ defmodule Hueworks.ScenesComponentsTest do
         "saturation" => "60"
       })
 
-    {:ok, scene} = Scenes.create_scene(%{name: "Color", room_id: room.id})
+    {:ok, scene} = Scenes.create_scene(%{name: "Color", area_id: area.id})
 
     {:ok, _} =
       Scenes.replace_scene_components(scene, [
@@ -525,14 +525,14 @@ defmodule Hueworks.ScenesComponentsTest do
   end
 
   test "refresh_active_scene clears stale kelvin when a light moves from circadian to manual color" do
-    room = insert_room()
+    area = insert_area()
     bridge = insert_bridge()
 
     light1 =
-      insert_light(room, bridge, %{name: "Lamp 1", supports_color: true, supports_temp: true})
+      insert_light(area, bridge, %{name: "Lamp 1", supports_color: true, supports_temp: true})
 
     light2 =
-      insert_light(room, bridge, %{name: "Lamp 2", supports_color: true, supports_temp: true})
+      insert_light(area, bridge, %{name: "Lamp 2", supports_color: true, supports_temp: true})
 
     {:ok, circadian} =
       Scenes.create_light_state("Circadian", :circadian, %{
@@ -552,7 +552,7 @@ defmodule Hueworks.ScenesComponentsTest do
         "saturation" => "60"
       })
 
-    {:ok, scene} = Scenes.create_scene(%{name: "Mixed", room_id: room.id})
+    {:ok, scene} = Scenes.create_scene(%{name: "Mixed", area_id: area.id})
 
     {:ok, _} =
       Scenes.replace_scene_components(scene, [
@@ -590,9 +590,9 @@ defmodule Hueworks.ScenesComponentsTest do
   end
 
   test "apply_scene computes circadian brightness and kelvin for circadian light states" do
-    room = insert_room()
+    area = insert_area()
     bridge = insert_bridge()
-    light = insert_light(room, bridge, %{name: "Lamp"})
+    light = insert_light(area, bridge, %{name: "Lamp"})
 
     {:ok, state} =
       Scenes.create_light_state("Circadian", :circadian, %{
@@ -604,7 +604,7 @@ defmodule Hueworks.ScenesComponentsTest do
         "max_color_temp" => 5000
       })
 
-    {:ok, scene} = Scenes.create_scene(%{name: "Daylight", room_id: room.id})
+    {:ok, scene} = Scenes.create_scene(%{name: "Daylight", area_id: area.id})
 
     {:ok, _} =
       Scenes.replace_scene_components(scene, [
@@ -629,14 +629,14 @@ defmodule Hueworks.ScenesComponentsTest do
   end
 
   test "apply_scene replans when physical state still diverges even if desired state is already current" do
-    room = insert_room()
+    area = insert_area()
     bridge = insert_bridge()
-    light = insert_light(room, bridge, %{name: "Lamp"})
+    light = insert_light(area, bridge, %{name: "Lamp"})
 
     {:ok, state} =
       Scenes.create_manual_light_state("Soft", %{"brightness" => "40", "temperature" => "3000"})
 
-    {:ok, scene} = Scenes.create_scene(%{name: "Chill", room_id: room.id})
+    {:ok, scene} = Scenes.create_scene(%{name: "Chill", area_id: area.id})
 
     {:ok, _} =
       Scenes.replace_scene_components(scene, [
@@ -662,9 +662,9 @@ defmodule Hueworks.ScenesComponentsTest do
   end
 
   test "apply_scene preserves manual power-off latch during circadian reapply" do
-    room = insert_room()
+    area = insert_area()
     bridge = insert_bridge()
-    light = insert_light(room, bridge, %{name: "Lamp"})
+    light = insert_light(area, bridge, %{name: "Lamp"})
 
     {:ok, state} =
       Scenes.create_light_state("Circadian", :circadian, %{
@@ -676,7 +676,7 @@ defmodule Hueworks.ScenesComponentsTest do
         "max_color_temp" => 5000
       })
 
-    {:ok, scene} = Scenes.create_scene(%{name: "Daylight", room_id: room.id})
+    {:ok, scene} = Scenes.create_scene(%{name: "Daylight", area_id: area.id})
 
     {:ok, _} =
       Scenes.replace_scene_components(scene, [
@@ -703,9 +703,9 @@ defmodule Hueworks.ScenesComponentsTest do
   end
 
   test "apply_scene restores default-off light despite stale desired on state" do
-    room = insert_room()
+    area = insert_area()
     bridge = insert_bridge()
-    light = insert_light(room, bridge, %{name: "Lamp"})
+    light = insert_light(area, bridge, %{name: "Lamp"})
 
     {:ok, state} =
       Scenes.create_light_state("Circadian", :circadian, %{
@@ -717,7 +717,7 @@ defmodule Hueworks.ScenesComponentsTest do
         "max_color_temp" => 5000
       })
 
-    {:ok, scene} = Scenes.create_scene(%{name: "Daylight", room_id: room.id})
+    {:ok, scene} = Scenes.create_scene(%{name: "Daylight", area_id: area.id})
 
     {:ok, _} =
       Scenes.replace_scene_components(scene, [
@@ -748,9 +748,9 @@ defmodule Hueworks.ScenesComponentsTest do
   end
 
   test "apply_scene clears previous power latch on fresh scene activation semantics" do
-    room = insert_room()
+    area = insert_area()
     bridge = insert_bridge()
-    light = insert_light(room, bridge, %{name: "Lamp"})
+    light = insert_light(area, bridge, %{name: "Lamp"})
 
     {:ok, state} =
       Scenes.create_light_state("Circadian", :circadian, %{
@@ -762,7 +762,7 @@ defmodule Hueworks.ScenesComponentsTest do
         "max_color_temp" => 5000
       })
 
-    {:ok, scene} = Scenes.create_scene(%{name: "Daylight", room_id: room.id})
+    {:ok, scene} = Scenes.create_scene(%{name: "Daylight", area_id: area.id})
 
     {:ok, _} =
       Scenes.replace_scene_components(scene, [
@@ -791,9 +791,9 @@ defmodule Hueworks.ScenesComponentsTest do
   end
 
   test "active scene refresh does not preserve default-off light without power override" do
-    room = insert_room()
+    area = insert_area()
     bridge = insert_bridge()
-    light = insert_light(room, bridge, %{name: "Recessed"})
+    light = insert_light(area, bridge, %{name: "Recessed"})
 
     {:ok, state} =
       Scenes.create_light_state("Circadian", :circadian, %{
@@ -805,7 +805,7 @@ defmodule Hueworks.ScenesComponentsTest do
         "max_color_temp" => 5000
       })
 
-    {:ok, scene} = Scenes.create_scene(%{name: "Evening Auto", room_id: room.id})
+    {:ok, scene} = Scenes.create_scene(%{name: "Evening Auto", area_id: area.id})
 
     {:ok, _} =
       Scenes.replace_scene_components(scene, [
@@ -828,7 +828,7 @@ defmodule Hueworks.ScenesComponentsTest do
     _ = DesiredState.put(:light, light.id, %{power: :on, brightness: 85, kelvin: 2000})
 
     {:ok, _diff, _updated} =
-      Scenes.apply_active_scene(scene, ActiveScenes.get_for_room(room.id),
+      Scenes.apply_active_scene(scene, ActiveScenes.get_for_area(area.id),
         preserve_power_latches: true,
         now: utc_dt("2026-03-08T12:00:00Z")
       )
@@ -860,11 +860,11 @@ defmodule Hueworks.ScenesComponentsTest do
     Application.put_env(:hueworks, :control_executor_enabled, true)
     Application.put_env(:hueworks, :control_executor_server, :scene_trace_executor)
 
-    room = insert_room()
+    area = insert_area()
     bridge = insert_bridge()
-    light = insert_light(room, bridge, %{name: "Lamp"})
+    light = insert_light(area, bridge, %{name: "Lamp"})
     {:ok, state} = Scenes.create_manual_light_state("Soft", %{"brightness" => "40"})
-    {:ok, scene} = Scenes.create_scene(%{name: "Chill", room_id: room.id})
+    {:ok, scene} = Scenes.create_scene(%{name: "Chill", area_id: area.id})
 
     {:ok, _} =
       Scenes.replace_scene_components(scene, [
@@ -878,14 +878,14 @@ defmodule Hueworks.ScenesComponentsTest do
     assert is_binary(action.trace_id)
     assert String.starts_with?(action.trace_id, "scene-#{scene.id}-")
     assert action.trace_source == "scenes.apply_scene"
-    assert action.trace_room_id == room.id
+    assert action.trace_area_id == area.id
     assert action.trace_scene_id == scene.id
   end
 
   test "active scene reapply preserves manual off latch after desired-state restart" do
-    room = insert_room()
+    area = insert_area()
     bridge = insert_bridge()
-    light = insert_light(room, bridge, %{name: "Lamp"})
+    light = insert_light(area, bridge, %{name: "Lamp"})
 
     {:ok, state} =
       Scenes.create_light_state("Circadian", :circadian, %{
@@ -897,7 +897,7 @@ defmodule Hueworks.ScenesComponentsTest do
         "max_color_temp" => 5000
       })
 
-    {:ok, scene} = Scenes.create_scene(%{name: "Daylight", room_id: room.id})
+    {:ok, scene} = Scenes.create_scene(%{name: "Daylight", area_id: area.id})
 
     {:ok, _} =
       Scenes.replace_scene_components(scene, [
@@ -914,14 +914,14 @@ defmodule Hueworks.ScenesComponentsTest do
     {:ok, _} = ActiveScenes.set_active(scene)
 
     assert {:ok, %{power: :off}} =
-             ManualControl.apply_power_action(room.id, [light.id], :off)
+             ManualControl.apply_power_action(area.id, [light.id], :off)
 
     if :ets.whereis(:hueworks_desired_state) != :undefined do
       :ets.delete_all_objects(:hueworks_desired_state)
     end
 
     {:ok, _diff, _updated} =
-      Scenes.apply_active_scene(scene, ActiveScenes.get_for_room(room.id),
+      Scenes.apply_active_scene(scene, ActiveScenes.get_for_area(area.id),
         preserve_power_latches: true,
         now: utc_dt("2026-03-08T12:00:00Z")
       )
@@ -935,15 +935,15 @@ defmodule Hueworks.ScenesComponentsTest do
   end
 
   test "apply_scene uses per-light default power while keeping shared manual values" do
-    room = insert_room()
+    area = insert_area()
     bridge = insert_bridge()
-    light1 = insert_light(room, bridge, %{name: "Lamp"})
-    light2 = insert_light(room, bridge, %{name: "Ceiling"})
+    light1 = insert_light(area, bridge, %{name: "Lamp"})
+    light2 = insert_light(area, bridge, %{name: "Ceiling"})
 
     {:ok, state} =
       Scenes.create_manual_light_state("Soft", %{"brightness" => "40", "temperature" => "3000"})
 
-    {:ok, scene} = Scenes.create_scene(%{name: "Chill", room_id: room.id})
+    {:ok, scene} = Scenes.create_scene(%{name: "Chill", area_id: area.id})
 
     {:ok, _} =
       Scenes.replace_scene_components(scene, [
@@ -979,15 +979,15 @@ defmodule Hueworks.ScenesComponentsTest do
   end
 
   test "active scene manual power can turn on a default-off light" do
-    room = insert_room()
+    area = insert_area()
     bridge = insert_bridge()
-    cove = insert_light(room, bridge, %{name: "Cove"})
-    ceiling = insert_light(room, bridge, %{name: "Ceiling"})
+    cove = insert_light(area, bridge, %{name: "Cove"})
+    ceiling = insert_light(area, bridge, %{name: "Ceiling"})
 
     {:ok, state} =
       Scenes.create_manual_light_state("Evening", %{"brightness" => "40", "temperature" => "3000"})
 
-    {:ok, scene} = Scenes.create_scene(%{name: "Evening", room_id: room.id})
+    {:ok, scene} = Scenes.create_scene(%{name: "Evening", area_id: area.id})
 
     {:ok, _} =
       Scenes.replace_scene_components(scene, [
@@ -1004,21 +1004,21 @@ defmodule Hueworks.ScenesComponentsTest do
 
     assert DesiredState.get(:light, ceiling.id)[:power] == :off
 
-    assert {:ok, _result} = ManualControl.apply_power_action(room.id, [cove.id, ceiling.id], :on)
+    assert {:ok, _result} = ManualControl.apply_power_action(area.id, [cove.id, ceiling.id], :on)
 
     assert DesiredState.get(:light, cove.id)[:power] == :on
     assert DesiredState.get(:light, ceiling.id)[:power] == :on
   end
 
   test "active scene manual power can turn on a follow-presence light" do
-    room = insert_room()
+    area = insert_area()
     bridge = insert_bridge()
-    cove = insert_light(room, bridge, %{name: "Cove"})
-    ceiling = insert_light(room, bridge, %{name: "Ceiling"})
+    cove = insert_light(area, bridge, %{name: "Cove"})
+    ceiling = insert_light(area, bridge, %{name: "Ceiling"})
 
     presence_input =
       Repo.insert!(%Hueworks.Schemas.PresenceInput{
-        room_id: room.id,
+        area_id: area.id,
         name: "Desk Presence",
         occupied: false
       })
@@ -1026,7 +1026,7 @@ defmodule Hueworks.ScenesComponentsTest do
     {:ok, state} =
       Scenes.create_manual_light_state("Evening", %{"brightness" => "40", "temperature" => "3000"})
 
-    {:ok, scene} = Scenes.create_scene(%{name: "Evening", room_id: room.id})
+    {:ok, scene} = Scenes.create_scene(%{name: "Evening", area_id: area.id})
 
     {:ok, _} =
       Scenes.replace_scene_components(scene, [
@@ -1044,22 +1044,22 @@ defmodule Hueworks.ScenesComponentsTest do
 
     assert DesiredState.get(:light, ceiling.id)[:power] == :off
 
-    assert {:ok, _result} = ManualControl.apply_power_action(room.id, [cove.id, ceiling.id], :on)
+    assert {:ok, _result} = ManualControl.apply_power_action(area.id, [cove.id, ceiling.id], :on)
 
     assert DesiredState.get(:light, cove.id)[:power] == :on
     assert DesiredState.get(:light, ceiling.id)[:power] == :on
   end
 
   test "active scene manual power cannot turn on a force-off light" do
-    room = insert_room()
+    area = insert_area()
     bridge = insert_bridge()
-    cove = insert_light(room, bridge, %{name: "Cove"})
-    ceiling = insert_light(room, bridge, %{name: "Ceiling"})
+    cove = insert_light(area, bridge, %{name: "Cove"})
+    ceiling = insert_light(area, bridge, %{name: "Ceiling"})
 
     {:ok, state} =
       Scenes.create_manual_light_state("Evening", %{"brightness" => "40", "temperature" => "3000"})
 
-    {:ok, scene} = Scenes.create_scene(%{name: "Evening", room_id: room.id})
+    {:ok, scene} = Scenes.create_scene(%{name: "Evening", area_id: area.id})
 
     {:ok, _} =
       Scenes.replace_scene_components(scene, [
@@ -1076,7 +1076,7 @@ defmodule Hueworks.ScenesComponentsTest do
 
     assert DesiredState.get(:light, ceiling.id)[:power] == :off
 
-    assert {:ok, _result} = ManualControl.apply_power_action(room.id, [cove.id, ceiling.id], :on)
+    assert {:ok, _result} = ManualControl.apply_power_action(area.id, [cove.id, ceiling.id], :on)
 
     assert DesiredState.get(:light, cove.id)[:power] == :on
     assert DesiredState.get(:light, ceiling.id)[:power] == :off

@@ -67,7 +67,7 @@
                   <h3><%= display_name(pico) %></h3>
                 </div>
                 <p class="hw-meta">buttons: <%= length(pico.buttons) %></p>
-                <p class="hw-meta">room: <%= if pico.room, do: pico.room.display_name || pico.room.name, else: "Unassigned" %></p>
+                <p class="hw-meta">area: <%= if pico.area, do: pico.area.display_name || pico.area.name, else: "Unassigned" %></p>
                 <div class="hw-actions">
                   <button type="button" class="hw-button" phx-click="select_pico" phx-value-id={pico.id}>
                     Configure
@@ -151,28 +151,28 @@
 
       <div class="hw-section-block">
         <div class="hw-pico-section-row">
-        <form class="hw-form hw-pico-section hw-pico-section-card" phx-change="save_room_override">
-          <h3>Room Scope</h3>
+        <form class="hw-form hw-pico-section hw-pico-section-card" phx-change="save_area_override">
+          <h3>Area Scope</h3>
 
-          <label class="hw-field-label" for="pico-room-id">Room</label>
+          <label class="hw-field-label" for="pico-area-id">Area</label>
           <div class="hw-inline-control hw-field-4">
             <div class="hw-inline-field-stack hw-inline-grow">
               <select
-                id="pico-room-id"
-                name="room_id"
+                id="pico-area-id"
+                name="area_id"
                 class="hw-select"
                 disabled={pico_config_locked?(@selected_pico)}
               >
                 <option
                   value=""
-                  selected={!Hueworks.Picos.room_override?(@selected_pico)}
-                  disabled={no_auto_detected_room?(@selected_pico)}
+                  selected={!Hueworks.Picos.area_override?(@selected_pico)}
+                  disabled={no_auto_detected_area?(@selected_pico)}
                 >
-                  <%= auto_detected_room_option_label(@selected_pico, @all_rooms) %>
+                  <%= auto_detected_area_option_label(@selected_pico, @all_areas) %>
                 </option>
-                <%= for room <- @all_rooms do %>
-                  <option value={room.id} selected={@selected_pico.room_id == room.id and Hueworks.Picos.room_override?(@selected_pico)}>
-                    <%= room.display_name || room.name %>
+                <%= for area <- @all_areas do %>
+                  <option value={area.id} selected={@selected_pico.area_id == area.id and Hueworks.Picos.area_override?(@selected_pico)}>
+                    <%= area.display_name || area.name %>
                   </option>
                 <% end %>
               </select>
@@ -180,12 +180,12 @@
 
             <div class="hw-inline-action">
               <button
-                id="pico-clear-room-scope"
+                id="pico-clear-area-scope"
                 type="button"
                 class="hw-button hw-delete-button"
                 phx-click="clear_pico_config"
-                disabled={room_scope_clear_disabled?(@selected_pico)}
-                data-confirm="Clear this Pico config? This restores the auto-detected room and removes all control groups and button bindings."
+                disabled={area_scope_clear_disabled?(@selected_pico)}
+                data-confirm="Clear this Pico config? This restores the auto-detected area and removes all control groups and button bindings."
               >
                 Clear Config
               </button>
@@ -195,7 +195,7 @@
           <%= if pico_config_locked?(@selected_pico) do %>
             <div class="hw-pico-lockout">
               <p class="hw-meta">
-                This Pico has control groups or button bindings. Clear config before changing room.
+                This Pico has control groups or button bindings. Clear config before changing area.
               </p>
             </div>
           <% end %>
@@ -205,7 +205,7 @@
           <div class="hw-form hw-pico-section hw-pico-section-card">
             <.section_heading
               title="Clone From Another Pico"
-              help="Copy room scope, control groups, and button bindings from another Pico on this bridge."
+              help="Copy area scope, control groups, and button bindings from another Pico on this bridge."
             />
 
             <label class="hw-field-label" for="pico-clone-source">Source Pico</label>
@@ -227,7 +227,7 @@
                   type="button"
                   class="hw-button"
                   phx-click="clone_pico_config"
-                  data-confirm="Copy this Pico config? The destination Pico's current room, control groups, and button bindings will be replaced."
+                  data-confirm="Copy this Pico config? The destination Pico's current area, control groups, and button bindings will be replaced."
                 >
                   Copy
                 </button>
@@ -238,15 +238,15 @@
         </div>
       </div>
 
-      <%= if is_nil(@selected_pico.room_id) do %>
+      <%= if is_nil(@selected_pico.area_id) do %>
         <p class="hw-error hw-section-block">
-          This Pico needs a room before control groups or button bindings can be configured.
+          This Pico needs a area before control groups or button bindings can be configured.
         </p>
       <% else %>
         <div class="hw-form hw-pico-section hw-section-block">
           <h3>Control Groups</h3>
           <p class="hw-meta">
-            Define room-scoped target sets for this Pico. Buttons can act on one control group or the union of all control groups.
+            Define area-scoped target sets for this Pico. Buttons can act on one control group or the union of all control groups.
           </p>
 
           <div class="hw-inline-action-row">
@@ -362,14 +362,14 @@
                     <% available_groups =
                       available_control_group_groups(
                         @selected_pico,
-                        @selectable_room_groups,
+                        @selectable_area_groups,
                         @control_group_group_ids,
                         @control_group_light_ids
                       ) %>
                     <% available_lights =
                       available_control_group_lights(
                         @selected_pico,
-                        @selectable_room_lights,
+                        @selectable_area_lights,
                         @control_group_group_ids,
                         @control_group_light_ids
                       ) %>
@@ -395,12 +395,12 @@
                                 name="id"
                               >
                                 <option value="">Select group</option>
-                                <%= for room_group <- available_groups do %>
+                                <%= for area_group <- available_groups do %>
                                   <option
-                                    value={room_group.id}
-                                    selected={@selected_control_group_group_id == room_group.id}
+                                    value={area_group.id}
+                                    selected={@selected_control_group_group_id == area_group.id}
                                   >
-                                    <%= room_group.display_name || room_group.name %>
+                                    <%= area_group.display_name || area_group.name %>
                                   </option>
                                 <% end %>
                               </select>
@@ -450,10 +450,10 @@
                         </div>
                       <% end %>
 
-                      <div class="hw-room-list">
+                      <div class="hw-area-list">
                         <%= for group_id <- @control_group_group_ids do %>
-                          <% selected_group = Enum.find(@room_groups, &(&1.id == group_id)) %>
-                          <span class="hw-room-item hw-room-item-row">
+                          <% selected_group = Enum.find(@area_groups, &(&1.id == group_id)) %>
+                          <span class="hw-area-item hw-area-item-row">
                             <span>
                               <%= if selected_group,
                                 do: selected_group.display_name || selected_group.name,
@@ -472,8 +472,8 @@
                         <% end %>
 
                         <%= for light_id <- @control_group_light_ids do %>
-                          <% selected_light = Enum.find(@room_lights, &(&1.id == light_id)) %>
-                          <span class="hw-room-item hw-room-item-row">
+                          <% selected_light = Enum.find(@area_lights, &(&1.id == light_id)) %>
+                          <span class="hw-area-item hw-area-item-row">
                             <span>
                               <%= if selected_light,
                                 do: selected_light.display_name || selected_light.name,
@@ -514,7 +514,7 @@
                 <option value="on" selected={@binding_action == "on"}>Turn On</option>
                 <option value="off" selected={@binding_action == "off"}>Turn Off</option>
                 <option value="toggle" selected={@binding_action == "toggle"}>Toggle</option>
-                <%= if @room_scenes != [] do %>
+                <%= if @area_scenes != [] do %>
                   <option value="activate_scene" selected={@binding_action == "activate_scene"}>
                     Activate Scene
                   </option>
@@ -527,7 +527,7 @@
                 <label class="hw-field-label" for="pico-binding-target-id">Scene</label>
                 <select id="pico-binding-target-id" class="hw-select" name="target_id">
                   <option value="">Select scene</option>
-                  <%= for scene <- @room_scenes do %>
+                  <%= for scene <- @area_scenes do %>
                     <option value={scene.id} selected={@binding_target_id == scene.id}>
                       <%= scene.name %>
                     </option>

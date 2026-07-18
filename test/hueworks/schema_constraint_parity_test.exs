@@ -1,8 +1,9 @@
 defmodule Hueworks.SchemaConstraintParityTest do
   use Hueworks.DataCase, async: false
 
+  alias Ecto.Adapters.SQL
   alias Hueworks.Repo
-  alias Hueworks.Schemas.{ActiveScene, Light, Room, Scene, SceneComponent, SceneComponentLight}
+  alias Hueworks.Schemas.{ActiveScene, Light, Area, Scene, SceneComponent, SceneComponentLight}
 
   test "scene component light duplicate is returned as a changeset error" do
     bridge =
@@ -13,7 +14,7 @@ defmodule Hueworks.SchemaConstraintParityTest do
         credentials: %{"api_key" => "test"}
       })
 
-    room = Repo.insert!(%Room{name: "Constraint Room"})
+    area = Repo.insert!(%Area{name: "Constraint Area"})
 
     light =
       Repo.insert!(%Light{
@@ -22,10 +23,10 @@ defmodule Hueworks.SchemaConstraintParityTest do
         source: :hue,
         source_id: "constraint-light",
         bridge_id: bridge.id,
-        room_id: room.id
+        area_id: area.id
       })
 
-    scene = Repo.insert!(%Scene{name: "Constraint Scene", room_id: room.id})
+    scene = Repo.insert!(%Scene{name: "Constraint Scene", area_id: area.id})
 
     component =
       Repo.insert!(%SceneComponent{
@@ -49,19 +50,48 @@ defmodule Hueworks.SchemaConstraintParityTest do
     assert "has already been taken" in errors_on(changeset).scene_component_id
   end
 
-  test "one active scene per room is returned as a changeset error" do
-    room = Repo.insert!(%Room{name: "Active Constraint Room"})
-    scene_a = Repo.insert!(%Scene{name: "First Active Scene", room_id: room.id})
-    scene_b = Repo.insert!(%Scene{name: "Second Active Scene", room_id: room.id})
+  test "one active scene per area is returned as a changeset error" do
+    area = Repo.insert!(%Area{name: "Active Constraint Area"})
+    scene_a = Repo.insert!(%Scene{name: "First Active Scene", area_id: area.id})
+    scene_b = Repo.insert!(%Scene{name: "Second Active Scene", area_id: area.id})
 
-    Repo.insert!(ActiveScene.changeset(%ActiveScene{}, %{room_id: room.id, scene_id: scene_a.id}))
+    Repo.insert!(ActiveScene.changeset(%ActiveScene{}, %{area_id: area.id, scene_id: scene_a.id}))
 
     assert {:error, changeset} =
              %ActiveScene{}
-             |> ActiveScene.changeset(%{room_id: room.id, scene_id: scene_b.id})
+             |> ActiveScene.changeset(%{area_id: area.id, scene_id: scene_b.id})
              |> Repo.insert()
 
-    assert "has already been taken" in errors_on(changeset).room_id
+    assert "has already been taken" in errors_on(changeset).area_id
+  end
+
+  test "database rejects an area without persisted published identities" do
+    assert_raise Exqlite.Error, ~r/areas require persisted published identities/, fn ->
+      SQL.query!(
+        Repo,
+        """
+        INSERT INTO areas (name, metadata, inserted_at, updated_at)
+        VALUES ('Missing Identity', '{}', '2026-07-17 00:00:00', '2026-07-17 00:00:00')
+        """,
+        []
+      )
+    end
+  end
+
+  test "database rejects duplicate persisted area identities" do
+    Repo.insert!(%Area{
+      name: "First Identity",
+      ha_device_identifier: "duplicate-device",
+      ha_scene_select_identifier: "first-select"
+    })
+
+    assert_raise Ecto.ConstraintError, fn ->
+      Repo.insert!(%Area{
+        name: "Second Identity",
+        ha_device_identifier: "duplicate-device",
+        ha_scene_select_identifier: "second-select"
+      })
+    end
   end
 
   defp errors_on(changeset) do

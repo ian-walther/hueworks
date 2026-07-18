@@ -13,7 +13,7 @@ defmodule Hueworks.Picos.Devices do
         where: pd.bridge_id == ^bridge_id
       )
     )
-    |> Repo.preload([:room, buttons: from(pb in PicoButton, order_by: [asc: pb.button_number])])
+    |> Repo.preload([:area, buttons: from(pb in PicoButton, order_by: [asc: pb.button_number])])
     |> Enum.sort_by(fn device ->
       {Util.display_name(device) |> String.downcase(), device.id}
     end)
@@ -28,33 +28,33 @@ defmodule Hueworks.Picos.Devices do
 
       device ->
         Repo.preload(device, [
-          :room,
+          :area,
           buttons: from(pb in PicoButton, order_by: [asc: pb.button_number])
         ])
     end
   end
 
-  def set_room(%PicoDevice{} = device, room_id) do
-    detected_room_id = auto_detected_room_id(device)
-    room_id = Util.parse_optional_integer(room_id)
+  def set_area(%PicoDevice{} = device, area_id) do
+    detected_area_id = auto_detected_area_id(device)
+    area_id = Util.parse_optional_integer(area_id)
     metadata = device.metadata || %{}
 
     attrs =
-      case room_id do
+      case area_id do
         nil ->
           %{
-            room_id: detected_room_id,
+            area_id: detected_area_id,
             metadata:
               metadata
-              |> Map.put("room_override", false)
+              |> Map.put("area_override", false)
           }
 
-        room_id ->
+        area_id ->
           %{
-            room_id: room_id,
+            area_id: area_id,
             metadata:
               metadata
-              |> Map.put("room_override", true)
+              |> Map.put("area_override", true)
           }
       end
 
@@ -85,13 +85,13 @@ defmodule Hueworks.Picos.Devices do
     update_display_name(device, %{display_name: display_name})
   end
 
-  def room_override?(%PicoDevice{} = device) do
-    Map.get(device.metadata || %{}, "room_override") == true
+  def area_override?(%PicoDevice{} = device) do
+    Map.get(device.metadata || %{}, "area_override") == true
   end
 
-  def auto_detected_room_id(%PicoDevice{} = device) do
+  def auto_detected_area_id(%PicoDevice{} = device) do
     (device.metadata || %{})
-    |> Map.get("detected_room_id")
+    |> Map.get("detected_area_id")
     |> Util.parse_optional_integer()
   end
 end

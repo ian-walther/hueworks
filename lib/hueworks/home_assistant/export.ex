@@ -12,7 +12,7 @@ defmodule Hueworks.HomeAssistant.Export do
   alias Hueworks.HomeAssistant.Export.Router
   alias Hueworks.HomeAssistant.Export.Runtime
   alias Hueworks.Instance
-  alias Hueworks.Schemas.{Group, Light, PresenceInput, Scene}
+  alias Hueworks.Schemas.{Area, Group, Light, PresenceInput, Scene}
   alias Phoenix.PubSub
 
   @default_discovery_prefix "homeassistant"
@@ -30,12 +30,12 @@ defmodule Hueworks.HomeAssistant.Export do
     maybe_cast(:refresh_all_scenes)
   end
 
-  def refresh_room(room_id) when is_integer(room_id) do
-    maybe_cast({:refresh_room, room_id})
+  def refresh_area(area_id) when is_integer(area_id) do
+    maybe_cast({:refresh_area, area_id})
   end
 
-  def refresh_room_select(room_id) when is_integer(room_id) do
-    maybe_cast({:refresh_room_select, room_id})
+  def refresh_area_select(area_id) when is_integer(area_id) do
+    maybe_cast({:refresh_area_select, area_id})
   end
 
   def refresh_light(%Light{id: light_id}), do: refresh_light(light_id)
@@ -56,8 +56,8 @@ defmodule Hueworks.HomeAssistant.Export do
     maybe_cast({:refresh_presence_input, input_id})
   end
 
-  def refresh_presence_inputs_for_room(room_id) when is_integer(room_id) do
-    maybe_cast({:refresh_presence_inputs_for_room, room_id})
+  def refresh_presence_inputs_for_area(area_id) when is_integer(area_id) do
+    maybe_cast({:refresh_presence_inputs_for_area, area_id})
   end
 
   def remove_light(%Light{id: light_id}), do: remove_light(light_id)
@@ -90,8 +90,9 @@ defmodule Hueworks.HomeAssistant.Export do
     maybe_cast({:remove_scene, scene_id})
   end
 
-  def remove_room(room_id) when is_integer(room_id) do
-    maybe_cast({:remove_room, room_id})
+  def remove_area(%Area{id: area_id, ha_scene_select_identifier: identifier})
+      when is_integer(area_id) and is_binary(identifier) do
+    maybe_cast({:remove_area, area_id, identifier})
   end
 
   def client_id do
@@ -101,9 +102,9 @@ defmodule Hueworks.HomeAssistant.Export do
   defdelegate availability_topic(), to: Messages
   defdelegate command_topic(scene_id), to: Messages
   defdelegate attributes_topic(scene_id), to: Messages
-  defdelegate room_select_command_topic(room_id), to: Messages
-  defdelegate room_select_state_topic(room_id), to: Messages
-  defdelegate room_select_attributes_topic(room_id), to: Messages
+  defdelegate area_select_command_topic(area_id), to: Messages
+  defdelegate area_select_state_topic(area_id), to: Messages
+  defdelegate area_select_attributes_topic(area_id), to: Messages
   defdelegate entity_attributes_topic(kind, id), to: Messages
   defdelegate presence_input_attributes_topic(id), to: Messages
   defdelegate switch_command_topic(kind, id), to: Messages
@@ -116,8 +117,8 @@ defmodule Hueworks.HomeAssistant.Export do
   def discovery_topic(scene_id, discovery_prefix \\ @default_discovery_prefix),
     do: Messages.discovery_topic(scene_id, discovery_prefix)
 
-  def room_select_discovery_topic(room_id, discovery_prefix \\ @default_discovery_prefix),
-    do: Messages.room_select_discovery_topic(room_id, discovery_prefix)
+  def area_select_discovery_topic(identifier, discovery_prefix \\ @default_discovery_prefix),
+    do: Messages.area_select_discovery_topic(identifier, discovery_prefix)
 
   def switch_discovery_topic(kind, id, discovery_prefix \\ @default_discovery_prefix),
     do: Messages.switch_discovery_topic(kind, id, discovery_prefix)
@@ -131,18 +132,18 @@ defmodule Hueworks.HomeAssistant.Export do
   def command_scene_id(topic_levels, topic_prefix \\ @default_topic_prefix),
     do: Messages.command_scene_id(topic_levels, topic_prefix)
 
-  def command_room_id(topic_levels, topic_prefix \\ @default_topic_prefix),
-    do: Messages.command_room_id(topic_levels, topic_prefix)
+  def command_area_id(topic_levels, topic_prefix \\ @default_topic_prefix),
+    do: Messages.command_area_id(topic_levels, topic_prefix)
 
   def discovery_payload(scene, config \\ export_config()),
     do: Messages.discovery_payload(scene, config)
 
   defdelegate scene_attributes_payload(scene), to: Messages
 
-  def room_select_discovery_payload(room, scenes, config \\ export_config()),
-    do: Messages.room_select_discovery_payload(room, scenes, config)
+  def area_select_discovery_payload(area, scenes, config \\ export_config()),
+    do: Messages.area_select_discovery_payload(area, scenes, config)
 
-  defdelegate room_select_attributes_payload(room, scenes), to: Messages
+  defdelegate area_select_attributes_payload(area, scenes), to: Messages
 
   def switch_discovery_payload(kind, entity, config \\ export_config()),
     do: Messages.switch_discovery_payload(kind, entity, config)
@@ -201,24 +202,24 @@ defmodule Hueworks.HomeAssistant.Export do
     {:noreply, Lifecycle.handle_control_state(kind, id, state, &publish/3)}
   end
 
-  def handle_info({:active_scene_updated, room_id, _scene_id}, state) when is_integer(room_id) do
-    {:noreply, handle_sync(state, {:refresh_room_select, room_id})}
+  def handle_info({:active_scene_updated, area_id, _scene_id}, state) when is_integer(area_id) do
+    {:noreply, handle_sync(state, {:refresh_area_select, area_id})}
   end
 
-  def handle_info({:scene_saved, %Scene{id: scene_id, room_id: room_id}}, state) do
+  def handle_info({:scene_saved, %Scene{id: scene_id, area_id: area_id}}, state) do
     state =
       state
       |> handle_sync({:refresh_scene, scene_id})
-      |> handle_sync({:refresh_room, room_id})
+      |> handle_sync({:refresh_area, area_id})
 
     {:noreply, state}
   end
 
-  def handle_info({:scene_deleted, %Scene{id: scene_id, room_id: room_id}}, state) do
+  def handle_info({:scene_deleted, %Scene{id: scene_id, area_id: area_id}}, state) do
     state =
       state
       |> handle_sync({:remove_scene, scene_id})
-      |> handle_sync({:refresh_room, room_id})
+      |> handle_sync({:refresh_area, area_id})
 
     {:noreply, state}
   end

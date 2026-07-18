@@ -41,14 +41,14 @@ defmodule Hueworks.Control.Apply do
   end
 
   @spec commit_and_enqueue(DesiredState.transaction(), integer(), keyword()) ::
-          {:ok, map()} | {:error, {:invalid_room_id, integer()}}
-  def commit_and_enqueue(%DesiredState.Transaction{} = txn, room_id, opts \\ []) do
+          {:ok, map()} | {:error, {:invalid_area_id, integer()}}
+  def commit_and_enqueue(%DesiredState.Transaction{} = txn, area_id, opts \\ []) do
     opts = ensure_operation(opts)
     force_apply = Keyword.get(opts, :force_apply, false)
     {:ok, %{plan_diff: plan_diff} = result} = commit_transaction(txn, force_apply: force_apply)
     record_intent(operation_trace(opts), plan_diff)
 
-    case plan_and_enqueue(room_id, plan_diff, opts) do
+    case plan_and_enqueue(area_id, plan_diff, opts) do
       {:ok, %{plan: plan, planner_ms: planner_ms}} ->
         {:ok, result |> Map.put(:plan, plan) |> Map.put(:planner_ms, planner_ms)}
 
@@ -57,11 +57,11 @@ defmodule Hueworks.Control.Apply do
     end
   end
 
-  def build_plan(room_id, diff, opts \\ [])
-  def build_plan(_room_id, diff, _opts) when map_size(diff) == 0, do: []
+  def build_plan(area_id, diff, opts \\ [])
+  def build_plan(_area_id, diff, _opts) when map_size(diff) == 0, do: []
 
   @spec build_plan(integer(), map(), keyword()) :: list(map())
-  def build_plan(room_id, diff, opts) when is_integer(room_id) and is_map(diff) do
+  def build_plan(area_id, diff, opts) when is_integer(area_id) and is_map(diff) do
     opts = ensure_operation(opts)
 
     planner_opts =
@@ -74,36 +74,36 @@ defmodule Hueworks.Control.Apply do
         :protected_light_ids
       ])
 
-    Planner.plan_room(room_id, diff, planner_opts)
+    Planner.plan_area(area_id, diff, planner_opts)
   end
 
-  def plan_and_enqueue(room_id, diff, opts \\ [])
+  def plan_and_enqueue(area_id, diff, opts \\ [])
 
-  def plan_and_enqueue(_room_id, diff, _opts) when map_size(diff) == 0,
+  def plan_and_enqueue(_area_id, diff, _opts) when map_size(diff) == 0,
     do: {:ok, %{plan: [], planner_ms: 0}}
 
   @spec plan_and_enqueue(integer(), map(), keyword()) ::
-          {:ok, planner_result()} | {:error, {:invalid_room_id, integer()}}
-  def plan_and_enqueue(room_id, diff, opts) when is_integer(room_id) and is_map(diff) do
+          {:ok, planner_result()} | {:error, {:invalid_area_id, integer()}}
+  def plan_and_enqueue(area_id, diff, opts) when is_integer(area_id) and is_map(diff) do
     opts = ensure_operation(opts)
     trace = operation_trace(opts)
     enqueue_mode = Keyword.get(opts, :enqueue_mode, :replace_targets)
 
     planner_started_ms = System.monotonic_time(:millisecond)
-    plan = build_plan(room_id, diff, opts)
+    plan = build_plan(area_id, diff, opts)
     planner_ms = System.monotonic_time(:millisecond) - planner_started_ms
-    log_plan_built(trace, room_id, planner_ms, plan)
+    log_plan_built(trace, area_id, planner_ms, plan)
     record_planned(trace, plan, planner_ms)
 
     transformed_plan = attach_trace(plan, trace, System.monotonic_time(:millisecond))
     _ = enqueue_plan(transformed_plan, mode: enqueue_mode)
-    log_plan_enqueued(trace, room_id, enqueue_mode, transformed_plan)
+    log_plan_enqueued(trace, area_id, enqueue_mode, transformed_plan)
     record_enqueued(trace, transformed_plan)
 
     {:ok, %{plan: transformed_plan, planner_ms: planner_ms}}
   end
 
-  def plan_and_enqueue(room_id, _diff, _opts), do: {:error, {:invalid_room_id, room_id}}
+  def plan_and_enqueue(area_id, _diff, _opts), do: {:error, {:invalid_area_id, area_id}}
 
   @spec enqueue_plan(list(map()), keyword()) :: :ok
   def enqueue_plan(plan, opts \\ []) when is_list(plan) and is_list(opts) do
@@ -126,7 +126,7 @@ defmodule Hueworks.Control.Apply do
   defp attach_trace(plan, trace, enqueued_at_ms) when is_list(plan) and is_map(trace) do
     trace_id = Map.get(trace, :trace_id)
     trace_source = Map.get(trace, :source) || Map.get(trace, :trace_source)
-    trace_room_id = Map.get(trace, :trace_room_id) || Map.get(trace, :room_id)
+    trace_area_id = Map.get(trace, :trace_area_id) || Map.get(trace, :area_id)
     trace_scene_id = Map.get(trace, :trace_scene_id) || Map.get(trace, :scene_id)
     trace_target_occupied = Map.get(trace, :trace_target_occupied)
 
@@ -137,7 +137,7 @@ defmodule Hueworks.Control.Apply do
       action
       |> Map.put(:trace_id, trace_id)
       |> Map.put(:trace_source, trace_source)
-      |> maybe_put(:trace_room_id, trace_room_id)
+      |> maybe_put(:trace_area_id, trace_area_id)
       |> maybe_put(:trace_scene_id, trace_scene_id)
       |> maybe_put(:trace_target_occupied, trace_target_occupied)
       |> maybe_put(:trace_started_at_ms, trace_started_at_ms)
@@ -147,9 +147,9 @@ defmodule Hueworks.Control.Apply do
 
   defp attach_trace(plan, _trace, _enqueued_at_ms), do: plan
 
-  defp log_plan_built(nil, _room_id, _planner_ms, _plan), do: :ok
+  defp log_plan_built(nil, _area_id, _planner_ms, _plan), do: :ok
 
-  defp log_plan_built(trace, room_id, planner_ms, plan) when is_map(trace) and is_list(plan) do
+  defp log_plan_built(trace, area_id, planner_ms, plan) when is_map(trace) and is_list(plan) do
     case Map.get(trace, :trace_id) do
       nil ->
         :ok
@@ -158,14 +158,14 @@ defmodule Hueworks.Control.Apply do
         trace_source = Map.get(trace, :source) || Map.get(trace, :trace_source)
 
         DebugLogging.info(
-          "[control-trace #{trace_id}] plan_built source=#{trace_source} room_id=#{inspect(room_id)} planner_ms=#{planner_ms} actions_total=#{length(plan)} group_actions=#{count_action_type(plan, :group)} light_actions=#{count_action_type(plan, :light)} off_actions=#{count_power(plan, :off)} on_actions=#{count_power(plan, :on)}"
+          "[control-trace #{trace_id}] plan_built source=#{trace_source} area_id=#{inspect(area_id)} planner_ms=#{planner_ms} actions_total=#{length(plan)} group_actions=#{count_action_type(plan, :group)} light_actions=#{count_action_type(plan, :light)} off_actions=#{count_power(plan, :off)} on_actions=#{count_power(plan, :on)}"
         )
     end
   end
 
-  defp log_plan_enqueued(nil, _room_id, _enqueue_mode, _plan), do: :ok
+  defp log_plan_enqueued(nil, _area_id, _enqueue_mode, _plan), do: :ok
 
-  defp log_plan_enqueued(trace, room_id, enqueue_mode, plan)
+  defp log_plan_enqueued(trace, area_id, enqueue_mode, plan)
        when is_map(trace) and is_list(plan) do
     case Map.get(trace, :trace_id) do
       nil ->
@@ -175,7 +175,7 @@ defmodule Hueworks.Control.Apply do
         trace_source = Map.get(trace, :source) || Map.get(trace, :trace_source)
 
         DebugLogging.info(
-          "[control-trace #{trace_id}] plan_enqueued source=#{trace_source} room_id=#{inspect(room_id)} enqueue_mode=#{enqueue_mode} actions_total=#{length(plan)}"
+          "[control-trace #{trace_id}] plan_enqueued source=#{trace_source} area_id=#{inspect(area_id)} enqueue_mode=#{enqueue_mode} actions_total=#{length(plan)}"
         )
     end
   end

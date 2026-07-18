@@ -2,12 +2,12 @@ defmodule HueworksWeb.LightsLive.MessageFlowTest do
   use Hueworks.DataCase, async: false
 
   alias Hueworks.Repo
-  alias Hueworks.Schemas.{Group, Light, Room}
+  alias Hueworks.Schemas.{Group, Light, Area}
   alias HueworksWeb.LightsLive.Loader
   alias HueworksWeb.LightsLive.MessageFlow
 
   test "refresh reloads assigns and sets status" do
-    room = Repo.insert!(%Room{name: "Refresh Room"})
+    area = Repo.insert!(%Area{name: "Refresh Area"})
 
     bridge =
       insert_bridge!(%{
@@ -23,7 +23,7 @@ defmodule HueworksWeb.LightsLive.MessageFlowTest do
         source: :hue,
         source_id: "refresh-lamp",
         bridge_id: bridge.id,
-        room_id: room.id
+        area_id: area.id
       })
 
     assigns = Loader.mount_assigns(%{}, nil)
@@ -34,7 +34,7 @@ defmodule HueworksWeb.LightsLive.MessageFlowTest do
   end
 
   test "info_updates routes live control-state messages into assign updates" do
-    room = Repo.insert!(%Room{name: "Info Room"})
+    area = Repo.insert!(%Area{name: "Info Area"})
 
     bridge =
       insert_bridge!(%{
@@ -50,7 +50,7 @@ defmodule HueworksWeb.LightsLive.MessageFlowTest do
         source: :hue,
         source_id: "info-lamp",
         bridge_id: bridge.id,
-        room_id: room.id
+        area_id: area.id
       })
 
     group =
@@ -59,7 +59,7 @@ defmodule HueworksWeb.LightsLive.MessageFlowTest do
         source: :hue,
         source_id: "info-group",
         bridge_id: bridge.id,
-        room_id: room.id
+        area_id: area.id
       })
 
     assigns = Loader.mount_assigns(%{}, nil)

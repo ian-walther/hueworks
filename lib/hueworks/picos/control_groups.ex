@@ -50,13 +50,13 @@ defmodule Hueworks.Picos.ControlGroups do
   end
 
   def save(%PicoDevice{} = device, attrs) when is_map(attrs) do
-    with room_id when is_integer(room_id) <- device.room_id,
+    with area_id when is_integer(area_id) <- device.area_id,
          name when is_binary(name) and name != "" <- String.trim(attrs["name"] || ""),
          group_id <- attrs["id"] || Ecto.UUID.generate() do
       group_ids = Targets.normalize_integer_ids(attrs["group_ids"])
       light_ids = Targets.normalize_integer_ids(attrs["light_ids"])
 
-      if Targets.valid_room_targets?(room_id, group_ids, light_ids) do
+      if Targets.valid_area_targets?(area_id, group_ids, light_ids) do
         updated_groups =
           device
           |> list_for_device()
@@ -78,7 +78,7 @@ defmodule Hueworks.Picos.ControlGroups do
         {:error, :invalid_targets}
       end
     else
-      nil -> {:error, :missing_room}
+      nil -> {:error, :missing_area}
       _ -> {:error, :invalid_name}
     end
   end

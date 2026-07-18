@@ -6,11 +6,11 @@ defmodule Hueworks.Import.Normalize.Caseta do
   def normalize(bridge, raw, _opts \\ %{}) do
     lights_raw = Normalize.fetch(raw, :lights) |> Normalize.normalize_list()
 
-    {rooms, room_map} = build_caseta_rooms(lights_raw)
+    {areas, area_map} = build_caseta_areas(lights_raw)
 
     lights =
       Enum.map(lights_raw, fn light ->
-        room_source_id = Normalize.fetch(light, :area_id)
+        area_source_id = Normalize.fetch(light, :area_id)
         name = Normalize.fetch(light, :name) || "Caseta Light"
 
         %{
@@ -18,33 +18,33 @@ defmodule Hueworks.Import.Normalize.Caseta do
           source_id: Normalize.fetch(light, :zone_id),
           name: name,
           classification: "light",
-          room_source_id: room_source_id,
+          area_source_id: area_source_id,
           capabilities: normalize_caseta_capabilities(light),
           identifiers: %{"serial" => to_string(Normalize.fetch(light, :serial) || "")},
           metadata: %{
             "device_id" => Normalize.fetch(light, :device_id),
             "model" => Normalize.fetch(light, :model),
             "type" => Normalize.fetch(light, :type),
-            "area_name" => Map.get(room_map, room_source_id)
+            "area_name" => Map.get(area_map, area_source_id)
           }
         }
       end)
 
     memberships = %{
-      room_groups: [],
-      room_lights:
+      area_groups: [],
+      area_lights:
         lights
-        |> Enum.filter(& &1.room_source_id)
+        |> Enum.filter(& &1.area_source_id)
         |> Enum.map(fn light ->
           %{
-            room_source_id: light.room_source_id,
+            area_source_id: light.area_source_id,
             light_source_id: light.source_id
           }
         end),
       group_lights: []
     }
 
-    Normalize.base_normalized(bridge, rooms, [], lights, memberships)
+    Normalize.base_normalized(bridge, areas, [], lights, memberships)
   end
 
   defp normalize_caseta_capabilities(light) do
@@ -64,8 +64,8 @@ defmodule Hueworks.Import.Normalize.Caseta do
     }
   end
 
-  defp build_caseta_rooms(lights_raw) do
-    rooms =
+  defp build_caseta_areas(lights_raw) do
+    areas =
       lights_raw
       |> Enum.reduce(%{}, fn light, acc ->
         area_id = Normalize.fetch(light, :area_id)
@@ -78,18 +78,18 @@ defmodule Hueworks.Import.Normalize.Caseta do
         end
       end)
 
-    room_list =
-      Enum.map(rooms, fn {id, name} ->
+    area_list =
+      Enum.map(areas, fn {id, name} ->
         %{
           source: :caseta,
           source_id: id,
-          name: Normalize.normalize_room_display(name),
-          normalized_name: Normalize.normalize_room_name(name),
+          name: Normalize.normalize_area_display(name),
+          normalized_name: Normalize.normalize_area_name(name),
           metadata: %{}
         }
       end)
 
-    {room_list, rooms}
+    {area_list, areas}
   end
 
   defp extract_caseta_area_name(name) when is_binary(name) do

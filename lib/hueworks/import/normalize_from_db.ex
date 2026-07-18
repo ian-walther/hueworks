@@ -20,8 +20,8 @@ defmodule Hueworks.Import.NormalizeFromDb do
 
     memberships = %{
       group_lights: group_lights(bridge.id),
-      room_groups: [],
-      room_lights: []
+      area_groups: [],
+      area_lights: []
     }
 
     %{
@@ -33,7 +33,7 @@ defmodule Hueworks.Import.NormalizeFromDb do
         host: bridge.host
       },
       normalized_at: DateTime.utc_now() |> DateTime.to_iso8601(),
-      rooms: [],
+      areas: [],
       groups: groups,
       lights: lights,
       memberships: memberships

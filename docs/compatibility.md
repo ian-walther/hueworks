@@ -39,7 +39,7 @@
 
 ### Home Assistant MQTT Export
 
-- Scene controls, room scene selectors, opt-in lights/groups, and writable Presence Inputs are supported.
+- Scene controls, area scene selectors, opt-in lights/groups, and writable Presence Inputs are supported.
 - MQTT settings describe export from HueWorks to Home Assistant; they are separate from importing Home Assistant as a bridge.
 
 ### HomeKit

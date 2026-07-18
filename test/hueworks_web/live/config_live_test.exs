@@ -15,7 +15,7 @@ defmodule HueworksWeb.ConfigLiveTest do
     Light,
     LightState,
     PicoDevice,
-    Room,
+    Area,
     Scene,
     SceneComponent
   }
@@ -103,7 +103,7 @@ defmodule HueworksWeb.ConfigLiveTest do
     assert has_element?(view, "#setup-step-general[data-complete='false']", "Set location")
     assert has_element?(view, "#setup-step-bridges[data-complete='false']", "Add a bridge")
     assert has_element?(view, "#setup-step-import[data-complete='false']", "Import entities")
-    assert has_element?(view, "#setup-step-rooms[data-complete='false']", "Review rooms")
+    assert has_element?(view, "#setup-step-areas[data-complete='false']", "Review areas")
     assert has_element?(view, "#setup-step-scenes[data-complete='false']", "Create a scene")
   end
 
@@ -126,17 +126,17 @@ defmodule HueworksWeb.ConfigLiveTest do
         import_complete: true
       })
 
-    room = Repo.insert!(%Room{name: "Living Room"})
+    area = Repo.insert!(%Area{name: "Living Area"})
 
     Repo.insert!(%Light{
       name: "Lamp",
       source: :hue,
       source_id: "1",
       bridge_id: bridge.id,
-      room_id: room.id
+      area_id: area.id
     })
 
-    Repo.insert!(%Scene{name: "Auto", room_id: room.id})
+    Repo.insert!(%Scene{name: "Auto", area_id: area.id})
 
     {:ok, view, _html} = live(conn, "/config")
 
@@ -230,7 +230,7 @@ defmodule HueworksWeb.ConfigLiveTest do
     view
     |> form("form[phx-submit='save_ha_export']", %{
       "ha_export_scenes_enabled" => "true",
-      "ha_export_room_selects_enabled" => "true",
+      "ha_export_area_selects_enabled" => "true",
       "ha_export_lights_enabled" => "true",
       "ha_export_mqtt_host" => "mqtt.local",
       "ha_export_mqtt_port" => "1883",
@@ -245,7 +245,7 @@ defmodule HueworksWeb.ConfigLiveTest do
     settings = AppSettings.get_global()
     assert settings.ha_export_enabled == true
     assert settings.ha_export_scenes_enabled == true
-    assert settings.ha_export_room_selects_enabled == true
+    assert settings.ha_export_area_selects_enabled == true
     assert settings.ha_export_lights_enabled == true
     assert settings.ha_export_mqtt_host == "mqtt.local"
     assert settings.ha_export_mqtt_port == 1883
@@ -264,7 +264,7 @@ defmodule HueworksWeb.ConfigLiveTest do
       timezone: "America/New_York",
       ha_export_enabled: true,
       ha_export_scenes_enabled: true,
-      ha_export_room_selects_enabled: false,
+      ha_export_area_selects_enabled: false,
       ha_export_lights_enabled: false,
       ha_export_mqtt_host: "mqtt.local",
       ha_export_mqtt_port: 1883,
@@ -280,7 +280,7 @@ defmodule HueworksWeb.ConfigLiveTest do
     view
     |> form("form[phx-submit='save_ha_export']", %{
       "ha_export_scenes_enabled" => "true",
-      "ha_export_room_selects_enabled" => "true",
+      "ha_export_area_selects_enabled" => "true",
       "ha_export_lights_enabled" => "false",
       "ha_export_mqtt_host" => "mqtt.local",
       "ha_export_mqtt_port" => "1883",
@@ -291,7 +291,7 @@ defmodule HueworksWeb.ConfigLiveTest do
     |> render_submit()
 
     settings = AppSettings.get_global()
-    assert settings.ha_export_room_selects_enabled == true
+    assert settings.ha_export_area_selects_enabled == true
     assert settings.ha_export_mqtt_password == "super-secret"
   end
 
@@ -423,7 +423,7 @@ defmodule HueworksWeb.ConfigLiveTest do
       timezone: "America/New_York",
       ha_export_enabled: true,
       ha_export_scenes_enabled: true,
-      ha_export_room_selects_enabled: false,
+      ha_export_area_selects_enabled: false,
       ha_export_lights_enabled: false,
       ha_export_mqtt_host: "mqtt.local",
       ha_export_mqtt_port: 1883,
@@ -437,7 +437,7 @@ defmodule HueworksWeb.ConfigLiveTest do
     view
     |> form("form[phx-submit='save_ha_export']", %{
       "ha_export_scenes_enabled" => "true",
-      "ha_export_room_selects_enabled" => "false",
+      "ha_export_area_selects_enabled" => "false",
       "ha_export_lights_enabled" => "false",
       "ha_export_mqtt_host" => "mqtt.local",
       "ha_export_mqtt_port" => "eighteen eighty three",
@@ -462,7 +462,7 @@ defmodule HueworksWeb.ConfigLiveTest do
       timezone: "America/New_York",
       ha_export_enabled: true,
       ha_export_scenes_enabled: true,
-      ha_export_room_selects_enabled: false,
+      ha_export_area_selects_enabled: false,
       ha_export_lights_enabled: false,
       ha_export_mqtt_host: "mqtt.local",
       ha_export_mqtt_port: 1883,
@@ -544,9 +544,9 @@ defmodule HueworksWeb.ConfigLiveTest do
   end
 
   test "delete light state is disabled and shows usage info when in use", %{conn: conn} do
-    room = Repo.insert!(%Room{name: "Studio", metadata: %{}})
+    area = Repo.insert!(%Area{name: "Studio", metadata: %{}})
     {:ok, state} = Scenes.create_manual_light_state("Soft")
-    {:ok, scene} = Scenes.create_scene(%{name: "Chill", room_id: room.id})
+    {:ok, scene} = Scenes.create_scene(%{name: "Chill", area_id: area.id})
 
     Repo.insert!(%SceneComponent{
       name: "Component 1",
@@ -592,7 +592,7 @@ defmodule HueworksWeb.ConfigLiveTest do
       scale_transition_by_brightness: true,
       ha_export_enabled: true,
       ha_export_scenes_enabled: true,
-      ha_export_room_selects_enabled: true,
+      ha_export_area_selects_enabled: true,
       ha_export_lights_enabled: false,
       ha_export_mqtt_host: "mqtt.local",
       ha_export_mqtt_port: 1884,
@@ -617,7 +617,7 @@ defmodule HueworksWeb.ConfigLiveTest do
 
     {:ok, _view, integrations_html} = live(conn, "/config/integrations")
     assert integrations_html =~ ~s(id="ha_export_scenes_enabled")
-    assert integrations_html =~ ~s(id="ha_export_room_selects_enabled")
+    assert integrations_html =~ ~s(id="ha_export_area_selects_enabled")
     assert integrations_html =~ ~s(value="mqtt.local")
     assert integrations_html =~ ~s(value="1884")
     assert integrations_html =~ ~s(value="ha_user")
@@ -652,14 +652,14 @@ defmodule HueworksWeb.ConfigLiveTest do
         import_complete: true
       })
 
-    room = Repo.insert!(%Room{name: "Studio", metadata: %{}})
+    area = Repo.insert!(%Area{name: "Studio", metadata: %{}})
 
     Repo.insert!(%Light{
       name: "Lamp",
       source: :caseta,
       source_id: "42",
       bridge_id: bridge.id,
-      room_id: room.id,
+      area_id: area.id,
       enabled: true
     })
 
@@ -668,13 +668,13 @@ defmodule HueworksWeb.ConfigLiveTest do
       source: :caseta,
       source_id: "group-42",
       bridge_id: bridge.id,
-      room_id: room.id,
+      area_id: area.id,
       enabled: true
     })
 
     Repo.insert!(%PicoDevice{
       bridge_id: bridge.id,
-      room_id: room.id,
+      area_id: area.id,
       source_id: "device-1",
       name: "Main Floor Pico",
       hardware_profile: "5_button",

@@ -11,7 +11,7 @@ defmodule Hueworks.ConnectionTest.Z2MTest do
        %{
          bridge_info: %{"version" => "2.1.0"},
          devices: [%{"friendly_name" => "Lamp"}],
-         groups: [%{"friendly_name" => "Room"}]
+         groups: [%{"friendly_name" => "Area"}]
        }}
     end
   end

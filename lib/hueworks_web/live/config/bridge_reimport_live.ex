@@ -17,7 +17,7 @@ defmodule HueworksWeb.BridgeReimportLive do
   }
 
   alias Hueworks.Repo
-  alias Hueworks.Schemas.{Bridge, Group, Light, Room}
+  alias Hueworks.Schemas.{Bridge, Group, Light, Area}
 
   def mount(%{"id" => id}, _session, socket) do
     bridge = Repo.get!(Bridge, id)
@@ -39,7 +39,7 @@ defmodule HueworksWeb.BridgeReimportLive do
          completion_summary: nil,
          destructive_preview: [],
          destructive_confirmation: [],
-         rooms: Repo.all(from(r in Room, order_by: [asc: r.name]))
+         areas: Repo.all(from(r in Area, order_by: [asc: r.name]))
        )}
     else
       {:ok, redirect(socket, to: "/config/bridges/#{bridge.id}/import")}
@@ -54,20 +54,20 @@ defmodule HueworksWeb.BridgeReimportLive do
     plan =
       socket.assigns.plan
       |> ReviewPlan.put_entity_resolution(type, source_id, resolution)
-      |> sync_created_rooms(socket.assigns.reimport.plan, socket.assigns.normalized_import)
+      |> sync_created_areas(socket.assigns.reimport.plan, socket.assigns.normalized_import)
 
     {:noreply, assign_review(socket, plan)}
   end
 
   def handle_event(
-        "set_entity_room",
-        %{"type" => type, "source_id" => source_id, "target_room_id" => target_room_id},
+        "set_entity_area",
+        %{"type" => type, "source_id" => source_id, "target_area_id" => target_area_id},
         socket
       ) do
     plan =
       socket.assigns.plan
-      |> put_entity_destination(type, source_id, target_room_id)
-      |> sync_created_rooms(socket.assigns.reimport.plan, socket.assigns.normalized_import)
+      |> put_entity_destination(type, source_id, target_area_id)
+      |> sync_created_areas(socket.assigns.reimport.plan, socket.assigns.normalized_import)
 
     {:noreply, assign_review(socket, plan)}
   end
@@ -84,7 +84,7 @@ defmodule HueworksWeb.BridgeReimportLive do
         status,
         resolution
       )
-      |> sync_created_rooms(socket.assigns.reimport.plan, socket.assigns.normalized_import)
+      |> sync_created_areas(socket.assigns.reimport.plan, socket.assigns.normalized_import)
 
     {:noreply, assign_review(socket, plan)}
   end
@@ -170,19 +170,19 @@ defmodule HueworksWeb.BridgeReimportLive do
     Enum.find(items, fn item -> item.type == type and item.source_id == source_id end)
   end
 
-  def create_room_value(reimport_plan, incoming) when is_map(incoming) do
-    room_source_id =
+  def create_area_value(reimport_plan, incoming) when is_map(incoming) do
+    area_source_id =
       incoming
-      |> Normalize.fetch(:room_source_id)
+      |> Normalize.fetch(:area_source_id)
       |> Normalize.normalize_source_id()
 
-    if is_binary(room_source_id) and
-         ReviewPlan.room_action(reimport_plan, room_source_id) == "skip" do
-      "bridge_room:#{room_source_id}"
+    if is_binary(area_source_id) and
+         ReviewPlan.area_action(reimport_plan, area_source_id) == "skip" do
+      "bridge_area:#{area_source_id}"
     end
   end
 
-  def create_room_value(_reimport_plan, _incoming), do: nil
+  def create_area_value(_reimport_plan, _incoming), do: nil
 
   defp start_import(socket) do
     case pipeline_module().create_import(socket.assigns.bridge) do
@@ -191,7 +191,7 @@ defmodule HueworksWeb.BridgeReimportLive do
         normalized_db = NormalizeFromDb.normalize(socket.assigns.bridge)
 
         reimport =
-          ReimportPlan.build(normalized_import, normalized_db, socket.assigns.rooms)
+          ReimportPlan.build(normalized_import, normalized_db, socket.assigns.areas)
 
         socket
         |> assign(
@@ -220,7 +220,7 @@ defmodule HueworksWeb.BridgeReimportLive do
         plan,
         current_lights(socket.assigns.bridge.id),
         current_groups(socket.assigns.bridge.id),
-        socket.assigns.rooms
+        socket.assigns.areas
       )
 
     assign(socket,
@@ -231,27 +231,27 @@ defmodule HueworksWeb.BridgeReimportLive do
     )
   end
 
-  defp put_entity_destination(plan, type, source_id, "bridge_room:" <> _room_source_id),
-    do: ReviewPlan.put_entity_room(plan, type, source_id, "bridge_room")
+  defp put_entity_destination(plan, type, source_id, "bridge_area:" <> _area_source_id),
+    do: ReviewPlan.put_entity_area(plan, type, source_id, "bridge_area")
 
-  defp put_entity_destination(plan, type, source_id, target_room_id) do
-    ReviewPlan.put_entity_room(plan, type, source_id, target_room_id)
+  defp put_entity_destination(plan, type, source_id, target_area_id) do
+    ReviewPlan.put_entity_area(plan, type, source_id, target_area_id)
   end
 
-  defp sync_created_rooms(plan, base_plan, normalized_import) do
+  defp sync_created_areas(plan, base_plan, normalized_import) do
     base_plan
-    |> Normalize.fetch(:rooms)
+    |> Normalize.fetch(:areas)
     |> Kernel.||(%{})
-    |> Enum.reduce(plan, fn {room_source_id, room_plan}, acc ->
-      if Normalize.fetch(room_plan, :action) == "skip" do
+    |> Enum.reduce(plan, fn {area_source_id, area_plan}, acc ->
+      if Normalize.fetch(area_plan, :action) == "skip" do
         action =
-          if bridge_room_targeted?(acc, normalized_import, room_source_id),
+          if bridge_area_targeted?(acc, normalized_import, area_source_id),
             do: "create",
             else: "skip"
 
-        ReviewPlan.put_room(acc, room_source_id, %{
+        ReviewPlan.put_area(acc, area_source_id, %{
           "action" => action,
-          "target_room_id" => nil
+          "target_area_id" => nil
         })
       else
         acc
@@ -259,7 +259,7 @@ defmodule HueworksWeb.BridgeReimportLive do
     end)
   end
 
-  defp bridge_room_targeted?(plan, normalized_import, room_source_id) do
+  defp bridge_area_targeted?(plan, normalized_import, area_source_id) do
     Enum.any?([:lights, :groups], fn type ->
       normalized_import
       |> Normalize.fetch(type)
@@ -267,14 +267,14 @@ defmodule HueworksWeb.BridgeReimportLive do
       |> Enum.any?(fn entity ->
         source_id = entity |> Normalize.fetch(:source_id) |> Normalize.normalize_source_id()
 
-        entity_room_source_id =
+        entity_area_source_id =
           entity
-          |> Normalize.fetch(:room_source_id)
+          |> Normalize.fetch(:area_source_id)
           |> Normalize.normalize_source_id()
 
-        entity_room_source_id == room_source_id and
+        entity_area_source_id == area_source_id and
           ReviewPlan.selected?(plan, type, source_id) and
-          ReviewPlan.entity_target_room(plan, type, source_id) == "bridge_room"
+          ReviewPlan.entity_target_area(plan, type, source_id) == "bridge_area"
       end)
     end)
   end
@@ -331,7 +331,7 @@ defmodule HueworksWeb.BridgeReimportLive do
       normalized_db = NormalizeFromDb.normalize(socket.assigns.bridge)
 
       reimport =
-        ReimportPlan.build(socket.assigns.normalized_import, normalized_db, socket.assigns.rooms)
+        ReimportPlan.build(socket.assigns.normalized_import, normalized_db, socket.assigns.areas)
 
       socket
       |> assign(normalized_db: normalized_db, reimport: reimport)
@@ -366,7 +366,7 @@ defmodule HueworksWeb.BridgeReimportLive do
     Repo.all(
       from(l in Light,
         where: l.bridge_id == ^bridge_id,
-        preload: [:room]
+        preload: [:area]
       )
     )
   end
@@ -375,7 +375,7 @@ defmodule HueworksWeb.BridgeReimportLive do
     Repo.all(
       from(g in Group,
         where: g.bridge_id == ^bridge_id,
-        preload: [:room, :lights]
+        preload: [:area, :lights]
       )
     )
   end

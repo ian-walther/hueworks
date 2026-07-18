@@ -1,7 +1,7 @@
 defmodule Hueworks.PublishedIdentity do
   @moduledoc false
 
-  def space_identifiers(kind) when kind in [:room, :area] do
+  def space_identifiers(kind) when kind == :area do
     token = Ecto.UUID.generate()
     prefix = Atom.to_string(kind)
 
@@ -10,9 +10,6 @@ defmodule Hueworks.PublishedIdentity do
       ha_scene_select_identifier: "hueworks_#{prefix}_scene_select_#{token}"
     }
   end
-
-  def room_device_identifier, do: new_identifier("hueworks_room")
-  def room_scene_select_identifier, do: new_identifier("hueworks_room_scene_select")
 
   def area_device_identifier, do: new_identifier("hueworks_area")
   def area_scene_select_identifier, do: new_identifier("hueworks_area_scene_select")

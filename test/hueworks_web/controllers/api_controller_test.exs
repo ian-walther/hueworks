@@ -5,7 +5,7 @@ defmodule HueworksWeb.ApiControllerTest do
   alias Hueworks.AppSettings
   alias Hueworks.Control.{DesiredState, State, TraceBuffer}
   alias Hueworks.Repo
-  alias Hueworks.Schemas.{Bridge, Group, GroupLight, Light, Room, Scene}
+  alias Hueworks.Schemas.{Bridge, Group, GroupLight, Light, Area, Scene}
 
   setup do
     TraceBuffer.clear()
@@ -61,7 +61,7 @@ defmodule HueworksWeb.ApiControllerTest do
     conn: conn,
     token: token
   } do
-    %{room: room, light: light} = fixture()
+    %{area: area, light: light} = fixture()
     _ = State.put(:light, light.id, %{power: :on, brightness: 64})
     _ = DesiredState.put(:light, light.id, %{power: :on, brightness: 65})
 
@@ -74,18 +74,18 @@ defmodule HueworksWeb.ApiControllerTest do
     assert status_response["api_version"] == "v1"
     refute inspect(status_response) =~ token
 
-    room_response =
+    area_response =
       build_conn()
       |> api_auth(token)
-      |> get("/api/v1/rooms/#{room.id}")
+      |> get("/api/v1/areas/#{area.id}")
       |> json_response(200)
 
-    assert room_response["kind"] == "room"
+    assert area_response["kind"] == "area"
 
-    assert [%{"id" => room_light_id, "physical_state" => %{"power" => "on"}}] =
-             room_response["lights"]
+    assert [%{"id" => area_light_id, "physical_state" => %{"power" => "on"}}] =
+             area_response["lights"]
 
-    assert room_light_id == light.id
+    assert area_light_id == light.id
 
     light_response =
       build_conn()
@@ -103,7 +103,7 @@ defmodule HueworksWeb.ApiControllerTest do
     token: token
   } do
     TraceBuffer.record(
-      %{trace_id: "api-controller-trace", source: "api.test", room_id: 7},
+      %{trace_id: "api-controller-trace", source: "api.test", area_id: 7},
       :planned,
       %{type: :light, id: 8, desired: %{power: :on}}
     )
@@ -122,7 +122,7 @@ defmodule HueworksWeb.ApiControllerTest do
   end
 
   test "searches entities by name and validates lookup filters", %{conn: conn, token: token} do
-    %{room: room, light: light, group: group} = fixture()
+    %{area: area, light: light, group: group} = fixture()
 
     assert %{
              "query" => "controller",
@@ -133,19 +133,19 @@ defmodule HueworksWeb.ApiControllerTest do
                  "id" => group_id,
                  "kind" => "group",
                  "match" => "prefix",
-                 "room_name" => "Controller Room"
+                 "area_name" => "Controller Area"
                },
                %{
                  "id" => light_id,
                  "kind" => "light",
                  "match" => "prefix",
-                 "room_name" => "Controller Room"
+                 "area_name" => "Controller Area"
                }
              ]
            } =
              conn
              |> api_auth(token)
-             |> get("/api/v1/entities?query=controller&room_id=#{room.id}")
+             |> get("/api/v1/entities?query=controller&area_id=#{area.id}")
              |> json_response(200)
 
     assert light_id == light.id
@@ -154,8 +154,8 @@ defmodule HueworksWeb.ApiControllerTest do
     for path <- [
           "/api/v1/entities",
           "/api/v1/entities?query=",
-          "/api/v1/entities?query=controller&kind=room",
-          "/api/v1/entities?query=controller&room_id=zero",
+          "/api/v1/entities?query=controller&kind=area",
+          "/api/v1/entities?query=controller&area_id=zero",
           "/api/v1/entities?query=controller&limit=101"
         ] do
       assert %{"error" => %{"code" => "invalid_parameter"}} =
@@ -201,8 +201,8 @@ defmodule HueworksWeb.ApiControllerTest do
     conn: conn,
     token: token
   } do
-    %{room: room} = fixture()
-    scene = Repo.insert!(%Scene{name: "Controller Scene", room_id: room.id})
+    %{area: area} = fixture()
+    scene = Repo.insert!(%Scene{name: "Controller Scene", area_id: area.id})
 
     assert %{"operation" => "scene_activate", "trace_id" => trace_id} =
              conn
@@ -211,16 +211,16 @@ defmodule HueworksWeb.ApiControllerTest do
              |> json_response(200)
 
     assert is_binary(trace_id)
-    assert ActiveScenes.get_for_room(room.id).scene_id == scene.id
+    assert ActiveScenes.get_for_area(area.id).scene_id == scene.id
 
-    assert %{"operation" => "room_scene_deactivate", "target" => %{"id" => room_id}} =
+    assert %{"operation" => "area_scene_deactivate", "target" => %{"id" => area_id}} =
              build_conn()
              |> api_auth(token)
-             |> delete("/api/v1/rooms/#{room.id}/active-scene")
+             |> delete("/api/v1/areas/#{area.id}/active-scene")
              |> json_response(200)
 
-    assert room_id == room.id
-    assert ActiveScenes.get_for_room(room.id) == nil
+    assert area_id == area.id
+    assert ActiveScenes.get_for_area(area.id) == nil
   end
 
   test "starts physical-state refresh without waiting for bridge I/O", %{conn: conn, token: token} do
@@ -245,7 +245,7 @@ defmodule HueworksWeb.ApiControllerTest do
   end
 
   defp fixture do
-    room = Repo.insert!(%Room{name: "Controller Room"})
+    area = Repo.insert!(%Area{name: "Controller Area"})
 
     bridge =
       %Bridge{}
@@ -264,7 +264,7 @@ defmodule HueworksWeb.ApiControllerTest do
         source: :hue,
         source_id: "controller-light",
         bridge_id: bridge.id,
-        room_id: room.id
+        area_id: area.id
       })
 
     group =
@@ -274,10 +274,10 @@ defmodule HueworksWeb.ApiControllerTest do
         source: :hue,
         source_id: "controller-group",
         bridge_id: bridge.id,
-        room_id: room.id
+        area_id: area.id
       })
 
     Repo.insert!(%GroupLight{group_id: group.id, light_id: light.id})
-    %{room: room, light: light, group: group}
+    %{area: area, light: light, group: group}
   end
 end

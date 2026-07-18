@@ -74,8 +74,8 @@ defmodule Hueworks.Groups do
   end
 
   defp update_group(%Group{} = group, attrs) when is_map(attrs) do
-    if Map.has_key?(attrs, :room_id) do
-      update_group_room_cascade(group, attrs)
+    if Map.has_key?(attrs, :area_id) do
+      update_group_area_cascade(group, attrs)
     else
       group
       |> Group.changeset(attrs)
@@ -86,9 +86,9 @@ defmodule Hueworks.Groups do
     end
   end
 
-  defp update_group_room_cascade(%Group{} = group, attrs) do
-    room_id = Map.get(attrs, :room_id)
-    effects = room_cascade_effects(group.id)
+  defp update_group_area_cascade(%Group{} = group, attrs) do
+    area_id = Map.get(attrs, :area_id)
+    effects = area_cascade_effects(group.id)
     group_ids = effects.group_ids
 
     Repo.transaction(fn ->
@@ -101,14 +101,14 @@ defmodule Hueworks.Groups do
           {:error, changeset} -> Repo.rollback(changeset)
         end
 
-      update_member_lights_room!(group_ids, room_id)
-      update_subgroups_room!(List.delete(group_ids, group.id), room_id)
+      update_member_lights_area!(group_ids, area_id)
+      update_subgroups_area!(List.delete(group_ids, group.id), area_id)
 
       {updated, effects}
     end)
   end
 
-  defp room_cascade_effects(group_id) do
+  defp area_cascade_effects(group_id) do
     subgroup_ids =
       Topology.member_sets()
       |> Topology.derive_subgroups()
@@ -126,22 +126,22 @@ defmodule Hueworks.Groups do
     %{group_ids: group_ids, light_ids: light_ids}
   end
 
-  defp update_member_lights_room!(group_ids, room_id) do
+  defp update_member_lights_area!(group_ids, area_id) do
     from(l in Light,
       join: gl in GroupLight,
       on: gl.light_id == l.id,
       where: gl.group_id in ^group_ids,
-      update: [set: [room_id: ^room_id]]
+      update: [set: [area_id: ^area_id]]
     )
     |> Repo.update_all([])
   end
 
-  defp update_subgroups_room!([], _room_id), do: {0, nil}
+  defp update_subgroups_area!([], _area_id), do: {0, nil}
 
-  defp update_subgroups_room!(subgroup_ids, room_id) do
+  defp update_subgroups_area!(subgroup_ids, area_id) do
     from(g in Group,
       where: g.id in ^subgroup_ids,
-      update: [set: [room_id: ^room_id]]
+      update: [set: [area_id: ^area_id]]
     )
     |> Repo.update_all([])
   end

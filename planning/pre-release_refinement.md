@@ -75,9 +75,9 @@ Native-development mDNS success is not sufficient. Verify Hue and Home Assistant
 
 ## First-Run Setup And Spatial Model
 
-### `Room` To `Area` Rename Prerequisite
+### `Room` To `Area` Cutover
 
-`Room` is too narrow for HueWorks' top-level lighting coordination boundary. A HueWorks coordination boundary may represent one physical room, several rooms in an open floor plan, or an entire floor. The product and domain term should be `Area`.
+`Room` was too narrow for HueWorks' top-level lighting coordination boundary. A HueWorks coordination boundary may represent one physical room, several rooms in an open floor plan, or an entire floor. The product and domain term is now `Area`.
 
 The rename is a discrete prerequisite to the setup work and must land atomically before external-space mapping or the guided setup flow. It is a terminology and schema migration, not a control-semantics redesign.
 
@@ -102,7 +102,7 @@ Externally published durable identity must be stored rather than regenerated fro
 Rules:
 
 - Generate each durable external identity once, persist the final published value, and reuse that exact value for the life of the owning record.
-- Backfill existing records with the exact identifiers they publish before the Area rename. Existing values containing `room` remain inert persisted data, not a legacy runtime model.
+- Backfill existing records with the exact identifiers they published before the Room-to-Area rename. Existing values containing `room` remain inert persisted data, not a legacy runtime model.
 - Generate identities for new Areas using the new Area convention. Runtime code must read the stored value rather than branch on record age or infer which naming convention applies.
 - Keep stored identities opaque, immutable, unique within their external namespace, and unavailable for ordinary user editing.
 - A rename, display-name change, source-space remap, or Room-to-Area migration must never change a stored external identity.
@@ -119,7 +119,7 @@ Home Assistant export requirements:
 - If the retained MQTT discovery topic itself depends on the discovery identity, derive that topic only from the stored final discovery value rather than reconstructing an old or new convention.
 - Verify retained discovery updates against a production-shaped HA registry and ensure the rename neither creates duplicate entities nor strands retained Room-era discovery records.
 
-HomeKit accessory serials currently identify lights, groups, and scenes rather than Rooms. Verify that no Room-derived HAP identity exists before migration; if one is found, preserve it through the same persisted-identity rule rather than adding a compatibility route or alternate Room model.
+HomeKit accessory serials currently identify lights, groups, and scenes rather than the former Rooms. Verify that no Room-derived HAP identity exists before migration; if one is found, preserve it through the same persisted-identity rule rather than adding a compatibility route or alternate Room model.
 
 ### Product Role Of Home Assistant
 
@@ -194,7 +194,7 @@ Spatial placement must be generalized across integrations rather than implemente
 Definitions:
 
 - A HueWorks `Area` is an authored lighting coordination boundary.
-- An `ExternalSpace` is a source-reported spatial concept such as an HA Floor, HA Area, Hue room, Caseta area, or another bridge's equivalent.
+- An `ExternalSpace` is a source-reported spatial concept such as an HA Floor, HA Area, Hue area, Caseta area, or another bridge's equivalent.
 - An `ExternalSpaceMapping` is user-owned HueWorks intent that maps one ExternalSpace to one HueWorks Area for placement guidance.
 
 Mapping rules:
@@ -320,7 +320,7 @@ The final production deployment is a separate user-approved action. Reaching a g
 
 Commit structure must preserve the smallest practical rollback boundaries:
 
-1. Additive persisted-identity prerequisites: add storage, backfill existing Room-era published values, constraints, and focused migration tests while keeping the current Room application behavior working where practical.
+1. Additive persisted-identity prerequisites: add storage, backfill existing Room-era published values, constraints, and focused migration tests while keeping the pre-cutover Room application behavior working where practical.
 2. Atomic Room-to-Area cutover: rename the schema and all application/runtime vocabulary together, remove old paths and compatibility code, and update export protocols to read persisted identity.
 3. Additive external-space mapping schema and domain primitives.
 4. HA inventory and cross-source mapping logic, with no guided UI dependency.
@@ -393,7 +393,7 @@ Journey:
 2. Choose the recommended HA-assisted path, discover Home Assistant, authorize in the browser, and return to a validated inventory connection without creating a long-lived token.
 3. Read HA integrations, Floors, Areas, and lights without creating HA-backed light rows.
 4. Create the intended HueWorks Areas, including mapping several HA spaces into one coordination Area.
-5. Discover and pair both Hue bridges without handling API keys, then verify identifier-assisted native room mapping suggestions.
+5. Discover and pair both Hue bridges without handling API keys, then verify identifier-assisted native area mapping suggestions.
 6. Discover and pair Caseta without a terminal helper or manual certificate movement, then map its source areas.
 7. Configure Zigbee2MQTT with reuse/discovery assistance, validate its retained snapshot, and map any source spaces it exposes.
 8. Import native bridges before Home Assistant entities with ordering consequences and inferred mappings visible.

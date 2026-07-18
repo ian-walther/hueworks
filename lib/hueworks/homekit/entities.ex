@@ -5,7 +5,7 @@ defmodule Hueworks.HomeKit.Entities do
 
   alias Hueworks.ControlTargets
   alias Hueworks.Repo
-  alias Hueworks.Schemas.{Group, Light, Room, Scene}
+  alias Hueworks.Schemas.{Group, Light, Area, Scene}
 
   def list_exposed_lights do
     Repo.all(
@@ -16,7 +16,7 @@ defmodule Hueworks.HomeKit.Entities do
         order_by: [asc: l.name, asc: l.id]
       )
     )
-    |> Repo.preload(:room)
+    |> Repo.preload(:area)
   end
 
   def list_exposed_groups do
@@ -28,15 +28,15 @@ defmodule Hueworks.HomeKit.Entities do
         order_by: [asc: g.name, asc: g.id]
       )
     )
-    |> Repo.preload([:room, :lights])
+    |> Repo.preload([:area, :lights])
   end
 
   def list_scenes do
     Repo.all(
       from(s in Scene,
-        join: r in Room,
-        on: r.id == s.room_id,
-        preload: [room: r],
+        join: r in Area,
+        on: r.id == s.area_id,
+        preload: [area: r],
         order_by: [asc: r.name, asc: s.name, asc: s.id]
       )
     )
@@ -48,7 +48,7 @@ defmodule Hueworks.HomeKit.Entities do
 
   def fetch_scene(id) when is_integer(id) do
     Repo.get(Scene, id)
-    |> Repo.preload(:room)
+    |> Repo.preload(:area)
   end
 
   def fetch_scene(_id), do: nil

@@ -77,7 +77,7 @@ defmodule Hueworks.HomeKit.ValueStore do
 
   defp scene_active?(scene_id) do
     with %Scene{} = scene <- Entities.fetch_scene(scene_id),
-         %{scene_id: active_scene_id} <- ActiveScenes.get_for_room(scene.room_id) do
+         %{scene_id: active_scene_id} <- ActiveScenes.get_for_area(scene.area_id) do
       active_scene_id == scene.id
     else
       _ -> false
@@ -88,8 +88,8 @@ defmodule Hueworks.HomeKit.ValueStore do
     power = if value in [true, 1], do: :on, else: :off
 
     case Entities.control_target(kind, id) do
-      {room_id, light_ids} when is_integer(room_id) and light_ids != [] ->
-        case ManualControl.apply_power_action(room_id, light_ids, power) do
+      {area_id, light_ids} when is_integer(area_id) and light_ids != [] ->
+        case ManualControl.apply_power_action(area_id, light_ids, power) do
           {:ok, _result} ->
             :ok
 
@@ -107,8 +107,8 @@ defmodule Hueworks.HomeKit.ValueStore do
     brightness = clamp_brightness(value)
 
     case Entities.control_target(kind, id) do
-      {room_id, light_ids} when is_integer(room_id) and light_ids != [] ->
-        case ManualControl.apply_updates(room_id, light_ids, %{brightness: brightness}) do
+      {area_id, light_ids} when is_integer(area_id) and light_ids != [] ->
+        case ManualControl.apply_updates(area_id, light_ids, %{brightness: brightness}) do
           {:ok, _diff} ->
             :ok
 

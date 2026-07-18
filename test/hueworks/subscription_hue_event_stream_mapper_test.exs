@@ -3,7 +3,7 @@ defmodule Hueworks.Subscription.HueEventStream.MapperTest do
 
   alias Hueworks.Control.State
   alias Hueworks.Repo
-  alias Hueworks.Schemas.{Group, GroupLight, Light, Room}
+  alias Hueworks.Schemas.{Group, GroupLight, Light, Area}
   alias Hueworks.Subscription.HueEventStream.Mapper
 
   setup do
@@ -15,7 +15,7 @@ defmodule Hueworks.Subscription.HueEventStream.MapperTest do
   end
 
   test "grouped_light aggregate state cannot satisfy member-light convergence" do
-    room = Repo.insert!(%Room{name: "Hue Room"})
+    area = Repo.insert!(%Area{name: "Hue Area"})
 
     bridge =
       insert_bridge!(%{
@@ -32,7 +32,7 @@ defmodule Hueworks.Subscription.HueEventStream.MapperTest do
         source: :hue,
         source_id: "11",
         bridge_id: bridge.id,
-        room_id: room.id
+        area_id: area.id
       })
 
     light_b =
@@ -41,7 +41,7 @@ defmodule Hueworks.Subscription.HueEventStream.MapperTest do
         source: :hue,
         source_id: "12",
         bridge_id: bridge.id,
-        room_id: room.id
+        area_id: area.id
       })
 
     group =
@@ -50,7 +50,7 @@ defmodule Hueworks.Subscription.HueEventStream.MapperTest do
         source: :hue,
         source_id: "21",
         bridge_id: bridge.id,
-        room_id: room.id
+        area_id: area.id
       })
 
     Repo.insert!(%GroupLight{group_id: group.id, light_id: light_a.id})
@@ -83,7 +83,7 @@ defmodule Hueworks.Subscription.HueEventStream.MapperTest do
   end
 
   test "grouped_light event does not fabricate state for overlapping child groups" do
-    room = Repo.insert!(%Room{name: "Hue Room"})
+    area = Repo.insert!(%Area{name: "Hue Area"})
 
     bridge =
       insert_bridge!(%{
@@ -100,7 +100,7 @@ defmodule Hueworks.Subscription.HueEventStream.MapperTest do
         source: :hue,
         source_id: "11",
         bridge_id: bridge.id,
-        room_id: room.id
+        area_id: area.id
       })
 
     light_b =
@@ -109,7 +109,7 @@ defmodule Hueworks.Subscription.HueEventStream.MapperTest do
         source: :hue,
         source_id: "12",
         bridge_id: bridge.id,
-        room_id: room.id
+        area_id: area.id
       })
 
     parent =
@@ -118,16 +118,16 @@ defmodule Hueworks.Subscription.HueEventStream.MapperTest do
         source: :hue,
         source_id: "21",
         bridge_id: bridge.id,
-        room_id: room.id
+        area_id: area.id
       })
 
     child =
       Repo.insert!(%Group{
-        name: "Living room Lamps",
+        name: "Living area Lamps",
         source: :hue,
         source_id: "22",
         bridge_id: bridge.id,
-        room_id: room.id
+        area_id: area.id
       })
 
     Repo.insert!(%GroupLight{group_id: parent.id, light_id: light_a.id})
@@ -167,7 +167,7 @@ defmodule Hueworks.Subscription.HueEventStream.MapperTest do
   end
 
   test "grouped_light aggregate does not rewrite member power observations" do
-    room = Repo.insert!(%Room{name: "Master Bedroom"})
+    area = Repo.insert!(%Area{name: "Master Bedroom"})
 
     bridge =
       insert_bridge!(%{
@@ -184,7 +184,7 @@ defmodule Hueworks.Subscription.HueEventStream.MapperTest do
         source: :hue,
         source_id: "11",
         bridge_id: bridge.id,
-        room_id: room.id
+        area_id: area.id
       })
 
     sitting_light =
@@ -193,7 +193,7 @@ defmodule Hueworks.Subscription.HueEventStream.MapperTest do
         source: :hue,
         source_id: "12",
         bridge_id: bridge.id,
-        room_id: room.id
+        area_id: area.id
       })
 
     parent =
@@ -202,7 +202,7 @@ defmodule Hueworks.Subscription.HueEventStream.MapperTest do
         source: :hue,
         source_id: "21",
         bridge_id: bridge.id,
-        room_id: room.id
+        area_id: area.id
       })
 
     sitting_area =
@@ -211,7 +211,7 @@ defmodule Hueworks.Subscription.HueEventStream.MapperTest do
         source: :hue,
         source_id: "22",
         bridge_id: bridge.id,
-        room_id: room.id
+        area_id: area.id
       })
 
     Repo.insert!(%GroupLight{group_id: parent.id, light_id: bedroom_light.id})
@@ -254,7 +254,7 @@ defmodule Hueworks.Subscription.HueEventStream.MapperTest do
   end
 
   test "grouped_light owner fallback resolves group id without updating members" do
-    room = Repo.insert!(%Room{name: "Hue Room"})
+    area = Repo.insert!(%Area{name: "Hue Area"})
 
     bridge =
       insert_bridge!(%{
@@ -271,7 +271,7 @@ defmodule Hueworks.Subscription.HueEventStream.MapperTest do
         source: :hue,
         source_id: "11",
         bridge_id: bridge.id,
-        room_id: room.id
+        area_id: area.id
       })
 
     group =
@@ -280,7 +280,7 @@ defmodule Hueworks.Subscription.HueEventStream.MapperTest do
         source: :hue,
         source_id: "21",
         bridge_id: bridge.id,
-        room_id: room.id
+        area_id: area.id
       })
 
     Repo.insert!(%GroupLight{group_id: group.id, light_id: light.id})
@@ -306,7 +306,7 @@ defmodule Hueworks.Subscription.HueEventStream.MapperTest do
   end
 
   test "light event updates group kelvin average when member kelvins stay within tolerance" do
-    room = Repo.insert!(%Room{name: "Hue Room"})
+    area = Repo.insert!(%Area{name: "Hue Area"})
 
     bridge =
       insert_bridge!(%{
@@ -323,7 +323,7 @@ defmodule Hueworks.Subscription.HueEventStream.MapperTest do
         source: :hue,
         source_id: "11",
         bridge_id: bridge.id,
-        room_id: room.id
+        area_id: area.id
       })
 
     light_b =
@@ -332,7 +332,7 @@ defmodule Hueworks.Subscription.HueEventStream.MapperTest do
         source: :hue,
         source_id: "12",
         bridge_id: bridge.id,
-        room_id: room.id
+        area_id: area.id
       })
 
     group =
@@ -341,7 +341,7 @@ defmodule Hueworks.Subscription.HueEventStream.MapperTest do
         source: :hue,
         source_id: "21",
         bridge_id: bridge.id,
-        room_id: room.id
+        area_id: area.id
       })
 
     Repo.insert!(%GroupLight{group_id: group.id, light_id: light_a.id})

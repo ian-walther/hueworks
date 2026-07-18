@@ -19,7 +19,7 @@ defmodule Hueworks.Picos.Actions do
     @moduledoc false
 
     @enforce_keys [:target_kind]
-    defstruct target_kind: :none, target_id: nil, target_ids: [], light_ids: [], room_id: nil
+    defstruct target_kind: :none, target_id: nil, target_ids: [], light_ids: [], area_id: nil
 
     def from_map(config) when is_map(config) do
       stored = StoredActionConfig.load(config)
@@ -29,7 +29,7 @@ defmodule Hueworks.Picos.Actions do
         target_id: StoredActionConfig.target_id(stored),
         target_ids: StoredActionConfig.target_ids(stored),
         light_ids: Targets.normalize_integer_ids(stored.light_ids),
-        room_id: stored.room_id
+        area_id: stored.area_id
       }
     end
 
@@ -93,9 +93,9 @@ defmodule Hueworks.Picos.Actions do
 
   defp execute_button_action(%PicoButton{action_type: nil}), do: :ignored
 
-  defp execute_button_action(%PicoButton{pico_device: %{room_id: room_id}})
-       when not is_integer(room_id) do
-    Logger.warning("[pico-trace] execute_button_action_ignored reason=:missing_room")
+  defp execute_button_action(%PicoButton{pico_device: %{area_id: area_id}})
+       when not is_integer(area_id) do
+    Logger.warning("[pico-trace] execute_button_action_ignored reason=:missing_area")
     :ignored
   end
 
@@ -110,10 +110,10 @@ defmodule Hueworks.Picos.Actions do
       |> action_light_ids(device)
 
     Logger.info(
-      "[pico-trace] execute_button_action room_id=#{device.room_id} action=:on light_ids=#{inspect(light_ids)}"
+      "[pico-trace] execute_button_action area_id=#{device.area_id} action=:on light_ids=#{inspect(light_ids)}"
     )
 
-    _ = ManualControl.apply_power_action(device.room_id, light_ids, :on)
+    _ = ManualControl.apply_power_action(device.area_id, light_ids, :on)
     :handled
   end
 
@@ -128,10 +128,10 @@ defmodule Hueworks.Picos.Actions do
       |> action_light_ids(device)
 
     Logger.info(
-      "[pico-trace] execute_button_action room_id=#{device.room_id} action=:off light_ids=#{inspect(light_ids)}"
+      "[pico-trace] execute_button_action area_id=#{device.area_id} action=:off light_ids=#{inspect(light_ids)}"
     )
 
-    _ = ManualControl.apply_power_action(device.room_id, light_ids, :off)
+    _ = ManualControl.apply_power_action(device.area_id, light_ids, :off)
     :handled
   end
 
@@ -150,10 +150,10 @@ defmodule Hueworks.Picos.Actions do
     action = if(any_on?, do: :off, else: :on)
 
     Logger.info(
-      "[pico-trace] execute_button_action room_id=#{device.room_id} action=#{inspect(action)} light_ids=#{inspect(light_ids)} any_on?=#{any_on?}"
+      "[pico-trace] execute_button_action area_id=#{device.area_id} action=#{inspect(action)} light_ids=#{inspect(light_ids)} any_on?=#{any_on?}"
     )
 
-    _ = ManualControl.apply_power_action(device.room_id, light_ids, action)
+    _ = ManualControl.apply_power_action(device.area_id, light_ids, action)
     :handled
   end
 
@@ -165,7 +165,7 @@ defmodule Hueworks.Picos.Actions do
     case ActionConfig.from_map(config) do
       %ActionConfig{target_kind: :scene, target_id: scene_id} when is_integer(scene_id) ->
         Logger.info(
-          "[pico-trace] execute_button_action room_id=#{device.room_id} action=:activate_scene scene_id=#{scene_id}"
+          "[pico-trace] execute_button_action area_id=#{device.area_id} action=:activate_scene scene_id=#{scene_id}"
         )
 
         case Scenes.activate_scene(scene_id) do
@@ -200,7 +200,7 @@ defmodule Hueworks.Picos.Actions do
     device
     |> Picos.control_groups()
     |> Enum.filter(&MapSet.member?(selected_group_ids, Map.get(&1, "id")))
-    |> Enum.flat_map(&Targets.control_group_light_ids(device.room_id, &1))
+    |> Enum.flat_map(&Targets.control_group_light_ids(device.area_id, &1))
     |> Enum.uniq()
   end
 

@@ -9,12 +9,12 @@ defmodule HueworksWeb.LightsLive.Presentation do
     |> Map.get(key, fallback)
   end
 
-  def manual_adjustment_locked?(active_scene_by_room, room_id)
-      when is_map(active_scene_by_room) do
-    is_integer(room_id) and Map.has_key?(active_scene_by_room, room_id)
+  def manual_adjustment_locked?(active_scene_by_area, area_id)
+      when is_map(active_scene_by_area) do
+    is_integer(area_id) and Map.has_key?(active_scene_by_area, area_id)
   end
 
-  def manual_adjustment_locked?(_active_scene_by_room, _room_id), do: false
+  def manual_adjustment_locked?(_active_scene_by_area, _area_id), do: false
 
   def color_preview(state_map, id) do
     state = Map.get(state_map, id, %{})

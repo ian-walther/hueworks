@@ -6,7 +6,7 @@ defmodule Hueworks.Subscription.CasetaEventStream.ConnectionTest do
   alias Hueworks.Control.State
   alias Hueworks.Control.DesiredState
   alias Hueworks.Repo
-  alias Hueworks.Schemas.{Light, PicoButton, PicoDevice, Room}
+  alias Hueworks.Schemas.{Light, PicoButton, PicoDevice, Area}
   alias Hueworks.Subscription.CasetaEventStream.Connection
 
   defp insert_pico_button(attrs) do
@@ -24,7 +24,7 @@ defmodule Hueworks.Subscription.CasetaEventStream.ConnectionTest do
   end
 
   test "zone status frames update mapped Caseta lights" do
-    room = Repo.insert!(%Room{name: "Living"})
+    area = Repo.insert!(%Area{name: "Living"})
 
     bridge =
       insert_bridge!(%{
@@ -45,7 +45,7 @@ defmodule Hueworks.Subscription.CasetaEventStream.ConnectionTest do
         source: :caseta,
         source_id: "42",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         enabled: true
       })
 
@@ -112,7 +112,7 @@ defmodule Hueworks.Subscription.CasetaEventStream.ConnectionTest do
   end
 
   test "unknown zone status refreshes Caseta light index and applies immediately" do
-    room = Repo.insert!(%Room{name: "Refresh Living"})
+    area = Repo.insert!(%Area{name: "Refresh Living"})
 
     bridge =
       insert_bridge!(%{
@@ -135,7 +135,7 @@ defmodule Hueworks.Subscription.CasetaEventStream.ConnectionTest do
         source: :caseta,
         source_id: "72",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         enabled: true
       })
 
@@ -147,7 +147,7 @@ defmodule Hueworks.Subscription.CasetaEventStream.ConnectionTest do
   end
 
   test "unknown zone status refresh is rate limited" do
-    room = Repo.insert!(%Room{name: "Refresh Limited Living"})
+    area = Repo.insert!(%Area{name: "Refresh Limited Living"})
 
     bridge =
       insert_bridge!(%{
@@ -168,7 +168,7 @@ defmodule Hueworks.Subscription.CasetaEventStream.ConnectionTest do
         source: :caseta,
         source_id: "82",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         enabled: true
       })
 
@@ -185,7 +185,7 @@ defmodule Hueworks.Subscription.CasetaEventStream.ConnectionTest do
         source: :caseta,
         source_id: "83",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         enabled: true
       })
 
@@ -199,7 +199,7 @@ defmodule Hueworks.Subscription.CasetaEventStream.ConnectionTest do
   end
 
   test "button press frames trigger configured Pico button actions" do
-    room = Repo.insert!(%Room{name: "Living"})
+    area = Repo.insert!(%Area{name: "Living"})
 
     bridge =
       insert_bridge!(%{
@@ -220,14 +220,14 @@ defmodule Hueworks.Subscription.CasetaEventStream.ConnectionTest do
         source: :caseta,
         source_id: "52",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         enabled: true
       })
 
     device =
       Repo.insert!(%PicoDevice{
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         source_id: "device-1",
         name: "Living Pico",
         hardware_profile: "5_button"
@@ -260,7 +260,7 @@ defmodule Hueworks.Subscription.CasetaEventStream.ConnectionTest do
   end
 
   test "nested button event frames trigger configured Pico button actions" do
-    room = Repo.insert!(%Room{name: "Kitchen"})
+    area = Repo.insert!(%Area{name: "Kitchen"})
 
     bridge =
       insert_bridge!(%{
@@ -281,14 +281,14 @@ defmodule Hueworks.Subscription.CasetaEventStream.ConnectionTest do
         source: :caseta,
         source_id: "62",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         enabled: true
       })
 
     device =
       Repo.insert!(%PicoDevice{
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         source_id: "device-2",
         name: "Kitchen Accent Pico",
         hardware_profile: "5_button"
@@ -323,7 +323,7 @@ defmodule Hueworks.Subscription.CasetaEventStream.ConnectionTest do
   end
 
   test "unknown button events refresh Pico buttons and subscribe newly enabled buttons" do
-    room = Repo.insert!(%Room{name: "Pico Refresh"})
+    area = Repo.insert!(%Area{name: "Pico Refresh"})
 
     bridge =
       insert_bridge!(%{
@@ -344,14 +344,14 @@ defmodule Hueworks.Subscription.CasetaEventStream.ConnectionTest do
         source: :caseta,
         source_id: "92",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         enabled: true
       })
 
     device =
       Repo.insert!(%PicoDevice{
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         source_id: "device-refresh",
         name: "Refresh Pico",
         hardware_profile: "5_button"
@@ -387,7 +387,7 @@ defmodule Hueworks.Subscription.CasetaEventStream.ConnectionTest do
   end
 
   test "button handling errors do not crash the Caseta event stream" do
-    room = Repo.insert!(%Room{name: "Bad Pico Config"})
+    area = Repo.insert!(%Area{name: "Bad Pico Config"})
 
     bridge =
       insert_bridge!(%{
@@ -405,7 +405,7 @@ defmodule Hueworks.Subscription.CasetaEventStream.ConnectionTest do
     device_a =
       Repo.insert!(%PicoDevice{
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         source_id: "device-bad-a",
         name: "Bad Pico A",
         hardware_profile: "5_button"
@@ -414,7 +414,7 @@ defmodule Hueworks.Subscription.CasetaEventStream.ConnectionTest do
     device_b =
       Repo.insert!(%PicoDevice{
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         source_id: "device-bad-b",
         name: "Bad Pico B",
         hardware_profile: "5_button"

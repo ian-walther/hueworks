@@ -68,7 +68,7 @@
                     value={scene.id}
                     selected={external_scene.mapping && external_scene.mapping.scene_id == scene.id}
                   >
-                    <%= (scene.room && (scene.room.display_name || scene.room.name) || "No Room") <> " / " <> scene.name %>
+                    <%= (scene.area && (scene.area.display_name || scene.area.name) || "No Area") <> " / " <> scene.name %>
                   </option>
                 <% end %>
               </select>

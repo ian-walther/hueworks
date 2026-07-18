@@ -22,9 +22,9 @@ Status: complete. All database unique indexes now map to changeset errors, JavaS
 
 ## Database Constraint Posture
 
-Every unique index has a corresponding changeset mapping. The sweep added the two omissions: one active scene per room and one light per scene component. `test/hueworks/schema_constraint_parity_test.exs` proves both return ordinary changeset errors rather than raising.
+Every unique index has a corresponding changeset mapping. The sweep added the two omissions: one active scene per area and one light per scene component. `test/hueworks/schema_constraint_parity_test.exs` proves both return ordinary changeset errors rather than raising.
 
-Foreign keys and delete behavior match the context model: bridge/room/scene ownership cascades where the owned record has no independent life; optional room/canonical/presence links nilify; saved light states restrict deletion while referenced. SQLite reports foreign-key violations without a constraint name, so Ecto cannot map generic `foreign_key_constraint/3` declarations to a field under this adapter. HueWorks therefore continues to enforce normal reference selection in context APIs and relies on SQLite for final integrity; adding declarations that still raise was explicitly refuted by the runtime probe.
+Foreign keys and delete behavior match the context model: bridge/area/scene ownership cascades where the owned record has no independent life; optional area/canonical/presence links nilify; saved light states restrict deletion while referenced. SQLite reports foreign-key violations without a constraint name, so Ecto cannot map generic `foreign_key_constraint/3` declarations to a field under this adapter. HueWorks therefore continues to enforce normal reference selection in context APIs and relies on SQLite for final integrity; adding declarations that still raise was explicitly refuted by the runtime probe.
 
 ## Browser Hook Posture
 

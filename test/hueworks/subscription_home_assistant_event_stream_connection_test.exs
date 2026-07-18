@@ -12,7 +12,7 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.ConnectionTest do
     ExternalSceneMapping,
     Group,
     Light,
-    Room,
+    Area,
     Scene
   }
 
@@ -43,7 +43,7 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.ConnectionTest do
   end
 
   test "event handler maps extended xy HA updates to low kelvin values" do
-    room = Repo.insert!(%Room{name: "Living"})
+    area = Repo.insert!(%Area{name: "Living"})
 
     bridge =
       insert_bridge!(%{
@@ -60,7 +60,7 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.ConnectionTest do
         source: :ha,
         source_id: "light.cabinet",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6500,
@@ -104,7 +104,7 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.ConnectionTest do
   end
 
   test "start_link uses async websocket start and defers entity index loading" do
-    room = Repo.insert!(%Room{name: "Async HA"})
+    area = Repo.insert!(%Area{name: "Async HA"})
 
     bridge =
       insert_bridge!(%{
@@ -121,7 +121,7 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.ConnectionTest do
         source: :ha,
         source_id: "light.existing",
         bridge_id: bridge.id,
-        room_id: room.id
+        area_id: area.id
       })
 
     assert {:ok, _pid} = Connection.start_link(bridge, FakeWebSockex)
@@ -136,7 +136,7 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.ConnectionTest do
   end
 
   test "handle_connect loads HA entity indexes inside the connection process" do
-    room = Repo.insert!(%Room{name: "Connected HA"})
+    area = Repo.insert!(%Area{name: "Connected HA"})
 
     bridge =
       insert_bridge!(%{
@@ -153,7 +153,7 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.ConnectionTest do
         source: :ha,
         source_id: "light.connected",
         bridge_id: bridge.id,
-        room_id: room.id
+        area_id: area.id
       })
 
     state = ha_state(bridge)
@@ -207,7 +207,7 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.ConnectionTest do
   end
 
   test "state_changed refreshes indexes for newly imported HA lights and applies immediately" do
-    room = Repo.insert!(%Room{name: "Refresh Room"})
+    area = Repo.insert!(%Area{name: "Refresh Area"})
 
     bridge =
       insert_bridge!(%{
@@ -226,7 +226,7 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.ConnectionTest do
         source: :ha,
         source_id: "light.new_lamp",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6500
@@ -242,7 +242,7 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.ConnectionTest do
   end
 
   test "state_changed index refresh is rate limited for unknown HA entities" do
-    room = Repo.insert!(%Room{name: "Refresh Limit Room"})
+    area = Repo.insert!(%Area{name: "Refresh Limit Area"})
 
     bridge =
       insert_bridge!(%{
@@ -259,7 +259,7 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.ConnectionTest do
         source: :ha,
         source_id: "light.first_lamp",
         bridge_id: bridge.id,
-        room_id: room.id
+        area_id: area.id
       })
 
     state = ha_state(bridge)
@@ -278,7 +278,7 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.ConnectionTest do
         source: :ha,
         source_id: "light.second_lamp",
         bridge_id: bridge.id,
-        room_id: room.id
+        area_id: area.id
       })
 
     second_payload =
@@ -291,7 +291,7 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.ConnectionTest do
   end
 
   test "state_changed group events fan out state to member lights" do
-    room = Repo.insert!(%Room{name: "Living"})
+    area = Repo.insert!(%Area{name: "Living"})
 
     bridge =
       insert_bridge!(%{
@@ -308,7 +308,7 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.ConnectionTest do
         source: :ha,
         source_id: "light.a",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6500
@@ -320,7 +320,7 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.ConnectionTest do
         source: :ha,
         source_id: "light.b",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6500
@@ -332,7 +332,7 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.ConnectionTest do
         source: :ha,
         source_id: "light.living_group",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         metadata: %{"members" => [light_a.source_id, light_b.source_id]}
       })
 
@@ -371,7 +371,7 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.ConnectionTest do
   end
 
   test "state_changed group events preserve explicit member power state during fan-out" do
-    room = Repo.insert!(%Room{name: "Office"})
+    area = Repo.insert!(%Area{name: "Office"})
 
     bridge =
       insert_bridge!(%{
@@ -388,7 +388,7 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.ConnectionTest do
         source: :ha,
         source_id: "light.desired_off",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6500
@@ -400,7 +400,7 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.ConnectionTest do
         source: :ha,
         source_id: "light.physically_off",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6500
@@ -412,7 +412,7 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.ConnectionTest do
         source: :ha,
         source_id: "light.desired_on",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6500
@@ -424,7 +424,7 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.ConnectionTest do
         source: :ha,
         source_id: "light.office_group",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         metadata: %{
           "members" => [
             desired_off.source_id,
@@ -494,7 +494,7 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.ConnectionTest do
   end
 
   test "call_service scene events activate mapped HueWorks scenes" do
-    room = Repo.insert!(%Room{name: "Kitchen"})
+    area = Repo.insert!(%Area{name: "Kitchen"})
 
     bridge =
       insert_bridge!(%{
@@ -505,7 +505,7 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.ConnectionTest do
         enabled: true
       })
 
-    scene = Repo.insert!(%Scene{name: "Cooking", room_id: room.id, metadata: %{}})
+    scene = Repo.insert!(%Scene{name: "Cooking", area_id: area.id, metadata: %{}})
 
     external_scene =
       Repo.insert!(%ExternalScene{
@@ -547,7 +547,7 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.ConnectionTest do
     }
 
     assert {:ok, ^state} = Connection.handle_frame({:text, Jason.encode!(payload)}, state)
-    assert %ActiveScene{scene_id: scene_id} = ActiveScenes.get_for_room(room.id)
+    assert %ActiveScene{scene_id: scene_id} = ActiveScenes.get_for_area(area.id)
     assert scene_id == scene.id
   end
 

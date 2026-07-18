@@ -13,7 +13,7 @@ defmodule Hueworks.ControlTargets do
         where: l.id == ^light_id and is_nil(l.canonical_light_id)
       )
     )
-    |> Repo.preload(:room)
+    |> Repo.preload(:area)
   end
 
   def fetch_entity(:group, group_id) when is_integer(group_id) do
@@ -22,21 +22,21 @@ defmodule Hueworks.ControlTargets do
         where: g.id == ^group_id and is_nil(g.canonical_group_id)
       )
     )
-    |> Repo.preload([:room, :lights])
+    |> Repo.preload([:area, :lights])
   end
 
   def fetch_entity(_kind, _id), do: nil
 
   def control_target(:light, light_id) when is_integer(light_id) do
     case fetch_entity(:light, light_id) do
-      %Light{} = light -> {light.room_id, [light.id]}
+      %Light{} = light -> {light.area_id, [light.id]}
       _ -> nil
     end
   end
 
   def control_target(:group, group_id) when is_integer(group_id) do
     case fetch_entity(:group, group_id) do
-      %Group{} = group -> {group.room_id, Groups.member_light_ids(group.id)}
+      %Group{} = group -> {group.area_id, Groups.member_light_ids(group.id)}
       _ -> nil
     end
   end

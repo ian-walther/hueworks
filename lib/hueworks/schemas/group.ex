@@ -8,7 +8,7 @@ defmodule Hueworks.Schemas.Group do
     field(:source, Ecto.Enum, values: [:hue, :caseta, :ha, :z2m])
     field(:source_id, :string)
     belongs_to(:bridge, Hueworks.Schemas.Bridge)
-    belongs_to(:room, Hueworks.Schemas.Room)
+    belongs_to(:area, Hueworks.Schemas.Area)
     belongs_to(:parent_group, __MODULE__)
     belongs_to(:canonical_group, __MODULE__)
     field(:supports_color, :boolean, default: false)
@@ -39,7 +39,7 @@ defmodule Hueworks.Schemas.Group do
       :source,
       :source_id,
       :bridge_id,
-      :room_id,
+      :area_id,
       :parent_group_id,
       :canonical_group_id,
       :supports_color,

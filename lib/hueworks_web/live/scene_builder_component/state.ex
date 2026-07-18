@@ -17,14 +17,14 @@ defmodule HueworksWeb.SceneBuilderComponent.State do
   def add_light(components, component_id, light_id),
     do: Membership.add_light(components, component_id, light_id)
 
-  def add_group(components, component_id, group, room_light_ids),
-    do: Membership.add_group(components, component_id, group, room_light_ids)
+  def add_group(components, component_id, group, area_light_ids),
+    do: Membership.add_group(components, component_id, group, area_light_ids)
 
   def remove_light(components, component_id, light_id),
     do: Membership.remove_light(components, component_id, light_id)
 
-  def remove_group(components, component_id, group, room_light_ids),
-    do: Membership.remove_group(components, component_id, group, room_light_ids)
+  def remove_group(components, component_id, group, area_light_ids),
+    do: Membership.remove_group(components, component_id, group, area_light_ids)
 
   def remove_component(components, component_id),
     do: Membership.remove_component(components, component_id)
@@ -58,14 +58,14 @@ defmodule HueworksWeb.SceneBuilderComponent.State do
           presence_inputs
         )
 
-  def toggle_group_default_power(components, component_id, group, room_light_ids),
-    do: Policy.toggle_group_default_power(components, component_id, group, room_light_ids)
+  def toggle_group_default_power(components, component_id, group, area_light_ids),
+    do: Policy.toggle_group_default_power(components, component_id, group, area_light_ids)
 
   def set_group_default_power(
         components,
         component_id,
         group,
-        room_light_ids,
+        area_light_ids,
         policy,
         presence_inputs
       ),
@@ -74,7 +74,7 @@ defmodule HueworksWeb.SceneBuilderComponent.State do
           components,
           component_id,
           group,
-          room_light_ids,
+          area_light_ids,
           policy,
           presence_inputs
         )
@@ -83,7 +83,7 @@ defmodule HueworksWeb.SceneBuilderComponent.State do
         components,
         component_id,
         group,
-        room_light_ids,
+        area_light_ids,
         presence_input_id,
         presence_inputs
       ),
@@ -92,7 +92,7 @@ defmodule HueworksWeb.SceneBuilderComponent.State do
           components,
           component_id,
           group,
-          room_light_ids,
+          area_light_ids,
           presence_input_id,
           presence_inputs
         )
@@ -109,41 +109,41 @@ defmodule HueworksWeb.SceneBuilderComponent.State do
   def light_presence_input_id(component, light_id),
     do: Policy.light_presence_input_id(component, light_id)
 
-  def component_group_topology(component, groups, room_light_ids) do
+  def component_group_topology(component, groups, area_light_ids) do
     component = Component.new(component)
 
     groups
     |> Enum.map(fn group ->
-      Map.put(group, :light_ids, Builder.group_room_light_ids(group, room_light_ids))
+      Map.put(group, :light_ids, Builder.group_area_light_ids(group, area_light_ids))
     end)
     |> Topology.presentation_tree(component.light_ids)
   end
 
-  def component_groups(component, groups, room_light_ids) do
+  def component_groups(component, groups, area_light_ids) do
     component = Component.new(component)
     component_light_ids = MapSet.new(component.light_ids)
 
     groups
     |> Enum.filter(fn group ->
-      group_light_ids = Builder.group_room_light_ids(group, room_light_ids)
+      group_light_ids = Builder.group_area_light_ids(group, area_light_ids)
 
       group_light_ids != [] and
         Enum.all?(group_light_ids, &MapSet.member?(component_light_ids, &1))
     end)
     |> Enum.sort_by(fn group ->
-      {-Enum.count(component_group_light_ids(component, group, room_light_ids)),
+      {-Enum.count(component_group_light_ids(component, group, area_light_ids)),
        group |> display_name() |> String.downcase(), group.id}
     end)
   end
 
-  def component_group_light_ids(component, group, room_light_ids),
-    do: Policy.component_group_light_ids(component, group, room_light_ids)
+  def component_group_light_ids(component, group, area_light_ids),
+    do: Policy.component_group_light_ids(component, group, area_light_ids)
 
-  def group_default_power(component, group, room_light_ids),
-    do: Policy.group_default_power(component, group, room_light_ids)
+  def group_default_power(component, group, area_light_ids),
+    do: Policy.group_default_power(component, group, area_light_ids)
 
-  def group_presence_input_id(component, group, room_light_ids),
-    do: Policy.group_presence_input_id(component, group, room_light_ids)
+  def group_presence_input_id(component, group, area_light_ids),
+    do: Policy.group_presence_input_id(component, group, area_light_ids)
 
   def power_policy_label(policy), do: PowerPolicy.label(policy)
 

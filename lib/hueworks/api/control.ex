@@ -10,7 +10,7 @@ defmodule Hueworks.Api.Control do
   alias Hueworks.Lights.ManualControl
   alias Hueworks.Repo
   alias Hueworks.Scenes
-  alias Hueworks.Schemas.{Group, Light, Room, Scene}
+  alias Hueworks.Schemas.{Group, Light, Area, Scene}
 
   @type kind :: :light | :group
 
@@ -37,7 +37,7 @@ defmodule Hueworks.Api.Control do
         {:error, :not_found}
 
       %Scene{} = scene ->
-        trace = trace("api.scene_activate", scene.room_id, scene.id)
+        trace = trace("api.scene_activate", scene.area_id, scene.id)
 
         TraceBuffer.record(trace, :intent, %{
           entity_kind: :scene,
@@ -65,26 +65,26 @@ defmodule Hueworks.Api.Control do
 
   def activate_scene(_scene_id), do: {:error, :not_found}
 
-  def deactivate_room_scene(room_id) when is_integer(room_id) do
-    case Repo.get(Room, room_id) do
+  def deactivate_area_scene(area_id) when is_integer(area_id) do
+    case Repo.get(Area, area_id) do
       nil ->
         {:error, :not_found}
 
-      %Room{} ->
-        trace = trace("api.room_scene_deactivate", room_id)
+      %Area{} ->
+        trace = trace("api.area_scene_deactivate", area_id)
 
         TraceBuffer.record(trace, :intent, %{
-          entity_kind: :room,
-          entity_id: room_id,
+          entity_kind: :area,
+          entity_id: area_id,
           action_count: 0
         })
 
-        :ok = ActiveScenes.clear_for_room(room_id)
+        :ok = ActiveScenes.clear_for_area(area_id)
 
         {:ok,
          %{
-           operation: "room_scene_deactivate",
-           target: %{kind: "room", id: room_id},
+           operation: "area_scene_deactivate",
+           target: %{kind: "area", id: area_id},
            accepted_intent: %{"active_scene" => false},
            trace_id: trace.trace_id,
            plan: %{action_count: 0, bridge_count: 0}
@@ -92,7 +92,7 @@ defmodule Hueworks.Api.Control do
     end
   end
 
-  def deactivate_room_scene(_room_id), do: {:error, :not_found}
+  def deactivate_area_scene(_area_id), do: {:error, :not_found}
 
   def refresh_physical_state do
     trace = trace("api.physical_state_refresh", nil)
@@ -113,13 +113,13 @@ defmodule Hueworks.Api.Control do
 
   defp fetch_target(:light, light_id) do
     case ControlTargets.fetch_entity(:light, light_id) do
-      %Light{enabled: true, room_id: room_id} = light when is_integer(room_id) ->
+      %Light{enabled: true, area_id: area_id} = light when is_integer(area_id) ->
         {:ok,
          %{
            entity: light,
-           room_id: room_id,
+           area_id: area_id,
            light_ids: [light.id],
-           trace: trace("api.light_control", room_id)
+           trace: trace("api.light_control", area_id)
          }}
 
       _ ->
@@ -129,7 +129,7 @@ defmodule Hueworks.Api.Control do
 
   defp fetch_target(:group, group_id) do
     case ControlTargets.fetch_entity(:group, group_id) do
-      %Group{enabled: true, room_id: room_id} = group when is_integer(room_id) ->
+      %Group{enabled: true, area_id: area_id} = group when is_integer(area_id) ->
         case Groups.member_light_ids(group.id) do
           [] ->
             {:error, :no_members}
@@ -138,9 +138,9 @@ defmodule Hueworks.Api.Control do
             {:ok,
              %{
                entity: group,
-               room_id: room_id,
+               area_id: area_id,
                light_ids: light_ids,
-               trace: trace("api.group_control", room_id)
+               trace: trace("api.group_control", area_id)
              }}
         end
 
@@ -222,25 +222,25 @@ defmodule Hueworks.Api.Control do
   defp normalize_color(_entity, _value), do: {:error, :invalid_control}
 
   defp dispatch(target, %{kind: :power, power: power}) do
-    ManualControl.apply_power_action(target.room_id, target.light_ids, power, trace: target.trace)
+    ManualControl.apply_power_action(target.area_id, target.light_ids, power, trace: target.trace)
   end
 
   defp dispatch(target, %{kind: :manual, desired: desired}) do
-    ManualControl.apply_updates(target.room_id, target.light_ids, desired, trace: target.trace)
+    ManualControl.apply_updates(target.area_id, target.light_ids, desired, trace: target.trace)
   end
 
   defp plan_summary(trace_id) do
     TraceBuffer.trace_summary(trace_id)
   end
 
-  defp trace(source, room_id, scene_id \\ nil) do
+  defp trace(source, area_id, scene_id \\ nil) do
     sequence = System.unique_integer([:positive])
 
     %{
       trace_id: "api-#{sequence}",
       source: source,
-      room_id: room_id,
-      trace_room_id: room_id,
+      area_id: area_id,
+      trace_area_id: area_id,
       scene_id: scene_id,
       trace_scene_id: scene_id,
       started_at_ms: System.monotonic_time(:millisecond)

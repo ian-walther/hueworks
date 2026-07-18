@@ -10,12 +10,12 @@ defmodule Hueworks.ControlStateActiveSceneTest do
   alias Hueworks.Schemas.{
     ActiveScene,
     Light,
-    Room,
+    Area,
     Scene
   }
 
-  defp insert_room do
-    Repo.insert!(%Room{name: "Studio", metadata: %{}})
+  defp insert_area do
+    Repo.insert!(%Area{name: "Studio", metadata: %{}})
   end
 
   defp insert_bridge(type \\ :hue) do
@@ -29,58 +29,58 @@ defmodule Hueworks.ControlStateActiveSceneTest do
     })
   end
 
-  defp insert_light(room, bridge, attrs \\ %{}) do
+  defp insert_light(area, bridge, attrs \\ %{}) do
     defaults = %{
       name: "Lamp",
       source: :hue,
       source_id: Integer.to_string(System.unique_integer([:positive])),
       bridge_id: bridge.id,
-      room_id: room.id,
+      area_id: area.id,
       metadata: %{}
     }
 
     Repo.insert!(struct(Light, Map.merge(defaults, attrs)))
   end
 
-  defp insert_scene(room) do
-    Repo.insert!(%Scene{name: "Chill", room_id: room.id, metadata: %{}})
+  defp insert_scene(area) do
+    Repo.insert!(%Scene{name: "Chill", area_id: area.id, metadata: %{}})
   end
 
-  test "external state divergence does not clear active scene for the room" do
-    room = insert_room()
+  test "external state divergence does not clear active scene for the area" do
+    area = insert_area()
     bridge = insert_bridge()
-    light = insert_light(room, bridge)
-    scene = insert_scene(room)
+    light = insert_light(area, bridge)
+    scene = insert_scene(area)
 
     {:ok, _} = ActiveScenes.set_active(scene)
     _ = DesiredState.put(:light, light.id, %{power: :on, brightness: 50, kelvin: 3000})
 
     _ = State.put(:light, light.id, %{power: :on, brightness: 40, kelvin: 3000})
 
-    assert %ActiveScene{scene_id: scene_id} = Repo.get_by(ActiveScene, room_id: room.id)
+    assert %ActiveScene{scene_id: scene_id} = Repo.get_by(ActiveScene, area_id: area.id)
     assert scene_id == scene.id
   end
 
   test "power-only state changes do not clear active scene" do
-    room = insert_room()
+    area = insert_area()
     bridge = insert_bridge()
-    light = insert_light(room, bridge)
-    scene = insert_scene(room)
+    light = insert_light(area, bridge)
+    scene = insert_scene(area)
 
     {:ok, _} = ActiveScenes.set_active(scene)
     _ = DesiredState.put(:light, light.id, %{power: :on, brightness: 46, kelvin: 3000})
 
     _ = State.put(:light, light.id, %{power: :off, brightness: 46, kelvin: 3000})
 
-    assert %ActiveScene{scene_id: scene_id} = Repo.get_by(ActiveScene, room_id: room.id)
+    assert %ActiveScene{scene_id: scene_id} = Repo.get_by(ActiveScene, area_id: area.id)
     assert scene_id == scene.id
   end
 
   test "bootstrap state refresh does not clear active scene" do
-    room = insert_room()
+    area = insert_area()
     bridge = insert_bridge()
-    light = insert_light(room, bridge)
-    scene = insert_scene(room)
+    light = insert_light(area, bridge)
+    scene = insert_scene(area)
 
     {:ok, _} = ActiveScenes.set_active(scene)
     _ = DesiredState.put(:light, light.id, %{power: :on, brightness: 24, kelvin: 3000})
@@ -88,46 +88,46 @@ defmodule Hueworks.ControlStateActiveSceneTest do
     _ =
       State.put(:light, light.id, %{power: :on, brightness: 31, kelvin: 3000})
 
-    assert %ActiveScene{scene_id: scene_id} = Repo.get_by(ActiveScene, room_id: room.id)
+    assert %ActiveScene{scene_id: scene_id} = Repo.get_by(ActiveScene, area_id: area.id)
     assert scene_id == scene.id
   end
 
   test "manual scene reapply keeps the active scene row after later physical updates land" do
-    room = insert_room()
+    area = insert_area()
     bridge = insert_bridge()
-    light = insert_light(room, bridge, %{supports_temp: true})
-    scene = insert_scene(room)
+    light = insert_light(area, bridge, %{supports_temp: true})
+    scene = insert_scene(area)
 
     {:ok, _} = ActiveScenes.set_active(scene)
 
     assert {:ok, _diff, _updated} =
-             Scenes.recompute_active_scene_lights(room.id, [light.id], power_override: :off)
+             Scenes.recompute_active_scene_lights(area.id, [light.id], power_override: :off)
 
     _ = DesiredState.put(:light, light.id, %{power: :off})
     _ = State.put(:light, light.id, %{power: :on, brightness: 50, kelvin: 3000})
 
-    assert %ActiveScene{scene_id: scene_id} = Repo.get_by(ActiveScene, room_id: room.id)
+    assert %ActiveScene{scene_id: scene_id} = Repo.get_by(ActiveScene, area_id: area.id)
     assert scene_id == scene.id
   end
 
   test "manual power override does not apply when its active-scene latch fails to persist" do
-    room = insert_room()
+    area = insert_area()
     bridge = insert_bridge()
-    light = insert_light(room, bridge)
-    scene = insert_scene(room)
+    light = insert_light(area, bridge)
+    scene = insert_scene(area)
 
     {:ok, _} = ActiveScenes.set_active(scene)
     _ = DesiredState.put(:light, light.id, %{power: :on})
 
-    persist_fun = fn _room_id, _power_overrides -> {:error, :forced_persist_failure} end
+    persist_fun = fn _area_id, _power_overrides -> {:error, :forced_persist_failure} end
 
     assert {:error, :forced_persist_failure} =
-             Scenes.recompute_active_scene_lights(room.id, [light.id],
+             Scenes.recompute_active_scene_lights(area.id, [light.id],
                power_override: :off,
                power_override_persist_fun: persist_fun
              )
 
     assert DesiredState.get(:light, light.id) == %{power: :on}
-    assert ActiveScenes.get_for_room(room.id).power_overrides == %{}
+    assert ActiveScenes.get_for_area(area.id).power_overrides == %{}
   end
 end

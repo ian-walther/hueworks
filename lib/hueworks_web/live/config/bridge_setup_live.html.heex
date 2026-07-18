@@ -14,7 +14,7 @@
     <span class="hw-loading-mark" aria-hidden="true"></span>
     <div>
       <h2>Discovering <%= @bridge.name %></h2>
-      <p>Fetching rooms, lights, and groups from the bridge.</p>
+      <p>Fetching areas, lights, and groups from the bridge.</p>
     </div>
   </div>
 
@@ -35,24 +35,24 @@
     </div>
 
     <div class="hw-summary-strip" aria-label="Initial import summary">
-      <div class="hw-summary-stat"><strong><%= @completion_summary.rooms_created %></strong><span>rooms created</span></div>
-      <div class="hw-summary-stat"><strong><%= @completion_summary.rooms_merged %></strong><span>rooms merged</span></div>
+      <div class="hw-summary-stat"><strong><%= @completion_summary.areas_created %></strong><span>areas created</span></div>
+      <div class="hw-summary-stat"><strong><%= @completion_summary.areas_merged %></strong><span>areas merged</span></div>
       <div class="hw-summary-stat"><strong><%= @completion_summary.hidden_duplicates %></strong><span>linked wrappers</span></div>
       <div class="hw-summary-stat"><strong><%= @completion_summary.unassigned %></strong><span>unassigned</span></div>
     </div>
 
     <div :if={@completion_summary.unassigned > 0} class="hw-callout hw-callout-accent">
       <strong>Some imported entities are unassigned.</strong>
-      Inspect Lights before creating scenes so every device lands in the intended HueWorks room.
+      Inspect Lights before creating scenes so every device lands in the intended HueWorks area.
     </div>
 
     <div class="hw-completion-actions">
-      <a class="hw-button hw-button-primary" href="/rooms">Review Rooms</a>
+      <a class="hw-button hw-button-primary" href="/areas">Review Areas</a>
       <a class="hw-button" href="/lights">Inspect Lights</a>
       <a
-        :if={@completion_summary.first_room_id}
+        :if={@completion_summary.first_area_id}
         class="hw-button"
-        href={"/rooms/#{@completion_summary.first_room_id}/scenes/new"}
+        href={"/areas/#{@completion_summary.first_area_id}/scenes/new"}
       >
         Create First Scene
       </a>
@@ -62,13 +62,13 @@
   </section>
 
   <%= if not is_nil(@normalized) and @import_status != :applied do %>
-    <% rooms = normalized_entries(@normalized, :rooms) %>
+    <% areas = normalized_entries(@normalized, :areas) %>
     <% lights = normalized_entries(@normalized, :lights) %>
     <% groups = normalized_entries(@normalized, :groups) %>
-    <% room_keys =
-      rooms
-      |> Enum.map(fn room ->
-        room
+    <% area_keys =
+      areas
+      |> Enum.map(fn area ->
+        area
         |> fetch(:source_id)
         |> Hueworks.Import.Normalize.normalize_source_id()
       end)
@@ -79,7 +79,7 @@
       <div>
         <p class="hw-eyebrow">Initial composition</p>
         <h2>Select the bridge entities HueWorks should manage</h2>
-        <p>Rooms can be created, merged into an existing HueWorks room, or skipped. Nothing is saved until you apply the import.</p>
+        <p>Areas can be created, merged into an existing HueWorks area, or skipped. Nothing is saved until you apply the import.</p>
       </div>
       <div class="hw-row-actions">
         <button class="hw-button" type="button" phx-click="toggle_all" phx-value-action="check">
@@ -91,34 +91,34 @@
       </div>
     </section>
 
-    <section class="hw-import-room-list" aria-label="Bridge rooms">
-      <article :for={room <- rooms} class="hw-import-room-card">
-        <% room_id = fetch(room, :source_id) %>
-        <% room_key = Hueworks.Import.Normalize.normalize_source_id(room_id) %>
-        <% room_lights =
+    <section class="hw-import-area-list" aria-label="Bridge areas">
+      <article :for={area <- areas} class="hw-import-area-card">
+        <% area_id = fetch(area, :source_id) %>
+        <% area_key = Hueworks.Import.Normalize.normalize_source_id(area_id) %>
+        <% area_lights =
           Enum.filter(lights, fn light ->
-            Hueworks.Import.Normalize.normalize_source_id(fetch(light, :room_source_id)) == room_key
+            Hueworks.Import.Normalize.normalize_source_id(fetch(light, :area_source_id)) == area_key
           end)
         %>
-        <% room_groups =
+        <% area_groups =
           Enum.filter(groups, fn group ->
-            Hueworks.Import.Normalize.normalize_source_id(fetch(group, :room_source_id)) == room_key
+            Hueworks.Import.Normalize.normalize_source_id(fetch(group, :area_source_id)) == area_key
           end)
         %>
 
-        <header class="hw-import-room-header">
+        <header class="hw-import-area-header">
           <div>
-            <p class="hw-eyebrow">Bridge room</p>
-            <h2><%= fetch(room, :name) %></h2>
-            <p><%= length(room_lights) %> lights · <%= length(room_groups) %> groups</p>
+            <p class="hw-eyebrow">Bridge area</p>
+            <h2><%= fetch(area, :name) %></h2>
+            <p><%= length(area_lights) %> lights · <%= length(area_groups) %> groups</p>
           </div>
-          <div class="hw-import-room-actions">
+          <div class="hw-import-area-actions">
             <div class="hw-button-group">
               <button
                 class="hw-button"
                 type="button"
-                phx-click="toggle_room"
-                phx-value-room_id={room_id}
+                phx-click="toggle_area"
+                phx-value-area_id={area_id}
                 phx-value-action="check"
               >
                 Check All
@@ -126,29 +126,29 @@
               <button
                 class="hw-button"
                 type="button"
-                phx-click="toggle_room"
-                phx-value-room_id={room_id}
+                phx-click="toggle_area"
+                phx-value-area_id={area_id}
                 phx-value-action="uncheck"
               >
                 Uncheck All
               </button>
             </div>
-            <form phx-change="set_room_action" data-room-id={room_id}>
-              <input type="hidden" name="room_id" value={room_id} />
-              <label class="hw-sr-only" for={"room-action-#{room_id}"}>Room action</label>
-              <select id={"room-action-#{room_id}"} class="hw-select" name="action">
-                <option value="create" selected={room_action(@plan, room_id) == "create"}>Create room</option>
-                <option value="merge" selected={room_action(@plan, room_id) == "merge"}>Merge into</option>
-                <option value="skip" selected={room_action(@plan, room_id) == "skip"}>Skip room</option>
+            <form phx-change="set_area_action" data-area-id={area_id}>
+              <input type="hidden" name="area_id" value={area_id} />
+              <label class="hw-sr-only" for={"area-action-#{area_id}"}>Area action</label>
+              <select id={"area-action-#{area_id}"} class="hw-select" name="action">
+                <option value="create" selected={area_action(@plan, area_id) == "create"}>Create area</option>
+                <option value="merge" selected={area_action(@plan, area_id) == "merge"}>Merge into</option>
+                <option value="skip" selected={area_action(@plan, area_id) == "skip"}>Skip area</option>
               </select>
             </form>
-            <form :if={room_action(@plan, room_id) == "merge"} phx-change="set_room_merge" data-room-id={room_id}>
-              <input type="hidden" name="room_id" value={room_id} />
-              <label class="hw-sr-only" for={"room-merge-#{room_id}"}>HueWorks room</label>
-              <select id={"room-merge-#{room_id}"} class="hw-select" name="target_room_id">
-                <option value="">Select room</option>
-                <%= for existing <- @rooms do %>
-                  <option value={existing.id} selected={room_merge_target(@plan, room_id) == to_string(existing.id)}>
+            <form :if={area_action(@plan, area_id) == "merge"} phx-change="set_area_merge" data-area-id={area_id}>
+              <input type="hidden" name="area_id" value={area_id} />
+              <label class="hw-sr-only" for={"area-merge-#{area_id}"}>HueWorks area</label>
+              <select id={"area-merge-#{area_id}"} class="hw-select" name="target_area_id">
+                <option value="">Select area</option>
+                <%= for existing <- @areas do %>
+                  <option value={existing.id} selected={area_merge_target(@plan, area_id) == to_string(existing.id)}>
                     <%= Hueworks.Util.display_name(existing) %>
                   </option>
                 <% end %>
@@ -161,15 +161,15 @@
           <.import_entity_section
             title="Lights"
             type={:lights}
-            room_id={room_id}
-            entries={room_lights}
+            area_id={area_id}
+            entries={area_lights}
             plan={@plan}
           />
           <.import_entity_section
             title="Groups"
             type={:groups}
-            room_id={room_id}
-            entries={room_groups}
+            area_id={area_id}
+            entries={area_groups}
             plan={@plan}
           />
         </div>
@@ -177,21 +177,21 @@
 
       <% unassigned_lights =
         Enum.filter(lights, fn light ->
-          room_key = Hueworks.Import.Normalize.normalize_source_id(fetch(light, :room_source_id))
-          not is_binary(room_key) or not Enum.member?(room_keys, room_key)
+          area_key = Hueworks.Import.Normalize.normalize_source_id(fetch(light, :area_source_id))
+          not is_binary(area_key) or not Enum.member?(area_keys, area_key)
         end)
       %>
       <% unassigned_groups =
         Enum.filter(groups, fn group ->
-          room_key = Hueworks.Import.Normalize.normalize_source_id(fetch(group, :room_source_id))
-          not is_binary(room_key) or not Enum.member?(room_keys, room_key)
+          area_key = Hueworks.Import.Normalize.normalize_source_id(fetch(group, :area_source_id))
+          not is_binary(area_key) or not Enum.member?(area_keys, area_key)
         end)
       %>
 
-      <article :if={unassigned_lights != [] or unassigned_groups != []} class="hw-import-room-card">
-        <header class="hw-import-room-header">
+      <article :if={unassigned_lights != [] or unassigned_groups != []} class="hw-import-area-card">
+        <header class="hw-import-area-header">
           <div>
-            <p class="hw-eyebrow">No matching room</p>
+            <p class="hw-eyebrow">No matching area</p>
             <h2>Unassigned</h2>
             <p>Choose a HueWorks destination for any entity you import.</p>
           </div>
@@ -203,14 +203,14 @@
             type={:lights}
             entries={unassigned_lights}
             plan={@plan}
-            rooms={@rooms}
+            areas={@areas}
           />
           <.unassigned_entity_section
             title="Groups"
             type={:groups}
             entries={unassigned_groups}
             plan={@plan}
-            rooms={@rooms}
+            areas={@areas}
           />
         </div>
       </article>
@@ -219,7 +219,7 @@
     <aside class="hw-review-action-bar" aria-label="Apply initial bridge import">
       <div>
         <p class="hw-eyebrow">Ready to create</p>
-        <strong>Review the room actions and selected entities above.</strong>
+        <strong>Review the area actions and selected entities above.</strong>
       </div>
       <button
         class="hw-button hw-button-primary"

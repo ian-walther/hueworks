@@ -57,7 +57,7 @@ defmodule Hueworks.Bridges do
       Repo.all(
         from(l in Light,
           where: l.bridge_id == ^bridge_id,
-          select: {l.canonical_light_id, l.room_id}
+          select: {l.canonical_light_id, l.area_id}
         )
       )
 
@@ -65,21 +65,21 @@ defmodule Hueworks.Bridges do
       Repo.all(
         from(g in Group,
           where: g.bridge_id == ^bridge_id,
-          select: {g.canonical_group_id, g.room_id}
+          select: {g.canonical_group_id, g.area_id}
         )
       )
 
     visible_lights =
-      Enum.reject(lights, fn {canonical_id, _room_id} -> is_integer(canonical_id) end)
+      Enum.reject(lights, fn {canonical_id, _area_id} -> is_integer(canonical_id) end)
 
     visible_groups =
-      Enum.reject(groups, fn {canonical_id, _room_id} -> is_integer(canonical_id) end)
+      Enum.reject(groups, fn {canonical_id, _area_id} -> is_integer(canonical_id) end)
 
-    room_actions = plan |> fetch_map(:rooms) |> action_counts()
+    area_actions = plan |> fetch_map(:areas) |> action_counts()
 
-    room_ids =
+    area_ids =
       (visible_lights ++ visible_groups)
-      |> Enum.map(fn {_canonical_id, room_id} -> room_id end)
+      |> Enum.map(fn {_canonical_id, area_id} -> area_id end)
       |> Enum.filter(&is_integer/1)
       |> Enum.uniq()
       |> Enum.sort()
@@ -90,15 +90,15 @@ defmodule Hueworks.Bridges do
       hidden_duplicates:
         length(lights) + length(groups) - length(visible_lights) - length(visible_groups),
       unassigned:
-        Enum.count(visible_lights ++ visible_groups, fn {_canonical_id, room_id} ->
-          is_nil(room_id)
+        Enum.count(visible_lights ++ visible_groups, fn {_canonical_id, area_id} ->
+          is_nil(area_id)
         end),
-      rooms_created: Map.get(room_actions, "create", 0),
-      rooms_merged: Map.get(room_actions, "merge", 0),
-      rooms_skipped: Map.get(room_actions, "skip", 0),
+      areas_created: Map.get(area_actions, "create", 0),
+      areas_merged: Map.get(area_actions, "merge", 0),
+      areas_skipped: Map.get(area_actions, "skip", 0),
       entities_skipped:
         count_unselected(fetch_map(plan, :lights)) + count_unselected(fetch_map(plan, :groups)),
-      first_room_id: List.first(room_ids)
+      first_area_id: List.first(area_ids)
     }
   end
 
@@ -274,8 +274,8 @@ defmodule Hueworks.Bridges do
     end
   end
 
-  defp action_counts(room_plan) do
-    room_plan
+  defp action_counts(area_plan) do
+    area_plan
     |> Map.values()
     |> Enum.reduce(%{}, fn entry, counts ->
       action = if is_map(entry), do: Map.get(entry, "action") || Map.get(entry, :action)

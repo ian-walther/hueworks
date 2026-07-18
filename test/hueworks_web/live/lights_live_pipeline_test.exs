@@ -14,7 +14,7 @@ defmodule Hueworks.LightsLivePipelineTest do
     Group,
     GroupLight,
     Light,
-    Room
+    Area
   }
 
   setup do
@@ -61,7 +61,7 @@ defmodule Hueworks.LightsLivePipelineTest do
          actions_agent: actions_agent,
          executor_server: executor_server
        } do
-    room = Repo.insert!(%Room{name: "Studio"})
+    area = Repo.insert!(%Area{name: "Studio"})
 
     bridge =
       insert_bridge!(%{
@@ -78,7 +78,7 @@ defmodule Hueworks.LightsLivePipelineTest do
         source: :hue,
         source_id: "light-1",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6500
@@ -119,7 +119,7 @@ defmodule Hueworks.LightsLivePipelineTest do
          actions_agent: actions_agent,
          executor_server: executor_server
        } do
-    room = Repo.insert!(%Room{name: "Kitchen"})
+    area = Repo.insert!(%Area{name: "Kitchen"})
 
     bridge =
       insert_bridge!(%{
@@ -136,7 +136,7 @@ defmodule Hueworks.LightsLivePipelineTest do
         source: :hue,
         source_id: "light-a",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6500
@@ -149,7 +149,7 @@ defmodule Hueworks.LightsLivePipelineTest do
         source: :hue,
         source_id: "light-b",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6500
@@ -162,7 +162,7 @@ defmodule Hueworks.LightsLivePipelineTest do
         source: :hue,
         source_id: "group-kitchen",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6500
@@ -209,7 +209,7 @@ defmodule Hueworks.LightsLivePipelineTest do
          actions_agent: actions_agent,
          executor_server: executor_server
        } do
-    room = Repo.insert!(%Room{name: "Kitchen"})
+    area = Repo.insert!(%Area{name: "Kitchen"})
 
     bridge =
       insert_bridge!(%{
@@ -226,7 +226,7 @@ defmodule Hueworks.LightsLivePipelineTest do
         source: :hue,
         source_id: "light-a-reconcile",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6500
@@ -239,7 +239,7 @@ defmodule Hueworks.LightsLivePipelineTest do
         source: :hue,
         source_id: "light-b-reconcile",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6500
@@ -252,7 +252,7 @@ defmodule Hueworks.LightsLivePipelineTest do
         source: :hue,
         source_id: "group-kitchen-reconcile",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6500
@@ -295,7 +295,7 @@ defmodule Hueworks.LightsLivePipelineTest do
          actions_agent: actions_agent,
          executor_server: executor_server
        } do
-    room = Repo.insert!(%Room{name: "Office"})
+    area = Repo.insert!(%Area{name: "Office"})
 
     bridge =
       insert_bridge!(%{
@@ -312,7 +312,7 @@ defmodule Hueworks.LightsLivePipelineTest do
         source: :hue,
         source_id: "light-office",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6500
@@ -356,7 +356,7 @@ defmodule Hueworks.LightsLivePipelineTest do
          actions_agent: actions_agent,
          executor_server: executor_server
        } do
-    room = Repo.insert!(%Room{name: "Scene Room"})
+    area = Repo.insert!(%Area{name: "Scene Area"})
 
     bridge =
       insert_bridge!(%{
@@ -373,14 +373,14 @@ defmodule Hueworks.LightsLivePipelineTest do
         source: :hue,
         source_id: "scene-lamp",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_color: true,
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6500
       })
 
-    {:ok, scene} = Scenes.create_scene(%{name: "Evening", room_id: room.id})
+    {:ok, scene} = Scenes.create_scene(%{name: "Evening", area_id: area.id})
     {:ok, _} = ActiveScenes.set_active(scene)
 
     {:ok, view, html} = live(conn, "/lights")
@@ -410,7 +410,7 @@ defmodule Hueworks.LightsLivePipelineTest do
   test "lights page updates manual control disabled state when active scene changes live", %{
     conn: conn
   } do
-    room = Repo.insert!(%Room{name: "Live Scene Room"})
+    area = Repo.insert!(%Area{name: "Live Scene Area"})
 
     bridge =
       insert_bridge!(%{
@@ -427,14 +427,14 @@ defmodule Hueworks.LightsLivePipelineTest do
         source: :hue,
         source_id: "live-scene-lamp",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_color: true,
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6500
       })
 
-    {:ok, scene} = Scenes.create_scene(%{name: "Evening", room_id: room.id})
+    {:ok, scene} = Scenes.create_scene(%{name: "Evening", area_id: area.id})
 
     {:ok, view, _html} = live(conn, "/lights")
 
@@ -452,7 +452,7 @@ defmodule Hueworks.LightsLivePipelineTest do
                has_element?(view, "#light-saturation-#{light.id}[disabled]")
            end)
 
-    :ok = ActiveScenes.clear_for_room(room.id)
+    :ok = ActiveScenes.clear_for_area(area.id)
 
     assert eventually(fn ->
              not has_element?(view, "#light-level-#{light.id}[disabled]") and
@@ -468,7 +468,7 @@ defmodule Hueworks.LightsLivePipelineTest do
          actions_agent: actions_agent,
          executor_server: executor_server
        } do
-    room = Repo.insert!(%Room{name: "Color Room"})
+    area = Repo.insert!(%Area{name: "Color Area"})
 
     bridge =
       insert_bridge!(%{
@@ -485,7 +485,7 @@ defmodule Hueworks.LightsLivePipelineTest do
         source: :hue,
         source_id: "color-lamp",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_color: true
       })
 
@@ -528,7 +528,7 @@ defmodule Hueworks.LightsLivePipelineTest do
          actions_agent: actions_agent,
          executor_server: executor_server
        } do
-    room = Repo.insert!(%Room{name: "Bedroom"})
+    area = Repo.insert!(%Area{name: "Bedroom"})
 
     bridge =
       insert_bridge!(%{
@@ -545,7 +545,7 @@ defmodule Hueworks.LightsLivePipelineTest do
         source: :hue,
         source_id: "bed-left",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6500
@@ -558,7 +558,7 @@ defmodule Hueworks.LightsLivePipelineTest do
         source: :hue,
         source_id: "bed-right",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6500
@@ -574,7 +574,7 @@ defmodule Hueworks.LightsLivePipelineTest do
         "max_color_temp" => 5000
       })
 
-    {:ok, scene} = Scenes.create_scene(%{name: "Circadian", room_id: room.id})
+    {:ok, scene} = Scenes.create_scene(%{name: "Circadian", area_id: area.id})
 
     {:ok, _} =
       Scenes.replace_scene_components(scene, [
@@ -624,7 +624,7 @@ defmodule Hueworks.LightsLivePipelineTest do
          actions_agent: actions_agent,
          executor_server: executor_server
        } do
-    room = Repo.insert!(%Room{name: "Den"})
+    area = Repo.insert!(%Area{name: "Den"})
 
     bridge =
       insert_bridge!(%{
@@ -641,7 +641,7 @@ defmodule Hueworks.LightsLivePipelineTest do
         source: :hue,
         source_id: "reading-lamp",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6500
@@ -653,7 +653,7 @@ defmodule Hueworks.LightsLivePipelineTest do
         "temperature" => "3100"
       })
 
-    {:ok, scene} = Scenes.create_scene(%{name: "Evening", room_id: room.id})
+    {:ok, scene} = Scenes.create_scene(%{name: "Evening", area_id: area.id})
 
     {:ok, _} =
       Scenes.replace_scene_components(scene, [
@@ -689,7 +689,7 @@ defmodule Hueworks.LightsLivePipelineTest do
   end
 
   test "group/light filter prefs persist across page reload", %{conn: conn} do
-    room = Repo.insert!(%Room{name: "Studio"})
+    area = Repo.insert!(%Area{name: "Studio"})
 
     bridge =
       insert_bridge!(%{
@@ -704,7 +704,7 @@ defmodule Hueworks.LightsLivePipelineTest do
       source: :hue,
       source_id: "filter-light",
       bridge_id: bridge.id,
-      room_id: room.id
+      area_id: area.id
     })
 
     session_id = Ecto.UUID.generate()
@@ -731,7 +731,7 @@ defmodule Hueworks.LightsLivePipelineTest do
   end
 
   test "z2m light edit modal shows actual kelvin override fields", %{conn: conn} do
-    room = Repo.insert!(%Room{name: "Dining"})
+    area = Repo.insert!(%Area{name: "Dining"})
 
     bridge =
       insert_bridge!(%{
@@ -748,7 +748,7 @@ defmodule Hueworks.LightsLivePipelineTest do
         source: :z2m,
         source_id: "dining.strip",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6500
@@ -771,7 +771,7 @@ defmodule Hueworks.LightsLivePipelineTest do
          conn: conn,
          executor_server: executor_server
        } do
-    room = Repo.insert!(%Room{name: "Media"})
+    area = Repo.insert!(%Area{name: "Media"})
 
     bridge =
       insert_bridge!(%{
@@ -788,7 +788,7 @@ defmodule Hueworks.LightsLivePipelineTest do
         source: :z2m,
         source_id: "tv.cabinet",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_temp: true,
         reported_min_kelvin: 2288,
         reported_max_kelvin: 6500,
@@ -820,7 +820,7 @@ defmodule Hueworks.LightsLivePipelineTest do
   end
 
   test "light edit modal title uses display_name when present", %{conn: conn} do
-    room = Repo.insert!(%Room{name: "Living Room"})
+    area = Repo.insert!(%Area{name: "Living Area"})
 
     bridge =
       insert_bridge!(%{
@@ -832,12 +832,12 @@ defmodule Hueworks.LightsLivePipelineTest do
 
     light =
       Repo.insert!(%Light{
-        name: "living.room.floor_lamp",
+        name: "living.area.floor_lamp",
         display_name: "Floor Lamp",
         source: :hue,
         source_id: "floor-lamp",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6500
@@ -850,11 +850,11 @@ defmodule Hueworks.LightsLivePipelineTest do
     |> render_click()
 
     assert has_element?(view, "div.hw-modal h3", "Floor Lamp")
-    refute has_element?(view, "div.hw-modal h3", "living.room.floor_lamp")
+    refute has_element?(view, "div.hw-modal h3", "living.area.floor_lamp")
   end
 
   test "light edit modal can link a light to another light", %{conn: conn} do
-    room = Repo.insert!(%Room{name: "Kitchen"})
+    area = Repo.insert!(%Area{name: "Kitchen"})
 
     bridge =
       insert_bridge!(%{
@@ -871,7 +871,7 @@ defmodule Hueworks.LightsLivePipelineTest do
         source: :caseta,
         source_id: "caseta-1",
         bridge_id: bridge.id,
-        room_id: room.id
+        area_id: area.id
       })
 
     light =
@@ -881,7 +881,7 @@ defmodule Hueworks.LightsLivePipelineTest do
         source: :ha,
         source_id: "light.kitchen_duplicate",
         bridge_id: bridge.id,
-        room_id: room.id
+        area_id: area.id
       })
 
     {:ok, view, _html} = live(conn, "/lights")
@@ -908,7 +908,7 @@ defmodule Hueworks.LightsLivePipelineTest do
   end
 
   test "light edit modal cannot link a canonical root with dependents", %{conn: conn} do
-    room = Repo.insert!(%Room{name: "Kitchen"})
+    area = Repo.insert!(%Area{name: "Kitchen"})
 
     bridge =
       insert_bridge!(%{
@@ -925,7 +925,7 @@ defmodule Hueworks.LightsLivePipelineTest do
         source: :caseta,
         source_id: "caseta-1",
         bridge_id: bridge.id,
-        room_id: room.id
+        area_id: area.id
       })
 
     root =
@@ -935,7 +935,7 @@ defmodule Hueworks.LightsLivePipelineTest do
         source: :hue,
         source_id: "hue-root",
         bridge_id: bridge.id,
-        room_id: room.id
+        area_id: area.id
       })
 
     dependent =
@@ -945,7 +945,7 @@ defmodule Hueworks.LightsLivePipelineTest do
         source: :ha,
         source_id: "light.kitchen_duplicate",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         canonical_light_id: root.id
       })
 
@@ -969,7 +969,7 @@ defmodule Hueworks.LightsLivePipelineTest do
   end
 
   test "light edit modal saves HA export mode", %{conn: conn} do
-    room = Repo.insert!(%Room{name: "Kitchen"})
+    area = Repo.insert!(%Area{name: "Kitchen"})
 
     bridge =
       insert_bridge!(%{
@@ -986,7 +986,7 @@ defmodule Hueworks.LightsLivePipelineTest do
         source: :ha,
         source_id: "light.kitchen_task",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         ha_export_mode: :none
       })
 
@@ -1004,7 +1004,7 @@ defmodule Hueworks.LightsLivePipelineTest do
   end
 
   test "light edit modal saves HomeKit export mode", %{conn: conn} do
-    room = Repo.insert!(%Room{name: "Kitchen"})
+    area = Repo.insert!(%Area{name: "Kitchen"})
 
     bridge =
       insert_bridge!(%{
@@ -1021,7 +1021,7 @@ defmodule Hueworks.LightsLivePipelineTest do
         source: :hue,
         source_id: "1",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         homekit_export_mode: :none
       })
 
@@ -1039,7 +1039,7 @@ defmodule Hueworks.LightsLivePipelineTest do
   end
 
   test "group edit modal saves HomeKit export mode", %{conn: conn} do
-    room = Repo.insert!(%Room{name: "Kitchen"})
+    area = Repo.insert!(%Area{name: "Kitchen"})
 
     bridge =
       insert_bridge!(%{
@@ -1056,7 +1056,7 @@ defmodule Hueworks.LightsLivePipelineTest do
         source: :hue,
         source_id: "10",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         homekit_export_mode: :none
       })
 
@@ -1074,7 +1074,7 @@ defmodule Hueworks.LightsLivePipelineTest do
   end
 
   test "show linked toggle reveals linked lights", %{conn: conn} do
-    room = Repo.insert!(%Room{name: "Office"})
+    area = Repo.insert!(%Area{name: "Office"})
 
     bridge =
       insert_bridge!(%{
@@ -1091,7 +1091,7 @@ defmodule Hueworks.LightsLivePipelineTest do
         source: :caseta,
         source_id: "caseta-office",
         bridge_id: bridge.id,
-        room_id: room.id
+        area_id: area.id
       })
 
     linked =
@@ -1101,7 +1101,7 @@ defmodule Hueworks.LightsLivePipelineTest do
         source: :ha,
         source_id: "light.office_linked",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         canonical_light_id: root.id
       })
 

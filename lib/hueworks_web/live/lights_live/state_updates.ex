@@ -41,16 +41,16 @@ defmodule HueworksWeb.LightsLive.StateUpdates do
     %{group_state: Map.update(assigns.group_state, id, state, &DisplayState.replace(&1, state))}
   end
 
-  def put_active_scene(assigns, room_id, scene_id) when is_integer(room_id) do
-    active_scene_by_room = assigns.active_scene_by_room || %{}
+  def put_active_scene(assigns, area_id, scene_id) when is_integer(area_id) do
+    active_scene_by_area = assigns.active_scene_by_area || %{}
 
-    active_scene_by_room =
+    active_scene_by_area =
       case scene_id do
-        value when is_integer(value) -> Map.put(active_scene_by_room, room_id, value)
-        _ -> Map.delete(active_scene_by_room, room_id)
+        value when is_integer(value) -> Map.put(active_scene_by_area, area_id, value)
+        _ -> Map.delete(active_scene_by_area, area_id)
       end
 
-    %{active_scene_by_room: active_scene_by_room}
+    %{active_scene_by_area: active_scene_by_area}
   end
 
   defp merge_light_state(light_state, light_id, attrs)

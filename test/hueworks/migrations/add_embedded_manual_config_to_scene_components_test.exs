@@ -4,7 +4,7 @@ defmodule Hueworks.Migrations.AddEmbeddedManualConfigToSceneComponentsTest do
   alias Ecto.Adapters.SQL
   alias Hueworks.Repo
   alias Hueworks.Repo.Migrations.AddEmbeddedManualConfigToSceneComponents
-  alias Hueworks.Schemas.{LightState, Room, Scene}
+  alias Hueworks.Schemas.{LightState, Area, Scene}
 
   unless Code.ensure_loaded?(AddEmbeddedManualConfigToSceneComponents) do
     Code.require_file(
@@ -16,8 +16,8 @@ defmodule Hueworks.Migrations.AddEmbeddedManualConfigToSceneComponentsTest do
   end
 
   test "rebuild_scene_components preserves existing scene component light rows" do
-    room = Repo.insert!(%Room{name: "Migration Room"})
-    scene = Repo.insert!(%Scene{name: "Migration Scene", room_id: room.id})
+    area = Repo.insert!(%Area{name: "Migration Area"})
+    scene = Repo.insert!(%Scene{name: "Migration Scene", area_id: area.id})
     light_state = Repo.insert!(%LightState{name: "Migration State", type: :manual, config: %{}})
 
     suffix = System.unique_integer([:positive])

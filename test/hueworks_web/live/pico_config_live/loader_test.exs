@@ -3,11 +3,11 @@ defmodule HueworksWeb.PicoConfigLive.LoaderTest do
 
   alias Hueworks.Picos
   alias Hueworks.Repo
-  alias Hueworks.Schemas.{PicoDevice, Room}
+  alias Hueworks.Schemas.{PicoDevice, Area}
   alias HueworksWeb.PicoConfigLive.Loader
 
   test "reload_from_devices keeps a valid selected pico and resets detect mode on detail pages" do
-    room = Repo.insert!(%Room{name: "Office"})
+    area = Repo.insert!(%Area{name: "Office"})
 
     bridge =
       insert_bridge!(%{
@@ -22,12 +22,12 @@ defmodule HueworksWeb.PicoConfigLive.LoaderTest do
     device =
       Repo.insert!(%PicoDevice{
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         source_id: "office-pico",
         name: "Office Pico",
         hardware_profile: "5_button",
         metadata: %{
-          "room_override" => true,
+          "area_override" => true,
           "control_groups" => [
             %{"id" => "group-a", "name" => "Overhead", "group_ids" => [], "light_ids" => []}
           ]

@@ -17,8 +17,8 @@ defmodule Hueworks.Scenes.Active do
         {:error, :not_found}
 
       %Scene{} = scene ->
-        scene.room_id
-        |> ActiveScenes.get_for_room()
+        scene.area_id
+        |> ActiveScenes.get_for_area()
         |> case do
           %{scene_id: ^scene_id} = active_scene ->
             Scenes.apply_active_scene(scene, active_scene, preserve_power_latches: true)
@@ -72,14 +72,14 @@ defmodule Hueworks.Scenes.Active do
 
   def follow_presence_light_ids(_scene_id, _presence_input_id), do: []
 
-  def recompute_lights(room_id, light_ids, opts)
-      when is_integer(room_id) and is_list(light_ids) do
+  def recompute_lights(area_id, light_ids, opts)
+      when is_integer(area_id) and is_list(light_ids) do
     light_ids =
       light_ids
       |> Enum.filter(&is_integer/1)
       |> Enum.uniq()
 
-    case {light_ids, ActiveScenes.get_for_room(room_id)} do
+    case {light_ids, ActiveScenes.get_for_area(area_id)} do
       {[], _active_scene} ->
         {:ok, %{}, %{}}
 
@@ -88,7 +88,7 @@ defmodule Hueworks.Scenes.Active do
 
       {_light_ids, active_scene} ->
         with {:ok, active_scene, power_overrides} <-
-               persist_power_overrides(active_scene, room_id, light_ids, opts) do
+               persist_power_overrides(active_scene, area_id, light_ids, opts) do
           active_scene.scene_id
           |> Scenes.get_scene()
           |> case do
@@ -112,18 +112,18 @@ defmodule Hueworks.Scenes.Active do
     end
   end
 
-  def recompute_lights(_room_id, _light_ids, _opts), do: {:error, :invalid_args}
+  def recompute_lights(_area_id, _light_ids, _opts), do: {:error, :invalid_args}
 
-  def recompute_circadian_lights(room_id, light_ids, opts)
-      when is_integer(room_id) and is_list(light_ids) do
+  def recompute_circadian_lights(area_id, light_ids, opts)
+      when is_integer(area_id) and is_list(light_ids) do
     opts
     |> Keyword.put(:circadian_only, true)
-    |> then(&recompute_lights(room_id, light_ids, &1))
+    |> then(&recompute_lights(area_id, light_ids, &1))
   end
 
-  def recompute_circadian_lights(_room_id, _light_ids, _opts), do: {:error, :invalid_args}
+  def recompute_circadian_lights(_area_id, _light_ids, _opts), do: {:error, :invalid_args}
 
-  defp persist_power_overrides(active_scene, room_id, light_ids, opts) do
+  defp persist_power_overrides(active_scene, area_id, light_ids, opts) do
     opts
     |> Keyword.get(:power_override)
     |> case do
@@ -136,7 +136,7 @@ defmodule Hueworks.Scenes.Active do
         persist_fun =
           Keyword.get(opts, :power_override_persist_fun, &ActiveScenes.merge_power_overrides/2)
 
-        case persist_fun.(room_id, power_overrides) do
+        case persist_fun.(area_id, power_overrides) do
           {:ok, updated_active_scene} ->
             {:ok, updated_active_scene, power_overrides}
 
@@ -159,7 +159,7 @@ defmodule Hueworks.Scenes.Active do
       Repo.all(
         from(s in Scene,
           join: a in ActiveScene,
-          on: a.scene_id == s.id and a.room_id == s.room_id,
+          on: a.scene_id == s.id and a.area_id == s.area_id,
           where: s.id in ^scene_ids,
           select: {s, a}
         )

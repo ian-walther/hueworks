@@ -7,7 +7,7 @@ defmodule Hueworks.HomeAssistant.Export.Config do
   @enforce_keys [
     :enabled,
     :scenes_enabled,
-    :room_selects_enabled,
+    :area_selects_enabled,
     :lights_enabled,
     :host,
     :port,
@@ -18,7 +18,7 @@ defmodule Hueworks.HomeAssistant.Export.Config do
   ]
   defstruct enabled: false,
             scenes_enabled: false,
-            room_selects_enabled: false,
+            area_selects_enabled: false,
             lights_enabled: false,
             host: nil,
             port: @default_port,
@@ -31,10 +31,10 @@ defmodule Hueworks.HomeAssistant.Export.Config do
     %__MODULE__{
       enabled:
         settings.ha_export_scenes_enabled == true or
-          settings.ha_export_room_selects_enabled == true or
+          settings.ha_export_area_selects_enabled == true or
           settings.ha_export_lights_enabled == true,
       scenes_enabled: settings.ha_export_scenes_enabled == true,
-      room_selects_enabled: settings.ha_export_room_selects_enabled == true,
+      area_selects_enabled: settings.ha_export_area_selects_enabled == true,
       lights_enabled: settings.ha_export_lights_enabled == true,
       host: settings.ha_export_mqtt_host,
       port: settings.ha_export_mqtt_port || @default_port,
@@ -53,8 +53,8 @@ defmodule Hueworks.HomeAssistant.Export.Config do
   def scenes_enabled?(%__MODULE__{scenes_enabled: true}), do: true
   def scenes_enabled?(_config), do: false
 
-  def room_selects_enabled?(%__MODULE__{room_selects_enabled: true}), do: true
-  def room_selects_enabled?(_config), do: false
+  def area_selects_enabled?(%__MODULE__{area_selects_enabled: true}), do: true
+  def area_selects_enabled?(_config), do: false
 
   def lights_enabled?(%__MODULE__{lights_enabled: true}), do: true
   def lights_enabled?(_config), do: false

@@ -5,7 +5,7 @@ defmodule Hueworks.ApiControlTest do
   alias Hueworks.Api
   alias Hueworks.Control.{DesiredState, State, TraceBuffer}
   alias Hueworks.Repo
-  alias Hueworks.Schemas.{Group, GroupLight, Light, Room, Scene}
+  alias Hueworks.Schemas.{Group, GroupLight, Light, Area, Scene}
 
   setup do
     TraceBuffer.clear()
@@ -75,23 +75,23 @@ defmodule Hueworks.ApiControlTest do
     assert DesiredState.get(:light, fixture.light.id) == nil
   end
 
-  test "activates and explicitly deactivates room scenes with API trace identifiers" do
+  test "activates and explicitly deactivates area scenes with API trace identifiers" do
     fixture = fixture()
 
     assert {:ok, activation} = Api.activate_scene(fixture.scene.id)
     assert activation.operation == "scene_activate"
     assert activation.target == %{kind: "scene", id: fixture.scene.id}
-    assert ActiveScenes.get_for_room(fixture.room.id).scene_id == fixture.scene.id
+    assert ActiveScenes.get_for_area(fixture.area.id).scene_id == fixture.scene.id
 
-    assert {:ok, deactivation} = Api.deactivate_room_scene(fixture.room.id)
-    assert deactivation.operation == "room_scene_deactivate"
-    assert deactivation.target == %{kind: "room", id: fixture.room.id}
-    assert ActiveScenes.get_for_room(fixture.room.id) == nil
+    assert {:ok, deactivation} = Api.deactivate_area_scene(fixture.area.id)
+    assert deactivation.operation == "area_scene_deactivate"
+    assert deactivation.target == %{kind: "area", id: fixture.area.id}
+    assert ActiveScenes.get_for_area(fixture.area.id) == nil
     assert %{events: [_ | _]} = TraceBuffer.recent(trace_id: deactivation.trace_id)
   end
 
   defp fixture do
-    room = Repo.insert!(%Room{name: "API Control"})
+    area = Repo.insert!(%Area{name: "API Control"})
 
     bridge =
       insert_bridge!(%{
@@ -108,7 +108,7 @@ defmodule Hueworks.ApiControlTest do
         source: :hue,
         source_id: "api-lamp",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_temp: true,
         supports_color: true,
         reported_min_kelvin: 2000,
@@ -122,7 +122,7 @@ defmodule Hueworks.ApiControlTest do
         source: :hue,
         source_id: "api-other-lamp",
         bridge_id: bridge.id,
-        room_id: room.id
+        area_id: area.id
       })
 
     disabled_light =
@@ -132,7 +132,7 @@ defmodule Hueworks.ApiControlTest do
         source: :hue,
         source_id: "disabled-api-lamp",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         enabled: false
       })
 
@@ -143,7 +143,7 @@ defmodule Hueworks.ApiControlTest do
         source: :ha,
         source_id: "linked-api-lamp",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         canonical_light_id: light.id
       })
 
@@ -154,7 +154,7 @@ defmodule Hueworks.ApiControlTest do
         source: :hue,
         source_id: "api-group",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_temp: true,
         supports_color: true
       })
@@ -162,10 +162,10 @@ defmodule Hueworks.ApiControlTest do
     Repo.insert!(%GroupLight{group_id: group.id, light_id: light.id})
     Repo.insert!(%GroupLight{group_id: group.id, light_id: other_light.id})
 
-    scene = Repo.insert!(%Scene{name: "API Scene", room_id: room.id})
+    scene = Repo.insert!(%Scene{name: "API Scene", area_id: area.id})
 
     %{
-      room: room,
+      area: area,
       bridge: bridge,
       light: light,
       other_light: other_light,

@@ -10,11 +10,13 @@ defmodule HueworksWeb.RouterTest do
     assert "/" in paths
     assert "/control" in paths
     assert "/lights" in paths
-    assert "/rooms" in paths
+    assert "/areas" in paths
     assert "/config" in paths
     assert "/config/light-states/:id/edit" in paths
     assert "/config/bridges/:id/picos/:pico_id" in paths
 
     refute "/explore" in paths
+    refute Enum.any?(paths, &String.contains?(&1, "/rooms"))
+    refute Enum.any?(paths, &String.contains?(&1, ":room_id"))
   end
 end

@@ -70,7 +70,7 @@ defmodule Hueworks.AppSettings do
       scale_transition_by_brightness: app_setting.scale_transition_by_brightness == true,
       ha_export_enabled: app_setting.ha_export_enabled == true,
       ha_export_scenes_enabled: app_setting.ha_export_scenes_enabled == true,
-      ha_export_room_selects_enabled: app_setting.ha_export_room_selects_enabled == true,
+      ha_export_area_selects_enabled: app_setting.ha_export_area_selects_enabled == true,
       ha_export_lights_enabled: app_setting.ha_export_lights_enabled == true,
       ha_export_mqtt_host: app_setting.ha_export_mqtt_host,
       ha_export_mqtt_port: app_setting.ha_export_mqtt_port || 1883,
@@ -198,7 +198,7 @@ defmodule Hueworks.AppSettings do
     %{
       ha_export_enabled: s.ha_export_enabled == true,
       ha_export_scenes_enabled: s.ha_export_scenes_enabled == true,
-      ha_export_room_selects_enabled: s.ha_export_room_selects_enabled == true,
+      ha_export_area_selects_enabled: s.ha_export_area_selects_enabled == true,
       ha_export_lights_enabled: s.ha_export_lights_enabled == true,
       ha_export_mqtt_host: s.ha_export_mqtt_host,
       ha_export_mqtt_port: s.ha_export_mqtt_port || 1883,

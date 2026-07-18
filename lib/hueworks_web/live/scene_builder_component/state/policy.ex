@@ -69,15 +69,15 @@ defmodule HueworksWeb.SceneBuilderComponent.State.Policy do
     end)
   end
 
-  def toggle_group_default_power(components, component_id, group, room_light_ids) do
+  def toggle_group_default_power(components, component_id, group, area_light_ids) do
     component_id = Util.parse_id(component_id)
 
     Enum.map(components, fn component ->
       component = Component.new(component)
 
       if component.id == component_id and group do
-        group_light_ids = component_group_light_ids(component, group, room_light_ids)
-        current = group_default_power(component, group, room_light_ids)
+        group_light_ids = component_group_light_ids(component, group, area_light_ids)
+        current = group_default_power(component, group, area_light_ids)
         next = PowerPolicy.cycle(current)
 
         updated_defaults =
@@ -97,7 +97,7 @@ defmodule HueworksWeb.SceneBuilderComponent.State.Policy do
         components,
         component_id,
         group,
-        room_light_ids,
+        area_light_ids,
         policy,
         presence_inputs
       ) do
@@ -109,7 +109,7 @@ defmodule HueworksWeb.SceneBuilderComponent.State.Policy do
 
       if component.id == component_id and group do
         component
-        |> component_group_light_ids(group, room_light_ids)
+        |> component_group_light_ids(group, area_light_ids)
         |> Enum.reduce(component, fn light_id, acc ->
           put_light_power_policy(acc, light_id, policy, presence_inputs)
         end)
@@ -123,7 +123,7 @@ defmodule HueworksWeb.SceneBuilderComponent.State.Policy do
         components,
         component_id,
         group,
-        room_light_ids,
+        area_light_ids,
         presence_input_id,
         presence_inputs
       ) do
@@ -134,7 +134,7 @@ defmodule HueworksWeb.SceneBuilderComponent.State.Policy do
       component = Component.new(component)
 
       if component.id == component_id and is_map(group) and is_integer(presence_input_id) do
-        group_light_ids = component_group_light_ids(component, group, room_light_ids)
+        group_light_ids = component_group_light_ids(component, group, area_light_ids)
 
         updated_defaults =
           Enum.reduce(group_light_ids, component.light_defaults, fn light_id, acc ->
@@ -173,7 +173,7 @@ defmodule HueworksWeb.SceneBuilderComponent.State.Policy do
     |> Util.parse_id()
   end
 
-  def component_group_light_ids(component, group, room_light_ids) do
+  def component_group_light_ids(component, group, area_light_ids) do
     component_light_ids =
       component
       |> Component.new()
@@ -181,12 +181,12 @@ defmodule HueworksWeb.SceneBuilderComponent.State.Policy do
       |> MapSet.new()
 
     group
-    |> Builder.group_room_light_ids(room_light_ids)
+    |> Builder.group_area_light_ids(area_light_ids)
     |> Enum.filter(&MapSet.member?(component_light_ids, &1))
   end
 
-  def group_default_power(component, group, room_light_ids) do
-    group_light_ids = component_group_light_ids(component, group, room_light_ids)
+  def group_default_power(component, group, area_light_ids) do
+    group_light_ids = component_group_light_ids(component, group, area_light_ids)
 
     policies =
       group_light_ids
@@ -205,9 +205,9 @@ defmodule HueworksWeb.SceneBuilderComponent.State.Policy do
     end
   end
 
-  def group_presence_input_id(component, group, room_light_ids) do
+  def group_presence_input_id(component, group, area_light_ids) do
     component
-    |> component_group_light_ids(group, room_light_ids)
+    |> component_group_light_ids(group, area_light_ids)
     |> Enum.map(&light_presence_input_id(component, &1))
     |> Enum.uniq()
     |> case do

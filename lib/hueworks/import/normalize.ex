@@ -19,7 +19,7 @@ defmodule Hueworks.Import.Normalize do
     end
   end
 
-  def base_normalized(bridge, rooms, groups, lights, memberships) do
+  def base_normalized(bridge, areas, groups, lights, memberships) do
     %{
       schema_version: @schema_version,
       bridge: %{
@@ -29,7 +29,7 @@ defmodule Hueworks.Import.Normalize do
         host: bridge.host
       },
       normalized_at: DateTime.utc_now() |> DateTime.to_iso8601(),
-      rooms: rooms,
+      areas: areas,
       groups: groups,
       lights: lights,
       memberships: memberships
@@ -129,13 +129,13 @@ defmodule Hueworks.Import.Normalize do
     end
   end
 
-  def normalize_group_type("Room"), do: "room"
+  def normalize_group_type("Room"), do: "area"
   def normalize_group_type("Zone"), do: "zone"
   def normalize_group_type("LightGroup"), do: "group"
   def normalize_group_type(_type), do: "group"
 
-  def normalize_room_name(name), do: Util.normalize_room_name(name)
-  def normalize_room_display(name), do: Util.normalize_room_display(name)
+  def normalize_area_name(name), do: Util.normalize_area_name(name)
+  def normalize_area_display(name), do: Util.normalize_area_display(name)
 
   def build_device_area_map(device_registry) do
     Enum.reduce(device_registry, %{}, fn device, acc ->
@@ -150,15 +150,15 @@ defmodule Hueworks.Import.Normalize do
     end)
   end
 
-  def shared_room_for_members(members, light_room_by_id) do
-    rooms =
+  def shared_area_for_members(members, light_area_by_id) do
+    areas =
       members
-      |> Enum.map(&Map.get(light_room_by_id, &1))
+      |> Enum.map(&Map.get(light_area_by_id, &1))
       |> Enum.filter(&is_binary/1)
       |> Enum.uniq()
 
-    case rooms do
-      [room_id] -> room_id
+    case areas do
+      [area_id] -> area_id
       _ -> nil
     end
   end

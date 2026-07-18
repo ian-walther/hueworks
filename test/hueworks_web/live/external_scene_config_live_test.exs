@@ -5,7 +5,7 @@ defmodule HueworksWeb.ExternalSceneConfigLiveTest do
 
   alias Hueworks.ExternalScenes
   alias Hueworks.Repo
-  alias Hueworks.Schemas.Room
+  alias Hueworks.Schemas.Area
   alias Hueworks.Scenes
 
   test "non-Home Assistant bridges redirect back to config", %{conn: conn} do
@@ -34,8 +34,8 @@ defmodule HueworksWeb.ExternalSceneConfigLiveTest do
         import_complete: true
       })
 
-    room = Repo.insert!(%Room{name: "Living"})
-    {:ok, scene} = Scenes.create_scene(%{name: "Movie", room_id: room.id})
+    area = Repo.insert!(%Area{name: "Living"})
+    {:ok, scene} = Scenes.create_scene(%{name: "Movie", area_id: area.id})
 
     {:ok, _external_scenes} =
       ExternalScenes.sync_home_assistant_scenes(bridge, [

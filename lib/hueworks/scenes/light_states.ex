@@ -4,7 +4,7 @@ defmodule Hueworks.Scenes.LightStates do
   import Ecto.Query, only: [from: 2]
 
   alias Hueworks.Repo
-  alias Hueworks.Schemas.{LightState, Room, Scene, SceneComponent}
+  alias Hueworks.Schemas.{LightState, Area, Scene, SceneComponent}
 
   def list_manual do
     Repo.all(
@@ -168,8 +168,8 @@ defmodule Hueworks.Scenes.LightStates do
       from(sc in SceneComponent,
         join: s in Scene,
         on: s.id == sc.scene_id,
-        join: r in Room,
-        on: r.id == s.room_id,
+        join: r in Area,
+        on: r.id == s.area_id,
         where: sc.light_state_id in ^light_state_ids,
         order_by: [asc: s.name, asc: s.id],
         select: {
@@ -177,8 +177,8 @@ defmodule Hueworks.Scenes.LightStates do
           %{
             scene_id: s.id,
             scene_name: s.name,
-            room_id: r.id,
-            room_name: r.name
+            area_id: r.id,
+            area_name: r.name
           }
         }
       )

@@ -7,9 +7,9 @@ defmodule Hueworks.Lights.ManualControl do
   alias Hueworks.Control.ManualBaseline
   alias Hueworks.Scenes
 
-  def apply_updates(room_id, light_ids, desired_update, opts \\ [])
+  def apply_updates(area_id, light_ids, desired_update, opts \\ [])
       when is_list(light_ids) and is_map(desired_update) and is_list(opts) do
-    if scene_active_manual_adjustment_blocked?(room_id, desired_update) do
+    if scene_active_manual_adjustment_blocked?(area_id, desired_update) do
       {:error, :scene_active_manual_adjustment_not_allowed}
     else
       trace = Keyword.get(opts, :trace)
@@ -24,7 +24,7 @@ defmodule Hueworks.Lights.ManualControl do
           DesiredState.apply(acc, :light, light_id, desired_update)
         end)
 
-      case ControlApply.commit_and_enqueue(txn, room_id,
+      case ControlApply.commit_and_enqueue(txn, area_id,
              enqueue_mode: Keyword.get(opts, :enqueue_mode, :replace_targets),
              origin: :manual,
              trace: trace
@@ -38,22 +38,22 @@ defmodule Hueworks.Lights.ManualControl do
     end
   end
 
-  def apply_power_action(room_id, light_ids, action, opts \\ [])
+  def apply_power_action(area_id, light_ids, action, opts \\ [])
 
-  def apply_power_action(room_id, light_ids, :on, opts)
-      when is_integer(room_id) and is_list(light_ids) and is_list(opts) do
-    trace = Keyword.get(opts, :trace) || power_trace(room_id, :on)
+  def apply_power_action(area_id, light_ids, :on, opts)
+      when is_integer(area_id) and is_list(light_ids) and is_list(opts) do
+    trace = Keyword.get(opts, :trace) || power_trace(area_id, :on)
 
-    case ActiveScenes.get_for_room(room_id) do
+    case ActiveScenes.get_for_area(area_id) do
       nil ->
         baseline = ManualBaseline.power_on_state()
 
-        with {:ok, _diff} <- apply_updates(room_id, light_ids, baseline, trace: trace) do
+        with {:ok, _diff} <- apply_updates(area_id, light_ids, baseline, trace: trace) do
           {:ok, baseline}
         end
 
       _active_scene ->
-        case Scenes.recompute_active_scene_lights(room_id, light_ids,
+        case Scenes.recompute_active_scene_lights(area_id, light_ids,
                power_override: :on,
                origin: :manual,
                trace: trace
@@ -70,19 +70,19 @@ defmodule Hueworks.Lights.ManualControl do
     end
   end
 
-  def apply_power_action(room_id, light_ids, action, opts)
-      when is_integer(room_id) and is_list(light_ids) and action in [:off, "off"] and
+  def apply_power_action(area_id, light_ids, action, opts)
+      when is_integer(area_id) and is_list(light_ids) and action in [:off, "off"] and
              is_list(opts) do
-    trace = Keyword.get(opts, :trace) || power_trace(room_id, :off)
+    trace = Keyword.get(opts, :trace) || power_trace(area_id, :off)
 
-    case ActiveScenes.get_for_room(room_id) do
+    case ActiveScenes.get_for_area(area_id) do
       nil ->
-        with {:ok, _diff} <- apply_updates(room_id, light_ids, %{power: :off}, trace: trace) do
+        with {:ok, _diff} <- apply_updates(area_id, light_ids, %{power: :off}, trace: trace) do
           {:ok, %{power: :off}}
         end
 
       _active_scene ->
-        case Scenes.recompute_active_scene_lights(room_id, light_ids,
+        case Scenes.recompute_active_scene_lights(area_id, light_ids,
                power_override: :off,
                origin: :manual,
                trace: trace
@@ -109,21 +109,21 @@ defmodule Hueworks.Lights.ManualControl do
   defp trace_transaction_id(%{trace_id: trace_id}) when is_binary(trace_id), do: trace_id
   defp trace_transaction_id(_trace), do: :manual_ui
 
-  defp power_trace(room_id, action) do
+  defp power_trace(area_id, action) do
     %{
-      trace_id: "manual-#{action}-#{room_id}-#{System.unique_integer([:positive])}",
+      trace_id: "manual-#{action}-#{area_id}-#{System.unique_integer([:positive])}",
       source: "lights_live.manual_power_#{action}",
-      room_id: room_id,
+      area_id: area_id,
       started_at_ms: System.monotonic_time(:millisecond)
     }
   end
 
-  defp scene_active_manual_adjustment_blocked?(room_id, desired_update)
-       when is_integer(room_id) and is_map(desired_update) do
-    ActiveScenes.get_for_room(room_id) != nil and manual_adjustment_keys?(desired_update)
+  defp scene_active_manual_adjustment_blocked?(area_id, desired_update)
+       when is_integer(area_id) and is_map(desired_update) do
+    ActiveScenes.get_for_area(area_id) != nil and manual_adjustment_keys?(desired_update)
   end
 
-  defp scene_active_manual_adjustment_blocked?(_room_id, _desired_update), do: false
+  defp scene_active_manual_adjustment_blocked?(_area_id, _desired_update), do: false
 
   defp manual_adjustment_keys?(attrs) when is_map(attrs) do
     Enum.any?(Map.keys(attrs), fn

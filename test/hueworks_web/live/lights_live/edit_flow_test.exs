@@ -2,11 +2,11 @@ defmodule HueworksWeb.LightsLive.EditFlowTest do
   use Hueworks.DataCase, async: false
 
   alias Hueworks.Repo
-  alias Hueworks.Schemas.{Light, Room}
+  alias Hueworks.Schemas.{Light, Area}
   alias HueworksWeb.LightsLive.EditFlow
 
   test "open returns modal assigns for a saved light" do
-    room = Repo.insert!(%Room{name: "Studio"})
+    area = Repo.insert!(%Area{name: "Studio"})
 
     bridge =
       insert_bridge!(%{
@@ -22,7 +22,7 @@ defmodule HueworksWeb.LightsLive.EditFlowTest do
         source: :hue,
         source_id: "desk-lamp",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         display_name: "Desk Lamp",
         enabled: true
       })
@@ -36,7 +36,7 @@ defmodule HueworksWeb.LightsLive.EditFlowTest do
   end
 
   test "save updates the target and returns closed modal assigns merged with reloaded state" do
-    room = Repo.insert!(%Room{name: "Office"})
+    area = Repo.insert!(%Area{name: "Office"})
 
     bridge =
       insert_bridge!(%{
@@ -52,7 +52,7 @@ defmodule HueworksWeb.LightsLive.EditFlowTest do
         source: :hue,
         source_id: "floor-lamp",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         display_name: "Floor Lamp",
         enabled: true
       })

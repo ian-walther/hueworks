@@ -11,7 +11,7 @@ defmodule Hueworks.SceneBuilderComponentTest do
     use Phoenix.LiveView
 
     def mount(_params, _session, socket) do
-      room_lights = [
+      area_lights = [
         %{id: 1, name: "Lamp"},
         %{id: 2, name: "Ceiling"}
       ]
@@ -22,7 +22,7 @@ defmodule Hueworks.SceneBuilderComponentTest do
 
       {:ok,
        assign(socket,
-         room_lights: room_lights,
+         area_lights: area_lights,
          groups: groups,
          light_states: Scenes.list_editable_light_states()
        )}
@@ -33,7 +33,7 @@ defmodule Hueworks.SceneBuilderComponentTest do
       <.live_component
         module={HueworksWeb.SceneBuilderComponent}
         id="scene-builder"
-        room_lights={@room_lights}
+        area_lights={@area_lights}
         groups={@groups}
         light_states={@light_states}
       />
@@ -45,7 +45,7 @@ defmodule Hueworks.SceneBuilderComponentTest do
     use Phoenix.LiveView
 
     def mount(_params, %{"state_id" => state_id}, socket) do
-      room_lights = [%{id: 1, name: "Lamp"}]
+      area_lights = [%{id: 1, name: "Lamp"}]
 
       components = [
         %{id: 1, name: "Component 1", light_ids: [], group_ids: [], light_state_id: state_id}
@@ -53,7 +53,7 @@ defmodule Hueworks.SceneBuilderComponentTest do
 
       {:ok,
        assign(socket,
-         room_lights: room_lights,
+         area_lights: area_lights,
          groups: [],
          components: components,
          light_states: Scenes.list_editable_light_states()
@@ -65,7 +65,7 @@ defmodule Hueworks.SceneBuilderComponentTest do
       <.live_component
         module={HueworksWeb.SceneBuilderComponent}
         id="scene-builder"
-        room_lights={@room_lights}
+        area_lights={@area_lights}
         groups={@groups}
         components={@components}
         light_states={@light_states}
@@ -159,7 +159,7 @@ defmodule Hueworks.SceneBuilderComponentTest do
       def mount(_params, _session, socket) do
         {:ok,
          assign(socket,
-           room_lights: [
+           area_lights: [
              %{id: 1, name: "Upper Left"},
              %{id: 2, name: "Upper Right"},
              %{id: 3, name: "Lower Left"},
@@ -189,7 +189,7 @@ defmodule Hueworks.SceneBuilderComponentTest do
         <.live_component
           module={HueworksWeb.SceneBuilderComponent}
           id="scene-builder"
-          room_lights={@room_lights}
+          area_lights={@area_lights}
           groups={@groups}
           components={@components}
           light_states={@light_states}
@@ -352,7 +352,7 @@ defmodule Hueworks.SceneBuilderComponentTest do
       def mount(_params, _session, socket) do
         {:ok,
          assign(socket,
-           room_lights: [%{id: 1, name: "Lamp"}, %{id: 2, name: "Ceiling"}],
+           area_lights: [%{id: 1, name: "Lamp"}, %{id: 2, name: "Ceiling"}],
            groups: [%{id: 10, name: "All", light_ids: [1, 2]}],
            components: [
              %{
@@ -373,7 +373,7 @@ defmodule Hueworks.SceneBuilderComponentTest do
         <.live_component
           module={HueworksWeb.SceneBuilderComponent}
           id="scene-builder"
-          room_lights={@room_lights}
+          area_lights={@area_lights}
           groups={@groups}
           components={@components}
           light_states={@light_states}
@@ -410,7 +410,7 @@ defmodule Hueworks.SceneBuilderComponentTest do
       def mount(_params, _session, socket) do
         {:ok,
          assign(socket,
-           room_lights: [%{id: 1, name: "Lamp"}, %{id: 2, name: "Ceiling"}],
+           area_lights: [%{id: 1, name: "Lamp"}, %{id: 2, name: "Ceiling"}],
            groups: [%{id: 10, name: "All", light_ids: [1, 2]}],
            presence_inputs: [
              %{id: 20, name: "Desk Presence"},
@@ -436,7 +436,7 @@ defmodule Hueworks.SceneBuilderComponentTest do
         <.live_component
           module={HueworksWeb.SceneBuilderComponent}
           id="scene-builder"
-          room_lights={@room_lights}
+          area_lights={@area_lights}
           groups={@groups}
           presence_inputs={@presence_inputs}
           components={@components}
@@ -487,7 +487,7 @@ defmodule Hueworks.SceneBuilderComponentTest do
       def mount(_params, _session, socket) do
         {:ok,
          assign(socket,
-           room_lights: [
+           area_lights: [
              %{id: 1, name: "Lamp"},
              %{id: 2, name: "Ceiling", canonical_light_id: 99}
            ],
@@ -504,7 +504,7 @@ defmodule Hueworks.SceneBuilderComponentTest do
         <.live_component
           module={HueworksWeb.SceneBuilderComponent}
           id="scene-builder"
-          room_lights={@room_lights}
+          area_lights={@area_lights}
           groups={@groups}
           light_states={@light_states}
         />

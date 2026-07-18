@@ -89,7 +89,7 @@ defmodule Hueworks.Control.TraceBuffer do
       recorded_at: DateTime.utc_now(),
       trace_id: Map.get(trace, :trace_id),
       source: Map.get(trace, :source) || Map.get(trace, :trace_source),
-      room_id: Map.get(trace, :room_id) || Map.get(trace, :trace_room_id),
+      area_id: Map.get(trace, :area_id) || Map.get(trace, :trace_area_id),
       scene_id: Map.get(trace, :scene_id) || Map.get(trace, :trace_scene_id),
       stage: stage,
       entity_kind: Map.get(attrs, :entity_kind) || Map.get(attrs, :type),
@@ -137,7 +137,7 @@ defmodule Hueworks.Control.TraceBuffer do
       {:limit, _value} ->
         true
 
-      {key, value} when key in [:trace_id, :room_id, :entity_kind, :entity_id, :source] ->
+      {key, value} when key in [:trace_id, :area_id, :entity_kind, :entity_id, :source] ->
         Map.get(event, key) == value
 
       _ ->

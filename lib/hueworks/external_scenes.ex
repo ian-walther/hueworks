@@ -32,8 +32,8 @@ defmodule Hueworks.ExternalScenes do
   def list_mappable_scenes do
     Repo.all(
       from(s in Scene,
-        order_by: [asc: s.room_id, asc: s.name],
-        preload: [:room]
+        order_by: [asc: s.area_id, asc: s.name],
+        preload: [:area]
       )
     )
   end

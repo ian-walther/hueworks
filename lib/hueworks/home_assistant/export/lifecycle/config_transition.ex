@@ -45,9 +45,9 @@ defmodule Hueworks.HomeAssistant.Export.Lifecycle.ConfigTransition do
           Sync.unpublish_all_scenes(publish_fun, previous)
         end
 
-        if Runtime.room_selects_enabled?(previous) and
-             not Runtime.room_selects_enabled?(config) do
-          Sync.unpublish_all_room_selects(publish_fun, previous)
+        if Runtime.area_selects_enabled?(previous) and
+             not Runtime.area_selects_enabled?(config) do
+          Sync.unpublish_all_area_selects(publish_fun, previous)
         end
 
         if Runtime.lights_enabled?(previous) and not Runtime.lights_enabled?(config) do

@@ -2,11 +2,11 @@ defmodule Hueworks.Import.ReimportReviewTest do
   use ExUnit.Case, async: true
 
   alias Hueworks.Import.ReimportReview
-  alias Hueworks.Schemas.{Bridge, Group, Light, Room}
+  alias Hueworks.Schemas.{Bridge, Group, Light, Area}
 
-  test "groups removed and existing entities by HueWorks room and new entities by bridge room" do
+  test "groups removed and existing entities by HueWorks area and new entities by bridge area" do
     bridge = %Bridge{id: 10, type: :hue}
-    main_floor = %Room{id: 1, name: "Main Floor"}
+    main_floor = %Area{id: 1, name: "Main Floor"}
 
     existing = %Light{
       id: 1,
@@ -16,7 +16,7 @@ defmodule Hueworks.Import.ReimportReviewTest do
       source_id: "light-1",
       external_id: "uid-1",
       bridge_id: 10,
-      room: main_floor,
+      area: main_floor,
       enabled: true,
       metadata: %{"uniqueid" => "uid-1", "identifiers" => %{}},
       normalized_json: %{}
@@ -30,20 +30,20 @@ defmodule Hueworks.Import.ReimportReviewTest do
       source_id: "light-old",
       external_id: "uid-old",
       bridge_id: 10,
-      room: main_floor,
+      area: main_floor,
       enabled: true,
       metadata: %{},
       normalized_json: %{}
     }
 
     normalized = %{
-      rooms: [%{source_id: "bridge-office", name: "Office"}],
+      areas: [%{source_id: "bridge-office", name: "Office"}],
       lights: [
         %{
           source: :hue,
           source_id: "light-1",
           name: "Renamed Bridge Lamp",
-          room_source_id: "bridge-office",
+          area_source_id: "bridge-office",
           capabilities: %{},
           identifiers: %{},
           metadata: %{"uniqueid" => "uid-1"}
@@ -52,7 +52,7 @@ defmodule Hueworks.Import.ReimportReviewTest do
           source: :hue,
           source_id: "light-new",
           name: "New Lamp",
-          room_source_id: "bridge-office",
+          area_source_id: "bridge-office",
           capabilities: %{},
           identifiers: %{},
           metadata: %{"uniqueid" => "uid-new"}
@@ -76,7 +76,7 @@ defmodule Hueworks.Import.ReimportReviewTest do
         "light-old" => %{"selected" => false, "resolution" => "keep"}
       },
       groups: %{},
-      rooms: %{}
+      areas: %{}
     }
 
     review =
@@ -84,11 +84,11 @@ defmodule Hueworks.Import.ReimportReviewTest do
         main_floor
       ])
 
-    assert [%{room: "Main Floor", items: [%{name: "Old Lamp"}]}] = review.removed
-    assert [%{room: "Main Floor", automatic_updates: [existing_item]}] = review.existing
+    assert [%{area: "Main Floor", items: [%{name: "Old Lamp"}]}] = review.removed
+    assert [%{area: "Main Floor", automatic_updates: [existing_item]}] = review.existing
     assert existing_item.name == "Office Lamp"
     assert Enum.any?(existing_item.changes, &(&1.field == :name))
-    assert [%{room: "Office", items: [%{name: "New Lamp", selected?: false}]}] = review.new
+    assert [%{area: "Office", items: [%{name: "New Lamp", selected?: false}]}] = review.new
 
     assert review.summary == %{
              removed: 1,
@@ -103,7 +103,7 @@ defmodule Hueworks.Import.ReimportReviewTest do
 
   test "reports unresolved group members and clears the warning when the new light is selected" do
     bridge = %Bridge{id: 10, type: :ha}
-    room = %Room{id: 1, name: "Kitchen"}
+    area = %Area{id: 1, name: "Kitchen"}
 
     group = %Group{
       id: 3,
@@ -113,7 +113,7 @@ defmodule Hueworks.Import.ReimportReviewTest do
       source_id: "group.kitchen",
       external_id: "group-uid",
       bridge_id: 10,
-      room: room,
+      area: area,
       lights: [],
       enabled: true,
       metadata: %{"unique_id" => "group-uid"},
@@ -121,7 +121,7 @@ defmodule Hueworks.Import.ReimportReviewTest do
     }
 
     normalized = %{
-      rooms: [],
+      areas: [],
       lights: [
         %{
           source: :ha,
@@ -158,11 +158,11 @@ defmodule Hueworks.Import.ReimportReviewTest do
     default_plan = %{
       lights: %{"light.new" => false},
       groups: %{"group.kitchen" => true},
-      rooms: %{}
+      areas: %{}
     }
 
     default_review =
-      ReimportReview.build(bridge, normalized, reimport, default_plan, [], [group], [room])
+      ReimportReview.build(bridge, normalized, reimport, default_plan, [], [group], [area])
 
     assert default_review.summary.membership_warnings == 1
 
@@ -178,7 +178,7 @@ defmodule Hueworks.Import.ReimportReviewTest do
     selected_plan = put_in(default_plan, [:lights, "light.new"], true)
 
     selected_review =
-      ReimportReview.build(bridge, normalized, reimport, selected_plan, [], [group], [room])
+      ReimportReview.build(bridge, normalized, reimport, selected_plan, [], [group], [area])
 
     assert selected_review.summary.membership_warnings == 0
 

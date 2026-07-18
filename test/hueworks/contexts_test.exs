@@ -7,7 +7,7 @@ defmodule Hueworks.ContextsTest do
   alias Hueworks.ExternalScenes
   alias Hueworks.Lights
   alias Hueworks.Groups
-  alias Hueworks.Rooms
+  alias Hueworks.Areas
   alias Hueworks.Scenes
 
   alias Hueworks.Schemas.{
@@ -17,7 +17,7 @@ defmodule Hueworks.ContextsTest do
     Group,
     GroupLight,
     Light,
-    Room
+    Area
   }
 
   defp insert_bridge(attrs) do
@@ -61,8 +61,8 @@ defmodule Hueworks.ContextsTest do
     Repo.insert!(struct(Group, Map.merge(defaults, attrs)))
   end
 
-  defp insert_room(name) do
-    Repo.insert!(%Room{name: name})
+  defp insert_area(name) do
+    Repo.insert!(%Area{name: name})
   end
 
   defp insert_bridge_import(bridge, attrs) do
@@ -233,27 +233,27 @@ defmodule Hueworks.ContextsTest do
     assert Enum.sort(ids_all) == ["g1", "g3"]
   end
 
-  test "Groups.update_display_name normalizes blanks and syncs room to member lights" do
+  test "Groups.update_display_name normalizes blanks and syncs area to member lights" do
     bridge = insert_bridge(%{host: "10.0.0.15"})
-    room = insert_room("Living")
+    area = insert_area("Living")
     group = insert_group(bridge, %{source_id: "g1"})
-    light = insert_light(bridge, %{source_id: "l1", room_id: nil})
+    light = insert_light(bridge, %{source_id: "l1", area_id: nil})
     Repo.insert!(%GroupLight{group_id: group.id, light_id: light.id})
 
-    {:ok, updated} = Groups.update_display_name(group, %{display_name: "  ", room_id: room.id})
+    {:ok, updated} = Groups.update_display_name(group, %{display_name: "  ", area_id: area.id})
 
     assert updated.display_name == "Group"
-    assert Repo.get!(Light, light.id).room_id == room.id
+    assert Repo.get!(Light, light.id).area_id == area.id
   end
 
-  test "Groups.update_display_name rolls back room cascade failures" do
+  test "Groups.update_display_name rolls back area cascade failures" do
     bridge = insert_bridge(%{host: "10.0.0.152"})
-    old_room = insert_room("Old")
-    new_room = insert_room("New")
-    group = insert_group(bridge, %{source_id: "g1", room_id: old_room.id})
-    subgroup = insert_group(bridge, %{source_id: "g2", room_id: old_room.id})
-    light = insert_light(bridge, %{source_id: "l1", room_id: old_room.id})
-    other_light = insert_light(bridge, %{source_id: "l2", room_id: old_room.id})
+    old_area = insert_area("Old")
+    new_area = insert_area("New")
+    group = insert_group(bridge, %{source_id: "g1", area_id: old_area.id})
+    subgroup = insert_group(bridge, %{source_id: "g2", area_id: old_area.id})
+    light = insert_light(bridge, %{source_id: "l1", area_id: old_area.id})
+    other_light = insert_light(bridge, %{source_id: "l2", area_id: old_area.id})
 
     Repo.insert!(%GroupLight{group_id: group.id, light_id: light.id})
     Repo.insert!(%GroupLight{group_id: group.id, light_id: other_light.id})
@@ -262,25 +262,25 @@ defmodule Hueworks.ContextsTest do
     Ecto.Adapters.SQL.query!(
       Repo,
       """
-      CREATE TEMP TRIGGER fail_light_room_update
-      BEFORE UPDATE OF room_id ON lights
+      CREATE TEMP TRIGGER fail_light_area_update
+      BEFORE UPDATE OF area_id ON lights
       BEGIN
-        SELECT RAISE(ABORT, 'forced light room failure');
+        SELECT RAISE(ABORT, 'forced light area failure');
       END;
       """
     )
 
     try do
       assert_raise Exqlite.Error, fn ->
-        Groups.update_display_name(group, %{room_id: new_room.id})
+        Groups.update_display_name(group, %{area_id: new_area.id})
       end
 
-      assert Repo.get!(Group, group.id).room_id == old_room.id
-      assert Repo.get!(Group, subgroup.id).room_id == old_room.id
-      assert Repo.get!(Light, light.id).room_id == old_room.id
-      assert Repo.get!(Light, other_light.id).room_id == old_room.id
+      assert Repo.get!(Group, group.id).area_id == old_area.id
+      assert Repo.get!(Group, subgroup.id).area_id == old_area.id
+      assert Repo.get!(Light, light.id).area_id == old_area.id
+      assert Repo.get!(Light, other_light.id).area_id == old_area.id
     after
-      Ecto.Adapters.SQL.query!(Repo, "DROP TRIGGER IF EXISTS fail_light_room_update")
+      Ecto.Adapters.SQL.query!(Repo, "DROP TRIGGER IF EXISTS fail_light_area_update")
     end
   end
 
@@ -299,8 +299,8 @@ defmodule Hueworks.ContextsTest do
 
   test "ExternalScenes syncs HA scenes and preserves mappings across resync" do
     bridge = insert_bridge(%{type: :ha, host: "10.0.0.152", credentials: %{"token" => "token"}})
-    room = insert_room("Living")
-    {:ok, scene} = Scenes.create_scene(%{name: "Evening", room_id: room.id})
+    area = insert_area("Living")
+    {:ok, scene} = Scenes.create_scene(%{name: "Evening", area_id: area.id})
 
     assert {:ok, [external_scene]} =
              ExternalScenes.sync_home_assistant_scenes(bridge, [
@@ -364,34 +364,34 @@ defmodule Hueworks.ContextsTest do
              ])
   end
 
-  test "Rooms context supports CRUD and list ordering" do
-    _b = insert_room("B room")
-    _a = insert_room("A room")
+  test "Areas context supports CRUD and list ordering" do
+    _b = insert_area("B area")
+    _a = insert_area("A area")
 
-    names = Rooms.list_rooms() |> Enum.map(& &1.name)
-    assert names == ["A room", "B room"]
+    names = Areas.list_areas() |> Enum.map(& &1.name)
+    assert names == ["A area", "B area"]
 
-    {:ok, room} = Rooms.create_room(%{name: "Office"})
-    {:ok, updated} = Rooms.update_room(room, %{name: "Office 2"})
+    {:ok, area} = Areas.create_area(%{name: "Office"})
+    {:ok, updated} = Areas.update_area(area, %{name: "Office 2"})
     assert updated.name == "Office 2"
 
-    assert {:ok, _} = Rooms.delete_room(updated)
-    assert Rooms.get_room(updated.id) == nil
+    assert {:ok, _} = Areas.delete_area(updated)
+    assert Areas.get_area(updated.id) == nil
   end
 
-  test "Rooms.list_rooms_with_children preloads room associations" do
-    room = insert_room("Studio")
+  test "Areas.list_areas_with_children preloads area associations" do
+    area = insert_area("Studio")
     bridge = insert_bridge(%{host: "10.0.0.155"})
-    light = insert_light(bridge, %{source_id: "room-light", room_id: room.id})
-    group = insert_group(bridge, %{source_id: "room-group", room_id: room.id})
-    {:ok, scene} = Scenes.create_scene(%{name: "Evening", room_id: room.id})
+    light = insert_light(bridge, %{source_id: "area-light", area_id: area.id})
+    group = insert_group(bridge, %{source_id: "area-group", area_id: area.id})
+    {:ok, scene} = Scenes.create_scene(%{name: "Evening", area_id: area.id})
 
-    [loaded_room] = Rooms.list_rooms_with_children()
+    [loaded_area] = Areas.list_areas_with_children()
 
-    assert loaded_room.id == room.id
-    assert Enum.map(loaded_room.lights, & &1.id) == [light.id]
-    assert Enum.map(loaded_room.groups, & &1.id) == [group.id]
-    assert Enum.map(loaded_room.scenes, & &1.id) == [scene.id]
+    assert loaded_area.id == area.id
+    assert Enum.map(loaded_area.lights, & &1.id) == [light.id]
+    assert Enum.map(loaded_area.groups, & &1.id) == [group.id]
+    assert Enum.map(loaded_area.scenes, & &1.id) == [scene.id]
   end
 
   test "Bridges.latest_import and list_imports_for_bridge return newest imports first" do
@@ -444,12 +444,12 @@ defmodule Hueworks.ContextsTest do
         import_complete: true
       })
 
-    room = insert_room("Delete Entities Room")
-    light = insert_light(bridge, %{source: :caseta, source_id: "delete-light", room_id: room.id})
-    group = insert_group(bridge, %{source: :caseta, source_id: "delete-group", room_id: room.id})
+    area = insert_area("Delete Entities Area")
+    light = insert_light(bridge, %{source: :caseta, source_id: "delete-light", area_id: area.id})
+    group = insert_group(bridge, %{source: :caseta, source_id: "delete-group", area_id: area.id})
     Repo.insert!(%GroupLight{group_id: group.id, light_id: light.id})
 
-    {:ok, scene} = Scenes.create_scene(%{name: "Delete Scene", room_id: room.id})
+    {:ok, scene} = Scenes.create_scene(%{name: "Delete Scene", area_id: area.id})
     {:ok, light_state} = Scenes.create_manual_light_state("Delete State", %{"brightness" => "40"})
 
     {:ok, _} =
@@ -459,7 +459,7 @@ defmodule Hueworks.ContextsTest do
 
     Repo.insert!(%Hueworks.Schemas.PicoDevice{
       bridge_id: bridge.id,
-      room_id: room.id,
+      area_id: area.id,
       source_id: "device-1",
       name: "Pico",
       hardware_profile: "5_button",
@@ -487,14 +487,14 @@ defmodule Hueworks.ContextsTest do
         import_complete: true
       })
 
-    room = insert_room("Selective Delete Room")
+    area = insert_area("Selective Delete Area")
 
     keep_light =
       insert_light(bridge, %{
         source: :caseta,
         source_id: "keep-light",
         external_id: "light.keep",
-        room_id: room.id
+        area_id: area.id
       })
 
     delete_light =
@@ -502,7 +502,7 @@ defmodule Hueworks.ContextsTest do
         source: :caseta,
         source_id: "delete-light",
         external_id: "light.delete",
-        room_id: room.id
+        area_id: area.id
       })
 
     keep_group =
@@ -510,7 +510,7 @@ defmodule Hueworks.ContextsTest do
         source: :caseta,
         source_id: "keep-group",
         external_id: "group.keep",
-        room_id: room.id
+        area_id: area.id
       })
 
     delete_group =
@@ -518,13 +518,13 @@ defmodule Hueworks.ContextsTest do
         source: :caseta,
         source_id: "delete-group",
         external_id: "group.delete",
-        room_id: room.id
+        area_id: area.id
       })
 
     Repo.insert!(%GroupLight{group_id: keep_group.id, light_id: keep_light.id})
     Repo.insert!(%GroupLight{group_id: delete_group.id, light_id: delete_light.id})
 
-    {:ok, scene} = Scenes.create_scene(%{name: "Selective Delete Scene", room_id: room.id})
+    {:ok, scene} = Scenes.create_scene(%{name: "Selective Delete Scene", area_id: area.id})
 
     {:ok, light_state} =
       Scenes.create_manual_light_state("Selective Delete State", %{"brightness" => "40"})
@@ -536,7 +536,7 @@ defmodule Hueworks.ContextsTest do
 
     Repo.insert!(%Hueworks.Schemas.PicoDevice{
       bridge_id: bridge.id,
-      room_id: room.id,
+      area_id: area.id,
       source_id: "device-1",
       name: "Pico",
       hardware_profile: "5_button",
@@ -574,12 +574,12 @@ defmodule Hueworks.ContextsTest do
   end
 
   test "Scenes context supports CRUD and list ordering" do
-    room = insert_room("Den")
+    area = insert_area("Den")
 
-    {:ok, scene_b} = Scenes.create_scene(%{name: "B scene", room_id: room.id})
-    {:ok, scene_a} = Scenes.create_scene(%{name: "A scene", room_id: room.id})
+    {:ok, scene_b} = Scenes.create_scene(%{name: "B scene", area_id: area.id})
+    {:ok, scene_a} = Scenes.create_scene(%{name: "A scene", area_id: area.id})
 
-    names = Scenes.list_scenes_for_room(room.id) |> Enum.map(& &1.name)
+    names = Scenes.list_scenes_for_area(area.id) |> Enum.map(& &1.name)
     assert names == ["A scene", "B scene"]
 
     {:ok, updated} = Scenes.update_scene(scene_a, %{name: "A2"})

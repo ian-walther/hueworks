@@ -7,29 +7,29 @@ defmodule Hueworks.Import.Normalize.Hue do
     raw_groups = Normalize.fetch(raw, :groups) |> Normalize.normalize_map()
     raw_lights = Normalize.fetch(raw, :lights) |> Normalize.normalize_map()
 
-    rooms =
+    areas =
       raw_groups
       |> Enum.filter(fn {_id, group} -> Normalize.fetch(group, :type) == "Room" end)
       |> Enum.map(fn {id, group} ->
-        name = Normalize.fetch(group, :name) || "Room #{id}"
+        name = Normalize.fetch(group, :name) || "Area #{id}"
 
         %{
           source: :hue,
           source_id: id,
-          name: Normalize.normalize_room_display(name),
-          normalized_name: Normalize.normalize_room_name(name),
+          name: Normalize.normalize_area_display(name),
+          normalized_name: Normalize.normalize_area_name(name),
           metadata: %{"type" => Normalize.fetch(group, :type)}
         }
       end)
 
-    light_room_map =
+    light_area_map =
       raw_groups
       |> Enum.filter(fn {_id, group} -> Normalize.fetch(group, :type) == "Room" end)
-      |> Enum.reduce(%{}, fn {room_id, group}, acc ->
+      |> Enum.reduce(%{}, fn {area_id, group}, acc ->
         lights = Normalize.fetch(group, :lights) || []
 
         Enum.reduce(lights, acc, fn light_id, inner ->
-          Map.put(inner, light_id, room_id)
+          Map.put(inner, light_id, area_id)
         end)
       end)
 
@@ -43,7 +43,7 @@ defmodule Hueworks.Import.Normalize.Hue do
           source_id: id,
           name: Normalize.fetch(light, :name) || "Hue Light #{id}",
           classification: "light",
-          room_source_id: Map.get(light_room_map, id),
+          area_source_id: Map.get(light_area_map, id),
           capabilities: capabilities,
           identifiers: %{"mac" => Normalize.fetch(light, :mac)},
           metadata: %{
@@ -72,11 +72,11 @@ defmodule Hueworks.Import.Normalize.Hue do
           source_id: id,
           name: Normalize.fetch(group, :name) || "Hue Group #{id}",
           classification: classification,
-          room_source_id:
+          area_source_id:
             if group_type == "Room" do
               id
             else
-              Normalize.shared_room_for_members(member_ids, light_room_map)
+              Normalize.shared_area_for_members(member_ids, light_area_map)
             end,
           type: normalized_type,
           capabilities: capabilities,
@@ -87,21 +87,21 @@ defmodule Hueworks.Import.Normalize.Hue do
       end)
 
     memberships = %{
-      room_groups:
+      area_groups:
         groups
-        |> Enum.filter(fn group -> group.room_source_id == group.source_id end)
+        |> Enum.filter(fn group -> group.area_source_id == group.source_id end)
         |> Enum.map(fn group ->
           %{
-            room_source_id: group.room_source_id,
+            area_source_id: group.area_source_id,
             group_source_id: group.source_id
           }
         end),
-      room_lights:
+      area_lights:
         lights
-        |> Enum.filter(& &1.room_source_id)
+        |> Enum.filter(& &1.area_source_id)
         |> Enum.map(fn light ->
           %{
-            room_source_id: light.room_source_id,
+            area_source_id: light.area_source_id,
             light_source_id: light.source_id
           }
         end),
@@ -115,10 +115,10 @@ defmodule Hueworks.Import.Normalize.Hue do
         end)
     }
 
-    Normalize.base_normalized(bridge, rooms, groups, lights, memberships)
+    Normalize.base_normalized(bridge, areas, groups, lights, memberships)
   end
 
-  defp hue_group_classification("Room"), do: "group_room"
+  defp hue_group_classification("Room"), do: "group_area"
   defp hue_group_classification("Zone"), do: "group_zone"
   defp hue_group_classification("LightGroup"), do: "group"
   defp hue_group_classification(_type), do: "group"

@@ -1,6 +1,6 @@
 defmodule Hueworks.ActiveScenes do
   @moduledoc """
-  Tracks the active scene per room for circadian/manual polling.
+  Tracks the active scene per area for circadian/manual polling.
   """
 
   import Ecto.Query, only: [from: 2]
@@ -14,8 +14,8 @@ defmodule Hueworks.ActiveScenes do
     Repo.all(from(a in ActiveScene, select: a))
   end
 
-  def get_for_room(room_id) do
-    Repo.one(from(a in ActiveScene, where: a.room_id == ^room_id))
+  def get_for_area(area_id) do
+    Repo.one(from(a in ActiveScene, where: a.area_id == ^area_id))
   end
 
   def set_active(%Scene{} = scene, opts \\ []) when is_list(opts) do
@@ -23,7 +23,7 @@ defmodule Hueworks.ActiveScenes do
     circadian_resume_at = Keyword.get(opts, :circadian_resume_at)
 
     attrs = %{
-      room_id: scene.room_id,
+      area_id: scene.area_id,
       scene_id: scene.id,
       last_applied_at: now,
       power_overrides: %{},
@@ -44,7 +44,7 @@ defmodule Hueworks.ActiveScenes do
               updated_at: now
             ]
           ],
-          conflict_target: :room_id
+          conflict_target: :area_id
         )
       rescue
         Ecto.ConstraintError ->
@@ -54,7 +54,7 @@ defmodule Hueworks.ActiveScenes do
 
     case result do
       {:ok, active_scene} ->
-        broadcast(scene.room_id, scene.id)
+        broadcast(scene.area_id, scene.id)
         {:ok, active_scene}
 
       {:error, _reason} = error ->
@@ -62,20 +62,20 @@ defmodule Hueworks.ActiveScenes do
     end
   end
 
-  def clear_for_room(room_id) do
-    Repo.delete_all(from(a in ActiveScene, where: a.room_id == ^room_id))
-    broadcast(room_id, nil)
+  def clear_for_area(area_id) do
+    Repo.delete_all(from(a in ActiveScene, where: a.area_id == ^area_id))
+    broadcast(area_id, nil)
     :ok
   end
 
   def deactivate_scene(scene_id) when is_integer(scene_id) do
-    room_ids =
-      Repo.all(from(a in ActiveScene, where: a.scene_id == ^scene_id, select: a.room_id))
+    area_ids =
+      Repo.all(from(a in ActiveScene, where: a.scene_id == ^scene_id, select: a.area_id))
 
     Repo.delete_all(from(a in ActiveScene, where: a.scene_id == ^scene_id))
 
-    Enum.each(room_ids, fn room_id ->
-      broadcast(room_id, nil)
+    Enum.each(area_ids, fn area_id ->
+      broadcast(area_id, nil)
     end)
 
     :ok
@@ -116,10 +116,10 @@ defmodule Hueworks.ActiveScenes do
 
   def power_overrides(_active_scene), do: %{}
 
-  def merge_power_overrides(room_id, overrides)
-      when is_integer(room_id) and is_map(overrides) do
-    room_id
-    |> get_for_room()
+  def merge_power_overrides(area_id, overrides)
+      when is_integer(area_id) and is_map(overrides) do
+    area_id
+    |> get_for_area()
     |> case do
       nil ->
         {:error, :not_found}
@@ -137,13 +137,13 @@ defmodule Hueworks.ActiveScenes do
     end
   end
 
-  def merge_power_overrides(_room_id, _overrides), do: {:error, :invalid_args}
+  def merge_power_overrides(_area_id, _overrides), do: {:error, :invalid_args}
 
-  defp broadcast(room_id, scene_id) when is_integer(room_id) do
+  defp broadcast(area_id, scene_id) when is_integer(area_id) do
     Phoenix.PubSub.broadcast(
       Hueworks.PubSub,
       topic(),
-      {:active_scene_updated, room_id, scene_id}
+      {:active_scene_updated, area_id, scene_id}
     )
   end
 

@@ -14,7 +14,7 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
     LightState,
     PicoButton,
     PicoDevice,
-    Room,
+    Area,
     Scene,
     SceneComponent,
     SceneComponentLight
@@ -86,15 +86,15 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
     assert html =~ "2 lights"
     assert html =~ "2 groups"
     assert has_element?(view, ".hw-summary-stat:first-child strong", "2")
-    assert has_element?(view, ".hw-summary-stat:first-child span", "rooms created")
-    assert html =~ ~s(href="/rooms")
-    assert html =~ "Review Rooms"
+    assert has_element?(view, ".hw-summary-stat:first-child span", "areas created")
+    assert html =~ ~s(href="/areas")
+    assert html =~ "Review Areas"
     assert html =~ "Create First Scene"
     assert Repo.reload!(bridge).import_complete == true
     refute html =~ "Apply Initial Import"
   end
 
-  test "skipping rooms in the UI plan updates the plan state", %{conn: conn} do
+  test "skipping areas in the UI plan updates the plan state", %{conn: conn} do
     bridge =
       %Bridge{}
       |> Bridge.changeset(%{
@@ -108,17 +108,17 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
       |> Repo.insert!()
 
     normalized = %{
-      rooms: [
+      areas: [
         %{
           source: :hue,
-          source_id: "room-1",
+          source_id: "area-1",
           name: "Office",
           normalized_name: "office",
           metadata: %{}
         },
         %{
           source: :hue,
-          source_id: "room-2",
+          source_id: "area-2",
           name: "Kitchen",
           normalized_name: "kitchen",
           metadata: %{}
@@ -129,7 +129,7 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
           source: :hue,
           source_id: "1",
           name: "Lamp",
-          room_source_id: "room-1",
+          area_source_id: "area-1",
           capabilities: %{},
           identifiers: %{},
           metadata: %{}
@@ -138,7 +138,7 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
           source: :hue,
           source_id: "2",
           name: "Ceiling",
-          room_source_id: "room-2",
+          area_source_id: "area-2",
           capabilities: %{},
           identifiers: %{},
           metadata: %{}
@@ -154,24 +154,24 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
     render(view)
 
     view
-    |> form("form[phx-change='set_room_action'][data-room-id='room-1']", %{
+    |> form("form[phx-change='set_area_action'][data-area-id='area-1']", %{
       "action" => "skip"
     })
     |> render_change()
 
     view
-    |> form("form[phx-change='set_room_action'][data-room-id='room-2']", %{
+    |> form("form[phx-change='set_area_action'][data-area-id='area-2']", %{
       "action" => "skip"
     })
     |> render_change()
 
     plan = get_assign(view, :plan)
 
-    assert get_in(plan, [:rooms, "room-1", "action"]) == "skip"
-    assert get_in(plan, [:rooms, "room-2", "action"]) == "skip"
+    assert get_in(plan, [:areas, "area-1", "action"]) == "skip"
+    assert get_in(plan, [:areas, "area-2", "action"]) == "skip"
   end
 
-  test "room actions normalize numeric source ids", %{conn: conn} do
+  test "area actions normalize numeric source ids", %{conn: conn} do
     bridge =
       %Bridge{}
       |> Bridge.changeset(%{
@@ -185,7 +185,7 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
       |> Repo.insert!()
 
     normalized = %{
-      rooms: [
+      areas: [
         %{
           source: :hue,
           source_id: 12,
@@ -205,19 +205,19 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
     render(view)
 
     view
-    |> form("form[phx-change='set_room_action'][data-room-id='12']", %{
+    |> form("form[phx-change='set_area_action'][data-area-id='12']", %{
       "action" => "skip"
     })
     |> render_change()
 
     plan = get_assign(view, :plan)
 
-    assert get_in(plan, [:rooms, "12", "action"]) == "skip"
+    assert get_in(plan, [:areas, "12", "action"]) == "skip"
   end
 
-  test "default room plan merges when names match", %{conn: conn} do
-    existing_room =
-      Repo.insert!(%Hueworks.Schemas.Room{
+  test "default area plan merges when names match", %{conn: conn} do
+    existing_area =
+      Repo.insert!(%Hueworks.Schemas.Area{
         name: "Studio",
         metadata: %{}
       })
@@ -235,10 +235,10 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
       |> Repo.insert!()
 
     normalized = %{
-      rooms: [
+      areas: [
         %{
           source: :hue,
-          source_id: "room-1",
+          source_id: "area-1",
           name: "Studio",
           normalized_name: "studio",
           metadata: %{}
@@ -256,15 +256,15 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
 
     plan = get_assign(view, :plan)
 
-    assert get_in(plan, [:rooms, "room-1", "action"]) == "merge"
+    assert get_in(plan, [:areas, "area-1", "action"]) == "merge"
 
-    assert get_in(plan, [:rooms, "room-1", "target_room_id"]) ==
-             Integer.to_string(existing_room.id)
+    assert get_in(plan, [:areas, "area-1", "target_area_id"]) ==
+             Integer.to_string(existing_area.id)
   end
 
-  test "check all preserves merge selection for matching rooms", %{conn: conn} do
-    existing_room =
-      Repo.insert!(%Hueworks.Schemas.Room{
+  test "check all preserves merge selection for matching areas", %{conn: conn} do
+    existing_area =
+      Repo.insert!(%Hueworks.Schemas.Area{
         name: "Studio",
         metadata: %{}
       })
@@ -282,10 +282,10 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
       |> Repo.insert!()
 
     normalized = %{
-      rooms: [
+      areas: [
         %{
           source: :hue,
-          source_id: "room-1",
+          source_id: "area-1",
           name: "Studio",
           normalized_name: "studio",
           metadata: %{}
@@ -307,15 +307,15 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
 
     plan = get_assign(view, :plan)
 
-    assert get_in(plan, [:rooms, "room-1", "action"]) == "merge"
+    assert get_in(plan, [:areas, "area-1", "action"]) == "merge"
 
-    assert get_in(plan, [:rooms, "room-1", "target_room_id"]) ==
-             Integer.to_string(existing_room.id)
+    assert get_in(plan, [:areas, "area-1", "target_area_id"]) ==
+             Integer.to_string(existing_area.id)
   end
 
-  test "merge dropdown selects matching room by default", %{conn: conn} do
-    existing_room =
-      Repo.insert!(%Hueworks.Schemas.Room{
+  test "merge dropdown selects matching area by default", %{conn: conn} do
+    existing_area =
+      Repo.insert!(%Hueworks.Schemas.Area{
         name: "Studio",
         metadata: %{}
       })
@@ -333,10 +333,10 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
       |> Repo.insert!()
 
     normalized = %{
-      rooms: [
+      areas: [
         %{
           source: :hue,
-          source_id: "room-1",
+          source_id: "area-1",
           name: "Studio",
           normalized_name: "studio",
           metadata: %{}
@@ -354,15 +354,15 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
 
     selected =
       view
-      |> element("form[phx-change='set_room_merge'][data-room-id='room-1'] option[selected]")
+      |> element("form[phx-change='set_area_merge'][data-area-id='area-1'] option[selected]")
       |> render()
 
-    assert selected =~ "value=\"#{existing_room.id}\""
+    assert selected =~ "value=\"#{existing_area.id}\""
   end
 
-  test "merge dropdown shows room display_name when present", %{conn: conn} do
-    _existing_room =
-      Repo.insert!(%Hueworks.Schemas.Room{
+  test "merge dropdown shows area display_name when present", %{conn: conn} do
+    _existing_area =
+      Repo.insert!(%Hueworks.Schemas.Area{
         name: "Studio",
         display_name: "Studio Upstairs",
         metadata: %{}
@@ -381,10 +381,10 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
       |> Repo.insert!()
 
     normalized = %{
-      rooms: [
+      areas: [
         %{
           source: :hue,
-          source_id: "room-1",
+          source_id: "area-1",
           name: "Studio",
           normalized_name: "studio",
           metadata: %{}
@@ -432,7 +432,7 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
     assert get_in(plan, [:groups, "group-1"]) == false
   end
 
-  test "check all buttons update rooms, lights, and groups at every level", %{conn: conn} do
+  test "check all buttons update areas, lights, and groups at every level", %{conn: conn} do
     {view, _bridge} = setup_import_view(conn, with_unassigned: true)
 
     view
@@ -445,38 +445,38 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
 
     view
     |> element(
-      "button[phx-click='toggle_room'][phx-value-room_id='room-1'][phx-value-action='check']"
+      "button[phx-click='toggle_area'][phx-value-area_id='area-1'][phx-value-action='check']"
     )
     |> render_click()
 
     view
     |> element(
-      "button[phx-click='toggle_room_section'][phx-value-room_id='room-2'][phx-value-section='lights'][phx-value-action='check']"
+      "button[phx-click='toggle_area_section'][phx-value-area_id='area-2'][phx-value-section='lights'][phx-value-action='check']"
     )
     |> render_click()
 
     view
     |> element(
-      "button[phx-click='toggle_room_section'][phx-value-room_id='room-2'][phx-value-section='groups'][phx-value-action='check']"
+      "button[phx-click='toggle_area_section'][phx-value-area_id='area-2'][phx-value-section='groups'][phx-value-action='check']"
     )
     |> render_click()
 
     view
     |> element(
-      "button[phx-click='toggle_room_section'][phx-value-room_id='unassigned'][phx-value-section='lights'][phx-value-action='check']"
+      "button[phx-click='toggle_area_section'][phx-value-area_id='unassigned'][phx-value-section='lights'][phx-value-action='check']"
     )
     |> render_click()
 
     view
     |> element(
-      "button[phx-click='toggle_room_section'][phx-value-room_id='unassigned'][phx-value-section='groups'][phx-value-action='check']"
+      "button[phx-click='toggle_area_section'][phx-value-area_id='unassigned'][phx-value-section='groups'][phx-value-action='check']"
     )
     |> render_click()
 
     plan = get_assign(view, :plan)
 
-    assert get_in(plan, [:rooms, "room-1", "action"]) == "create"
-    assert get_in(plan, [:rooms, "room-2", "action"]) == "create"
+    assert get_in(plan, [:areas, "area-1", "action"]) == "create"
+    assert get_in(plan, [:areas, "area-2", "action"]) == "create"
 
     assert get_in(plan, [:lights, "light-1"]) == true
     assert get_in(plan, [:lights, "light-2"]) == true
@@ -487,7 +487,7 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
     assert get_in(plan, [:groups, "group-3"]) == true
   end
 
-  test "uncheck all buttons update rooms, lights, and groups at every level", %{conn: conn} do
+  test "uncheck all buttons update areas, lights, and groups at every level", %{conn: conn} do
     {view, _bridge} = setup_import_view(conn, with_unassigned: true)
 
     view
@@ -496,38 +496,38 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
 
     view
     |> element(
-      "button[phx-click='toggle_room'][phx-value-room_id='room-1'][phx-value-action='uncheck']"
+      "button[phx-click='toggle_area'][phx-value-area_id='area-1'][phx-value-action='uncheck']"
     )
     |> render_click()
 
     view
     |> element(
-      "button[phx-click='toggle_room_section'][phx-value-room_id='room-2'][phx-value-section='lights'][phx-value-action='uncheck']"
+      "button[phx-click='toggle_area_section'][phx-value-area_id='area-2'][phx-value-section='lights'][phx-value-action='uncheck']"
     )
     |> render_click()
 
     view
     |> element(
-      "button[phx-click='toggle_room_section'][phx-value-room_id='room-2'][phx-value-section='groups'][phx-value-action='uncheck']"
+      "button[phx-click='toggle_area_section'][phx-value-area_id='area-2'][phx-value-section='groups'][phx-value-action='uncheck']"
     )
     |> render_click()
 
     view
     |> element(
-      "button[phx-click='toggle_room_section'][phx-value-room_id='unassigned'][phx-value-section='lights'][phx-value-action='uncheck']"
+      "button[phx-click='toggle_area_section'][phx-value-area_id='unassigned'][phx-value-section='lights'][phx-value-action='uncheck']"
     )
     |> render_click()
 
     view
     |> element(
-      "button[phx-click='toggle_room_section'][phx-value-room_id='unassigned'][phx-value-section='groups'][phx-value-action='uncheck']"
+      "button[phx-click='toggle_area_section'][phx-value-area_id='unassigned'][phx-value-section='groups'][phx-value-action='uncheck']"
     )
     |> render_click()
 
     plan = get_assign(view, :plan)
 
-    assert get_in(plan, [:rooms, "room-1", "action"]) == "skip"
-    assert get_in(plan, [:rooms, "room-2", "action"]) == "skip"
+    assert get_in(plan, [:areas, "area-1", "action"]) == "skip"
+    assert get_in(plan, [:areas, "area-2", "action"]) == "skip"
 
     assert get_in(plan, [:lights, "light-1"]) == false
     assert get_in(plan, [:lights, "light-2"]) == false
@@ -538,9 +538,9 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
     assert get_in(plan, [:groups, "group-3"]) == false
   end
 
-  test "unassigned entity room dropdown stores target room in plan", %{conn: conn} do
-    existing_room =
-      Repo.insert!(%Hueworks.Schemas.Room{
+  test "unassigned entity area dropdown stores target area in plan", %{conn: conn} do
+    existing_area =
+      Repo.insert!(%Hueworks.Schemas.Area{
         name: "Patio",
         metadata: %{}
       })
@@ -548,31 +548,31 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
     {view, _bridge} = setup_import_view(conn, with_unassigned: true)
 
     view
-    |> form("form[phx-change='set_entity_room'][data-type='lights'][data-source-id='light-3']", %{
+    |> form("form[phx-change='set_entity_area'][data-type='lights'][data-source-id='light-3']", %{
       "type" => "lights",
       "source_id" => "light-3",
-      "target_room_id" => Integer.to_string(existing_room.id)
+      "target_area_id" => Integer.to_string(existing_area.id)
     })
     |> render_change()
 
     view
-    |> form("form[phx-change='set_entity_room'][data-type='groups'][data-source-id='group-3']", %{
+    |> form("form[phx-change='set_entity_area'][data-type='groups'][data-source-id='group-3']", %{
       "type" => "groups",
       "source_id" => "group-3",
-      "target_room_id" => Integer.to_string(existing_room.id)
+      "target_area_id" => Integer.to_string(existing_area.id)
     })
     |> render_change()
 
     plan = get_assign(view, :plan)
 
-    assert get_in(plan, [:lights, "light-3", "target_room_id"]) ==
-             Integer.to_string(existing_room.id)
+    assert get_in(plan, [:lights, "light-3", "target_area_id"]) ==
+             Integer.to_string(existing_area.id)
 
-    assert get_in(plan, [:groups, "group-3", "target_room_id"]) ==
-             Integer.to_string(existing_room.id)
+    assert get_in(plan, [:groups, "group-3", "target_area_id"]) ==
+             Integer.to_string(existing_area.id)
   end
 
-  test "reimport makes importing and creating an unmatched bridge room explicit", %{conn: conn} do
+  test "reimport makes importing and creating an unmatched bridge area explicit", %{conn: conn} do
     bridge =
       %Bridge{}
       |> Bridge.changeset(%{
@@ -586,7 +586,7 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
       |> Repo.insert!()
 
     normalized = %{
-      rooms: [
+      areas: [
         %{
           source: :hue,
           source_id: "bridge-office",
@@ -600,7 +600,7 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
           source: :hue,
           source_id: "new-light",
           name: "New Lamp",
-          room_source_id: "bridge-office",
+          area_source_id: "bridge-office",
           capabilities: %{},
           identifiers: %{},
           metadata: %{"uniqueid" => "new-light-uid"}
@@ -618,14 +618,14 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
     assert get_in(get_assign(view, :plan), [:lights, "new-light"]) == %{
              "resolution" => "do_not_import",
              "selected" => false,
-             "target_room_id" => "unassigned"
+             "target_area_id" => "unassigned"
            }
 
-    assert get_in(get_assign(view, :plan), [:rooms, "bridge-office", "action"]) == "skip"
+    assert get_in(get_assign(view, :plan), [:areas, "bridge-office", "action"]) == "skip"
 
     refute has_element?(
              view,
-             "form[phx-change='set_entity_room'][data-source-id='new-light']"
+             "form[phx-change='set_entity_area'][data-source-id='new-light']"
            )
 
     view
@@ -641,28 +641,28 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
 
     assert has_element?(
              view,
-             "form[phx-change='set_entity_room'][data-source-id='new-light'] option[value='unassigned']",
+             "form[phx-change='set_entity_area'][data-source-id='new-light'] option[value='unassigned']",
              "Unassigned"
            )
 
     assert has_element?(
              view,
-             "form[phx-change='set_entity_room'][data-source-id='new-light'] option[value='bridge_room:bridge-office']",
+             "form[phx-change='set_entity_area'][data-source-id='new-light'] option[value='bridge_area:bridge-office']",
              ~s(Create "Bridge Office")
            )
 
     view
-    |> form("form[phx-change='set_entity_room'][data-source-id='new-light']", %{
+    |> form("form[phx-change='set_entity_area'][data-source-id='new-light']", %{
       "type" => "lights",
       "source_id" => "new-light",
-      "target_room_id" => "bridge_room:bridge-office"
+      "target_area_id" => "bridge_area:bridge-office"
     })
     |> render_change()
 
-    assert get_in(get_assign(view, :plan), [:lights, "new-light", "target_room_id"]) ==
-             "bridge_room"
+    assert get_in(get_assign(view, :plan), [:lights, "new-light", "target_area_id"]) ==
+             "bridge_area"
 
-    assert get_in(get_assign(view, :plan), [:rooms, "bridge-office", "action"]) == "create"
+    assert get_in(get_assign(view, :plan), [:areas, "bridge-office", "action"]) == "create"
 
     view
     |> form(
@@ -675,7 +675,7 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
     )
     |> render_change()
 
-    assert get_in(get_assign(view, :plan), [:rooms, "bridge-office", "action"]) == "skip"
+    assert get_in(get_assign(view, :plan), [:areas, "bridge-office", "action"]) == "skip"
   end
 
   test "initial import and reimport render independent workflows", %{conn: conn} do
@@ -692,7 +692,7 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
       |> Repo.insert!()
 
     Application.put_env(:hueworks, :import_pipeline_payload, %{
-      rooms: [],
+      areas: [],
       lights: [],
       groups: [],
       memberships: %{}
@@ -714,7 +714,7 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
     assert has_element?(reimport_view, "a[href='/config/bridges']", "Return to Bridges")
     refute has_element?(reimport_view, "#apply-reimport")
     refute has_element?(reimport_view, "#initial-import-review")
-    refute has_element?(reimport_view, "form[phx-change='set_room_action']")
+    refute has_element?(reimport_view, "form[phx-change='set_area_action']")
     refute has_element?(reimport_view, "#removed-from-bridge")
   end
 
@@ -749,13 +749,13 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
       |> Repo.insert!()
 
     Application.put_env(:hueworks, :import_pipeline_payload, %{
-      rooms: [],
+      areas: [],
       lights: [
         %{
           source: :hue,
           source_id: "light-1",
           name: "New bridge name",
-          room_source_id: nil,
+          area_source_id: nil,
           capabilities: %{},
           identifiers: %{},
           metadata: %{}
@@ -832,13 +832,13 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
       |> Repo.insert!()
 
     normalized = %{
-      rooms: [],
+      areas: [],
       lights: [
         %{
           source: :ha,
           source_id: "light.hue_lamp",
           name: "HA Lamp",
-          room_source_id: nil,
+          area_source_id: nil,
           capabilities: %{},
           identifiers: %{"mac" => "aa:bb:cc"},
           metadata: %{"entity_id" => "light.hue_lamp"}
@@ -944,13 +944,13 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
     Repo.insert!(%GroupLight{group_id: ha_group.id, light_id: ha_light.id})
 
     normalized = %{
-      rooms: [],
+      areas: [],
       lights: [
         %{
           source: :ha,
           source_id: "light.hue_lamp",
           name: "HA Lamp",
-          room_source_id: nil,
+          area_source_id: nil,
           capabilities: %{},
           identifiers: %{"mac" => "aa:bb:cc"},
           metadata: %{"entity_id" => "light.hue_lamp"}
@@ -961,7 +961,7 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
           source: :ha,
           source_id: "group.hue",
           name: "HA Group",
-          room_source_id: nil,
+          area_source_id: nil,
           type: "group",
           capabilities: %{},
           metadata: %{"entity_id" => "group.hue"}
@@ -1024,13 +1024,13 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
       |> Repo.insert!()
 
     normalized = %{
-      rooms: [],
+      areas: [],
       lights: [
         %{
           source: :ha,
           source_id: "light.hue_lamp",
           name: "HA Lamp",
-          room_source_id: nil,
+          area_source_id: nil,
           capabilities: %{},
           identifiers: %{"mac" => "aa:bb:cc"},
           metadata: %{"unique_id" => "ha-hue-lamp"}
@@ -1096,7 +1096,7 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
       |> Repo.insert!()
 
     Application.put_env(:hueworks, :import_pipeline_payload, %{
-      rooms: [],
+      areas: [],
       lights: [],
       groups: [],
       memberships: %{}
@@ -1141,7 +1141,7 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
       })
       |> Repo.insert!()
 
-    room = Repo.insert!(%Room{name: "Office"})
+    area = Repo.insert!(%Area{name: "Office"})
 
     light =
       %Light{}
@@ -1150,7 +1150,7 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
         source: :ha,
         source_id: "light.missing",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         external_id: "light.missing",
         normalized_json: %{
           "source" => "ha",
@@ -1168,12 +1168,12 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
         source: :ha,
         source_id: "group.existing",
         bridge_id: bridge.id,
-        room_id: room.id
+        area_id: area.id
       })
       |> Repo.insert!()
 
     group_light = Repo.insert!(%GroupLight{group_id: group.id, light_id: light.id})
-    scene = Repo.insert!(%Scene{name: "Existing Scene", room_id: room.id})
+    scene = Repo.insert!(%Scene{name: "Existing Scene", area_id: area.id})
     light_state = Repo.insert!(%LightState{name: "Existing State", type: :manual})
     component = Repo.insert!(%SceneComponent{scene_id: scene.id, light_state_id: light_state.id})
 
@@ -1181,7 +1181,7 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
       Repo.insert!(%SceneComponentLight{scene_component_id: component.id, light_id: light.id})
 
     Application.put_env(:hueworks, :import_pipeline_payload, %{
-      rooms: [],
+      areas: [],
       lights: [],
       groups: [],
       memberships: %{}
@@ -1255,7 +1255,7 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
       |> Repo.insert!()
 
     Application.put_env(:hueworks, :import_pipeline_payload, %{
-      rooms: [],
+      areas: [],
       lights: [],
       groups: [],
       memberships: %{}
@@ -1321,7 +1321,7 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
       })
       |> Repo.insert!()
 
-    room = Repo.insert!(%Room{name: "Existing Room"})
+    area = Repo.insert!(%Area{name: "Existing Area"})
 
     light =
       %Light{}
@@ -1330,7 +1330,7 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
         source: :ha,
         source_id: "light.existing",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         external_id: "light.existing",
         normalized_json: %{
           "source" => "ha",
@@ -1347,7 +1347,7 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
         source: :ha,
         source_id: "group.existing",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         external_id: "group.existing",
         normalized_json: %{
           "source" => "ha",
@@ -1358,14 +1358,14 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
       |> Repo.insert!()
 
     group_light = Repo.insert!(%GroupLight{group_id: group.id, light_id: light.id})
-    scene = Repo.insert!(%Scene{name: "Existing Scene", room_id: room.id})
+    scene = Repo.insert!(%Scene{name: "Existing Scene", area_id: area.id})
     light_state = Repo.insert!(%LightState{name: "Existing State", type: :manual})
     component = Repo.insert!(%SceneComponent{scene_id: scene.id, light_state_id: light_state.id})
 
     scene_component_light =
       Repo.insert!(%SceneComponentLight{scene_component_id: component.id, light_id: light.id})
 
-    normalized = %{rooms: [], lights: [], groups: [], memberships: %{}}
+    normalized = %{areas: [], lights: [], groups: [], memberships: %{}}
     Application.put_env(:hueworks, :import_pipeline_payload, normalized)
 
     {:ok, view, _html} = live(conn, "/config/bridges/#{bridge.id}/reimport")
@@ -1422,7 +1422,7 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
         display_name: "Custom Pico Name",
         hardware_profile: "pico_3brl",
         enabled: true,
-        metadata: %{"room_override" => true}
+        metadata: %{"area_override" => true}
       })
       |> Repo.insert!()
 
@@ -1438,13 +1438,13 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
       |> Repo.insert!()
 
     normalized = %{
-      rooms: [],
+      areas: [],
       lights: [
         %{
           source: :caseta,
           source_id: "zone-1",
           name: "Caseta Lamp",
-          room_source_id: nil,
+          area_source_id: nil,
           capabilities: %{},
           identifiers: %{},
           metadata: %{"device_id" => "caseta-device-1"}
@@ -1530,13 +1530,13 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
       |> Repo.insert!()
 
     normalized = %{
-      rooms: [],
+      areas: [],
       lights: [
         %{
           source: :hue,
           source_id: "1",
           name: "Hue Lamp",
-          room_source_id: nil,
+          area_source_id: nil,
           capabilities: %{color: true},
           identifiers: %{"mac" => "aa:bb:cc"},
           metadata: %{"uniqueid" => "aa:bb:cc-1"}
@@ -1574,17 +1574,17 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
       |> Repo.insert!()
 
     normalized = %{
-      rooms: [
+      areas: [
         %{
           source: :hue,
-          source_id: "room-1",
+          source_id: "area-1",
           name: "Office",
           normalized_name: "office",
           metadata: %{}
         },
         %{
           source: :hue,
-          source_id: "room-2",
+          source_id: "area-2",
           name: "Kitchen",
           normalized_name: "kitchen",
           metadata: %{}
@@ -1595,7 +1595,7 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
           source: :hue,
           source_id: "light-1",
           name: "Desk Lamp",
-          room_source_id: "room-1",
+          area_source_id: "area-1",
           capabilities: %{},
           identifiers: %{},
           metadata: %{}
@@ -1604,7 +1604,7 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
           source: :hue,
           source_id: "light-2",
           name: "Island",
-          room_source_id: "room-2",
+          area_source_id: "area-2",
           capabilities: %{},
           identifiers: %{},
           metadata: %{}
@@ -1615,8 +1615,8 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
           source: :hue,
           source_id: "group-1",
           name: "Office Group",
-          room_source_id: "room-1",
-          type: "room",
+          area_source_id: "area-1",
+          type: "area",
           capabilities: %{},
           metadata: %{}
         },
@@ -1624,8 +1624,8 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
           source: :hue,
           source_id: "group-2",
           name: "Kitchen Group",
-          room_source_id: "room-2",
-          type: "room",
+          area_source_id: "area-2",
+          type: "area",
           capabilities: %{},
           metadata: %{}
         }
@@ -1657,7 +1657,7 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
       source: :hue,
       source_id: "light-3",
       name: "Porch",
-      room_source_id: nil,
+      area_source_id: nil,
       capabilities: %{},
       identifiers: %{},
       metadata: %{}
@@ -1669,7 +1669,7 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
       source: :hue,
       source_id: "group-3",
       name: "Outdoor Group",
-      room_source_id: nil,
+      area_source_id: nil,
       type: "zone",
       capabilities: %{},
       metadata: %{}

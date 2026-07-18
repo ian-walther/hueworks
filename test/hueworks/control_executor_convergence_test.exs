@@ -11,7 +11,7 @@ defmodule Hueworks.Control.ExecutorConvergenceTest do
   }
 
   alias Hueworks.Repo
-  alias Hueworks.Schemas.{Group, GroupLight, Light, Room}
+  alias Hueworks.Schemas.{Group, GroupLight, Light, Area}
 
   setup do
     original_enabled = Application.get_env(:hueworks, :control_executor_enabled)
@@ -44,7 +44,7 @@ defmodule Hueworks.Control.ExecutorConvergenceTest do
          settlement_floor_ms: 10}
       )
 
-    room = Repo.insert!(%Room{name: "Convergence Retry Room"})
+    area = Repo.insert!(%Area{name: "Convergence Retry Area"})
 
     bridge =
       insert_bridge!(%{
@@ -61,7 +61,7 @@ defmodule Hueworks.Control.ExecutorConvergenceTest do
         source: :hue,
         source_id: "retry-lamp",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         enabled: true
       })
 
@@ -102,7 +102,7 @@ defmodule Hueworks.Control.ExecutorConvergenceTest do
          settlement_floor_ms: 10}
       )
 
-    room = Repo.insert!(%Room{name: "Convergence OK Room"})
+    area = Repo.insert!(%Area{name: "Convergence OK Area"})
 
     bridge =
       insert_bridge!(%{
@@ -119,7 +119,7 @@ defmodule Hueworks.Control.ExecutorConvergenceTest do
         source: :hue,
         source_id: "ok-lamp",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         enabled: true
       })
 
@@ -161,7 +161,7 @@ defmodule Hueworks.Control.ExecutorConvergenceTest do
          bridge_rate_fun: fn _ -> 20 end}
       )
 
-    room = Repo.insert!(%Room{name: "Transition Settlement Room"})
+    area = Repo.insert!(%Area{name: "Transition Settlement Area"})
 
     bridge =
       insert_bridge!(%{
@@ -178,7 +178,7 @@ defmodule Hueworks.Control.ExecutorConvergenceTest do
         source: :hue,
         source_id: "settling-lamp",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         enabled: true
       })
 
@@ -229,8 +229,8 @@ defmodule Hueworks.Control.ExecutorConvergenceTest do
          settlement_floor_ms: 10}
       )
 
-    {room, bridge, light} = insert_convergence_light("Receipt Settlement")
-    _ = room
+    {area, bridge, light} = insert_convergence_light("Receipt Settlement")
+    _ = area
 
     _ = DesiredState.put(:light, light.id, %{power: :on})
     _ = State.put(:light, light.id, %{power: :off})
@@ -277,7 +277,7 @@ defmodule Hueworks.Control.ExecutorConvergenceTest do
          settlement_floor_ms: 750}
       )
 
-    {_room, bridge, light} = insert_convergence_light("Unsupported Transition")
+    {_area, bridge, light} = insert_convergence_light("Unsupported Transition")
     _ = DesiredState.put(:light, light.id, %{power: :on})
     _ = State.put(:light, light.id, %{power: :off})
 
@@ -322,7 +322,7 @@ defmodule Hueworks.Control.ExecutorConvergenceTest do
          settlement_floor_ms: 10}
       )
 
-    {_room, bridge, light} = insert_convergence_light("Stale Settlement")
+    {_area, bridge, light} = insert_convergence_light("Stale Settlement")
     _ = DesiredState.put(:light, light.id, %{power: :on})
     _ = State.put(:light, light.id, %{power: :off})
 
@@ -359,7 +359,7 @@ defmodule Hueworks.Control.ExecutorConvergenceTest do
          settlement_floor_ms: 1_000}
       )
 
-    {_room, bridge, light} = insert_convergence_light("Superseded Settlement")
+    {_area, bridge, light} = insert_convergence_light("Superseded Settlement")
     _ = DesiredState.put(:light, light.id, %{power: :on})
     _ = State.put(:light, light.id, %{power: :off})
     revision = DesiredState.revision(:light, light.id)
@@ -405,7 +405,7 @@ defmodule Hueworks.Control.ExecutorConvergenceTest do
          settlement_floor_ms: 1_000}
       )
 
-    {room, bridge, light_a} = insert_convergence_light("Partial Group A")
+    {area, bridge, light_a} = insert_convergence_light("Partial Group A")
 
     light_b =
       Repo.insert!(%Light{
@@ -413,7 +413,7 @@ defmodule Hueworks.Control.ExecutorConvergenceTest do
         source: :hue,
         source_id: "partial-group-b-#{System.unique_integer([:positive])}",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         enabled: true
       })
 
@@ -423,7 +423,7 @@ defmodule Hueworks.Control.ExecutorConvergenceTest do
         source: :hue,
         source_id: "partial-group-#{System.unique_integer([:positive])}",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         enabled: true
       })
 
@@ -520,7 +520,7 @@ defmodule Hueworks.Control.ExecutorConvergenceTest do
          settlement_floor_ms: 10}
       )
 
-    {room, bridge, light_a} = insert_convergence_light("Presence Scope A")
+    {area, bridge, light_a} = insert_convergence_light("Presence Scope A")
 
     light_b =
       Repo.insert!(%Light{
@@ -528,7 +528,7 @@ defmodule Hueworks.Control.ExecutorConvergenceTest do
         source: :hue,
         source_id: "presence-scope-b-#{System.unique_integer([:positive])}",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         enabled: true
       })
 
@@ -538,7 +538,7 @@ defmodule Hueworks.Control.ExecutorConvergenceTest do
         source: :hue,
         source_id: "presence-scope-group-#{System.unique_integer([:positive])}",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         enabled: true
       })
 
@@ -555,8 +555,8 @@ defmodule Hueworks.Control.ExecutorConvergenceTest do
     operation = Operation.new(origin: :presence)
 
     assert [initial_action] =
-             Hueworks.Control.Planner.plan_room(
-               room.id,
+             Hueworks.Control.Planner.plan_area(
+               area.id,
                %{{:light, light_a.id} => desired},
                operation: operation,
                group_candidate_light_ids: [light_a.id]
@@ -604,7 +604,7 @@ defmodule Hueworks.Control.ExecutorConvergenceTest do
   end
 
   defp insert_convergence_light(name) do
-    room = Repo.insert!(%Room{name: "#{name} Room"})
+    area = Repo.insert!(%Area{name: "#{name} Area"})
 
     bridge =
       insert_bridge!(%{
@@ -621,11 +621,11 @@ defmodule Hueworks.Control.ExecutorConvergenceTest do
         source: :hue,
         source_id: "#{name}-#{System.unique_integer([:positive])}",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         enabled: true
       })
 
-    {room, bridge, light}
+    {area, bridge, light}
   end
 
   defp assert_recovery_policy(server, operation, expected_apply_opts) do
@@ -645,7 +645,7 @@ defmodule Hueworks.Control.ExecutorConvergenceTest do
          settlement_floor_ms: 10}
       )
 
-    {_room, bridge, light} = insert_convergence_light("#{server}")
+    {_area, bridge, light} = insert_convergence_light("#{server}")
     _ = DesiredState.put(:light, light.id, %{power: :on})
     _ = State.put(:light, light.id, %{power: :off})
 

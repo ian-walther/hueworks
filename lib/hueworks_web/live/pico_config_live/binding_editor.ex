@@ -39,7 +39,7 @@ defmodule HueworksWeb.PicoConfigLive.BindingEditor do
   def valid_learning_binding?(
         %{"action" => action, "target_kind" => "control_groups", "target_ids" => target_ids},
         control_groups,
-        _room_scenes
+        _area_scenes
       )
       when action in ["on", "off", "toggle"] and is_list(target_ids) do
     available_group_ids = MapSet.new(Enum.map(control_groups, & &1["id"]))
@@ -49,13 +49,13 @@ defmodule HueworksWeb.PicoConfigLive.BindingEditor do
   def valid_learning_binding?(
         %{"action" => "activate_scene", "target_kind" => "scene", "target_id" => target_id},
         _control_groups,
-        room_scenes
+        area_scenes
       )
       when is_integer(target_id) do
-    Enum.any?(room_scenes, &(&1.id == target_id))
+    Enum.any?(area_scenes, &(&1.id == target_id))
   end
 
-  def valid_learning_binding?(_binding, _control_groups, _room_scenes), do: false
+  def valid_learning_binding?(_binding, _control_groups, _area_scenes), do: false
 
   def normalize_target_kind("activate_scene"), do: "scene"
   def normalize_target_kind(_action), do: "control_groups"

@@ -9,7 +9,7 @@ defmodule Hueworks.PicosTest do
   alias Hueworks.Control.{DesiredState, State}
   alias Hueworks.Repo
   alias Hueworks.Schemas.PicoButton.ActionConfig, as: StoredActionConfig
-  alias Hueworks.Schemas.{Group, GroupLight, Light, PicoButton, PicoDevice, PresenceInput, Room}
+  alias Hueworks.Schemas.{Group, GroupLight, Light, PicoButton, PicoDevice, PresenceInput, Area}
 
   defp insert_bridge(attrs \\ %{}) do
     defaults = %{
@@ -39,12 +39,12 @@ defmodule Hueworks.PicosTest do
              target_kind: :scene,
              target_id: 12,
              light_ids: [],
-             room_id: 5
+             area_id: 5
            } =
              ActionConfig.from_map(%{
                "target_kind" => "scene",
                "target_id" => "12",
-               "room_id" => "5"
+               "area_id" => "5"
              })
 
     assert %ActionConfig{
@@ -52,7 +52,7 @@ defmodule Hueworks.PicosTest do
              target_id: nil,
              target_ids: ["group-9"],
              light_ids: [1, 2],
-             room_id: nil
+             area_id: nil
            } =
              ActionConfig.from_map(%{
                target_kind: :control_groups,
@@ -65,7 +65,7 @@ defmodule Hueworks.PicosTest do
              target_id: nil,
              target_ids: ["group-1", "group-2"],
              light_ids: [],
-             room_id: nil
+             area_id: nil
            } =
              ActionConfig.from_map(%{
                target_kind: :control_groups,
@@ -79,13 +79,13 @@ defmodule Hueworks.PicosTest do
               "target_kind" => "scene",
               "target_id" => 12,
               "light_ids" => [1, 2],
-              "room_id" => 5
+              "area_id" => 5
             }} =
              StoredActionConfig.normalize(%{
                target_kind: :scene,
                target_id: "12",
                light_ids: ["1", 2, "bad"],
-               room_id: "5"
+               area_id: "5"
              })
 
     assert {:ok,
@@ -107,7 +107,7 @@ defmodule Hueworks.PicosTest do
         button_number: 2,
         slot_index: 0,
         action_type: "activate_scene",
-        action_config: %{target_kind: :scene, target_id: "12", room_id: "5"}
+        action_config: %{target_kind: :scene, target_id: "12", area_id: "5"}
       })
 
     assert changeset.valid?
@@ -115,13 +115,13 @@ defmodule Hueworks.PicosTest do
     assert %StoredActionConfig{
              target_kind: :scene,
              scene_id: 12,
-             room_id: 5
+             area_id: 5
            } = Ecto.Changeset.apply_changes(changeset).action_config
   end
 
-  test "sync_bridge_picos derives room and button layout from Caseta raw data" do
+  test "sync_bridge_picos derives area and button layout from Caseta raw data" do
     bridge = insert_bridge()
-    room = Repo.insert!(%Room{name: "Kitchen"})
+    area = Repo.insert!(%Area{name: "Kitchen"})
 
     _light =
       Repo.insert!(%Light{
@@ -129,7 +129,7 @@ defmodule Hueworks.PicosTest do
         source: :caseta,
         source_id: "42",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         enabled: true
       })
 
@@ -179,7 +179,7 @@ defmodule Hueworks.PicosTest do
     assert {:ok, [device]} = Picos.sync_bridge_picos(bridge, raw)
 
     assert device.source_id == "device-1"
-    assert device.room_id == room.id
+    assert device.area_id == area.id
     assert device.hardware_profile == "5_button"
     assert Enum.map(device.buttons, & &1.slot_index) == [0, 1, 2, 3, 4]
     assert Enum.map(device.buttons, & &1.button_number) == [2, 3, 4, 5, 6]
@@ -187,12 +187,12 @@ defmodule Hueworks.PicosTest do
 
   test "sync_bridge_picos removes stale devices and stale button mappings" do
     bridge = insert_bridge(%{host: "10.0.0.54"})
-    room = Repo.insert!(%Room{name: "Kitchen"})
+    area = Repo.insert!(%Area{name: "Kitchen"})
 
     stale_device =
       Repo.insert!(%PicoDevice{
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         source_id: "stale-device",
         name: "Stale Pico",
         hardware_profile: "2_button",
@@ -202,7 +202,7 @@ defmodule Hueworks.PicosTest do
     active_device =
       Repo.insert!(%PicoDevice{
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         source_id: "device-1",
         name: "Kitchen Pico",
         hardware_profile: "5_button",
@@ -323,8 +323,8 @@ defmodule Hueworks.PicosTest do
 
   test "control groups can be saved and buttons can target them" do
     bridge = insert_bridge(%{host: "10.0.0.51"})
-    room = Repo.insert!(%Room{name: "Den"})
-    other_room = Repo.insert!(%Room{name: "Other"})
+    area = Repo.insert!(%Area{name: "Den"})
+    other_area = Repo.insert!(%Area{name: "Other"})
 
     overhead_a =
       Repo.insert!(%Light{
@@ -332,7 +332,7 @@ defmodule Hueworks.PicosTest do
         source: :caseta,
         source_id: "10",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         enabled: true
       })
 
@@ -342,7 +342,7 @@ defmodule Hueworks.PicosTest do
         source: :caseta,
         source_id: "11",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         enabled: true
       })
 
@@ -352,7 +352,7 @@ defmodule Hueworks.PicosTest do
         source: :caseta,
         source_id: "12",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         enabled: true
       })
 
@@ -362,7 +362,7 @@ defmodule Hueworks.PicosTest do
         source: :caseta,
         source_id: "13",
         bridge_id: bridge.id,
-        room_id: other_room.id,
+        area_id: other_area.id,
         enabled: true
       })
 
@@ -372,7 +372,7 @@ defmodule Hueworks.PicosTest do
         source: :caseta,
         source_id: "group-1",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         enabled: true
       })
 
@@ -382,7 +382,7 @@ defmodule Hueworks.PicosTest do
         source: :caseta,
         source_id: "group-2",
         bridge_id: bridge.id,
-        room_id: other_room.id,
+        area_id: other_area.id,
         enabled: true
       })
 
@@ -392,7 +392,7 @@ defmodule Hueworks.PicosTest do
     device =
       Repo.insert!(%PicoDevice{
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         source_id: "device-1",
         name: "Den Pico",
         hardware_profile: "5_button"
@@ -464,7 +464,7 @@ defmodule Hueworks.PicosTest do
 
     assert control_group_ids == [control_group["id"]]
 
-    # The control group should expand only to room-local lights.
+    # The control group should expand only to area-local lights.
     assert Picos.button_binding_summary(button, Picos.get_device(updated.id)) == "Toggle Overhead"
 
     refute Enum.member?(control_group["group_ids"], other_group.id)
@@ -472,7 +472,7 @@ defmodule Hueworks.PicosTest do
 
   test "buttons can target multiple control groups" do
     bridge = insert_bridge(%{host: "10.0.0.519"})
-    room = Repo.insert!(%Room{name: "Den"})
+    area = Repo.insert!(%Area{name: "Den"})
 
     overhead =
       Repo.insert!(%Light{
@@ -480,7 +480,7 @@ defmodule Hueworks.PicosTest do
         source: :caseta,
         source_id: "91",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         enabled: true
       })
 
@@ -490,7 +490,7 @@ defmodule Hueworks.PicosTest do
         source: :caseta,
         source_id: "92",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         enabled: true
       })
 
@@ -500,7 +500,7 @@ defmodule Hueworks.PicosTest do
         source: :caseta,
         source_id: "group-91",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         enabled: true
       })
 
@@ -510,7 +510,7 @@ defmodule Hueworks.PicosTest do
         source: :caseta,
         source_id: "group-92",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         enabled: true
       })
 
@@ -520,11 +520,11 @@ defmodule Hueworks.PicosTest do
     device =
       Repo.insert!(%PicoDevice{
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         source_id: "device-multi-group",
         name: "Den Pico",
         hardware_profile: "5_button",
-        metadata: %{"room_override" => true}
+        metadata: %{"area_override" => true}
       })
 
     insert_pico_button(%{
@@ -581,7 +581,7 @@ defmodule Hueworks.PicosTest do
 
   test "scene bindings can be saved and button presses activate the selected scene" do
     bridge = insert_bridge(%{host: "10.0.0.515"})
-    room = Repo.insert!(%Room{name: "Living Room"})
+    area = Repo.insert!(%Area{name: "Living Area"})
 
     light =
       Repo.insert!(%Light{
@@ -589,18 +589,18 @@ defmodule Hueworks.PicosTest do
         source: :caseta,
         source_id: "61",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         enabled: true
       })
 
     device =
       Repo.insert!(%PicoDevice{
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         source_id: "scene-device",
         name: "Scene Pico",
         hardware_profile: "5_button",
-        metadata: %{"room_override" => true}
+        metadata: %{"area_override" => true}
       })
 
     insert_pico_button(%{
@@ -614,7 +614,7 @@ defmodule Hueworks.PicosTest do
     {:ok, state} =
       Scenes.create_manual_light_state("Warm", %{"brightness" => "55", "temperature" => "3200"})
 
-    {:ok, scene} = Scenes.create_scene(%{name: "Evening", room_id: room.id})
+    {:ok, scene} = Scenes.create_scene(%{name: "Evening", area_id: area.id})
 
     {:ok, _} =
       Scenes.replace_scene_components(scene, [
@@ -644,13 +644,13 @@ defmodule Hueworks.PicosTest do
              "Activate Scene Evening"
 
     assert :handled = Picos.handle_button_press(bridge.id, "1")
-    assert ActiveScenes.get_for_room(room.id).scene_id == scene.id
+    assert ActiveScenes.get_for_area(area.id).scene_id == scene.id
     assert DesiredState.get(:light, light.id) == %{power: :on, brightness: 55, kelvin: 3200}
   end
 
   test "control-group bindings execute on button press" do
     bridge = insert_bridge(%{host: "10.0.0.516"})
-    room = Repo.insert!(%Room{name: "Kitchen"})
+    area = Repo.insert!(%Area{name: "Kitchen"})
 
     overhead =
       Repo.insert!(%Light{
@@ -658,7 +658,7 @@ defmodule Hueworks.PicosTest do
         source: :caseta,
         source_id: "81",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         enabled: true
       })
 
@@ -668,7 +668,7 @@ defmodule Hueworks.PicosTest do
         source: :caseta,
         source_id: "82",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         enabled: true
       })
 
@@ -678,7 +678,7 @@ defmodule Hueworks.PicosTest do
         source: :caseta,
         source_id: "group-81",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         enabled: true
       })
 
@@ -687,11 +687,11 @@ defmodule Hueworks.PicosTest do
     device =
       Repo.insert!(%PicoDevice{
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         source_id: "device-control-group",
         name: "Kitchen Pico",
         hardware_profile: "5_button",
-        metadata: %{"room_override" => true}
+        metadata: %{"area_override" => true}
       })
 
     insert_pico_button(%{
@@ -728,7 +728,7 @@ defmodule Hueworks.PicosTest do
 
   test "control-group bindings override follow-presence lights while a scene is active" do
     bridge = insert_bridge(%{host: "10.0.0.5160"})
-    room = Repo.insert!(%Room{name: "Office"})
+    area = Repo.insert!(%Area{name: "Office"})
 
     overhead =
       Repo.insert!(%Light{
@@ -736,7 +736,7 @@ defmodule Hueworks.PicosTest do
         source: :caseta,
         source_id: "81",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         enabled: true
       })
 
@@ -746,13 +746,13 @@ defmodule Hueworks.PicosTest do
         source: :caseta,
         source_id: "82",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         enabled: true
       })
 
     presence_input =
       Repo.insert!(%PresenceInput{
-        room_id: room.id,
+        area_id: area.id,
         name: "Office Presence",
         occupied: false
       })
@@ -763,7 +763,7 @@ defmodule Hueworks.PicosTest do
         source: :caseta,
         source_id: "group-81",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         enabled: true
       })
 
@@ -772,11 +772,11 @@ defmodule Hueworks.PicosTest do
     device =
       Repo.insert!(%PicoDevice{
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         source_id: "device-presence-control-group",
         name: "Office Pico",
         hardware_profile: "5_button",
-        metadata: %{"room_override" => true}
+        metadata: %{"area_override" => true}
       })
 
     insert_pico_button(%{
@@ -806,7 +806,7 @@ defmodule Hueworks.PicosTest do
     {:ok, state} =
       Scenes.create_manual_light_state("Evening", %{"brightness" => "40", "temperature" => "3000"})
 
-    {:ok, scene} = Scenes.create_scene(%{name: "Evening", room_id: room.id})
+    {:ok, scene} = Scenes.create_scene(%{name: "Evening", area_id: area.id})
 
     {:ok, _} =
       Scenes.replace_scene_components(scene, [
@@ -832,7 +832,7 @@ defmodule Hueworks.PicosTest do
 
   test "persisted control-group bindings execute on button press" do
     bridge = insert_bridge(%{host: "10.0.0.5161"})
-    room = Repo.insert!(%Room{name: "Kitchen"})
+    area = Repo.insert!(%Area{name: "Kitchen"})
 
     overhead =
       Repo.insert!(%Light{
@@ -840,7 +840,7 @@ defmodule Hueworks.PicosTest do
         source: :caseta,
         source_id: "81",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         enabled: true
       })
 
@@ -850,7 +850,7 @@ defmodule Hueworks.PicosTest do
         source: :caseta,
         source_id: "82",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         enabled: true
       })
 
@@ -860,7 +860,7 @@ defmodule Hueworks.PicosTest do
         source: :caseta,
         source_id: "group-81",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         enabled: true
       })
 
@@ -869,12 +869,12 @@ defmodule Hueworks.PicosTest do
     device =
       Repo.insert!(%PicoDevice{
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         source_id: "device-control-group-legacy",
         name: "Kitchen Pico",
         hardware_profile: "5_button",
         metadata: %{
-          "room_override" => true,
+          "area_override" => true,
           "control_groups" => [
             %{
               "id" => "legacy-group",
@@ -914,9 +914,9 @@ defmodule Hueworks.PicosTest do
     assert DesiredState.get(:light, lamp.id)[:power] == :on
   end
 
-  test "clone_device_config copies room scope, control groups, and bindings onto another pico" do
+  test "clone_device_config copies area scope, control groups, and bindings onto another pico" do
     bridge = insert_bridge(%{host: "10.0.0.511"})
-    room = Repo.insert!(%Room{name: "Kitchen"})
+    area = Repo.insert!(%Area{name: "Kitchen"})
 
     overhead =
       Repo.insert!(%Light{
@@ -924,7 +924,7 @@ defmodule Hueworks.PicosTest do
         source: :caseta,
         source_id: "21",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         enabled: true
       })
 
@@ -934,7 +934,7 @@ defmodule Hueworks.PicosTest do
         source: :caseta,
         source_id: "22",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         enabled: true
       })
 
@@ -944,7 +944,7 @@ defmodule Hueworks.PicosTest do
         source: :caseta,
         source_id: "group-21",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         enabled: true
       })
 
@@ -953,31 +953,31 @@ defmodule Hueworks.PicosTest do
     {:ok, state} =
       Scenes.create_manual_light_state("Movie", %{"brightness" => "20", "temperature" => "2600"})
 
-    {:ok, scene} = Scenes.create_scene(%{name: "Movie Time", room_id: room.id})
+    {:ok, scene} = Scenes.create_scene(%{name: "Movie Time", area_id: area.id})
 
     {:ok, _} =
       Scenes.replace_scene_components(scene, [
-        %{name: "Room", light_ids: [overhead.id, lamp.id], light_state_id: to_string(state.id)}
+        %{name: "Area", light_ids: [overhead.id, lamp.id], light_state_id: to_string(state.id)}
       ])
 
     source =
       Repo.insert!(%PicoDevice{
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         source_id: "source-device",
         name: "Source Pico",
         hardware_profile: "5_button",
-        metadata: %{"room_override" => true}
+        metadata: %{"area_override" => true}
       })
 
     destination =
       Repo.insert!(%PicoDevice{
         bridge_id: bridge.id,
-        room_id: nil,
+        area_id: nil,
         source_id: "destination-device",
         name: "Destination Pico",
         hardware_profile: "5_button",
-        metadata: %{"detected_room_id" => nil, "room_override" => false}
+        metadata: %{"detected_area_id" => nil, "area_override" => false}
       })
 
     for {device_id, source_id, button_number, slot_index} <- [
@@ -1038,8 +1038,8 @@ defmodule Hueworks.PicosTest do
 
     assert {:ok, cloned} = Picos.clone_device_config(destination, source)
 
-    assert cloned.room_id == room.id
-    assert Picos.room_override?(cloned)
+    assert cloned.area_id == area.id
+    assert Picos.area_override?(cloned)
 
     cloned_groups = Picos.control_groups(cloned)
     assert Enum.map(cloned_groups, & &1["name"]) == ["Lamps", "Overhead"]
@@ -1067,40 +1067,40 @@ defmodule Hueworks.PicosTest do
     assert %StoredActionConfig{
              target_kind: :control_groups,
              target_ids: toggle_group_ids,
-             room_id: toggle_room_id
+             area_id: toggle_area_id
            } = PicoButton.action_config_struct(toggle_button)
 
     assert toggle_group_ids == [cloned_overhead_group["id"]]
-    assert toggle_room_id == room.id
+    assert toggle_area_id == area.id
 
     assert multi_group_button.action_type == "turn_off"
 
     assert %StoredActionConfig{
              target_kind: :control_groups,
              target_ids: multi_group_ids,
-             room_id: multi_group_room_id
+             area_id: multi_group_area_id
            } = PicoButton.action_config_struct(multi_group_button)
 
     assert Enum.sort(multi_group_ids) ==
              Enum.sort([cloned_overhead_group["id"], cloned_lamps_group["id"]])
 
-    assert multi_group_room_id == room.id
+    assert multi_group_area_id == area.id
 
     assert scene_button.action_type == "activate_scene"
 
     assert %StoredActionConfig{
              target_kind: :scene,
              scene_id: scene_button_scene_id,
-             room_id: scene_button_room_id
+             area_id: scene_button_area_id
            } = PicoButton.action_config_struct(scene_button)
 
     assert scene_button_scene_id == scene.id
-    assert scene_button_room_id == room.id
+    assert scene_button_area_id == area.id
   end
 
   test "persisted scene bindings activate the selected scene" do
     bridge = insert_bridge(%{host: "10.0.0.5151"})
-    room = Repo.insert!(%Room{name: "Living Room"})
+    area = Repo.insert!(%Area{name: "Living Area"})
 
     light =
       Repo.insert!(%Light{
@@ -1108,24 +1108,24 @@ defmodule Hueworks.PicosTest do
         source: :caseta,
         source_id: "61",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         enabled: true
       })
 
     device =
       Repo.insert!(%PicoDevice{
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         source_id: "scene-device-legacy",
         name: "Scene Pico",
         hardware_profile: "5_button",
-        metadata: %{"room_override" => true}
+        metadata: %{"area_override" => true}
       })
 
     {:ok, state} =
       Scenes.create_manual_light_state("Warm", %{"brightness" => "55", "temperature" => "3200"})
 
-    {:ok, scene} = Scenes.create_scene(%{name: "Evening", room_id: room.id})
+    {:ok, scene} = Scenes.create_scene(%{name: "Evening", area_id: area.id})
 
     {:ok, _} =
       Scenes.replace_scene_components(scene, [
@@ -1153,28 +1153,28 @@ defmodule Hueworks.PicosTest do
     assert scene_id == scene.id
 
     assert :handled = Picos.handle_button_press(bridge.id, "1")
-    assert ActiveScenes.get_for_room(room.id).scene_id == scene.id
+    assert ActiveScenes.get_for_area(area.id).scene_id == scene.id
     assert DesiredState.get(:light, light.id) == %{power: :on, brightness: 55, kelvin: 3200}
   end
 
-  test "manual room override survives sync and can be cleared back to auto-detected room" do
+  test "manual area override survives sync and can be cleared back to auto-detected area" do
     bridge = insert_bridge(%{host: "10.0.0.52"})
-    auto_room = Repo.insert!(%Room{name: "Auto Room"})
-    manual_room = Repo.insert!(%Room{name: "Manual Room"})
+    auto_area = Repo.insert!(%Area{name: "Auto Area"})
+    manual_area = Repo.insert!(%Area{name: "Manual Area"})
 
     _light =
       Repo.insert!(%Light{
-        name: "Auto Room Light",
+        name: "Auto Area Light",
         source: :caseta,
         source_id: "42",
         bridge_id: bridge.id,
-        room_id: auto_room.id,
+        area_id: auto_area.id,
         enabled: true
       })
 
     raw = %{
       lights: [
-        %{zone_id: "42", area_id: "100", name: "Auto Room / Overhead"}
+        %{zone_id: "42", area_id: "100", name: "Auto Area / Overhead"}
       ],
       pico_buttons: [
         %{
@@ -1216,37 +1216,37 @@ defmodule Hueworks.PicosTest do
     }
 
     assert {:ok, [device]} = Picos.sync_bridge_picos(bridge, raw)
-    assert device.room_id == auto_room.id
-    refute Picos.room_override?(device)
+    assert device.area_id == auto_area.id
+    refute Picos.area_override?(device)
 
-    assert {:ok, overridden} = Picos.set_device_room(device, manual_room.id)
-    assert overridden.room_id == manual_room.id
-    assert Picos.room_override?(overridden)
+    assert {:ok, overridden} = Picos.set_device_area(device, manual_area.id)
+    assert overridden.area_id == manual_area.id
+    assert Picos.area_override?(overridden)
 
     assert {:ok, [synced]} = Picos.sync_bridge_picos(bridge, raw)
-    assert synced.room_id == manual_room.id
-    assert Picos.room_override?(synced)
+    assert synced.area_id == manual_area.id
+    assert Picos.area_override?(synced)
 
-    assert {:ok, reset} = Picos.set_device_room(synced, nil)
-    assert reset.room_id == auto_room.id
-    refute Picos.room_override?(reset)
+    assert {:ok, reset} = Picos.set_device_area(synced, nil)
+    assert reset.area_id == auto_area.id
+    refute Picos.area_override?(reset)
   end
 
-  test "clear_device_config removes control groups and bindings and resets room override" do
+  test "clear_device_config removes control groups and bindings and resets area override" do
     bridge = insert_bridge(%{host: "10.0.0.543"})
-    auto_room = Repo.insert!(%Room{name: "Auto Room"})
-    manual_room = Repo.insert!(%Room{name: "Manual Room"})
+    auto_area = Repo.insert!(%Area{name: "Auto Area"})
+    manual_area = Repo.insert!(%Area{name: "Manual Area"})
 
     device =
       Repo.insert!(%PicoDevice{
         bridge_id: bridge.id,
-        room_id: manual_room.id,
+        area_id: manual_area.id,
         source_id: "device-clear-config",
         name: "Kitchen Pico",
         hardware_profile: "5_button",
         metadata: %{
-          "detected_room_id" => auto_room.id,
-          "room_override" => true,
+          "detected_area_id" => auto_area.id,
+          "area_override" => true,
           "control_groups" => [
             %{"id" => "accent", "name" => "Accent", "group_ids" => [], "light_ids" => []}
           ],
@@ -1269,8 +1269,8 @@ defmodule Hueworks.PicosTest do
       })
 
     assert {:ok, cleared} = Picos.clear_device_config(device)
-    assert cleared.room_id == auto_room.id
-    refute Picos.room_override?(cleared)
+    assert cleared.area_id == auto_area.id
+    refute Picos.area_override?(cleared)
     assert Picos.control_groups(cleared) == []
     refute Map.has_key?(cleared.metadata || %{}, "preset")
     refute Map.has_key?(cleared.metadata || %{}, "primary")
@@ -1284,13 +1284,13 @@ defmodule Hueworks.PicosTest do
 
   test "unbound button presses still broadcast for learning" do
     bridge = insert_bridge(%{host: "10.0.0.53"})
-    room = Repo.insert!(%Room{name: "Kitchen"})
+    area = Repo.insert!(%Area{name: "Kitchen"})
     PubSub.subscribe(Hueworks.PubSub, Picos.topic())
 
     device =
       Repo.insert!(%PicoDevice{
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         source_id: "device-1",
         name: "Kitchen Pico",
         hardware_profile: "5_button"
@@ -1321,7 +1321,7 @@ defmodule Hueworks.PicosTest do
 
   test "toggle decisions prefer desired state over stale physical state" do
     bridge = insert_bridge(%{host: "10.0.0.54"})
-    room = Repo.insert!(%Room{name: "Kitchen"})
+    area = Repo.insert!(%Area{name: "Kitchen"})
 
     light =
       Repo.insert!(%Light{
@@ -1329,14 +1329,14 @@ defmodule Hueworks.PicosTest do
         source: :caseta,
         source_id: "14",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         enabled: true
       })
 
     device =
       Repo.insert!(%PicoDevice{
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         source_id: "device-1",
         name: "Kitchen Pico",
         hardware_profile: "5_button",
@@ -1362,7 +1362,7 @@ defmodule Hueworks.PicosTest do
         action_config: %{
           "target_kind" => "control_groups",
           "target_ids" => ["accent"],
-          "room_id" => room.id
+          "area_id" => area.id
         },
         enabled: true
       })

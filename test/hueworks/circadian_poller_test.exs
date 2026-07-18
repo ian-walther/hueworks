@@ -6,22 +6,22 @@ defmodule Hueworks.CircadianPollerTest do
   alias Hueworks.Repo
   alias Hueworks.Control.DesiredState
   alias Hueworks.Scenes
-  alias Hueworks.Schemas.{ActiveScene, Light, Room, Scene}
+  alias Hueworks.Schemas.{ActiveScene, Light, Area, Scene}
 
-  defp insert_room do
-    Repo.insert!(%Room{name: "Studio", metadata: %{}})
+  defp insert_area do
+    Repo.insert!(%Area{name: "Studio", metadata: %{}})
   end
 
-  defp insert_scene(room) do
-    Repo.insert!(%Scene{name: "Chill", room_id: room.id, metadata: %{}})
+  defp insert_scene(area) do
+    Repo.insert!(%Scene{name: "Chill", area_id: area.id, metadata: %{}})
   end
 
   test "poller reapplies active scenes immediately on startup" do
-    room = insert_room()
-    scene = insert_scene(room)
+    area = insert_area()
+    scene = insert_scene(area)
 
     {:ok, _} = ActiveScenes.set_active(scene)
-    active = Repo.get_by!(ActiveScene, room_id: room.id)
+    active = Repo.get_by!(ActiveScene, area_id: area.id)
     stale_last_applied_at = DateTime.add(DateTime.utc_now(), -5, :minute)
 
     active
@@ -31,7 +31,7 @@ defmodule Hueworks.CircadianPollerTest do
     {:ok, pid} = CircadianPoller.start_link(name: nil, interval_ms: 60_000)
 
     assert eventually(fn ->
-             refreshed = Repo.get_by!(ActiveScene, room_id: room.id)
+             refreshed = Repo.get_by!(ActiveScene, area_id: area.id)
              DateTime.compare(refreshed.last_applied_at, stale_last_applied_at) == :gt
            end)
 
@@ -39,20 +39,20 @@ defmodule Hueworks.CircadianPollerTest do
   end
 
   test "poller defers ordinary circadian reapplication until the active-scene deadline" do
-    room = insert_room()
-    scene = insert_scene(room)
+    area = insert_area()
+    scene = insert_scene(area)
     now = DateTime.add(DateTime.utc_now(), -60, :second)
     resume_at = DateTime.add(now, 30, :second)
 
     {:ok, _} = ActiveScenes.set_active(scene, now: now, circadian_resume_at: resume_at)
-    before = Repo.get_by!(ActiveScene, room_id: room.id)
+    before = Repo.get_by!(ActiveScene, area_id: area.id)
 
     assert :ok = CircadianPoller.run_tick(now)
-    assert Repo.get_by!(ActiveScene, room_id: room.id).last_applied_at == before.last_applied_at
+    assert Repo.get_by!(ActiveScene, area_id: area.id).last_applied_at == before.last_applied_at
 
     assert :ok = CircadianPoller.run_tick(DateTime.add(resume_at, 1, :second))
 
-    refreshed = Repo.get_by!(ActiveScene, room_id: room.id)
+    refreshed = Repo.get_by!(ActiveScene, area_id: area.id)
     assert DateTime.compare(refreshed.last_applied_at, before.last_applied_at) == :gt
   end
 
@@ -81,7 +81,7 @@ defmodule Hueworks.CircadianPollerTest do
       restore_app_env(:hueworks, :control_executor_server, original_server)
     end)
 
-    room = insert_room()
+    area = insert_area()
 
     bridge =
       insert_bridge!(%{
@@ -98,7 +98,7 @@ defmodule Hueworks.CircadianPollerTest do
         source: :hue,
         source_id: "poller-lamp",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         enabled: true
       })
 
@@ -108,7 +108,7 @@ defmodule Hueworks.CircadianPollerTest do
         "temperature" => "3000"
       })
 
-    {:ok, scene} = Scenes.create_scene(%{name: "Poller Scene", room_id: room.id})
+    {:ok, scene} = Scenes.create_scene(%{name: "Poller Scene", area_id: area.id})
 
     {:ok, _} =
       Scenes.replace_scene_components(scene, [
@@ -137,7 +137,7 @@ defmodule Hueworks.CircadianPollerTest do
 
     assert light_id == light.id
     assert DesiredState.get(:light, light.id) == %{power: :on, brightness: 40, kelvin: 3000}
-    assert ActiveScenes.get_for_room(room.id).circadian_resume_at == resume_at
+    assert ActiveScenes.get_for_area(area.id).circadian_resume_at == resume_at
   end
 
   defp eventually(fun, attempts \\ 20)

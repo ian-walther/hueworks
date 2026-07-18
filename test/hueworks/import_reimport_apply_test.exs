@@ -9,7 +9,7 @@ defmodule Hueworks.ImportReimportApplyTest do
     Group,
     GroupLight,
     Light,
-    Room,
+    Area,
     Scene,
     SceneComponent,
     SceneComponentLight
@@ -37,14 +37,14 @@ defmodule Hueworks.ImportReimportApplyTest do
 
   test "refreshes bridge-owned light fields without changing user-owned fields" do
     bridge = insert_bridge()
-    room = insert_room("HueWorks Room")
+    area = insert_area("HueWorks Area")
 
     existing =
       insert_light(bridge, %{
         name: "Old Bridge Name",
         display_name: "User Name",
         source_id: "light.office",
-        room_id: room.id,
+        area_id: area.id,
         enabled: false,
         ha_export_mode: :switch,
         homekit_export_mode: :switch,
@@ -62,21 +62,21 @@ defmodule Hueworks.ImportReimportApplyTest do
                      source: :ha,
                      source_id: "light.office",
                      name: "New Bridge Name",
-                     room_source_id: "bridge-room",
+                     area_source_id: "bridge-area",
                      capabilities: %{color: true, color_temp: true},
                      metadata: %{"unique_id" => "new-uid"}
                    }
                  ],
-                 rooms: [%{source_id: "bridge-room", name: "Bridge Room"}]
+                 areas: [%{source_id: "bridge-area", name: "Bridge Area"}]
                }),
-               %{lights: %{"light.office" => true}, groups: %{}, rooms: %{}}
+               %{lights: %{"light.office" => true}, groups: %{}, areas: %{}}
              )
 
     refreshed = Repo.get!(Light, existing.id)
 
     assert refreshed.name == "New Bridge Name"
     assert refreshed.display_name == "User Name"
-    assert refreshed.room_id == room.id
+    assert refreshed.area_id == area.id
     assert refreshed.enabled == false
     assert refreshed.ha_export_mode == :switch
     assert refreshed.homekit_export_mode == :switch
@@ -85,104 +85,104 @@ defmodule Hueworks.ImportReimportApplyTest do
     assert refreshed.external_id == "new-uid"
   end
 
-  test "creates selected new lights in the selected room and skips unselected lights" do
+  test "creates selected new lights in the selected area and skips unselected lights" do
     bridge = insert_bridge()
-    room = insert_room("Office")
+    area = insert_area("Office")
 
     assert :ok =
              ReimportApply.apply(
                bridge,
                normalized(%{
-                 rooms: [%{source_id: "room-office", name: "Office"}],
+                 areas: [%{source_id: "area-office", name: "Office"}],
                  lights: [
                    %{
                      source: :ha,
                      source_id: "light.office_display",
                      name: "Office Display",
-                     room_source_id: "room-office",
+                     area_source_id: "area-office",
                      metadata: %{"unique_id" => "display-uid"}
                    },
                    %{
                      source: :ha,
                      source_id: "light.ignored",
                      name: "Ignored",
-                     room_source_id: "room-office",
+                     area_source_id: "area-office",
                      metadata: %{"unique_id" => "ignored-uid"}
                    }
                  ]
                }),
                %{
                  lights: %{
-                   "light.office_display" => %{"selected" => true, "target_room_id" => room.id},
+                   "light.office_display" => %{"selected" => true, "target_area_id" => area.id},
                    "light.ignored" => false
                  },
                  groups: %{},
-                 rooms: %{}
+                 areas: %{}
                }
              )
 
     created = Repo.get_by!(Light, bridge_id: bridge.id, source_id: "light.office_display")
 
     assert created.name == "Office Display"
-    assert created.room_id == room.id
+    assert created.area_id == area.id
     refute Repo.get_by(Light, bridge_id: bridge.id, source_id: "light.ignored")
   end
 
-  test "explicit unassigned destinations do not inherit a created bridge room" do
+  test "explicit unassigned destinations do not inherit a created bridge area" do
     bridge = insert_bridge()
 
     assert :ok =
              ReimportApply.apply(
                bridge,
                normalized(%{
-                 rooms: [%{source_id: "bridge-office", name: "Bridge Office"}],
+                 areas: [%{source_id: "bridge-office", name: "Bridge Office"}],
                  lights: [
                    %{
                      source: :ha,
-                     source_id: "light.in_room",
-                     name: "Room Light",
-                     room_source_id: "bridge-office",
-                     metadata: %{"unique_id" => "room-light-uid"}
+                     source_id: "light.in_area",
+                     name: "Area Light",
+                     area_source_id: "bridge-office",
+                     metadata: %{"unique_id" => "area-light-uid"}
                    },
                    %{
                      source: :ha,
                      source_id: "light.unassigned",
                      name: "Unassigned Light",
-                     room_source_id: "bridge-office",
+                     area_source_id: "bridge-office",
                      metadata: %{"unique_id" => "unassigned-light-uid"}
                    }
                  ]
                }),
                %{
                  lights: %{
-                   "light.in_room" => %{
+                   "light.in_area" => %{
                      "selected" => true,
                      "resolution" => "import",
-                     "target_room_id" => "bridge_room"
+                     "target_area_id" => "bridge_area"
                    },
                    "light.unassigned" => %{
                      "selected" => true,
                      "resolution" => "import",
-                     "target_room_id" => "unassigned"
+                     "target_area_id" => "unassigned"
                    }
                  },
                  groups: %{},
-                 rooms: %{
+                 areas: %{
                    "bridge-office" => %{"action" => "create", "name" => "Bridge Office"}
                  }
                }
              )
 
-    room_light = Repo.get_by!(Light, bridge_id: bridge.id, source_id: "light.in_room")
+    area_light = Repo.get_by!(Light, bridge_id: bridge.id, source_id: "light.in_area")
     unassigned = Repo.get_by!(Light, bridge_id: bridge.id, source_id: "light.unassigned")
 
-    assert is_integer(room_light.room_id)
-    assert is_nil(unassigned.room_id)
+    assert is_integer(area_light.area_id)
+    assert is_nil(unassigned.area_id)
   end
 
   test "reimport-created lights pin display name while bridge name keeps refreshing" do
     bridge = insert_bridge()
-    room = insert_room("Office")
+    area = insert_area("Office")
 
     assert :ok =
              ReimportApply.apply(
@@ -199,10 +199,10 @@ defmodule Hueworks.ImportReimportApplyTest do
                }),
                %{
                  lights: %{
-                   "light.office_display" => %{"selected" => true, "target_room_id" => room.id}
+                   "light.office_display" => %{"selected" => true, "target_area_id" => area.id}
                  },
                  groups: %{},
-                 rooms: %{}
+                 areas: %{}
                }
              )
 
@@ -224,7 +224,7 @@ defmodule Hueworks.ImportReimportApplyTest do
                    }
                  ]
                }),
-               %{lights: %{"light.office_display" => true}, groups: %{}, rooms: %{}}
+               %{lights: %{"light.office_display" => true}, groups: %{}, areas: %{}}
              )
 
     refreshed = Repo.get!(Light, created.id)
@@ -235,14 +235,14 @@ defmodule Hueworks.ImportReimportApplyTest do
 
   test "refreshes group membership from normalized memberships" do
     bridge = insert_bridge()
-    room = insert_room("Kitchen")
-    light_a = insert_light(bridge, %{source_id: "light.a", room_id: room.id})
-    light_b = insert_light(bridge, %{source_id: "light.b", room_id: room.id})
+    area = insert_area("Kitchen")
+    light_a = insert_light(bridge, %{source_id: "light.a", area_id: area.id})
+    light_b = insert_light(bridge, %{source_id: "light.b", area_id: area.id})
 
     group =
       insert_group(bridge, %{
         source_id: "group.kitchen",
-        room_id: room.id,
+        area_id: area.id,
         metadata: %{"members" => ["light.a"]}
       })
 
@@ -268,7 +268,7 @@ defmodule Hueworks.ImportReimportApplyTest do
                %{
                  lights: %{"light.a" => true, "light.b" => true},
                  groups: %{"group.kitchen" => true},
-                 rooms: %{}
+                 areas: %{}
                }
              )
 
@@ -285,14 +285,14 @@ defmodule Hueworks.ImportReimportApplyTest do
         source_id: "light.hidden",
         canonical_light_id: canonical.id,
         enabled: false,
-        room_id: nil
+        area_id: nil
       })
 
     assert :ok =
              ReimportApply.apply(
                bridge,
                normalized(%{}),
-               %{lights: %{}, groups: %{}, rooms: %{}}
+               %{lights: %{}, groups: %{}, areas: %{}}
              )
 
     refute Repo.get(Light, hidden.id)
@@ -309,7 +309,7 @@ defmodule Hueworks.ImportReimportApplyTest do
                %{
                  lights: %{"light.delete" => %{"action" => "delete"}},
                  groups: %{},
-                 rooms: %{}
+                 areas: %{}
                }
              )
 
@@ -318,14 +318,14 @@ defmodule Hueworks.ImportReimportApplyTest do
 
   test "ambiguous light identity is skipped instead of guessed" do
     bridge = insert_bridge()
-    room = insert_room("Office")
+    area = insert_area("Office")
 
     source_match =
       insert_light(bridge, %{
         name: "Source Match",
         source_id: "light.office",
         external_id: "source-match-uid",
-        room_id: room.id
+        area_id: area.id
       })
 
     external_match =
@@ -333,7 +333,7 @@ defmodule Hueworks.ImportReimportApplyTest do
         name: "External Match",
         source_id: "light.other",
         external_id: "incoming-uid",
-        room_id: room.id
+        area_id: area.id
       })
 
     assert :ok =
@@ -349,7 +349,7 @@ defmodule Hueworks.ImportReimportApplyTest do
                    }
                  ]
                }),
-               %{lights: %{"light.office" => true}, groups: %{}, rooms: %{}}
+               %{lights: %{"light.office" => true}, groups: %{}, areas: %{}}
              )
 
     assert Repo.get!(Light, source_match.id).name == "Source Match"
@@ -380,7 +380,7 @@ defmodule Hueworks.ImportReimportApplyTest do
       })
 
     bridge = insert_bridge()
-    room = insert_room("Office")
+    area = insert_area("Office")
 
     assert :ok =
              ReimportApply.apply(
@@ -412,11 +412,11 @@ defmodule Hueworks.ImportReimportApplyTest do
                    "light.real_duplicate" => %{
                      "selected" => true,
                      "resolution" => "import_real",
-                     "target_room_id" => room.id
+                     "target_area_id" => area.id
                    }
                  },
                  groups: %{},
-                 rooms: %{}
+                 areas: %{}
                }
              )
 
@@ -424,13 +424,13 @@ defmodule Hueworks.ImportReimportApplyTest do
     real = Repo.get_by!(Light, bridge_id: bridge.id, source_id: "light.real_duplicate")
 
     assert hidden.enabled == false
-    assert hidden.room_id == nil
+    assert hidden.area_id == nil
     assert hidden.canonical_light_id == canonical.id
     assert hidden.ha_export_mode == :none
     assert hidden.homekit_export_mode == :none
 
     assert real.enabled == true
-    assert real.room_id == room.id
+    assert real.area_id == area.id
     assert real.canonical_light_id == nil
   end
 
@@ -470,7 +470,7 @@ defmodule Hueworks.ImportReimportApplyTest do
                    "light.drifted" => %{"selected" => true, "resolution" => "import"}
                  },
                  groups: %{},
-                 rooms: %{}
+                 areas: %{}
                }
              )
 
@@ -499,7 +499,7 @@ defmodule Hueworks.ImportReimportApplyTest do
                      "expected_external_id" => "stale-group-uid"
                    }
                  },
-                 rooms: %{}
+                 areas: %{}
                }
              )
 
@@ -509,12 +509,12 @@ defmodule Hueworks.ImportReimportApplyTest do
 
   test "delete resolution cleans scene component and group light references" do
     bridge = insert_bridge()
-    room = insert_room("Office")
+    area = insert_area("Office")
     light = insert_light(bridge, %{source_id: "light.delete", external_id: "delete-uid"})
     group = insert_group(bridge, %{source_id: "group.office"})
 
     Repo.insert!(%GroupLight{group_id: group.id, light_id: light.id})
-    scene_component_light = insert_scene_component_light(light, room)
+    scene_component_light = insert_scene_component_light(light, area)
 
     assert :ok =
              ReimportApply.apply(
@@ -528,7 +528,7 @@ defmodule Hueworks.ImportReimportApplyTest do
                    }
                  },
                  groups: %{},
-                 rooms: %{}
+                 areas: %{}
                }
              )
 
@@ -542,7 +542,7 @@ defmodule Hueworks.ImportReimportApplyTest do
     start_cast_receiver(Hueworks.HomeKit.Bridge, :homekit)
 
     bridge = insert_bridge()
-    room = insert_room("Office")
+    area = insert_area("Office")
 
     assert :ok =
              ReimportApply.apply(
@@ -559,10 +559,10 @@ defmodule Hueworks.ImportReimportApplyTest do
                }),
                %{
                  lights: %{
-                   "light.created" => %{"selected" => true, "target_room_id" => room.id}
+                   "light.created" => %{"selected" => true, "target_area_id" => area.id}
                  },
                  groups: %{},
-                 rooms: %{}
+                 areas: %{}
                }
              )
 
@@ -610,7 +610,7 @@ defmodule Hueworks.ImportReimportApplyTest do
                      "expected_external_id" => "delete-group-uid"
                    }
                  },
-                 rooms: %{}
+                 areas: %{}
                }
              )
 
@@ -625,7 +625,7 @@ defmodule Hueworks.ImportReimportApplyTest do
 
   defp normalized(overrides) do
     %{
-      rooms: [],
+      areas: [],
       lights: [],
       groups: [],
       memberships: %{}
@@ -648,7 +648,7 @@ defmodule Hueworks.ImportReimportApplyTest do
     |> Repo.insert!()
   end
 
-  defp insert_room(name), do: Repo.insert!(%Room{name: name})
+  defp insert_area(name), do: Repo.insert!(%Area{name: name})
 
   defp insert_light(bridge, attrs) do
     defaults = %{
@@ -682,10 +682,10 @@ defmodule Hueworks.ImportReimportApplyTest do
     |> Repo.insert!()
   end
 
-  defp insert_scene_component_light(light, room) do
+  defp insert_scene_component_light(light, area) do
     scene =
       %Scene{}
-      |> Scene.changeset(%{name: "Evening", room_id: room.id})
+      |> Scene.changeset(%{name: "Evening", area_id: area.id})
       |> Repo.insert!()
 
     component =

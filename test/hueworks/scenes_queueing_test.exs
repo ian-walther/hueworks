@@ -12,7 +12,7 @@ defmodule Hueworks.ScenesQueueingTest do
     GroupLight,
     Light,
     LightState,
-    Room,
+    Area,
     Scene,
     SceneComponent,
     SceneComponentLight
@@ -49,7 +49,7 @@ defmodule Hueworks.ScenesQueueingTest do
     {:ok, actions_agent: actions_agent, executor_server: server}
   end
 
-  test "rapid same-bridge room activations dispatch both rooms", %{
+  test "rapid same-bridge area activations dispatch both areas", %{
     actions_agent: actions_agent,
     executor_server: executor_server
   } do
@@ -61,8 +61,8 @@ defmodule Hueworks.ScenesQueueingTest do
         credentials: %{"api_key" => "test"}
       })
 
-    room_one = Repo.insert!(%Room{name: "Bedroom"})
-    room_two = Repo.insert!(%Room{name: "Hall"})
+    area_one = Repo.insert!(%Area{name: "Bedroom"})
+    area_two = Repo.insert!(%Area{name: "Hall"})
 
     light_one_a =
       Repo.insert!(%Light{
@@ -71,7 +71,7 @@ defmodule Hueworks.ScenesQueueingTest do
         source: :hue,
         source_id: "801",
         bridge_id: bridge.id,
-        room_id: room_one.id,
+        area_id: area_one.id,
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6500
@@ -84,7 +84,7 @@ defmodule Hueworks.ScenesQueueingTest do
         source: :hue,
         source_id: "803",
         bridge_id: bridge.id,
-        room_id: room_one.id,
+        area_id: area_one.id,
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6500
@@ -97,7 +97,7 @@ defmodule Hueworks.ScenesQueueingTest do
         source: :hue,
         source_id: "802",
         bridge_id: bridge.id,
-        room_id: room_two.id,
+        area_id: area_two.id,
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6500
@@ -110,7 +110,7 @@ defmodule Hueworks.ScenesQueueingTest do
         source: :hue,
         source_id: "901",
         bridge_id: bridge.id,
-        room_id: room_one.id
+        area_id: area_one.id
       })
 
     group_one_b =
@@ -120,7 +120,7 @@ defmodule Hueworks.ScenesQueueingTest do
         source: :hue,
         source_id: "903",
         bridge_id: bridge.id,
-        room_id: room_one.id
+        area_id: area_one.id
       })
 
     group_two =
@@ -130,7 +130,7 @@ defmodule Hueworks.ScenesQueueingTest do
         source: :hue,
         source_id: "902",
         bridge_id: bridge.id,
-        room_id: room_two.id
+        area_id: area_two.id
       })
 
     Repo.insert!(%GroupLight{group_id: group_one.id, light_id: light_one_a.id})
@@ -161,14 +161,14 @@ defmodule Hueworks.ScenesQueueingTest do
     bedroom_scene =
       Repo.insert!(%Scene{
         name: "Bedroom Bedtime",
-        room_id: room_one.id,
+        area_id: area_one.id,
         metadata: %{}
       })
 
     hall_scene =
       Repo.insert!(%Scene{
         name: "Hall Bedtime",
-        room_id: room_two.id,
+        area_id: area_two.id,
         metadata: %{}
       })
 
@@ -236,7 +236,7 @@ defmodule Hueworks.ScenesQueueingTest do
         credentials: %{"api_key" => "test"}
       })
 
-    room = Repo.insert!(%Room{name: "Circadian Queue Room"})
+    area = Repo.insert!(%Area{name: "Circadian Queue Area"})
 
     light_one =
       Repo.insert!(%Light{
@@ -245,7 +245,7 @@ defmodule Hueworks.ScenesQueueingTest do
         source: :hue,
         source_id: "circadian-a",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6500
@@ -258,7 +258,7 @@ defmodule Hueworks.ScenesQueueingTest do
         source: :hue,
         source_id: "circadian-b",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6500
@@ -277,7 +277,7 @@ defmodule Hueworks.ScenesQueueingTest do
         "brightness_mode_time_light" => 10_800
       })
 
-    {:ok, scene} = Scenes.create_scene(%{name: "Adaptive Queue Scene", room_id: room.id})
+    {:ok, scene} = Scenes.create_scene(%{name: "Adaptive Queue Scene", area_id: area.id})
 
     {:ok, _} =
       Scenes.replace_scene_components(scene, [
@@ -334,7 +334,7 @@ defmodule Hueworks.ScenesQueueingTest do
         credentials: %{"api_key" => "test"}
       })
 
-    room = Repo.insert!(%Room{name: "Office"})
+    area = Repo.insert!(%Area{name: "Office"})
 
     light =
       Repo.insert!(%Light{
@@ -343,7 +343,7 @@ defmodule Hueworks.ScenesQueueingTest do
         source: :hue,
         source_id: "office-lamp",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6500
@@ -359,7 +359,7 @@ defmodule Hueworks.ScenesQueueingTest do
     scene =
       Repo.insert!(%Scene{
         name: "Office Work",
-        room_id: room.id,
+        area_id: area.id,
         metadata: %{}
       })
 
@@ -383,7 +383,7 @@ defmodule Hueworks.ScenesQueueingTest do
       id: light.id,
       bridge_id: bridge.id,
       desired: %{power: :off, brightness: 1},
-      trace_room_id: room.id,
+      trace_area_id: area.id,
       not_before: System.monotonic_time(:millisecond) + 60_000
     }
 

@@ -239,14 +239,14 @@ defmodule Hueworks.Control.Executor do
 
   defp replacement_scope(actions) do
     actions
-    |> Enum.map(&Map.get(&1, :trace_room_id))
+    |> Enum.map(&Map.get(&1, :trace_area_id))
     |> Enum.reject(&is_nil/1)
     |> MapSet.new()
   end
 
   defp in_replacement_scope?(action, replacement_scope) do
     MapSet.size(replacement_scope) > 0 and
-      MapSet.member?(replacement_scope, Map.get(action, :trace_room_id))
+      MapSet.member?(replacement_scope, Map.get(action, :trace_area_id))
   end
 
   defp action_target(action), do: {Map.get(action, :type), Map.get(action, :id)}

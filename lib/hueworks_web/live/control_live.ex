@@ -8,7 +8,7 @@ defmodule HueworksWeb.ControlLive do
   alias Hueworks.Groups.Topology
   alias Hueworks.Lights
   alias Hueworks.Lights.ManualControl
-  alias Hueworks.Rooms
+  alias Hueworks.Areas
   alias Hueworks.Scenes
   alias Hueworks.Util
   alias HueworksWeb.LightsLive.Actions
@@ -45,32 +45,32 @@ defmodule HueworksWeb.ControlLive do
            normalize_toggle_result(Scenes.toggle_activation(scene_id, :control_live)) do
       {:noreply,
        socket
-       |> assign(active_scene_by_room: active_scene_by_room())
+       |> assign(active_scene_by_area: active_scene_by_area())
        |> close_selected_light_if_locked()}
     else
       _ -> {:noreply, socket}
     end
   end
 
-  def handle_event("toggle_room_power", %{"room_id" => room_id, "action" => action}, socket) do
-    with room_id when is_integer(room_id) <- Util.parse_id(room_id),
+  def handle_event("toggle_area_power", %{"area_id" => area_id, "action" => action}, socket) do
+    with area_id when is_integer(area_id) <- Util.parse_id(area_id),
          action when action in [:on, :off] <- parse_power_action(action),
-         %{} = room_model <- room_model(socket.assigns.room_models, room_id),
-         light_ids when light_ids != [] <- room_model.control_light_ids,
-         {:ok, attrs} <- ManualControl.apply_power_action(room_id, light_ids, action) do
+         %{} = area_model <- area_model(socket.assigns.area_models, area_id),
+         light_ids when light_ids != [] <- area_model.control_light_ids,
+         {:ok, attrs} <- ManualControl.apply_power_action(area_id, light_ids, action) do
       {:noreply,
        socket
-       |> assign(update_room_control_state(socket.assigns, room_model, attrs))
+       |> assign(update_area_control_state(socket.assigns, area_model, attrs))
        |> put_notice(
          :info,
-         "#{String.upcase(to_string(action))} #{Util.display_name(room_model.room)}"
+         "#{String.upcase(to_string(action))} #{Util.display_name(area_model.area)}"
        )}
     else
       [] ->
-        {:noreply, put_notice(socket, :error, "No lights in room")}
+        {:noreply, put_notice(socket, :error, "No lights in area")}
 
       {:error, reason} ->
-        {:noreply, put_notice(socket, :error, "ERROR room: #{Util.format_reason(reason)}")}
+        {:noreply, put_notice(socket, :error, "ERROR area: #{Util.format_reason(reason)}")}
 
       _ ->
         {:noreply, socket}
@@ -175,10 +175,10 @@ defmodule HueworksWeb.ControlLive do
 
   def handle_event(
         "toggle_group_expanded",
-        %{"room_id" => room_id, "group_id" => group_id},
+        %{"area_id" => area_id, "group_id" => group_id},
         socket
       ) do
-    key = group_expanded_key(room_id, group_id)
+    key = group_expanded_key(area_id, group_id)
     expanded_group_keys = Map.get(socket.assigns, :expanded_group_keys, MapSet.new())
 
     expanded_group_keys =
@@ -192,12 +192,12 @@ defmodule HueworksWeb.ControlLive do
   end
 
   @impl true
-  def handle_info({:active_scene_updated, room_id, scene_id}, socket) do
+  def handle_info({:active_scene_updated, area_id, scene_id}, socket) do
     {:noreply,
      socket
      |> assign(
-       active_scene_by_room:
-         put_active_scene(socket.assigns.active_scene_by_room, room_id, scene_id)
+       active_scene_by_area:
+         put_active_scene(socket.assigns.active_scene_by_area, area_id, scene_id)
      )
      |> close_selected_light_if_locked()}
   end
@@ -219,29 +219,29 @@ defmodule HueworksWeb.ControlLive do
       class="hw-control-page"
       eyebrow="Live lighting"
       title="Control"
-      subtitle="Choose a room scene or make a direct adjustment when no scene is active."
+      subtitle="Choose a area scene or make a direct adjustment when no scene is active."
       flash={@flash}
     >
       <:actions>
           <button class="hw-button" phx-click="refresh">Reload</button>
       </:actions>
 
-      <div :if={@room_models == []} class="hw-empty-state hw-empty-state-guided">
+      <div :if={@area_models == []} class="hw-empty-state hw-empty-state-guided">
         <p class="hw-eyebrow">First step</p>
         <h2>Nothing to control yet</h2>
-        <p>Connect and import a lighting source, then HueWorks will organize its rooms here.</p>
+        <p>Connect and import a lighting source, then HueWorks will organize its areas here.</p>
         <a class="hw-button hw-button-primary" href="/config/bridges/new">Add Bridge</a>
       </div>
 
-      <div :if={@room_models != []} class="hw-list hw-room-ledger-list">
-        <%= for room_model <- @room_models do %>
-          <% active_scene_id = Map.get(@active_scene_by_room, room_model.room.id) %>
-          <% active_scene = Enum.find(room_model.scenes, &(&1.id == active_scene_id)) %>
-          <section class="hw-card hw-room-ledger-card hw-control-room-card" id={"control-room-#{room_model.room.id}"}>
-            <header class="hw-room-card-header">
-              <div class="hw-room-heading-copy">
-                <div class="hw-room-title-row">
-                  <h2><%= display_name(room_model.room) %></h2>
+      <div :if={@area_models != []} class="hw-list hw-area-ledger-list">
+        <%= for area_model <- @area_models do %>
+          <% active_scene_id = Map.get(@active_scene_by_area, area_model.area.id) %>
+          <% active_scene = Enum.find(area_model.scenes, &(&1.id == active_scene_id)) %>
+          <section class="hw-card hw-area-ledger-card hw-control-area-card" id={"control-area-#{area_model.area.id}"}>
+            <header class="hw-area-card-header">
+              <div class="hw-area-heading-copy">
+                <div class="hw-area-title-row">
+                  <h2><%= display_name(area_model.area) %></h2>
                   <span class={[
                     "hw-status-badge",
                     active_scene && "hw-status-badge-success"
@@ -249,17 +249,17 @@ defmodule HueworksWeb.ControlLive do
                     <%= if active_scene, do: "#{display_name(active_scene)} active", else: "Direct control" %>
                   </span>
                 </div>
-                <div class="hw-stat-list" aria-label="Room control summary">
-                  <span><%= count_label(room_model.scenes, "scene") %></span>
-                  <span><%= count_label(room_model.control_light_ids, "light") %></span>
+                <div class="hw-stat-list" aria-label="Area control summary">
+                  <span><%= count_label(area_model.scenes, "scene") %></span>
+                  <span><%= count_label(area_model.control_light_ids, "light") %></span>
                 </div>
               </div>
-              <div class="hw-actions hw-room-actions">
+              <div class="hw-actions hw-area-actions">
                 <button
                   type="button"
                   class="hw-button hw-button-small"
-                  phx-click="toggle_room_power"
-                  phx-value-room_id={room_model.room.id}
+                  phx-click="toggle_area_power"
+                  phx-value-area_id={area_model.area.id}
                   phx-value-action="on"
                 >
                   All On
@@ -267,8 +267,8 @@ defmodule HueworksWeb.ControlLive do
                 <button
                   type="button"
                   class="hw-button hw-button-small hw-button-off"
-                  phx-click="toggle_room_power"
-                  phx-value-room_id={room_model.room.id}
+                  phx-click="toggle_area_power"
+                  phx-value-area_id={area_model.area.id}
                   phx-value-action="off"
                 >
                   All Off
@@ -276,20 +276,20 @@ defmodule HueworksWeb.ControlLive do
               </div>
             </header>
 
-            <div class="hw-room-ledger-body hw-control-room-grid">
+            <div class="hw-area-ledger-body hw-control-area-grid">
               <section class="hw-ledger-section hw-control-section">
                 <div class="hw-section-header">
                   <div>
                     <p class="hw-eyebrow">Primary behavior</p>
                     <h3>Scenes</h3>
                   </div>
-                  <a class="hw-button hw-button-small" href={"/rooms/#{room_model.room.id}/scenes/new"}>
+                  <a class="hw-button hw-button-small" href={"/areas/#{area_model.area.id}/scenes/new"}>
                     New scene
                   </a>
                 </div>
                 <div class="hw-data-list">
-                  <%= for scene <- room_model.scenes do %>
-                    <% active? = Map.get(@active_scene_by_room, room_model.room.id) == scene.id %>
+                  <%= for scene <- area_model.scenes do %>
+                    <% active? = Map.get(@active_scene_by_area, area_model.area.id) == scene.id %>
                     <div class={["hw-data-row", active? && "hw-data-row-active"]}>
                       <div class="hw-data-row-main">
                         <strong><%= display_name(scene) %></strong>
@@ -311,10 +311,10 @@ defmodule HueworksWeb.ControlLive do
                       </div>
                     </div>
                   <% end %>
-                  <%= if room_model.scenes == [] do %>
+                  <%= if area_model.scenes == [] do %>
                     <div class="hw-empty-state hw-empty-state-compact">
                       <h4>No scenes yet</h4>
-                      <p>Create a scene to define the room's normal behavior.</p>
+                      <p>Create a scene to define the area's normal behavior.</p>
                     </div>
                   <% end %>
                 </div>
@@ -329,28 +329,28 @@ defmodule HueworksWeb.ControlLive do
                 </div>
                 <div class="hw-data-list hw-group-tree">
                   <.group_node
-                    :for={node <- room_model.topology.nodes}
+                    :for={node <- area_model.topology.nodes}
                     node={node}
-                    room={room_model.room}
-                    lights={room_model.lights}
+                    area={area_model.area}
+                    lights={area_model.lights}
                     expanded_group_keys={@expanded_group_keys}
                     group_state={@group_state}
                     light_state={@light_state}
-                    active_scene_by_room={@active_scene_by_room}
+                    active_scene_by_area={@active_scene_by_area}
                   />
 
                   <.light_row
-                    :for={light_id <- room_model.topology.ungrouped_light_ids}
+                    :for={light_id <- area_model.topology.ungrouped_light_ids}
                     light_id={light_id}
-                    lights={room_model.lights}
+                    lights={area_model.lights}
                     light_state={@light_state}
-                    active_scene_by_room={@active_scene_by_room}
+                    active_scene_by_area={@active_scene_by_area}
                   />
 
-                  <%= if room_model.topology.nodes == [] and room_model.topology.ungrouped_light_ids == [] do %>
+                  <%= if area_model.topology.nodes == [] and area_model.topology.ungrouped_light_ids == [] do %>
                     <div class="hw-empty-state hw-empty-state-compact">
                       <h4>No controllable lights</h4>
-                      <p>Assign lights to this room from the Lights page.</p>
+                      <p>Assign lights to this area from the Lights page.</p>
                     </div>
                   <% end %>
                 </div>
@@ -376,26 +376,26 @@ defmodule HueworksWeb.ControlLive do
         expanded?:
           group_expanded?(
             assigns.expanded_group_keys,
-            assigns.room.id,
+            assigns.area.id,
             assigns.node.group_id
           ),
         control_available?:
           not Presentation.manual_adjustment_locked?(
-            assigns.active_scene_by_room,
-            assigns.node.group.room_id
+            assigns.active_scene_by_area,
+            assigns.node.group.area_id
           ),
         expandable?: group_node_expandable?(assigns.node)
       )
 
     ~H"""
-    <div class="hw-group-node" id={"control-room-#{@room.id}-group-#{@node.group_id}"}>
+    <div class="hw-group-node" id={"control-area-#{@area.id}-group-#{@node.group_id}"}>
       <div class="hw-data-row hw-control-entity-row hw-group-node-row">
         <%= if @expandable? do %>
           <button
             type="button"
             class="hw-group-toggle"
             phx-click="toggle_group_expanded"
-            phx-value-room_id={@room.id}
+            phx-value-area_id={@area.id}
             phx-value-group_id={@node.group_id}
             aria-expanded={@expanded?}
           >
@@ -435,23 +435,23 @@ defmodule HueworksWeb.ControlLive do
         <.group_node
           :for={child <- @node.children}
           node={child}
-          room={@room}
+          area={@area}
           lights={@lights}
           expanded_group_keys={@expanded_group_keys}
           group_state={@group_state}
           light_state={@light_state}
-          active_scene_by_room={@active_scene_by_room}
+          active_scene_by_area={@active_scene_by_area}
         />
 
         <div class="hw-group-node-lights">
           <.light_row
             :for={light_id <- @node.light_ids}
-            id={"control-room-#{@room.id}-group-#{@node.group_id}-light-#{light_id}"}
+            id={"control-area-#{@area.id}-group-#{@node.group_id}-light-#{light_id}"}
             class="hw-group-light"
             light_id={light_id}
             lights={@lights}
             light_state={@light_state}
-            active_scene_by_room={@active_scene_by_room}
+            active_scene_by_area={@active_scene_by_area}
           />
         </div>
       </div>
@@ -471,8 +471,8 @@ defmodule HueworksWeb.ControlLive do
         control_available?:
           assigns.light &&
             not Presentation.manual_adjustment_locked?(
-              assigns.active_scene_by_room,
-              assigns.light.room_id
+              assigns.active_scene_by_area,
+              assigns.light.area_id
             )
       )
 
@@ -539,42 +539,42 @@ defmodule HueworksWeb.ControlLive do
   end
 
   defp control_assigns do
-    rooms = Rooms.list_rooms_with_children()
+    areas = Areas.list_areas_with_children()
     groups = Groups.list_controllable_groups()
     lights = Lights.list_controllable_lights()
     groups = attach_group_light_ids(groups)
 
     %{
-      room_models: room_models(rooms, groups, lights),
-      rooms: rooms,
+      area_models: area_models(areas, groups, lights),
+      areas: areas,
       groups: groups,
       lights: lights,
-      active_scene_by_room: active_scene_by_room(),
+      active_scene_by_area: active_scene_by_area(),
       group_state: DisplayState.build_group_state(groups),
       light_state: DisplayState.build_light_state(lights)
     }
   end
 
-  defp room_models(rooms, groups, lights) do
-    Enum.map(rooms, fn room ->
-      room_groups = Enum.filter(groups, &(&1.room_id == room.id))
-      room_lights = Enum.filter(lights, &(&1.room_id == room.id))
-      visible_light_ids = MapSet.new(Enum.map(room_lights, & &1.id))
+  defp area_models(areas, groups, lights) do
+    Enum.map(areas, fn area ->
+      area_groups = Enum.filter(groups, &(&1.area_id == area.id))
+      area_lights = Enum.filter(lights, &(&1.area_id == area.id))
+      visible_light_ids = MapSet.new(Enum.map(area_lights, & &1.id))
 
       control_light_ids =
-        room_groups
+        area_groups
         |> Enum.flat_map(& &1.light_ids)
         |> Kernel.++(MapSet.to_list(visible_light_ids))
         |> Enum.uniq()
 
       %{
-        room: room,
-        scenes: Enum.sort_by(room.scenes, &String.downcase(display_name(&1))),
-        groups: room_groups,
-        lights: room_lights,
+        area: area,
+        scenes: Enum.sort_by(area.scenes, &String.downcase(display_name(&1))),
+        groups: area_groups,
+        lights: area_lights,
         control_light_ids: control_light_ids,
         topology:
-          room_groups
+          area_groups
           |> Topology.presentation_tree(control_light_ids)
           |> filter_topology_lights(visible_light_ids)
       }
@@ -613,33 +613,33 @@ defmodule HueworksWeb.ControlLive do
     Enum.filter(light_ids, &MapSet.member?(visible_light_ids, &1))
   end
 
-  defp update_room_control_state(assigns, room_model, attrs) do
+  defp update_area_control_state(assigns, area_model, attrs) do
     light_state =
-      Enum.reduce(room_model.lights, assigns.light_state, fn light, acc ->
+      Enum.reduce(area_model.lights, assigns.light_state, fn light, acc ->
         Map.update(acc, light.id, attrs, &DisplayState.merge_light(&1, light, attrs))
       end)
 
     group_state =
-      Enum.reduce(room_model.groups, assigns.group_state, fn group, acc ->
+      Enum.reduce(area_model.groups, assigns.group_state, fn group, acc ->
         Map.update(acc, group.id, attrs, &DisplayState.merge(&1, attrs))
       end)
 
     %{light_state: light_state, group_state: group_state, status: nil}
   end
 
-  defp room_model(room_models, room_id) do
-    Enum.find(room_models, &(&1.room.id == room_id))
+  defp area_model(area_models, area_id) do
+    Enum.find(area_models, &(&1.area.id == area_id))
   end
 
-  defp active_scene_by_room do
+  defp active_scene_by_area do
     ActiveScenes.list_active_scenes()
-    |> Map.new(fn active_scene -> {active_scene.room_id, active_scene.scene_id} end)
+    |> Map.new(fn active_scene -> {active_scene.area_id, active_scene.scene_id} end)
   end
 
-  defp put_active_scene(active_scene_by_room, room_id, scene_id) when is_integer(room_id) do
+  defp put_active_scene(active_scene_by_area, area_id, scene_id) when is_integer(area_id) do
     case scene_id do
-      value when is_integer(value) -> Map.put(active_scene_by_room || %{}, room_id, value)
-      _ -> Map.delete(active_scene_by_room || %{}, room_id)
+      value when is_integer(value) -> Map.put(active_scene_by_area || %{}, area_id, value)
+      _ -> Map.delete(active_scene_by_area || %{}, area_id)
     end
   end
 
@@ -721,7 +721,7 @@ defmodule HueworksWeb.ControlLive do
   defp state_map_for_type(assigns, :group), do: assigns.group_state
 
   defp manual_adjustment_locked?(assigns, target) do
-    Presentation.manual_adjustment_locked?(assigns.active_scene_by_room, target.room_id)
+    Presentation.manual_adjustment_locked?(assigns.active_scene_by_area, target.area_id)
   end
 
   defp power_button_class(state_map, id) do
@@ -749,12 +749,12 @@ defmodule HueworksWeb.ControlLive do
     end
   end
 
-  defp group_expanded?(expanded_group_keys, room_id, group_id) do
+  defp group_expanded?(expanded_group_keys, area_id, group_id) do
     expanded_group_keys
-    |> MapSet.member?(group_expanded_key(room_id, group_id))
+    |> MapSet.member?(group_expanded_key(area_id, group_id))
   end
 
-  defp group_expanded_key(room_id, group_id), do: "#{room_id}:#{group_id}"
+  defp group_expanded_key(area_id, group_id), do: "#{area_id}:#{group_id}"
 
   defp group_node_expandable?(node) do
     node.children != [] or node.light_ids != []

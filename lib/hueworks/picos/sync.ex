@@ -17,9 +17,9 @@ defmodule Hueworks.Picos.Sync do
   end
 
   def sync_bridge_picos(%Bridge{} = bridge, raw) when is_map(raw) do
-    room_by_area_id =
+    area_by_area_id =
       bridge.id
-      |> Snapshot.room_ids_by_area_id(Snapshot.lights(raw))
+      |> Snapshot.area_ids_by_source_area_id(Snapshot.lights(raw))
 
     grouped_buttons =
       raw
@@ -27,7 +27,7 @@ defmodule Hueworks.Picos.Sync do
       |> Snapshot.group_buttons_by_device()
 
     Repo.transaction(fn ->
-      Persistence.sync_devices(bridge, grouped_buttons, room_by_area_id)
+      Persistence.sync_devices(bridge, grouped_buttons, area_by_area_id)
     end)
 
     {:ok, Devices.list_for_bridge(bridge.id)}

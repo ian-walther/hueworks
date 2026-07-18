@@ -37,7 +37,7 @@ defmodule HueworksWeb.LightStatesConfigLive do
       {:error, :in_use} ->
         usages =
           Scenes.light_state_usages(light_state_id)
-          |> Enum.map_join(", ", fn usage -> "#{usage.room_name} / #{usage.scene_name}" end)
+          |> Enum.map_join(", ", fn usage -> "#{usage.area_name} / #{usage.scene_name}" end)
 
         {:noreply, put_notice(socket, :error, "Light state is in use by: #{usages}")}
 

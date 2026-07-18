@@ -31,15 +31,15 @@ defmodule Hueworks.Picos.Config do
 
   def clear_device_config(%PicoDevice{} = device) do
     device = Devices.get(device.id)
-    detected_room_id = Devices.auto_detected_room_id(device)
+    detected_area_id = Devices.auto_detected_area_id(device)
 
     Repo.transaction(fn ->
       device
       |> PicoDevice.changeset(%{
-        room_id: detected_room_id,
+        area_id: detected_area_id,
         metadata:
           (device.metadata || %{})
-          |> Map.put("room_override", false)
+          |> Map.put("area_override", false)
           |> Map.put("control_groups", [])
           |> Map.drop(["preset", "primary", "secondary"])
       })

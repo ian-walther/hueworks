@@ -3,7 +3,7 @@ defmodule Hueworks.Subscription.HueEventStream.ConnectionTest do
 
   alias Hueworks.Control.State
   alias Hueworks.Repo
-  alias Hueworks.Schemas.{Light, Room}
+  alias Hueworks.Schemas.{Light, Area}
   alias Hueworks.Subscription.HueEventStream.Connection
 
   setup do
@@ -15,7 +15,7 @@ defmodule Hueworks.Subscription.HueEventStream.ConnectionTest do
   end
 
   test "SSE light events refresh stale indexes before applying state" do
-    room = Repo.insert!(%Room{name: "Hue Room"})
+    area = Repo.insert!(%Area{name: "Hue Area"})
 
     bridge =
       insert_bridge!(%{
@@ -32,7 +32,7 @@ defmodule Hueworks.Subscription.HueEventStream.ConnectionTest do
         source: :hue,
         source_id: "11",
         bridge_id: bridge.id,
-        room_id: room.id
+        area_id: area.id
       })
 
     ref = make_ref()

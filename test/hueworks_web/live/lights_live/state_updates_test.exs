@@ -8,7 +8,7 @@ defmodule HueworksWeb.LightsLive.StateUpdatesTest do
     assigns = %{
       light_state: %{1 => %{power: :off, brightness: 25}},
       group_state: %{},
-      active_scene_by_room: %{}
+      active_scene_by_area: %{}
     }
 
     result = %Result{target_type: :light, target_id: 1, attrs: %{power: :on}, status: "Updated"}
@@ -23,7 +23,7 @@ defmodule HueworksWeb.LightsLive.StateUpdatesTest do
     assigns = %{
       light_state: %{},
       group_state: %{2 => %{power: :off, brightness: 10}},
-      active_scene_by_room: %{}
+      active_scene_by_area: %{}
     }
 
     updated = StateUpdates.replace_control_state(assigns, :group, 2, %{power: :on})
@@ -31,12 +31,12 @@ defmodule HueworksWeb.LightsLive.StateUpdatesTest do
     assert updated.group_state[2] == %{power: :on}
   end
 
-  test "put_active_scene adds and removes room entries" do
-    assigns = %{light_state: %{}, group_state: %{}, active_scene_by_room: %{4 => 9}}
+  test "put_active_scene adds and removes area entries" do
+    assigns = %{light_state: %{}, group_state: %{}, active_scene_by_area: %{4 => 9}}
 
-    assert %{active_scene_by_room: %{4 => 11}} =
+    assert %{active_scene_by_area: %{4 => 11}} =
              StateUpdates.put_active_scene(assigns, 4, 11)
 
-    assert %{active_scene_by_room: %{}} = StateUpdates.put_active_scene(assigns, 4, nil)
+    assert %{active_scene_by_area: %{}} = StateUpdates.put_active_scene(assigns, 4, nil)
   end
 end

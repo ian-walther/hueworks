@@ -48,7 +48,7 @@ defmodule Hueworks.Import.JsonHandlingTest do
     path =
       temp_json_file("missing-bridge-materialize.json", %{
         "bridge" => %{"host" => "missing.local", "type" => "hue"},
-        "normalized" => %{"rooms" => [], "lights" => [], "groups" => [], "memberships" => %{}}
+        "normalized" => %{"areas" => [], "lights" => [], "groups" => [], "memberships" => %{}}
       })
 
     output =
@@ -65,7 +65,7 @@ defmodule Hueworks.Import.JsonHandlingTest do
     path =
       temp_json_file("unsupported-materialize.json", %{
         "bridge" => %{"host" => "missing.local", "type" => source},
-        "normalized" => %{"rooms" => [], "lights" => [], "groups" => [], "memberships" => %{}}
+        "normalized" => %{"areas" => [], "lights" => [], "groups" => [], "memberships" => %{}}
       })
 
     output =

@@ -14,14 +14,14 @@ defmodule Hueworks.HomeAssistant.Export.Messages.Topics do
   def attributes_topic(scene_id) when is_integer(scene_id),
     do: "#{@default_topic_prefix}/scenes/#{scene_id}/attributes"
 
-  def room_select_command_topic(room_id) when is_integer(room_id),
-    do: "#{@default_topic_prefix}/rooms/#{room_id}/scene/set"
+  def area_select_command_topic(area_id) when is_integer(area_id),
+    do: "#{@default_topic_prefix}/areas/#{area_id}/scene/set"
 
-  def room_select_state_topic(room_id) when is_integer(room_id),
-    do: "#{@default_topic_prefix}/rooms/#{room_id}/scene/state"
+  def area_select_state_topic(area_id) when is_integer(area_id),
+    do: "#{@default_topic_prefix}/areas/#{area_id}/scene/state"
 
-  def room_select_attributes_topic(room_id) when is_integer(room_id),
-    do: "#{@default_topic_prefix}/rooms/#{room_id}/scene/attributes"
+  def area_select_attributes_topic(area_id) when is_integer(area_id),
+    do: "#{@default_topic_prefix}/areas/#{area_id}/scene/attributes"
 
   def entity_attributes_topic(kind, id)
       when kind in [:light, :group] and is_integer(id),
@@ -57,9 +57,9 @@ defmodule Hueworks.HomeAssistant.Export.Messages.Topics do
     "#{discovery_prefix}/scene/hueworks_scene_#{scene_id}/config"
   end
 
-  def room_select_discovery_topic(room_id, discovery_prefix \\ @default_discovery_prefix)
-      when is_integer(room_id) and is_binary(discovery_prefix) do
-    "#{discovery_prefix}/select/hueworks_room_scene_select_#{room_id}/config"
+  def area_select_discovery_topic(identifier, discovery_prefix \\ @default_discovery_prefix)
+      when is_binary(identifier) and is_binary(discovery_prefix) do
+    "#{discovery_prefix}/select/#{identifier}/config"
   end
 
   def switch_discovery_topic(kind, id, discovery_prefix \\ @default_discovery_prefix)
@@ -107,22 +107,22 @@ defmodule Hueworks.HomeAssistant.Export.Messages.Topics do
 
   def command_scene_id(_topic_levels, _topic_prefix), do: nil
 
-  def command_room_id(topic_levels, topic_prefix \\ @default_topic_prefix)
+  def command_area_id(topic_levels, topic_prefix \\ @default_topic_prefix)
 
-  def command_room_id(topic, topic_prefix) when is_binary(topic) and is_binary(topic_prefix) do
+  def command_area_id(topic, topic_prefix) when is_binary(topic) and is_binary(topic_prefix) do
     topic
     |> String.split("/", trim: true)
-    |> command_room_id(topic_prefix)
+    |> command_area_id(topic_prefix)
   end
 
-  def command_room_id(topic_levels, topic_prefix)
+  def command_area_id(topic_levels, topic_prefix)
       when is_list(topic_levels) and is_binary(topic_prefix) do
-    prefix_levels = String.split("#{topic_prefix}/rooms", "/", trim: true)
+    prefix_levels = String.split("#{topic_prefix}/areas", "/", trim: true)
 
     if Enum.take(topic_levels, length(prefix_levels)) == prefix_levels do
       case Enum.drop(topic_levels, length(prefix_levels)) do
-        [room_id, "scene", "set"] ->
-          case Integer.parse(room_id) do
+        [area_id, "scene", "set"] ->
+          case Integer.parse(area_id) do
             {parsed, ""} -> parsed
             _ -> nil
           end
@@ -135,7 +135,7 @@ defmodule Hueworks.HomeAssistant.Export.Messages.Topics do
     end
   end
 
-  def command_room_id(_topic_levels, _topic_prefix), do: nil
+  def command_area_id(_topic_levels, _topic_prefix), do: nil
 
   def command_export_target(topic, topic_prefix \\ @default_topic_prefix)
 

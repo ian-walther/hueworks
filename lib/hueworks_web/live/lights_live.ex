@@ -50,9 +50,9 @@ defmodule HueworksWeb.LightsLive do
   def handle_event(event, params, socket)
       when event in [
              "set_group_filter",
-             "set_group_room_filter",
+             "set_group_area_filter",
              "set_light_filter",
-             "set_light_room_filter",
+             "set_light_area_filter",
              "toggle_group_disabled",
              "toggle_light_disabled",
              "toggle_light_linked"
@@ -62,7 +62,7 @@ defmodule HueworksWeb.LightsLive do
      |> assign(
        FilterState.store(
          socket.assigns,
-         FilterState.event_updates(event, params, socket.assigns.rooms)
+         FilterState.event_updates(event, params, socket.assigns.areas)
        )
      )}
   end

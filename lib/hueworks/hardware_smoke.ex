@@ -7,7 +7,7 @@ defmodule Hueworks.HardwareSmoke do
   alias Hueworks.{Groups, Picos, Repo, Scenes}
   alias Hueworks.Control.Executor
   alias Hueworks.Control.{DesiredState, LightStateSemantics, State}
-  alias Hueworks.Schemas.{Light, PicoButton, PicoDevice, Room, Scene}
+  alias Hueworks.Schemas.{Light, PicoButton, PicoDevice, Area, Scene}
 
   @brightness_tolerance 2
   @temperature_mired_tolerance 1
@@ -108,12 +108,12 @@ defmodule Hueworks.HardwareSmoke do
   end
 
   defp resolve_kitchen_accent_pico! do
-    room = Repo.get_by!(Room, name: "Main Floor")
-    scene = Repo.get_by!(Scene, room_id: room.id, name: "All Auto")
+    area = Repo.get_by!(Area, name: "Main Floor")
+    scene = Repo.get_by!(Scene, area_id: area.id, name: "All Auto")
 
     device =
       PicoDevice
-      |> Repo.get_by!(room_id: room.id, name: "Kitchen / Accent PIco")
+      |> Repo.get_by!(area_id: area.id, name: "Kitchen / Accent PIco")
       |> Repo.preload(buttons: from(pb in PicoButton, order_by: [asc: pb.button_number]))
 
     control_groups = Picos.control_groups(device)
@@ -125,12 +125,12 @@ defmodule Hueworks.HardwareSmoke do
     lower_group =
       Enum.find(control_groups, &(&1["name"] == "Lower")) || raise "missing Lower control group"
 
-    overhead_light_ids = expand_control_group_light_ids(room.id, overhead_group)
-    lower_light_ids = expand_control_group_light_ids(room.id, lower_group)
+    overhead_light_ids = expand_control_group_light_ids(area.id, overhead_group)
+    lower_light_ids = expand_control_group_light_ids(area.id, lower_group)
     all_light_ids = Enum.uniq(overhead_light_ids ++ lower_light_ids)
 
     %{
-      room: room,
+      area: area,
       scene: scene,
       device: device,
       assert_keys: [:power],
@@ -196,7 +196,7 @@ defmodule Hueworks.HardwareSmoke do
   end
 
   defp activate_and_capture_baseline!(scenario, timeout_ms, poll_ms, settle_ms) do
-    info("Activating scene #{inspect(scenario.scene.name)} for #{inspect(scenario.room.name)}")
+    info("Activating scene #{inspect(scenario.scene.name)} for #{inspect(scenario.area.name)}")
 
     case Scenes.activate_scene(scenario.scene.id, trace: smoke_trace("activate_scene")) do
       {:ok, _diff, _updated} -> :ok
@@ -273,7 +273,7 @@ defmodule Hueworks.HardwareSmoke do
   end
 
   defp assert_scene_active!(scenario) do
-    case Hueworks.ActiveScenes.get_for_room(scenario.room.id) do
+    case Hueworks.ActiveScenes.get_for_area(scenario.area.id) do
       %{scene_id: scene_id} when scene_id == scenario.scene.id -> :ok
       other -> raise "active scene changed unexpectedly: #{inspect(other)}"
     end
@@ -402,14 +402,14 @@ defmodule Hueworks.HardwareSmoke do
 
   defp select_keys(state, _keys), do: state
 
-  defp expand_control_group_light_ids(room_id, %{
+  defp expand_control_group_light_ids(area_id, %{
          "group_ids" => group_ids,
          "light_ids" => light_ids
        }) do
     allowed_light_ids =
       Repo.all(
         from(l in Light,
-          where: l.room_id == ^room_id and is_nil(l.canonical_light_id),
+          where: l.area_id == ^area_id and is_nil(l.canonical_light_id),
           select: l.id
         )
       )
@@ -430,7 +430,7 @@ defmodule Hueworks.HardwareSmoke do
     |> Enum.uniq()
   end
 
-  defp expand_control_group_light_ids(_room_id, _group), do: []
+  defp expand_control_group_light_ids(_area_id, _group), do: []
 
   defp find_single_control_group_button!(device, action_type, group_id) do
     Enum.find(device.buttons, fn button ->
@@ -492,7 +492,7 @@ defmodule Hueworks.HardwareSmoke do
 
   defp print_scenario_summary(scenario, loops, timeout_ms, poll_ms, settle_ms) do
     info("Running hardware smoke scenario: kitchen_accent_pico")
-    info("  Room: #{scenario.room.name} (#{scenario.room.id})")
+    info("  Area: #{scenario.area.name} (#{scenario.area.id})")
     info("  Scene: #{scenario.scene.name} (#{scenario.scene.id})")
     info("  Pico: #{scenario.device.name} (#{scenario.device.id})")
     info("  Loops: #{loops}")
@@ -510,7 +510,7 @@ defmodule Hueworks.HardwareSmoke do
 
   defp print_lower_repeat_summary(scenario, cycles, timeout_ms, poll_ms, settle_ms) do
     info("Running hardware smoke scenario: kitchen_accent_lower_repeat")
-    info("  Room: #{scenario.room.name} (#{scenario.room.id})")
+    info("  Area: #{scenario.area.name} (#{scenario.area.id})")
     info("  Scene: #{scenario.scene.name} (#{scenario.scene.id})")
     info("  Pico: #{scenario.device.name} (#{scenario.device.id})")
     info("  Cycles: #{cycles}")

@@ -11,7 +11,7 @@ defmodule Hueworks.Schemas.PicoDevice do
     field(:metadata, :map, default: %{})
 
     belongs_to(:bridge, Hueworks.Schemas.Bridge)
-    belongs_to(:room, Hueworks.Schemas.Room)
+    belongs_to(:area, Hueworks.Schemas.Area)
     has_many(:buttons, Hueworks.Schemas.PicoButton)
 
     timestamps()
@@ -21,7 +21,7 @@ defmodule Hueworks.Schemas.PicoDevice do
     device
     |> cast(attrs, [
       :bridge_id,
-      :room_id,
+      :area_id,
       :source_id,
       :name,
       :display_name,

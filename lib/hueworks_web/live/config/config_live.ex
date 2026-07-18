@@ -4,16 +4,16 @@ defmodule HueworksWeb.ConfigLive do
   alias Hueworks.AppSettings
   alias Hueworks.Bridges
   alias Hueworks.HomeKit
-  alias Hueworks.Rooms
+  alias Hueworks.Areas
   alias Hueworks.Scenes
 
   def mount(_params, _session, socket) do
     app_setting = AppSettings.get_global()
     bridges = Bridges.list_bridges()
     light_states = Scenes.list_editable_light_states_with_usage()
-    rooms = Rooms.list_rooms_with_children()
+    areas = Areas.list_areas_with_children()
     pending_bridges = Enum.count(bridges, &(not Bridges.imported?(&1)))
-    scene_count = Enum.sum(Enum.map(rooms, &length(&1.scenes)))
+    scene_count = Enum.sum(Enum.map(areas, &length(&1.scenes)))
     health = Hueworks.Health.status()
 
     setup_steps =
@@ -21,7 +21,7 @@ defmodule HueworksWeb.ConfigLive do
         configured_location?(app_setting),
         length(bridges),
         pending_bridges,
-        length(rooms),
+        length(areas),
         scene_count
       )
 
@@ -47,7 +47,7 @@ defmodule HueworksWeb.ConfigLive do
          general_configured?,
          bridge_count,
          pending_bridge_count,
-         room_count,
+         area_count,
          scene_count
        ) do
     [
@@ -77,19 +77,19 @@ defmodule HueworksWeb.ConfigLive do
         complete?: bridge_count > 0 and pending_bridge_count == 0
       },
       %{
-        id: "rooms",
-        title: "Review rooms",
+        id: "areas",
+        title: "Review areas",
         description: "Confirm imported lights and groups are organized the way you control them.",
-        href: "/rooms",
-        action: "Open Rooms",
-        complete?: room_count > 0
+        href: "/areas",
+        action: "Open Areas",
+        complete?: area_count > 0
       },
       %{
         id: "scenes",
         title: "Create a scene",
-        description: "Build and activate the first useful room scene.",
-        href: "/rooms",
-        action: "Open Rooms",
+        description: "Build and activate the first useful area scene.",
+        href: "/areas",
+        action: "Open Areas",
         complete?: scene_count > 0
       }
     ]
@@ -102,7 +102,7 @@ defmodule HueworksWeb.ConfigLive do
 
   defp ha_enabled?(app_setting) do
     app_setting.ha_export_scenes_enabled == true or
-      app_setting.ha_export_room_selects_enabled == true or
+      app_setting.ha_export_area_selects_enabled == true or
       app_setting.ha_export_lights_enabled == true
   end
 end

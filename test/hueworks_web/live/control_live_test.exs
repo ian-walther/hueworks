@@ -6,7 +6,7 @@ defmodule HueworksWeb.ControlLiveTest do
   alias Hueworks.Repo
   alias Hueworks.Control.DesiredState
   alias Hueworks.Control.State
-  alias Hueworks.Schemas.{ActiveScene, Group, GroupLight, Light, Room}
+  alias Hueworks.Schemas.{ActiveScene, Group, GroupLight, Light, Area}
   alias Hueworks.Scenes
 
   setup do
@@ -19,8 +19,8 @@ defmodule HueworksWeb.ControlLiveTest do
     :ok
   end
 
-  defp insert_room(name \\ "Studio") do
-    Repo.insert!(%Room{name: name, metadata: %{}})
+  defp insert_area(name \\ "Studio") do
+    Repo.insert!(%Area{name: name, metadata: %{}})
   end
 
   defp insert_bridge do
@@ -34,13 +34,13 @@ defmodule HueworksWeb.ControlLiveTest do
     })
   end
 
-  defp insert_light(room, bridge, attrs) do
+  defp insert_light(area, bridge, attrs) do
     defaults = %{
       name: "Light",
       source: :hue,
       source_id: Integer.to_string(System.unique_integer([:positive])),
       bridge_id: bridge.id,
-      room_id: room.id,
+      area_id: area.id,
       metadata: %{}
     }
 
@@ -50,13 +50,13 @@ defmodule HueworksWeb.ControlLiveTest do
     Repo.insert!(struct(Light, attrs))
   end
 
-  defp insert_group(room, bridge, attrs) do
+  defp insert_group(area, bridge, attrs) do
     defaults = %{
       name: "Group",
       source: :hue,
       source_id: Integer.to_string(System.unique_integer([:positive])),
       bridge_id: bridge.id,
-      room_id: room.id,
+      area_id: area.id,
       metadata: %{}
     }
 
@@ -91,18 +91,18 @@ defmodule HueworksWeb.ControlLiveTest do
     assert html =~ "Add Bridge"
   end
 
-  test "control page renders room cards with scenes and recursive collapsed controls", %{
+  test "control page renders area cards with scenes and recursive collapsed controls", %{
     conn: conn
   } do
-    room = insert_room("Main Floor")
+    area = insert_area("Main Floor")
     bridge = insert_bridge()
-    upper_left = insert_light(room, bridge, %{name: "Upper Left"})
-    upper_right = insert_light(room, bridge, %{name: "Upper Right"})
-    lower_left = insert_light(room, bridge, %{name: "Lower Left"})
-    loose = insert_light(room, bridge, %{name: "Loose Lamp"})
-    all = insert_group(room, bridge, %{name: "All Cabinet"})
-    upper = insert_group(room, bridge, %{name: "Upper Cabinet"})
-    {:ok, scene} = Scenes.create_scene(%{name: "Evening", room_id: room.id})
+    upper_left = insert_light(area, bridge, %{name: "Upper Left"})
+    upper_right = insert_light(area, bridge, %{name: "Upper Right"})
+    lower_left = insert_light(area, bridge, %{name: "Lower Left"})
+    loose = insert_light(area, bridge, %{name: "Loose Lamp"})
+    all = insert_group(area, bridge, %{name: "All Cabinet"})
+    upper = insert_group(area, bridge, %{name: "Upper Cabinet"})
+    {:ok, scene} = Scenes.create_scene(%{name: "Evening", area_id: area.id})
 
     Enum.each([upper_left, upper_right, lower_left], &insert_group_light(all, &1))
     Enum.each([upper_left, upper_right], &insert_group_light(upper, &1))
@@ -110,7 +110,7 @@ defmodule HueworksWeb.ControlLiveTest do
     {:ok, view, html} = live(conn, "/control")
 
     assert html =~ "Control"
-    assert has_element?(view, "#control-room-#{room.id}", "Main Floor")
+    assert has_element?(view, "#control-area-#{area.id}", "Main Floor")
 
     assert has_element?(
              view,
@@ -118,11 +118,11 @@ defmodule HueworksWeb.ControlLiveTest do
              "Activate"
            )
 
-    assert has_element?(view, "#control-room-#{room.id}-group-#{all.id}", "All Cabinet")
+    assert has_element?(view, "#control-area-#{area.id}-group-#{all.id}", "All Cabinet")
 
     refute has_element?(
              view,
-             "#control-room-#{room.id}-group-#{all.id} #control-room-#{room.id}-group-#{upper.id}"
+             "#control-area-#{area.id}-group-#{all.id} #control-area-#{area.id}-group-#{upper.id}"
            )
 
     assert has_element?(
@@ -132,29 +132,29 @@ defmodule HueworksWeb.ControlLiveTest do
 
     view
     |> element(
-      "button[phx-click='toggle_group_expanded'][phx-value-room_id='#{room.id}'][phx-value-group_id='#{all.id}']"
+      "button[phx-click='toggle_group_expanded'][phx-value-area_id='#{area.id}'][phx-value-group_id='#{all.id}']"
     )
     |> render_click()
 
     assert has_element?(
              view,
-             "#control-room-#{room.id}-group-#{all.id} #control-room-#{room.id}-group-#{upper.id}"
+             "#control-area-#{area.id}-group-#{all.id} #control-area-#{area.id}-group-#{upper.id}"
            )
 
-    refute has_element?(view, "#control-room-#{room.id}-group-#{all.id}-light-#{upper_left.id}")
+    refute has_element?(view, "#control-area-#{area.id}-group-#{all.id}-light-#{upper_left.id}")
 
     view
     |> element(
-      "button[phx-click='toggle_group_expanded'][phx-value-room_id='#{room.id}'][phx-value-group_id='#{upper.id}']"
+      "button[phx-click='toggle_group_expanded'][phx-value-area_id='#{area.id}'][phx-value-group_id='#{upper.id}']"
     )
     |> render_click()
 
-    assert has_element?(view, "#control-room-#{room.id}-group-#{upper.id}-light-#{upper_left.id}")
+    assert has_element?(view, "#control-area-#{area.id}-group-#{upper.id}-light-#{upper_left.id}")
   end
 
   test "control page activates and deactivates scenes", %{conn: conn} do
-    room = insert_room()
-    {:ok, scene} = Scenes.create_scene(%{name: "Chill", room_id: room.id})
+    area = insert_area()
+    {:ok, scene} = Scenes.create_scene(%{name: "Chill", area_id: area.id})
 
     {:ok, view, _html} = live(conn, "/control")
 
@@ -168,7 +168,7 @@ defmodule HueworksWeb.ControlLiveTest do
              "Deactivate"
            )
 
-    assert Repo.get_by!(ActiveScene, room_id: room.id).scene_id == scene.id
+    assert Repo.get_by!(ActiveScene, area_id: area.id).scene_id == scene.id
 
     view
     |> element("button[phx-click='toggle_scene'][phx-value-id='#{scene.id}']")
@@ -180,15 +180,15 @@ defmodule HueworksWeb.ControlLiveTest do
              "Activate"
            )
 
-    refute Repo.get_by(ActiveScene, room_id: room.id)
+    refute Repo.get_by(ActiveScene, area_id: area.id)
   end
 
   test "light control modal is available only when no scene is active", %{conn: conn} do
-    room = insert_room()
+    area = insert_area()
     bridge = insert_bridge()
 
     light =
-      insert_light(room, bridge, %{
+      insert_light(area, bridge, %{
         name: "Lamp",
         supports_color: true,
         supports_temp: true,
@@ -196,7 +196,7 @@ defmodule HueworksWeb.ControlLiveTest do
         reported_max_kelvin: 6500
       })
 
-    {:ok, scene} = Scenes.create_scene(%{name: "Chill", room_id: room.id})
+    {:ok, scene} = Scenes.create_scene(%{name: "Chill", area_id: area.id})
 
     {:ok, view, _html} = live(conn, "/control")
 
@@ -243,12 +243,12 @@ defmodule HueworksWeb.ControlLiveTest do
   end
 
   test "group control modal uses member lights and is scene locked", %{conn: conn} do
-    room = insert_room()
+    area = insert_area()
     bridge = insert_bridge()
-    light = insert_light(room, bridge, %{name: "Lamp"})
+    light = insert_light(area, bridge, %{name: "Lamp"})
 
     group =
-      insert_group(room, bridge, %{
+      insert_group(area, bridge, %{
         name: "Lamps",
         supports_color: true,
         supports_temp: true,
@@ -257,13 +257,13 @@ defmodule HueworksWeb.ControlLiveTest do
       })
 
     insert_group_light(group, light)
-    {:ok, scene} = Scenes.create_scene(%{name: "Chill", room_id: room.id})
+    {:ok, scene} = Scenes.create_scene(%{name: "Chill", area_id: area.id})
 
     {:ok, view, _html} = live(conn, "/control")
 
     assert has_element?(
              view,
-             "#control-room-#{room.id}-group-#{group.id} button[phx-click='open_group_control'][phx-value-id='#{group.id}']",
+             "#control-area-#{area.id}-group-#{group.id} button[phx-click='open_group_control'][phx-value-id='#{group.id}']",
              "Control"
            )
 
@@ -292,34 +292,34 @@ defmodule HueworksWeb.ControlLiveTest do
              not has_element?(view, "#control-group-modal-#{group.id}") and
                not has_element?(
                  view,
-                 "#control-room-#{room.id}-group-#{group.id} button[phx-click='open_group_control'][phx-value-id='#{group.id}']",
+                 "#control-area-#{area.id}-group-#{group.id} button[phx-click='open_group_control'][phx-value-id='#{group.id}']",
                  "Control"
                )
            end)
   end
 
-  test "control page shows and room-controls enabled groups whose member lights are disabled", %{
+  test "control page shows and area-controls enabled groups whose member lights are disabled", %{
     conn: conn
   } do
-    room = insert_room()
+    area = insert_area()
     bridge = insert_bridge()
-    disabled_light = insert_light(room, bridge, %{name: "Hidden Lamp", enabled: false})
-    group = insert_group(room, bridge, %{name: "Hidden Lamp Group"})
+    disabled_light = insert_light(area, bridge, %{name: "Hidden Lamp", enabled: false})
+    group = insert_group(area, bridge, %{name: "Hidden Lamp Group"})
     insert_group_light(group, disabled_light)
 
     {:ok, view, _html} = live(conn, "/control")
 
-    assert has_element?(view, "#control-room-#{room.id}-group-#{group.id}", "Hidden Lamp Group")
-    assert has_element?(view, "#control-room-#{room.id} .hw-stat-list", "1 light")
+    assert has_element?(view, "#control-area-#{area.id}-group-#{group.id}", "Hidden Lamp Group")
+    assert has_element?(view, "#control-area-#{area.id} .hw-stat-list", "1 light")
 
     refute has_element?(
              view,
-             "button[phx-click='toggle_group_expanded'][phx-value-room_id='#{room.id}'][phx-value-group_id='#{group.id}']"
+             "button[phx-click='toggle_group_expanded'][phx-value-area_id='#{area.id}'][phx-value-group_id='#{group.id}']"
            )
 
     refute has_element?(
              view,
-             "#control-room-#{room.id}-group-#{group.id}-light-#{disabled_light.id}"
+             "#control-area-#{area.id}-group-#{group.id}-light-#{disabled_light.id}"
            )
 
     refute has_element?(
@@ -330,20 +330,20 @@ defmodule HueworksWeb.ControlLiveTest do
     html =
       view
       |> element(
-        "button[phx-click='toggle_room_power'][phx-value-room_id='#{room.id}'][phx-value-action='off']"
+        "button[phx-click='toggle_area_power'][phx-value-area_id='#{area.id}'][phx-value-action='off']"
       )
       |> render_click()
 
-    refute html =~ "No lights in room"
+    refute html =~ "No lights in area"
     assert DesiredState.get(:light, disabled_light.id) == %{power: :off}
   end
 
   test "control group power label shows ambiguity from member light state", %{conn: conn} do
-    room = insert_room()
+    area = insert_area()
     bridge = insert_bridge()
-    light_a = insert_light(room, bridge, %{name: "Lamp A"})
-    light_b = insert_light(room, bridge, %{name: "Lamp B"})
-    group = insert_group(room, bridge, %{name: "Lamps"})
+    light_a = insert_light(area, bridge, %{name: "Lamp A"})
+    light_b = insert_light(area, bridge, %{name: "Lamp B"})
+    group = insert_group(area, bridge, %{name: "Lamps"})
     insert_group_light(group, light_a)
     insert_group_light(group, light_b)
 
@@ -355,7 +355,7 @@ defmodule HueworksWeb.ControlLiveTest do
 
     assert has_element?(
              view,
-             "#control-room-#{room.id}-group-#{group.id} button[phx-click='toggle'][phx-value-type='group'][phx-value-id='#{group.id}'].hw-button-on",
+             "#control-area-#{area.id}-group-#{group.id} button[phx-click='toggle'][phx-value-type='group'][phx-value-id='#{group.id}'].hw-button-on",
              "..."
            )
   end

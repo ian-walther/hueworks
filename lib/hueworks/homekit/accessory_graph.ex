@@ -114,7 +114,7 @@ defmodule Hueworks.HomeKit.AccessoryGraph do
       id: entity.id,
       name: display_name(entity),
       mode: entity.homekit_export_mode,
-      room_id: entity.room_id
+      area_id: entity.area_id
     }
   end
 
@@ -122,7 +122,7 @@ defmodule Hueworks.HomeKit.AccessoryGraph do
     %{
       id: scene.id,
       name: display_name(scene),
-      room_id: scene.room_id
+      area_id: scene.area_id
     }
   end
 

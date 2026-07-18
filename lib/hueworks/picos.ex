@@ -25,12 +25,12 @@ defmodule Hueworks.Picos do
     Sync.sync_bridge_picos(bridge, raw)
   end
 
-  def list_room_targets(room_id) when is_integer(room_id) do
-    Targets.list_room_targets(room_id)
+  def list_area_targets(area_id) when is_integer(area_id) do
+    Targets.list_area_targets(area_id)
   end
 
-  def set_device_room(%PicoDevice{} = device, room_id) do
-    Devices.set_room(device, room_id)
+  def set_device_area(%PicoDevice{} = device, area_id) do
+    Devices.set_area(device, area_id)
   end
 
   def update_display_name(%PicoDevice{} = device, attrs) when is_map(attrs) do
@@ -91,11 +91,11 @@ defmodule Hueworks.Picos do
     Summary.button_binding_summary(button, device)
   end
 
-  def room_override?(%PicoDevice{} = device) do
-    Devices.room_override?(device)
+  def area_override?(%PicoDevice{} = device) do
+    Devices.area_override?(device)
   end
 
-  def auto_detected_room_id(%PicoDevice{} = device) do
-    Devices.auto_detected_room_id(device)
+  def auto_detected_area_id(%PicoDevice{} = device) do
+    Devices.auto_detected_area_id(device)
   end
 end

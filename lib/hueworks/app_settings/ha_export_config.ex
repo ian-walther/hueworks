@@ -3,7 +3,7 @@ defmodule Hueworks.AppSettings.HaExportConfig do
   Boundary module for Home Assistant export settings.
 
   Owns parsing, normalization, and the rule that ha_export_enabled is derived
-  from the three sub-toggles (scenes, room selects, lights).
+  from the three sub-toggles (scenes, area selects, lights).
 
   Does not validate ranges — that is AppSetting.global_changeset's job.
   Does not change the persisted shape — these remain flat columns on AppSetting.
@@ -13,14 +13,14 @@ defmodule Hueworks.AppSettings.HaExportConfig do
 
   @toggle_fields [
     :ha_export_scenes_enabled,
-    :ha_export_room_selects_enabled,
+    :ha_export_area_selects_enabled,
     :ha_export_lights_enabled
   ]
 
   @bool_fields [
     :ha_export_enabled,
     :ha_export_scenes_enabled,
-    :ha_export_room_selects_enabled,
+    :ha_export_area_selects_enabled,
     :ha_export_lights_enabled
   ]
 
@@ -56,7 +56,7 @@ defmodule Hueworks.AppSettings.HaExportConfig do
     %{
       ha_export_enabled: enabled,
       ha_export_scenes_enabled: enabled,
-      ha_export_room_selects_enabled: enabled,
+      ha_export_area_selects_enabled: enabled,
       ha_export_lights_enabled: false,
       ha_export_mqtt_host: fallback_value(parse_string(config[:host] || config["host"])),
       ha_export_mqtt_port: fallback_value(parse_port(config[:port] || config["port"])) || 1883,

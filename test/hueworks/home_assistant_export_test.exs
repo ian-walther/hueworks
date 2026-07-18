@@ -5,6 +5,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
 
   alias Hueworks.ActiveScenes
   alias Hueworks.AppSettings
+  alias Hueworks.Areas
   alias Hueworks.Control.DesiredState
   alias Hueworks.Control.State
   alias Hueworks.Groups
@@ -12,11 +13,11 @@ defmodule Hueworks.HomeAssistant.ExportTest do
   alias Hueworks.HomeAssistant.Export
   alias Hueworks.HomeAssistant.Export.ServerState
   alias Hueworks.HomeAssistant.Export.Messages
-  alias Hueworks.HomeAssistant.Export.Messages.{CommandTarget, RoomSceneOption}
+  alias Hueworks.HomeAssistant.Export.Messages.{CommandTarget, AreaSceneOption}
   alias Hueworks.PresenceInputs
   alias Hueworks.Repo
   alias Hueworks.Scenes
-  alias Hueworks.Schemas.{AppSetting, Group, GroupLight, Light, PresenceInput, Room, Scene}
+  alias Hueworks.Schemas.{AppSetting, Group, GroupLight, Light, PresenceInput, Area, Scene}
 
   setup do
     original_tortoise = Application.get_env(:hueworks, :ha_export_tortoise_module)
@@ -74,14 +75,14 @@ defmodule Hueworks.HomeAssistant.ExportTest do
   end
 
   test "discovery payload uses stable IDs and scene-only entity names" do
-    room =
-      Repo.insert!(%Room{
+    area =
+      Repo.insert!(%Area{
         name: "Main Floor",
         ha_device_identifier: "persisted-main-floor-device",
         ha_scene_select_identifier: "persisted-main-floor-select"
       })
 
-    scene = Repo.insert!(%Scene{name: "All Auto", room_id: room.id}) |> Repo.preload(:room)
+    scene = Repo.insert!(%Scene{name: "All Auto", area_id: area.id}) |> Repo.preload(:area)
 
     payload = Export.discovery_payload(scene)
 
@@ -96,7 +97,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
   test "export_config returns a typed runtime config" do
     put_export_settings(%{
       ha_export_scenes_enabled: true,
-      ha_export_room_selects_enabled: false,
+      ha_export_area_selects_enabled: false,
       ha_export_lights_enabled: true,
       ha_export_mqtt_host: "mqtt.local",
       ha_export_mqtt_port: 2883,
@@ -108,7 +109,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
     assert %Config{
              enabled: true,
              scenes_enabled: true,
-             room_selects_enabled: false,
+             area_selects_enabled: false,
              lights_enabled: true,
              host: "mqtt.local",
              port: 2883,
@@ -123,24 +124,24 @@ defmodule Hueworks.HomeAssistant.ExportTest do
     assert %ServerState{config: %Config{}, connection_pid: nil} = :sys.get_state(Export)
   end
 
-  test "room select discovery payload uses stable IDs and disambiguated options" do
-    room =
-      Repo.insert!(%Room{
+  test "area select discovery payload uses stable IDs and disambiguated options" do
+    area =
+      Repo.insert!(%Area{
         name: "Main Floor",
         ha_device_identifier: "persisted-main-floor-device",
         ha_scene_select_identifier: "persisted-main-floor-select"
       })
 
-    scene_a = Repo.insert!(%Scene{name: "All Auto", room_id: room.id}) |> Repo.preload(:room)
-    scene_b = Repo.insert!(%Scene{name: "All Auto", room_id: room.id}) |> Repo.preload(:room)
+    scene_a = Repo.insert!(%Scene{name: "All Auto", area_id: area.id}) |> Repo.preload(:area)
+    scene_b = Repo.insert!(%Scene{name: "All Auto", area_id: area.id}) |> Repo.preload(:area)
 
-    payload = Export.room_select_discovery_payload(room, [scene_a, scene_b])
+    payload = Export.area_select_discovery_payload(area, [scene_a, scene_b])
 
     assert payload["name"] == "Scene"
     assert payload["unique_id"] == "persisted-main-floor-select"
     assert payload["device"]["identifiers"] == ["persisted-main-floor-device"]
-    assert payload["command_topic"] == "hueworks/ha_export/rooms/#{room.id}/scene/set"
-    assert payload["state_topic"] == "hueworks/ha_export/rooms/#{room.id}/scene/state"
+    assert payload["command_topic"] == "hueworks/ha_export/areas/#{area.id}/scene/set"
+    assert payload["state_topic"] == "hueworks/ha_export/areas/#{area.id}/scene/state"
     assert payload["device"]["name"] == "HueWorks Main Floor"
 
     assert payload["options"] == [
@@ -168,15 +169,15 @@ defmodule Hueworks.HomeAssistant.ExportTest do
              Messages.command_export_target("hueworks/ha_export/presence_inputs/9/switch/set")
   end
 
-  test "room scene options return typed runtime structs" do
-    room = Repo.insert!(%Room{name: "Main Floor"})
-    scene_a = Repo.insert!(%Scene{name: "All Auto", room_id: room.id}) |> Repo.preload(:room)
-    scene_b = Repo.insert!(%Scene{name: "All Auto", room_id: room.id}) |> Repo.preload(:room)
+  test "area scene options return typed runtime structs" do
+    area = Repo.insert!(%Area{name: "Main Floor"})
+    scene_a = Repo.insert!(%Scene{name: "All Auto", area_id: area.id}) |> Repo.preload(:area)
+    scene_b = Repo.insert!(%Scene{name: "All Auto", area_id: area.id}) |> Repo.preload(:area)
 
     assert [
-             %RoomSceneOption{label: label_a, scene: %Scene{id: scene_id_a}},
-             %RoomSceneOption{label: label_b, scene: %Scene{id: scene_id_b}}
-           ] = Messages.room_scene_options([scene_a, scene_b])
+             %AreaSceneOption{label: label_a, scene: %Scene{id: scene_id_a}},
+             %AreaSceneOption{label: label_b, scene: %Scene{id: scene_id_b}}
+           ] = Messages.area_scene_options([scene_a, scene_b])
 
     assert label_a == "All Auto (##{scene_a.id})"
     assert label_b == "All Auto (##{scene_b.id})"
@@ -185,7 +186,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
   end
 
   test "switch discovery payload uses stable IDs and switch topics" do
-    room = Repo.insert!(%Room{name: "Kitchen"})
+    area = Repo.insert!(%Area{name: "Kitchen"})
 
     light =
       Repo.insert!(%Light{
@@ -195,10 +196,10 @@ defmodule Hueworks.HomeAssistant.ExportTest do
         source_id: "17",
         bridge_id:
           insert_bridge!(%{name: "Hue", type: :hue, host: "hue.local", credentials: %{}}).id,
-        room_id: room.id,
+        area_id: area.id,
         ha_export_mode: :switch
       })
-      |> Repo.preload(:room)
+      |> Repo.preload(:area)
 
     payload = Export.switch_discovery_payload(:light, light)
 
@@ -210,7 +211,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
   end
 
   test "json light discovery payload includes brightness and temp/color capabilities" do
-    room = Repo.insert!(%Room{name: "Kitchen"})
+    area = Repo.insert!(%Area{name: "Kitchen"})
 
     group =
       Repo.insert!(%Group{
@@ -220,14 +221,14 @@ defmodule Hueworks.HomeAssistant.ExportTest do
         source_id: "light.kitchen_pendants",
         bridge_id:
           insert_bridge!(%{name: "HA", type: :ha, host: "ha.local", credentials: %{}}).id,
-        room_id: room.id,
+        area_id: area.id,
         ha_export_mode: :light,
         supports_temp: true,
         supports_color: true,
         actual_min_kelvin: 2000,
         actual_max_kelvin: 6500
       })
-      |> Repo.preload(:room)
+      |> Repo.preload(:area)
 
     payload = Export.light_discovery_payload(:group, group)
 
@@ -241,16 +242,16 @@ defmodule Hueworks.HomeAssistant.ExportTest do
     assert payload["transition"] == false
   end
 
-  test "presence input discovery payload exposes a writable room switch" do
-    room = Repo.insert!(%Room{name: "Office"})
+  test "presence input discovery payload exposes a writable area switch" do
+    area = Repo.insert!(%Area{name: "Office"})
 
     input =
       Repo.insert!(%PresenceInput{
-        room_id: room.id,
+        area_id: area.id,
         name: "Desk Presence",
         occupied: true
       })
-      |> Repo.preload(:room)
+      |> Repo.preload(:area)
 
     payload = Export.presence_input_discovery_payload(input)
 
@@ -263,7 +264,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
     assert payload["json_attributes_topic"] ==
              "hueworks/ha_export/presence_inputs/#{input.id}/attributes"
 
-    assert payload["device"]["identifiers"] == [room.ha_device_identifier]
+    assert payload["device"]["identifiers"] == [area.ha_device_identifier]
     assert payload["device"]["name"] == "HueWorks Office"
     assert payload["device"]["model"] == "Presence Inputs"
   end
@@ -271,14 +272,14 @@ defmodule Hueworks.HomeAssistant.ExportTest do
   test "publishes retained discovery and attributes payloads when connected" do
     put_export_settings(%{
       ha_export_scenes_enabled: true,
-      ha_export_room_selects_enabled: true,
+      ha_export_area_selects_enabled: true,
       ha_export_mqtt_host: "mqtt.local",
       ha_export_mqtt_port: 1883,
       ha_export_discovery_prefix: "homeassistant"
     })
 
-    room = Repo.insert!(%Room{name: "Main Floor"})
-    scene = Repo.insert!(%Scene{name: "All Auto", room_id: room.id})
+    area = Repo.insert!(%Area{name: "Main Floor"})
+    scene = Repo.insert!(%Scene{name: "All Auto", area_id: area.id})
 
     Export.reload()
     _ = :sys.get_state(Export)
@@ -305,17 +306,17 @@ defmodule Hueworks.HomeAssistant.ExportTest do
     assert attrs["hueworks_scene_id"] == scene.id
 
     {_client_id, _topic, select_payload} =
-      assert_publish("homeassistant/select/hueworks_room_scene_select_#{room.id}/config")
+      assert_publish("homeassistant/select/#{area.ha_scene_select_identifier}/config")
 
     select = Jason.decode!(select_payload)
     assert select["name"] == "Scene"
     assert select["options"] == ["Manual", "All Auto"]
 
     {_client_id, _topic, _attrs_payload} =
-      assert_publish("hueworks/ha_export/rooms/#{room.id}/scene/attributes")
+      assert_publish("hueworks/ha_export/areas/#{area.id}/scene/attributes")
 
     {_client_id, _topic, select_state} =
-      assert_publish("hueworks/ha_export/rooms/#{room.id}/scene/state")
+      assert_publish("hueworks/ha_export/areas/#{area.id}/scene/state")
 
     assert select_state == "Manual"
   end
@@ -328,11 +329,11 @@ defmodule Hueworks.HomeAssistant.ExportTest do
       ha_export_discovery_prefix: "homeassistant"
     })
 
-    room = Repo.insert!(%Room{name: "Office"})
+    area = Repo.insert!(%Area{name: "Office"})
 
     input =
       Repo.insert!(%PresenceInput{
-        room_id: room.id,
+        area_id: area.id,
         name: "Desk Presence",
         occupied: false
       })
@@ -358,7 +359,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
     assert attrs["hueworks_managed"] == true
     assert attrs["hueworks_entity_kind"] == "presence_input"
     assert attrs["hueworks_presence_input_id"] == input.id
-    assert attrs["hueworks_room_id"] == room.id
+    assert attrs["hueworks_area_id"] == area.id
 
     {_client_id, _state_topic, state_payload} =
       assert_publish("hueworks/ha_export/presence_inputs/#{input.id}/switch/state")
@@ -372,8 +373,8 @@ defmodule Hueworks.HomeAssistant.ExportTest do
       ha_export_mqtt_host: "mqtt.local"
     })
 
-    room = Repo.insert!(%Room{name: "Kitchen"})
-    scene = Repo.insert!(%Scene{name: "Cooking", room_id: room.id, metadata: %{}})
+    area = Repo.insert!(%Area{name: "Kitchen"})
+    scene = Repo.insert!(%Scene{name: "Cooking", area_id: area.id, metadata: %{}})
 
     Export.reload()
     _ = :sys.get_state(Export)
@@ -386,7 +387,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
 
     _ = :sys.get_state(Export)
 
-    assert %Hueworks.Schemas.ActiveScene{scene_id: scene_id} = ActiveScenes.get_for_room(room.id)
+    assert %Hueworks.Schemas.ActiveScene{scene_id: scene_id} = ActiveScenes.get_for_area(area.id)
     assert scene_id == scene.id
   end
 
@@ -396,8 +397,8 @@ defmodule Hueworks.HomeAssistant.ExportTest do
       ha_export_mqtt_host: "mqtt.local"
     })
 
-    room = Repo.insert!(%Room{name: "Kitchen"})
-    scene = Repo.insert!(%Scene{name: "Cooking", room_id: room.id, metadata: %{}})
+    area = Repo.insert!(%Area{name: "Kitchen"})
+    scene = Repo.insert!(%Scene{name: "Cooking", area_id: area.id, metadata: %{}})
 
     Export.reload()
     _ = :sys.get_state(Export)
@@ -412,7 +413,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
 
     assert %Hueworks.Schemas.ActiveScene{scene_id: scene_id} =
              active =
-             ActiveScenes.get_for_room(room.id)
+             ActiveScenes.get_for_area(area.id)
 
     assert scene_id == scene.id
 
@@ -426,9 +427,9 @@ defmodule Hueworks.HomeAssistant.ExportTest do
       ha_export_mqtt_host: "mqtt.local"
     })
 
-    room = Repo.insert!(%Room{name: "Kitchen"})
-    current = Repo.insert!(%Scene{name: "Current", room_id: room.id, metadata: %{}})
-    requested = Repo.insert!(%Scene{name: "Requested", room_id: room.id, metadata: %{}})
+    area = Repo.insert!(%Area{name: "Kitchen"})
+    current = Repo.insert!(%Scene{name: "Current", area_id: area.id, metadata: %{}})
+    requested = Repo.insert!(%Scene{name: "Requested", area_id: area.id, metadata: %{}})
     {:ok, _} = ActiveScenes.set_active(current)
 
     Export.reload()
@@ -442,18 +443,18 @@ defmodule Hueworks.HomeAssistant.ExportTest do
 
     _ = :sys.get_state(Export)
 
-    assert ActiveScenes.get_for_room(room.id).scene_id == current.id
+    assert ActiveScenes.get_for_area(area.id).scene_id == current.id
   end
 
-  test "room select command activates the matching HueWorks scene" do
+  test "area select command activates the matching HueWorks scene" do
     put_export_settings(%{
-      ha_export_room_selects_enabled: true,
+      ha_export_area_selects_enabled: true,
       ha_export_mqtt_host: "mqtt.local"
     })
 
-    room = Repo.insert!(%Room{name: "Main Floor"})
-    morning = Repo.insert!(%Scene{name: "Morning", room_id: room.id})
-    evening = Repo.insert!(%Scene{name: "Evening", room_id: room.id})
+    area = Repo.insert!(%Area{name: "Main Floor"})
+    morning = Repo.insert!(%Scene{name: "Morning", area_id: area.id})
+    evening = Repo.insert!(%Scene{name: "Evening", area_id: area.id})
 
     Export.reload()
     _ = :sys.get_state(Export)
@@ -461,24 +462,24 @@ defmodule Hueworks.HomeAssistant.ExportTest do
     send(
       Export,
       {:mqtt_message,
-       ["hueworks", "ha_export", "rooms", Integer.to_string(room.id), "scene", "set"], "Evening"}
+       ["hueworks", "ha_export", "areas", Integer.to_string(area.id), "scene", "set"], "Evening"}
     )
 
     _ = :sys.get_state(Export)
 
-    assert %Hueworks.Schemas.ActiveScene{scene_id: scene_id} = ActiveScenes.get_for_room(room.id)
+    assert %Hueworks.Schemas.ActiveScene{scene_id: scene_id} = ActiveScenes.get_for_area(area.id)
     assert scene_id == evening.id
     refute scene_id == morning.id
   end
 
-  test "JSON room select command applies a one-shot activation transition" do
+  test "JSON area select command applies a one-shot activation transition" do
     put_export_settings(%{
-      ha_export_room_selects_enabled: true,
+      ha_export_area_selects_enabled: true,
       ha_export_mqtt_host: "mqtt.local"
     })
 
-    room = Repo.insert!(%Room{name: "Main Floor"})
-    evening = Repo.insert!(%Scene{name: "Evening", room_id: room.id})
+    area = Repo.insert!(%Area{name: "Main Floor"})
+    evening = Repo.insert!(%Scene{name: "Evening", area_id: area.id})
 
     Export.reload()
     _ = :sys.get_state(Export)
@@ -486,7 +487,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
     send(
       Export,
       {:mqtt_message,
-       ["hueworks", "ha_export", "rooms", Integer.to_string(room.id), "scene", "set"],
+       ["hueworks", "ha_export", "areas", Integer.to_string(area.id), "scene", "set"],
        ~s({"option":"Evening","transition_ms":45000})}
     )
 
@@ -494,7 +495,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
 
     assert %Hueworks.Schemas.ActiveScene{scene_id: scene_id} =
              active =
-             ActiveScenes.get_for_room(room.id)
+             ActiveScenes.get_for_area(area.id)
 
     assert scene_id == evening.id
 
@@ -502,14 +503,14 @@ defmodule Hueworks.HomeAssistant.ExportTest do
              45_000
   end
 
-  test "plain room select labels that resemble JSON remain backward-compatible" do
+  test "plain area select labels that resemble JSON remain backward-compatible" do
     put_export_settings(%{
-      ha_export_room_selects_enabled: true,
+      ha_export_area_selects_enabled: true,
       ha_export_mqtt_host: "mqtt.local"
     })
 
-    room = Repo.insert!(%Room{name: "Main Floor"})
-    scene = Repo.insert!(%Scene{name: "2026", room_id: room.id})
+    area = Repo.insert!(%Area{name: "Main Floor"})
+    scene = Repo.insert!(%Scene{name: "2026", area_id: area.id})
 
     Export.reload()
     _ = :sys.get_state(Export)
@@ -517,22 +518,22 @@ defmodule Hueworks.HomeAssistant.ExportTest do
     send(
       Export,
       {:mqtt_message,
-       ["hueworks", "ha_export", "rooms", Integer.to_string(room.id), "scene", "set"], "2026"}
+       ["hueworks", "ha_export", "areas", Integer.to_string(area.id), "scene", "set"], "2026"}
     )
 
     _ = :sys.get_state(Export)
 
-    assert ActiveScenes.get_for_room(room.id).scene_id == scene.id
+    assert ActiveScenes.get_for_area(area.id).scene_id == scene.id
   end
 
-  test "unknown JSON room select options are logged without changing the active scene" do
+  test "unknown JSON area select options are logged without changing the active scene" do
     put_export_settings(%{
-      ha_export_room_selects_enabled: true,
+      ha_export_area_selects_enabled: true,
       ha_export_mqtt_host: "mqtt.local"
     })
 
-    room = Repo.insert!(%Room{name: "Main Floor"})
-    current = Repo.insert!(%Scene{name: "Current", room_id: room.id})
+    area = Repo.insert!(%Area{name: "Main Floor"})
+    current = Repo.insert!(%Scene{name: "Current", area_id: area.id})
     {:ok, _} = ActiveScenes.set_active(current)
 
     Export.reload()
@@ -543,26 +544,26 @@ defmodule Hueworks.HomeAssistant.ExportTest do
         send(
           Export,
           {:mqtt_message,
-           ["hueworks", "ha_export", "rooms", Integer.to_string(room.id), "scene", "set"],
+           ["hueworks", "ha_export", "areas", Integer.to_string(area.id), "scene", "set"],
            ~s({"option":"Missing","transition_ms":30000})}
         )
 
         _ = :sys.get_state(Export)
       end)
 
-    assert log =~ "HA export room select command ignored"
+    assert log =~ "HA export area select command ignored"
     assert log =~ "unknown option"
-    assert ActiveScenes.get_for_room(room.id).scene_id == current.id
+    assert ActiveScenes.get_for_area(area.id).scene_id == current.id
   end
 
-  test "room select command can clear the active scene with Manual" do
+  test "area select command can clear the active scene with Manual" do
     put_export_settings(%{
-      ha_export_room_selects_enabled: true,
+      ha_export_area_selects_enabled: true,
       ha_export_mqtt_host: "mqtt.local"
     })
 
-    room = Repo.insert!(%Room{name: "Main Floor"})
-    scene = Repo.insert!(%Scene{name: "Evening", room_id: room.id})
+    area = Repo.insert!(%Area{name: "Main Floor"})
+    scene = Repo.insert!(%Scene{name: "Evening", area_id: area.id})
     {:ok, _} = ActiveScenes.set_active(scene)
 
     Export.reload()
@@ -571,24 +572,24 @@ defmodule Hueworks.HomeAssistant.ExportTest do
     send(
       Export,
       {:mqtt_message,
-       ["hueworks", "ha_export", "rooms", Integer.to_string(room.id), "scene", "set"], "Manual"}
+       ["hueworks", "ha_export", "areas", Integer.to_string(area.id), "scene", "set"], "Manual"}
     )
 
     _ = :sys.get_state(Export)
 
-    assert ActiveScenes.get_for_room(room.id) == nil
+    assert ActiveScenes.get_for_area(area.id) == nil
   end
 
-  test "active scene updates republish the room select state" do
+  test "active scene updates republish the area select state" do
     put_export_settings(%{
-      ha_export_room_selects_enabled: true,
+      ha_export_area_selects_enabled: true,
       ha_export_mqtt_host: "mqtt.local",
       ha_export_mqtt_port: 1883,
       ha_export_discovery_prefix: "homeassistant"
     })
 
-    room = Repo.insert!(%Room{name: "Main Floor"})
-    scene = Repo.insert!(%Scene{name: "All Auto", room_id: room.id})
+    area = Repo.insert!(%Area{name: "Main Floor"})
+    scene = Repo.insert!(%Scene{name: "All Auto", area_id: area.id})
 
     Export.reload()
     _ = :sys.get_state(Export)
@@ -600,21 +601,21 @@ defmodule Hueworks.HomeAssistant.ExportTest do
     _ = ActiveScenes.set_active(scene)
 
     {_client_id, _topic, state_payload} =
-      assert_publish("hueworks/ha_export/rooms/#{room.id}/scene/state")
+      assert_publish("hueworks/ha_export/areas/#{area.id}/scene/state")
 
     assert state_payload == "All Auto"
   end
 
-  test "scene CRUD domain events refresh exported scene and room topics" do
+  test "scene CRUD domain events refresh exported scene and area topics" do
     put_export_settings(%{
       ha_export_scenes_enabled: true,
-      ha_export_room_selects_enabled: true,
+      ha_export_area_selects_enabled: true,
       ha_export_mqtt_host: "mqtt.local",
       ha_export_mqtt_port: 1883,
       ha_export_discovery_prefix: "homeassistant"
     })
 
-    room = Repo.insert!(%Room{name: "Main Floor"})
+    area = Repo.insert!(%Area{name: "Main Floor"})
 
     Export.reload()
     _ = :sys.get_state(Export)
@@ -622,7 +623,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
     _ = :sys.get_state(Export)
     drain_published_messages()
 
-    assert {:ok, scene} = Scenes.create_scene(%{name: "Dinner", room_id: room.id})
+    assert {:ok, scene} = Scenes.create_scene(%{name: "Dinner", area_id: area.id})
     _ = :sys.get_state(Export)
 
     {_client_id, _topic, scene_payload} =
@@ -631,7 +632,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
     assert Jason.decode!(scene_payload)["name"] == "Dinner"
 
     {_client_id, _topic, select_payload} =
-      assert_publish("homeassistant/select/hueworks_room_scene_select_#{room.id}/config")
+      assert_publish("homeassistant/select/#{area.ha_scene_select_identifier}/config")
 
     assert Jason.decode!(select_payload)["options"] == ["Manual", "Dinner"]
 
@@ -646,9 +647,40 @@ defmodule Hueworks.HomeAssistant.ExportTest do
     assert tombstone_payload == ""
 
     {_client_id, _topic, refreshed_select_payload} =
-      assert_publish("homeassistant/select/hueworks_room_scene_select_#{room.id}/config")
+      assert_publish("homeassistant/select/#{area.ha_scene_select_identifier}/config")
 
     assert refreshed_select_payload == ""
+  end
+
+  test "deleting an area tombstones its persisted discovery topic" do
+    put_export_settings(%{
+      ha_export_area_selects_enabled: true,
+      ha_export_mqtt_host: "mqtt.local",
+      ha_export_discovery_prefix: "homeassistant"
+    })
+
+    area =
+      Repo.insert!(%Area{
+        name: "Legacy Identity",
+        ha_device_identifier: "hueworks_room_44",
+        ha_scene_select_identifier: "hueworks_room_scene_select_44"
+      })
+
+    _scene = Repo.insert!(%Scene{name: "All Auto", area_id: area.id})
+
+    Export.reload()
+    _ = :sys.get_state(Export)
+    send(Export, {:mqtt_connected, Export.client_id()})
+    _ = :sys.get_state(Export)
+    drain_published_messages()
+
+    assert {:ok, _deleted} = Areas.delete_area(area)
+    _ = :sys.get_state(Export)
+
+    {_client_id, _topic, payload} =
+      assert_publish("homeassistant/select/hueworks_room_scene_select_44/config")
+
+    assert payload == ""
   end
 
   test "publishes exported lights and groups when connected" do
@@ -658,7 +690,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
       ha_export_discovery_prefix: "homeassistant"
     })
 
-    room = Repo.insert!(%Room{name: "Kitchen"})
+    area = Repo.insert!(%Area{name: "Kitchen"})
     bridge = insert_bridge!(%{name: "Hue", type: :hue, host: "hue.local", credentials: %{}})
 
     light =
@@ -667,7 +699,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
         source: :hue,
         source_id: "1",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         ha_export_mode: :switch
       })
 
@@ -677,7 +709,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
         source: :hue,
         source_id: "2",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         ha_export_mode: :light,
         supports_temp: true,
         actual_min_kelvin: 2200,
@@ -702,7 +734,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
       ha_export_mqtt_host: "mqtt.local"
     })
 
-    room = Repo.insert!(%Room{name: "Kitchen"})
+    area = Repo.insert!(%Area{name: "Kitchen"})
     bridge = insert_bridge!(%{name: "Hue", type: :hue, host: "hue.local", credentials: %{}})
 
     light =
@@ -711,7 +743,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
         source: :hue,
         source_id: "1",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         ha_export_mode: :switch
       })
 
@@ -736,8 +768,8 @@ defmodule Hueworks.HomeAssistant.ExportTest do
       ha_export_discovery_prefix: "homeassistant"
     })
 
-    room = Repo.insert!(%Room{name: "Office"})
-    input = Repo.insert!(%PresenceInput{room_id: room.id, name: "Desk Presence", occupied: false})
+    area = Repo.insert!(%Area{name: "Office"})
+    input = Repo.insert!(%PresenceInput{area_id: area.id, name: "Desk Presence", occupied: false})
 
     Export.reload()
     _ = :sys.get_state(Export)
@@ -773,7 +805,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
       ha_export_mqtt_host: "mqtt.local"
     })
 
-    room = Repo.insert!(%Room{name: "Kitchen"})
+    area = Repo.insert!(%Area{name: "Kitchen"})
     bridge = insert_bridge!(%{name: "HA", type: :ha, host: "ha.local", credentials: %{}})
 
     light_a =
@@ -782,7 +814,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
         source: :ha,
         source_id: "light.pendant_a",
         bridge_id: bridge.id,
-        room_id: room.id
+        area_id: area.id
       })
 
     light_b =
@@ -791,7 +823,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
         source: :ha,
         source_id: "light.pendant_b",
         bridge_id: bridge.id,
-        room_id: room.id
+        area_id: area.id
       })
 
     group =
@@ -800,7 +832,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
         source: :ha,
         source_id: "light.pendants",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         ha_export_mode: :light,
         supports_temp: true
       })
@@ -831,7 +863,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
       ha_export_discovery_prefix: "homeassistant"
     })
 
-    room = Repo.insert!(%Room{name: "Kitchen"})
+    area = Repo.insert!(%Area{name: "Kitchen"})
     bridge = insert_bridge!(%{name: "Hue", type: :hue, host: "hue.local", credentials: %{}})
 
     light =
@@ -840,7 +872,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
         source: :hue,
         source_id: "1",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         ha_export_mode: :light,
         supports_temp: true
       })
@@ -870,7 +902,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
       ha_export_discovery_prefix: "homeassistant"
     })
 
-    room = Repo.insert!(%Room{name: "Kitchen"})
+    area = Repo.insert!(%Area{name: "Kitchen"})
     bridge = insert_bridge!(%{name: "Hue", type: :hue, host: "hue.local", credentials: %{}})
 
     light =
@@ -879,7 +911,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
         source: :hue,
         source_id: "2",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         ha_export_mode: :light,
         supports_color: true,
         supports_temp: true
@@ -905,7 +937,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
   end
 
   test "exported group light state payload prefers current member aggregate over stale group state" do
-    room = Repo.insert!(%Room{name: "Office"})
+    area = Repo.insert!(%Area{name: "Office"})
     bridge = insert_bridge!(%{name: "Hue", type: :hue, host: "hue.local", credentials: %{}})
 
     light_a =
@@ -914,7 +946,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
         source: :hue,
         source_id: "1",
         bridge_id: bridge.id,
-        room_id: room.id
+        area_id: area.id
       })
 
     light_b =
@@ -923,7 +955,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
         source: :hue,
         source_id: "2",
         bridge_id: bridge.id,
-        room_id: room.id
+        area_id: area.id
       })
 
     group =
@@ -932,7 +964,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
         source: :hue,
         source_id: "3",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         ha_export_mode: :light,
         supports_temp: true
       })
@@ -946,7 +978,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
 
     payload =
       :group
-      |> Messages.light_state_payload(Repo.preload(group, [:room, :lights]))
+      |> Messages.light_state_payload(Repo.preload(group, [:area, :lights]))
 
     assert payload["state"] == "ON"
     assert payload["brightness"] == 100
@@ -960,7 +992,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
       ha_export_discovery_prefix: "homeassistant"
     })
 
-    room = Repo.insert!(%Room{name: "Office"})
+    area = Repo.insert!(%Area{name: "Office"})
     bridge = insert_bridge!(%{name: "Hue", type: :hue, host: "hue.local", credentials: %{}})
 
     light =
@@ -969,7 +1001,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
         source: :hue,
         source_id: "1",
         bridge_id: bridge.id,
-        room_id: room.id
+        area_id: area.id
       })
 
     group =
@@ -978,7 +1010,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
         source: :hue,
         source_id: "3",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         ha_export_mode: :light,
         supports_temp: true
       })
@@ -1003,15 +1035,15 @@ defmodule Hueworks.HomeAssistant.ExportTest do
     assert decoded["color_temp"] == 4000
   end
 
-  test "moving a group room republishes moved exported subgroups and lights" do
+  test "moving a group area republishes moved exported subgroups and lights" do
     put_export_settings(%{
       ha_export_lights_enabled: true,
       ha_export_mqtt_host: "mqtt.local",
       ha_export_discovery_prefix: "homeassistant"
     })
 
-    old_room = Repo.insert!(%Room{name: "Old Room"})
-    new_room = Repo.insert!(%Room{name: "New Room"})
+    old_area = Repo.insert!(%Area{name: "Old Area"})
+    new_area = Repo.insert!(%Area{name: "New Area"})
     bridge = insert_bridge!(%{name: "Hue", type: :hue, host: "hue.local", credentials: %{}})
 
     light_a =
@@ -1020,7 +1052,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
         source: :hue,
         source_id: "1",
         bridge_id: bridge.id,
-        room_id: old_room.id,
+        area_id: old_area.id,
         ha_export_mode: :switch
       })
 
@@ -1030,7 +1062,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
         source: :hue,
         source_id: "2",
         bridge_id: bridge.id,
-        room_id: old_room.id,
+        area_id: old_area.id,
         ha_export_mode: :switch
       })
 
@@ -1040,7 +1072,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
         source: :hue,
         source_id: "parent",
         bridge_id: bridge.id,
-        room_id: old_room.id,
+        area_id: old_area.id,
         ha_export_mode: :switch
       })
 
@@ -1050,7 +1082,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
         source: :hue,
         source_id: "child",
         bridge_id: bridge.id,
-        room_id: old_room.id,
+        area_id: old_area.id,
         ha_export_mode: :switch
       })
 
@@ -1064,12 +1096,12 @@ defmodule Hueworks.HomeAssistant.ExportTest do
     _ = :sys.get_state(Export)
     drain_published_messages()
 
-    assert {:ok, _updated} = Groups.update_display_name(parent_group, %{room_id: new_room.id})
+    assert {:ok, _updated} = Groups.update_display_name(parent_group, %{area_id: new_area.id})
 
-    assert_entity_room(:group, parent_group.id, new_room)
-    assert_entity_room(:group, child_group.id, new_room)
-    assert_entity_room(:light, light_a.id, new_room)
-    assert_entity_room(:light, light_b.id, new_room)
+    assert_entity_area(:group, parent_group.id, new_area)
+    assert_entity_area(:group, child_group.id, new_area)
+    assert_entity_area(:light, light_a.id, new_area)
+    assert_entity_area(:light, light_b.id, new_area)
   end
 
   test "json light color command republishes optimistic xy state immediately" do
@@ -1079,7 +1111,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
       ha_export_discovery_prefix: "homeassistant"
     })
 
-    room = Repo.insert!(%Room{name: "Kitchen"})
+    area = Repo.insert!(%Area{name: "Kitchen"})
     bridge = insert_bridge!(%{name: "Hue", type: :hue, host: "hue.local", credentials: %{}})
 
     light =
@@ -1088,7 +1120,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
         source: :hue,
         source_id: "1",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         ha_export_mode: :light,
         supports_color: true,
         supports_temp: true
@@ -1123,13 +1155,13 @@ defmodule Hueworks.HomeAssistant.ExportTest do
   test "disabling scene export unpublishes only scene entities" do
     put_export_settings(%{
       ha_export_scenes_enabled: true,
-      ha_export_room_selects_enabled: true,
+      ha_export_area_selects_enabled: true,
       ha_export_mqtt_host: "mqtt.local",
       ha_export_discovery_prefix: "homeassistant"
     })
 
-    room = Repo.insert!(%Room{name: "Main Floor"})
-    scene = Repo.insert!(%Scene{name: "All Auto", room_id: room.id})
+    area = Repo.insert!(%Area{name: "Main Floor"})
+    scene = Repo.insert!(%Scene{name: "All Auto", area_id: area.id})
 
     Export.reload()
     _ = :sys.get_state(Export)
@@ -1140,7 +1172,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
 
     put_export_settings(%{
       ha_export_scenes_enabled: false,
-      ha_export_room_selects_enabled: true,
+      ha_export_area_selects_enabled: true,
       ha_export_mqtt_host: "mqtt.local",
       ha_export_discovery_prefix: "homeassistant"
     })
@@ -1158,21 +1190,21 @@ defmodule Hueworks.HomeAssistant.ExportTest do
 
     assert attributes_payload == ""
 
-    room_select_topic = "homeassistant/select/hueworks_room_scene_select_#{room.id}/config"
+    area_select_topic = "homeassistant/select/#{area.ha_scene_select_identifier}/config"
 
-    refute_received {:published, _, ^room_select_topic, "", _}
+    refute_received {:published, _, ^area_select_topic, "", _}
   end
 
-  test "disabling room select export unpublishes only room select entities" do
+  test "disabling area select export unpublishes only area select entities" do
     put_export_settings(%{
       ha_export_scenes_enabled: true,
-      ha_export_room_selects_enabled: true,
+      ha_export_area_selects_enabled: true,
       ha_export_mqtt_host: "mqtt.local",
       ha_export_discovery_prefix: "homeassistant"
     })
 
-    room = Repo.insert!(%Room{name: "Main Floor"})
-    _scene = Repo.insert!(%Scene{name: "All Auto", room_id: room.id})
+    area = Repo.insert!(%Area{name: "Main Floor"})
+    _scene = Repo.insert!(%Scene{name: "All Auto", area_id: area.id})
 
     Export.reload()
     _ = :sys.get_state(Export)
@@ -1183,7 +1215,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
 
     put_export_settings(%{
       ha_export_scenes_enabled: true,
-      ha_export_room_selects_enabled: false,
+      ha_export_area_selects_enabled: false,
       ha_export_mqtt_host: "mqtt.local",
       ha_export_discovery_prefix: "homeassistant"
     })
@@ -1192,17 +1224,17 @@ defmodule Hueworks.HomeAssistant.ExportTest do
     _ = :sys.get_state(Export)
 
     {_client_id, _topic, discovery_payload} =
-      assert_publish("homeassistant/select/hueworks_room_scene_select_#{room.id}/config")
+      assert_publish("homeassistant/select/#{area.ha_scene_select_identifier}/config")
 
     assert discovery_payload == ""
 
     {_client_id, _topic, attributes_payload} =
-      assert_publish("hueworks/ha_export/rooms/#{room.id}/scene/attributes")
+      assert_publish("hueworks/ha_export/areas/#{area.id}/scene/attributes")
 
     assert attributes_payload == ""
 
     {_client_id, _topic, state_payload} =
-      assert_publish("hueworks/ha_export/rooms/#{room.id}/scene/state")
+      assert_publish("hueworks/ha_export/areas/#{area.id}/scene/state")
 
     assert state_payload == "Manual"
   end
@@ -1214,7 +1246,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
       ha_export_discovery_prefix: "homeassistant"
     })
 
-    room = Repo.insert!(%Room{name: "Kitchen"})
+    area = Repo.insert!(%Area{name: "Kitchen"})
     bridge = insert_bridge!(%{name: "Hue", type: :hue, host: "hue.local", credentials: %{}})
 
     light =
@@ -1223,7 +1255,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
         source: :hue,
         source_id: "1",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         ha_export_mode: :switch
       })
 
@@ -1233,7 +1265,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
         source: :hue,
         source_id: "2",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         ha_export_mode: :light
       })
 
@@ -1270,8 +1302,8 @@ defmodule Hueworks.HomeAssistant.ExportTest do
       ha_export_discovery_prefix: "homeassistant"
     })
 
-    room = Repo.insert!(%Room{name: "Office"})
-    input = Repo.insert!(%PresenceInput{room_id: room.id, name: "Desk Presence", occupied: true})
+    area = Repo.insert!(%Area{name: "Office"})
+    input = Repo.insert!(%PresenceInput{area_id: area.id, name: "Desk Presence", occupied: true})
 
     Export.reload()
     _ = :sys.get_state(Export)
@@ -1305,11 +1337,11 @@ defmodule Hueworks.HomeAssistant.ExportTest do
     assert Export.command_scene_id("hueworks/ha_export/other/42/set") == nil
   end
 
-  test "command_room_id parses room ids from room select topics" do
-    assert Export.command_room_id("hueworks/ha_export/rooms/42/scene/set") == 42
-    assert Export.command_room_id(["hueworks", "ha_export", "rooms", "42", "scene", "set"]) == 42
-    assert Export.command_room_id("hueworks/ha_export/rooms/not-a-number/scene/set") == nil
-    assert Export.command_room_id("hueworks/ha_export/scenes/42/set") == nil
+  test "command_area_id parses area ids from area select topics" do
+    assert Export.command_area_id("hueworks/ha_export/areas/42/scene/set") == 42
+    assert Export.command_area_id(["hueworks", "ha_export", "areas", "42", "scene", "set"]) == 42
+    assert Export.command_area_id("hueworks/ha_export/areas/not-a-number/scene/set") == nil
+    assert Export.command_area_id("hueworks/ha_export/scenes/42/set") == nil
   end
 
   defp put_export_settings(attrs) do
@@ -1321,7 +1353,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
             longitude: -74.006,
             timezone: "America/New_York",
             ha_export_scenes_enabled: false,
-            ha_export_room_selects_enabled: false,
+            ha_export_area_selects_enabled: false,
             ha_export_lights_enabled: false,
             ha_export_discovery_prefix: "homeassistant"
           },
@@ -1360,18 +1392,18 @@ defmodule Hueworks.HomeAssistant.ExportTest do
     end
   end
 
-  defp assert_entity_room(kind, id, %Room{} = room) when kind in [:light, :group] do
+  defp assert_entity_area(kind, id, %Area{} = area) when kind in [:light, :group] do
     topic = "hueworks/ha_export/#{kind}s/#{id}/attributes"
 
     {_client_id, _topic, payload} =
       assert_publish(topic, fn payload ->
         attributes = Jason.decode!(payload)
-        attributes["hueworks_room_id"] == room.id and attributes["room_name"] == room.name
+        attributes["hueworks_area_id"] == area.id and attributes["area_name"] == area.name
       end)
 
     attributes = Jason.decode!(payload)
-    assert attributes["hueworks_room_id"] == room.id
-    assert attributes["room_name"] == room.name
+    assert attributes["hueworks_area_id"] == area.id
+    assert attributes["area_name"] == area.name
   end
 
   defmodule TortoiseStub do

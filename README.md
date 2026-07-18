@@ -2,18 +2,18 @@
 
 HueWorks is a local-first smart home lighting controller for homes that span multiple lighting systems and bridge types.
 
-It imports devices from Hue, Caseta, Home Assistant, and Zigbee2MQTT, links them into a canonical model, and gives you one place to manage lights, rooms, scenes, circadian light states, and Pico button bindings.
+It imports devices from Hue, Caseta, Home Assistant, and Zigbee2MQTT, links them into a canonical model, and gives you one place to manage lights, areas, scenes, circadian light states, and Pico button bindings.
 
 ## What HueWorks Does
 
 - Imports and reimports bridge data with a review/apply workflow
-- Tracks canonical lights, groups, rooms, scenes, and active scenes in SQLite
+- Tracks canonical lights, groups, areas, scenes, and active scenes in SQLite
 - Maintains in-memory physical state and desired state for live control
 - Applies scenes through a queued executor so changes can be planned and dispatched consistently per bridge
 - Exports HueWorks scenes and optional entities back into Home Assistant over MQTT
-- Provides room-scoped Presence Inputs that Home Assistant can write over MQTT as simple occupied/unoccupied booleans
+- Provides area-scoped Presence Inputs that Home Assistant can write over MQTT as simple occupied/unoccupied booleans
 - Lets scene components follow Presence Inputs for per-light or nested-group power policy decisions
-- Lets you configure Caseta Picos with room-scoped control groups and scene bindings
+- Lets you configure Caseta Picos with area-scoped control groups and scene bindings
 
 ## Supported Integrations
 
@@ -45,12 +45,12 @@ It imports devices from Hue, Caseta, Home Assistant, and Zigbee2MQTT, links them
   - display name edits
   - link management
   - manual overrides
-- `/rooms`
-  - room CRUD
+- `/areas`
+  - area CRUD
   - presence input management
   - scene activation
-- `/rooms/:room_id/scenes/new`
-- `/rooms/:room_id/scenes/:id/edit`
+- `/areas/:area_id/scenes/new`
+- `/areas/:area_id/scenes/:id/edit`
   - scene builder and scene editing
 - `/config/light-states/new/manual`
 - `/config/light-states/new/circadian`
@@ -66,7 +66,7 @@ HueWorks has four main runtime layers:
    - canonical entities stored in SQLite through Ecto
 2. Control runtime
    - physical state and desired state in ETS
-   - planner + executor turn desired room/light state into bridge-specific actions
+   - planner + executor turn desired area/light state into bridge-specific actions
 3. Bridge integration layer
    - import clients, control adapters, and event stream subscriptions per integration
 4. LiveView UI
@@ -82,8 +82,8 @@ After startup, open HueWorks at the configured `PHX_HOST` and port. An empty ins
 
 1. Set location and timezone under General.
 2. Add native bridges before Home Assistant so mirrored HA entities can be recognized as wrappers instead of visible duplicates.
-3. Review and apply each initial import. Bridge rooms can be created, merged into an existing HueWorks room, or skipped.
-4. Review imported rooms and lights.
+3. Review and apply each initial import. Bridge areas can be created, merged into an existing HueWorks area, or skipped.
+4. Review imported areas and lights.
 5. Create and activate a first scene, then use Control for everyday operation.
 
 Hue bridges can be discovered and paired through their physical link button without handling an API key. Home Assistant can be discovered locally but still uses a manually supplied long-lived token until browser OAuth is implemented. Zigbee2MQTT can reuse the configured Home Assistant-export MQTT connection and validates its retained snapshot before saving. Caseta currently requires certificate files; guided physical-button certificate acquisition remains pre-release work.
@@ -193,23 +193,23 @@ manual-control paths as the UI, so a successful write means intent was accepted
 and queued, not that a bridge has already converged.
 
 Every API request requires `Authorization: Bearer <token>`. The available v1
-read endpoints are `GET /api/v1/status`, `/api/v1/rooms`, `/api/v1/rooms/:id`,
+read endpoints are `GET /api/v1/status`, `/api/v1/areas`, `/api/v1/areas/:id`,
 `/api/v1/entities?query=...`, `/api/v1/lights/:id`, `/api/v1/groups/:id`,
 `/api/v1/traces`, and the matching
-`/api/v1/debug/rooms/:id`, `/api/v1/debug/lights/:id`, and
+`/api/v1/debug/areas/:id`, `/api/v1/debug/lights/:id`, and
 `/api/v1/debug/groups/:id` projections. The intentionally
 narrow write endpoints are:
 
 | Endpoint | Operation |
 | --- | --- |
 | `POST /api/v1/scenes/:id/activate` | Activate or reapply one scene. |
-| `DELETE /api/v1/rooms/:id/active-scene` | Explicitly deactivate a room scene. |
+| `DELETE /api/v1/areas/:id/active-scene` | Explicitly deactivate a area scene. |
 | `POST /api/v1/lights/:id/control` | Send exactly one `power`, `brightness`, `kelvin`, or `color` command. |
 | `POST /api/v1/groups/:id/control` | Apply the same explicit command through existing group membership. |
 | `POST /api/v1/runtime/physical-state/refresh` | Start an asynchronous observed-state refresh. |
 
 Manual color input uses `{ "color": { "hue": 0..360, "saturation": 0..100 } }`.
-Brightness, temperature, and color remain unavailable while a room scene is
+Brightness, temperature, and color remain unavailable while a area scene is
 active, just as they are in the browser UI. Configuration, reimport, Pico
 configuration, credentials, and destructive operations are deliberately not
 available through the API.
@@ -305,10 +305,10 @@ HomeKit runtime:
 
 Home Assistant MQTT export:
 
-- Scenes, room scene selectors, lights, groups, and Presence Inputs are published through Home Assistant MQTT discovery when Home Assistant export is enabled.
+- Scenes, area scene selectors, lights, groups, and Presence Inputs are published through Home Assistant MQTT discovery when Home Assistant export is enabled.
 - A scene can use the scene editor's **Activation Transition** setting: `Default` follows the global manual timing, while `Custom` applies an unscaled fade whenever that scene is explicitly activated. The setting does not affect later circadian adjustments or presence changes.
-- For an automation that needs a one-shot scene fade, publish JSON directly to the discovered command topic instead of using Home Assistant's normal scene/select service. Direct-scene example: `{"transition_ms":30000}`. Room-select example: `{"option":"Evening Auto","transition_ms":30000}`. Plain `ON` scene commands and plain room-select options remain supported.
-- Presence Inputs are configured per room on `/rooms` and exported as writable MQTT switches. `ON` means `Occupied`; `OFF` means `Unoccupied`.
+- For an automation that needs a one-shot scene fade, publish JSON directly to the discovered command topic instead of using Home Assistant's normal scene/select service. Direct-scene example: `{"transition_ms":30000}`. Area-select example: `{"option":"Evening Auto","transition_ms":30000}`. Plain `ON` scene commands and plain area-select options remain supported.
+- Presence Inputs are configured per area on `/areas` and exported as writable MQTT switches. `ON` means `Occupied`; `OFF` means `Unoccupied`.
 - Scene components can use `Follow Presence` as a power policy for individual lights or nested groups. The policy resolves to on/off from the selected Presence Input when a scene is applied.
 - Home Assistant owns Presence Input values. Changing one stores and republishes state, then recomputes only the active-scene lights that follow that specific input.
 

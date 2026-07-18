@@ -7,16 +7,16 @@ defmodule Hueworks.Control.Planner do
   alias Hueworks.Control.LightStateSemantics
   alias Hueworks.Control.Planner.Action
   alias Hueworks.Control.Planner.Context
-  alias Hueworks.Control.RoomSnapshot
+  alias Hueworks.Control.AreaSnapshot
   alias Hueworks.Control.Transition
 
   @brightness_tolerance 2
   @temperature_physical_mired_tolerance 1
   @xy_tolerance 0.01
 
-  def plan_room(room_id, diff, opts \\ []) when is_integer(room_id) and is_map(diff) do
-    room_id
-    |> RoomSnapshot.load()
+  def plan_area(area_id, diff, opts \\ []) when is_integer(area_id) and is_map(diff) do
+    area_id
+    |> AreaSnapshot.load()
     |> plan_snapshot(diff, opts)
   end
 
@@ -29,15 +29,15 @@ defmodule Hueworks.Control.Planner do
       Context.actionable_diff_light_ids(context, diff, &desired_differs_from_physical?/2)
 
     log_trace(trace, "planner_input",
-      room_id: context.room_id,
-      room_light_count: length(context.room_lights),
+      area_id: context.area_id,
+      area_light_count: length(context.area_lights),
       diff_light_ids: Enum.sort(diff_light_ids),
       actionable_diff_light_ids: Enum.sort(actionable_diff_light_ids)
     )
 
     log_light_decisions(
       trace,
-      context.room_lights,
+      context.area_lights,
       diff_light_ids,
       context.desired_by_light,
       context.physical_by_light
@@ -51,7 +51,7 @@ defmodule Hueworks.Control.Planner do
       end)
       |> Enum.flat_map(fn {{_key, desired, bridge_id}, ids} ->
         candidate_ids =
-          context.room_lights
+          context.area_lights
           |> Enum.filter(fn light ->
             light.bridge_id == bridge_id and
               desired_key(Context.desired_for_light(context, light.id)) ==
@@ -104,7 +104,7 @@ defmodule Hueworks.Control.Planner do
       |> Enum.map(&Action.attach_revisions(&1, context.desired_revisions_by_light))
 
     log_trace(trace, "planner_output",
-      room_id: context.room_id,
+      area_id: context.area_id,
       actions_total: length(actions),
       group_actions: Enum.count(actions, &(&1.type == :group)),
       light_actions: Enum.count(actions, &(&1.type == :light))
@@ -291,7 +291,7 @@ defmodule Hueworks.Control.Planner do
 
   defp log_light_decisions(
          nil,
-         _room_lights,
+         _area_lights,
          _diff_light_ids,
          _effective_desired_by_light,
          _physical_by_light
@@ -300,14 +300,14 @@ defmodule Hueworks.Control.Planner do
 
   defp log_light_decisions(
          trace,
-         room_lights,
+         area_lights,
          diff_light_ids,
          effective_desired_by_light,
          physical_by_light
        ) do
     diff_light_ids = MapSet.new(diff_light_ids)
 
-    Enum.each(room_lights, fn light ->
+    Enum.each(area_lights, fn light ->
       if MapSet.member?(diff_light_ids, light.id) do
         desired = Map.get(effective_desired_by_light, light.id) || %{}
         physical = Map.get(physical_by_light, light.id, %{})

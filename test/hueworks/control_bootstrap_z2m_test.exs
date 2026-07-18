@@ -4,7 +4,7 @@ defmodule Hueworks.Control.Bootstrap.Z2MTest do
   alias Hueworks.Control.Bootstrap.Z2M
   alias Hueworks.Control.State
   alias Hueworks.Repo
-  alias Hueworks.Schemas.{Group, Light, Room}
+  alias Hueworks.Schemas.{Group, Light, Area}
 
   setup do
     original_tortoise = Application.get_env(:hueworks, :z2m_bootstrap_tortoise_module)
@@ -59,7 +59,7 @@ defmodule Hueworks.Control.Bootstrap.Z2MTest do
   end
 
   test "bootstrap requests current z2m states and seeds control state" do
-    room = Repo.insert!(%Room{name: "Kitchen"})
+    area = Repo.insert!(%Area{name: "Kitchen"})
 
     bridge =
       insert_bridge!(%{
@@ -76,7 +76,7 @@ defmodule Hueworks.Control.Bootstrap.Z2MTest do
         source: :z2m,
         source_id: "kitchen_strip",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6500
@@ -88,7 +88,7 @@ defmodule Hueworks.Control.Bootstrap.Z2MTest do
         source: :z2m,
         source_id: "kitchen_group",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6500,
@@ -113,7 +113,7 @@ defmodule Hueworks.Control.Bootstrap.Z2MTest do
   end
 
   test "bootstrap requests full light state fields for temp-capable z2m entities" do
-    room = Repo.insert!(%Room{name: "Request Fields"})
+    area = Repo.insert!(%Area{name: "Request Fields"})
 
     bridge =
       insert_bridge!(%{
@@ -130,7 +130,7 @@ defmodule Hueworks.Control.Bootstrap.Z2MTest do
         source: :z2m,
         source_id: "field_strip",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6500
@@ -159,7 +159,7 @@ defmodule Hueworks.Control.Bootstrap.Z2MTest do
       __MODULE__.DelayedSubscriptionSupervisorStub
     )
 
-    room = Repo.insert!(%Room{name: "Delayed Kitchen"})
+    area = Repo.insert!(%Area{name: "Delayed Kitchen"})
 
     bridge =
       insert_bridge!(%{
@@ -176,7 +176,7 @@ defmodule Hueworks.Control.Bootstrap.Z2MTest do
         source: :z2m,
         source_id: "delayed_strip",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6500
@@ -211,7 +211,7 @@ defmodule Hueworks.Control.Bootstrap.Z2MTest do
       )
     end)
 
-    room = Repo.insert!(%Room{name: "Bar"})
+    area = Repo.insert!(%Area{name: "Bar"})
 
     bridge =
       insert_bridge!(%{
@@ -228,7 +228,7 @@ defmodule Hueworks.Control.Bootstrap.Z2MTest do
         source: :z2m,
         source_id: "bar_lower_cabinet",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6500
@@ -240,7 +240,7 @@ defmodule Hueworks.Control.Bootstrap.Z2MTest do
         source: :z2m,
         source_id: "bar_upper_cabinet",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6500
@@ -252,7 +252,7 @@ defmodule Hueworks.Control.Bootstrap.Z2MTest do
         source: :z2m,
         source_id: "bar_cabinet_group",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6500,
@@ -284,7 +284,7 @@ defmodule Hueworks.Control.Bootstrap.Z2MTest do
       )
     end)
 
-    room = Repo.insert!(%Room{name: "Mapped Bar"})
+    area = Repo.insert!(%Area{name: "Mapped Bar"})
 
     bridge =
       insert_bridge!(%{
@@ -301,7 +301,7 @@ defmodule Hueworks.Control.Bootstrap.Z2MTest do
         source: :z2m,
         source_id: "mapped_lower_cabinet",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6329,
@@ -316,7 +316,7 @@ defmodule Hueworks.Control.Bootstrap.Z2MTest do
         source: :z2m,
         source_id: "mapped_upper_cabinet",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6329,
@@ -331,7 +331,7 @@ defmodule Hueworks.Control.Bootstrap.Z2MTest do
         source: :z2m,
         source_id: "mapped_cabinet_group",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6329,

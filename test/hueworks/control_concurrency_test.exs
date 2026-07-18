@@ -3,7 +3,7 @@ defmodule Hueworks.ControlConcurrencyTest do
 
   alias Hueworks.Control.{Apply, DesiredState, Executor, State}
   alias Hueworks.Repo
-  alias Hueworks.Schemas.{Group, GroupLight, Light, Room}
+  alias Hueworks.Schemas.{Group, GroupLight, Light, Area}
 
   setup do
     actions_id = {:control_concurrency_actions, self()}
@@ -47,9 +47,9 @@ defmodule Hueworks.ControlConcurrencyTest do
         credentials: %{"api_key" => "test"}
       })
 
-    room = Repo.insert!(%Room{name: "Grouped Concurrency Room"})
-    light_a = insert_light!(bridge.id, room.id, "grouped-a")
-    light_b = insert_light!(bridge.id, room.id, "grouped-b")
+    area = Repo.insert!(%Area{name: "Grouped Concurrency Area"})
+    light_a = insert_light!(bridge.id, area.id, "grouped-a")
+    light_b = insert_light!(bridge.id, area.id, "grouped-b")
 
     group =
       Repo.insert!(%Group{
@@ -58,7 +58,7 @@ defmodule Hueworks.ControlConcurrencyTest do
         source: :hue,
         source_id: "shared-group",
         bridge_id: bridge.id,
-        room_id: room.id
+        area_id: area.id
       })
 
     Repo.insert!(%GroupLight{group_id: group.id, light_id: light_a.id})
@@ -78,7 +78,7 @@ defmodule Hueworks.ControlConcurrencyTest do
     assert {:ok, %{plan_diff: old_diff}} =
              Apply.commit_transaction(old_group_txn, force_apply: true)
 
-    [stale_group_action] = deferred_plan(room.id, old_diff)
+    [stale_group_action] = deferred_plan(area.id, old_diff)
     assert stale_group_action.type == :group
 
     newer_light_txn =
@@ -89,7 +89,7 @@ defmodule Hueworks.ControlConcurrencyTest do
     assert {:ok, %{plan_diff: newer_diff}} =
              Apply.commit_transaction(newer_light_txn, force_apply: true)
 
-    assert :ok = Apply.enqueue_plan(deferred_plan(room.id, newer_diff))
+    assert :ok = Apply.enqueue_plan(deferred_plan(area.id, newer_diff))
     assert :ok = Apply.enqueue_plan([stale_group_action])
 
     Enum.each(1..3, fn _ -> Executor.tick(executor_server, force: true) end)
@@ -118,7 +118,7 @@ defmodule Hueworks.ControlConcurrencyTest do
         credentials: %{"api_key" => "test"}
       })
 
-    room = Repo.insert!(%Room{name: "Concurrency Room"})
+    area = Repo.insert!(%Area{name: "Concurrency Area"})
 
     light =
       Repo.insert!(%Light{
@@ -127,7 +127,7 @@ defmodule Hueworks.ControlConcurrencyTest do
         source: :hue,
         source_id: "shared-lamp",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6500
@@ -136,9 +136,9 @@ defmodule Hueworks.ControlConcurrencyTest do
     _ = DesiredState.put(:light, light.id, %{power: :off})
     _ = State.put(:light, light.id, %{power: :off})
 
-    circadian_plan = staged_plan(room.id, light.id, :circadian_tick, 25, 2400)
-    manual_plan = staged_plan(room.id, light.id, :manual_control, 55, 3000)
-    scene_plan = staged_plan(room.id, light.id, :scene_activation, 85, 4000)
+    circadian_plan = staged_plan(area.id, light.id, :circadian_tick, 25, 2400)
+    manual_plan = staged_plan(area.id, light.id, :manual_control, 55, 3000)
+    scene_plan = staged_plan(area.id, light.id, :scene_activation, 85, 4000)
 
     assert :ok = Apply.enqueue_plan(scene_plan)
     assert :ok = Apply.enqueue_plan(manual_plan)
@@ -159,7 +159,7 @@ defmodule Hueworks.ControlConcurrencyTest do
     assert action.attempts == 0
   end
 
-  defp staged_plan(room_id, light_id, source, brightness, kelvin) do
+  defp staged_plan(area_id, light_id, source, brightness, kelvin) do
     txn =
       source
       |> DesiredState.begin()
@@ -171,24 +171,24 @@ defmodule Hueworks.ControlConcurrencyTest do
 
     assert {:ok, %{plan_diff: diff}} = Apply.commit_transaction(txn, force_apply: true)
 
-    room_id
+    area_id
     |> deferred_plan(diff)
   end
 
-  defp deferred_plan(room_id, diff) do
-    room_id
+  defp deferred_plan(area_id, diff) do
+    area_id
     |> Apply.build_plan(diff)
     |> Enum.map(&Map.put(&1, :not_before, System.monotonic_time(:millisecond) + 60_000))
   end
 
-  defp insert_light!(bridge_id, room_id, source_id) do
+  defp insert_light!(bridge_id, area_id, source_id) do
     Repo.insert!(%Light{
       name: source_id,
       display_name: source_id,
       source: :hue,
       source_id: source_id,
       bridge_id: bridge_id,
-      room_id: room_id,
+      area_id: area_id,
       supports_temp: true,
       reported_min_kelvin: 2000,
       reported_max_kelvin: 6500

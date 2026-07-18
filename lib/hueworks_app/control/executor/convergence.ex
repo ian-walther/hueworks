@@ -109,14 +109,14 @@ defmodule Hueworks.Control.Executor.Convergence do
          protected_light_ids
        ) do
     case action_target_context(action) do
-      {:ok, room_id, action_light_ids} ->
+      {:ok, area_id, action_light_ids} ->
         light_ids = requested_light_ids || action_light_ids
         skip_dispatched? = map_size(dispatched_revisions) > 0
 
         diff = current_desired_diff(light_ids, dispatched_revisions, skip_dispatched?)
 
-        room_id
-        |> Planner.plan_room(
+        area_id
+        |> Planner.plan_area(
           diff,
           trace: Trace.action_trace(action),
           operation: Map.get(action, :operation),
@@ -132,18 +132,18 @@ defmodule Hueworks.Control.Executor.Convergence do
 
   defp action_target_context(%{type: :light, id: id}) when is_integer(id) do
     case Repo.get(LightSchema, id) do
-      %LightSchema{room_id: room_id} -> {:ok, room_id, [id]}
+      %LightSchema{area_id: area_id} -> {:ok, area_id, [id]}
       _ -> :error
     end
   end
 
   defp action_target_context(%{type: :group, id: id}) when is_integer(id) do
     case Repo.get(GroupSchema, id) do
-      %GroupSchema{room_id: room_id} ->
+      %GroupSchema{area_id: area_id} ->
         light_ids =
           Repo.all(from(gl in GroupLight, where: gl.group_id == ^id, select: gl.light_id))
 
-        {:ok, room_id, light_ids}
+        {:ok, area_id, light_ids}
 
       _ ->
         :error

@@ -15,7 +15,7 @@ defmodule Hueworks.Import.ReimportReview do
     {:metadata, "Bridge metadata"}
   ]
 
-  def build(bridge, normalized_import, reimport, plan, current_lights, current_groups, rooms) do
+  def build(bridge, normalized_import, reimport, plan, current_lights, current_groups, areas) do
     incoming_lights = normalized_entries(normalized_import, :lights)
     incoming_groups = normalized_entries(normalized_import, :groups)
     statuses = reimport.statuses
@@ -29,7 +29,7 @@ defmodule Hueworks.Import.ReimportReview do
         Normalize.fetch(statuses, :lights) || %{},
         plan,
         normalized_import,
-        rooms
+        areas
       )
 
     group_items =
@@ -41,7 +41,7 @@ defmodule Hueworks.Import.ReimportReview do
         Normalize.fetch(statuses, :groups) || %{},
         plan,
         normalized_import,
-        rooms
+        areas
       )
 
     items = light_items ++ group_items
@@ -49,28 +49,28 @@ defmodule Hueworks.Import.ReimportReview do
     removed =
       items
       |> Enum.filter(&(&1.status == :missing and not &1.hidden_duplicate?))
-      |> group_by_room(:current_room)
+      |> group_by_area(:current_area)
 
     existing_items = Enum.filter(items, &(&1.status == :existing))
 
     existing =
       existing_items
-      |> group_by_room(:current_room)
-      |> Enum.map(fn room_group ->
-        room_items = room_group.items
+      |> group_by_area(:current_area)
+      |> Enum.map(fn area_group ->
+        area_items = area_group.items
 
-        Map.merge(room_group, %{
-          automatic_updates: Enum.filter(room_items, &(&1.changes != [])),
-          membership_warnings: Enum.filter(room_items, &is_map(&1.membership_warning)),
+        Map.merge(area_group, %{
+          automatic_updates: Enum.filter(area_items, &(&1.changes != [])),
+          membership_warnings: Enum.filter(area_items, &is_map(&1.membership_warning)),
           unchanged:
-            Enum.filter(room_items, &(&1.changes == [] and is_nil(&1.membership_warning)))
+            Enum.filter(area_items, &(&1.changes == [] and is_nil(&1.membership_warning)))
         })
       end)
 
     new =
       items
       |> Enum.filter(&(&1.status in [:new, :duplicate, :ambiguous_identity]))
-      |> group_by_room(:bridge_room)
+      |> group_by_area(:bridge_area)
 
     summary = %{
       removed: count_grouped(removed),
@@ -100,10 +100,10 @@ defmodule Hueworks.Import.ReimportReview do
          statuses,
          plan,
          normalized_import,
-         rooms
+         areas
        ) do
     incoming_by_source = Map.new(incoming, &{source_id(&1), &1})
-    bridge_rooms = bridge_room_names(normalized_import)
+    bridge_areas = bridge_area_names(normalized_import)
 
     status_items =
       Enum.map(statuses, fn {source_id, status} ->
@@ -119,18 +119,18 @@ defmodule Hueworks.Import.ReimportReview do
           current: current_entry,
           name: display_name(current_entry, incoming_entry, type),
           bridge_name: incoming_name(incoming_entry),
-          current_room: current_room_name(current_entry),
-          bridge_room: bridge_room_name(incoming_entry, bridge_rooms),
+          current_area: current_area_name(current_entry),
+          bridge_area: bridge_area_name(incoming_entry, bridge_areas),
           hidden_duplicate?: hidden_duplicate?(current_entry, type),
           resolution: ReviewPlan.entity_resolution(plan, plural(type), source_id),
           selected?: ReviewPlan.selected?(plan, plural(type), source_id),
-          target_room_id: ReviewPlan.entity_target_room(plan, plural(type), source_id),
+          target_area_id: ReviewPlan.entity_target_area(plan, plural(type), source_id),
           changes: bridge_changes(bridge, current_entry, incoming_entry, type),
           membership_warning: nil,
           dependencies: []
         }
 
-        maybe_add_membership(item, normalized_import, current, plan, rooms)
+        maybe_add_membership(item, normalized_import, current, plan, areas)
       end)
 
     missing_statuses = MapSet.new(Enum.map(status_items, & &1.source_id))
@@ -147,12 +147,12 @@ defmodule Hueworks.Import.ReimportReview do
         current: record,
         name: Util.display_name(record),
         bridge_name: nil,
-        current_room: current_room_name(record),
-        bridge_room: "Unassigned",
+        current_area: current_area_name(record),
+        bridge_area: "Unassigned",
         hidden_duplicate?: hidden_duplicate?(record, type),
         resolution: ReviewPlan.entity_resolution(plan, plural(type), record.source_id),
         selected?: false,
-        target_room_id: nil,
+        target_area_id: nil,
         changes: [],
         membership_warning: nil,
         dependencies: []
@@ -201,7 +201,7 @@ defmodule Hueworks.Import.ReimportReview do
          normalized,
          lights,
          plan,
-         _rooms
+         _areas
        ) do
     memberships =
       normalized
@@ -256,7 +256,7 @@ defmodule Hueworks.Import.ReimportReview do
     end
   end
 
-  defp maybe_add_membership(item, _normalized, _lights, _plan, _rooms), do: item
+  defp maybe_add_membership(item, _normalized, _lights, _plan, _areas), do: item
 
   defp upstream_members_empty?(nil), do: false
 
@@ -271,13 +271,13 @@ defmodule Hueworks.Import.ReimportReview do
     end
   end
 
-  defp group_by_room(items, field) do
+  defp group_by_area(items, field) do
     items
     |> Enum.group_by(&Map.fetch!(&1, field))
-    |> Enum.map(fn {room, room_items} ->
-      %{room: room, items: Enum.sort_by(room_items, &{&1.type_label, &1.name})}
+    |> Enum.map(fn {area, area_items} ->
+      %{area: area, items: Enum.sort_by(area_items, &{&1.type_label, &1.name})}
     end)
-    |> Enum.sort_by(fn %{room: room} -> if room == "Unassigned", do: "~~~", else: room end)
+    |> Enum.sort_by(fn %{area: area} -> if area == "Unassigned", do: "~~~", else: area end)
   end
 
   defp transaction_summary(items, plan, summary) do
@@ -299,23 +299,23 @@ defmodule Hueworks.Import.ReimportReview do
     }
   end
 
-  defp bridge_room_names(normalized) do
+  defp bridge_area_names(normalized) do
     normalized
-    |> normalized_entries(:rooms)
-    |> Map.new(fn room -> {source_id(room), Normalize.fetch(room, :name) || "Unassigned"} end)
+    |> normalized_entries(:areas)
+    |> Map.new(fn area -> {source_id(area), Normalize.fetch(area, :name) || "Unassigned"} end)
   end
 
-  defp bridge_room_name(nil, _room_names), do: "Unassigned"
+  defp bridge_area_name(nil, _area_names), do: "Unassigned"
 
-  defp bridge_room_name(entry, room_names) do
+  defp bridge_area_name(entry, area_names) do
     entry
-    |> Normalize.fetch(:room_source_id)
+    |> Normalize.fetch(:area_source_id)
     |> Normalize.normalize_source_id()
-    |> then(&Map.get(room_names, &1, "Unassigned"))
+    |> then(&Map.get(area_names, &1, "Unassigned"))
   end
 
-  defp current_room_name(%{room: room}) when is_map(room), do: Util.display_name(room)
-  defp current_room_name(_record), do: "Unassigned"
+  defp current_area_name(%{area: area}) when is_map(area), do: Util.display_name(area)
+  defp current_area_name(_record), do: "Unassigned"
 
   defp display_name(record, _incoming, _type) when is_map(record), do: Util.display_name(record)
   defp display_name(_record, incoming, type), do: incoming_name(incoming) || default_name(type)

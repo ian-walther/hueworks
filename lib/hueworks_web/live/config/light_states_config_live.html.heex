@@ -32,7 +32,7 @@
             Used by <%= entry.usage_count %> <%= if entry.usage_count == 1, do: "scene", else: "scenes" %>
           </p>
           <p :if={entry.usages != []} class="hw-meta">
-            <%= Enum.map_join(entry.usages, ", ", fn usage -> "#{usage.room_name} / #{usage.scene_name}" end) %>
+            <%= Enum.map_join(entry.usages, ", ", fn usage -> "#{usage.area_name} / #{usage.scene_name}" end) %>
           </p>
         </div>
         <div class="hw-actions">

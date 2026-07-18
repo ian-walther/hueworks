@@ -3,7 +3,7 @@ defmodule Hueworks.Import.JsonShapeTest do
 
   alias Hueworks.Import.{Materialize, Normalize}
   alias Hueworks.Repo
-  alias Hueworks.Schemas.{Bridge, Light, Room}
+  alias Hueworks.Schemas.{Bridge, Light, Area}
 
   test "normalize handles unexpected HA shapes without crashing" do
     raw = %{
@@ -44,7 +44,7 @@ defmodule Hueworks.Import.JsonShapeTest do
     bridge = %Bridge{id: 12, type: :caseta, name: "Caseta", host: "10.0.0.12"}
     normalized = Normalize.normalize(bridge, raw)
 
-    assert normalized.rooms == []
+    assert normalized.areas == []
     assert normalized.lights == []
   end
 
@@ -57,12 +57,12 @@ defmodule Hueworks.Import.JsonShapeTest do
     bridge = %Bridge{id: 13, type: :z2m, name: "Z2M", host: "10.0.0.13"}
     normalized = Normalize.normalize(bridge, raw)
 
-    assert normalized.rooms == []
+    assert normalized.areas == []
     assert normalized.lights == []
     assert normalized.groups == []
   end
 
-  test "materialize tolerates invalid room_source_id references" do
+  test "materialize tolerates invalid area_source_id references" do
     bridge =
       %Bridge{}
       |> Bridge.changeset(%{
@@ -76,15 +76,15 @@ defmodule Hueworks.Import.JsonShapeTest do
       |> Repo.insert!()
 
     normalized = %{
-      rooms: [
-        %{source_id: "room-1", name: "Office"}
+      areas: [
+        %{source_id: "area-1", name: "Office"}
       ],
       lights: [
         %{
           source: :ha,
           source_id: "light.one",
           name: "Light One",
-          room_source_id: "room-does-not-exist",
+          area_source_id: "area-does-not-exist",
           capabilities: %{},
           identifiers: %{},
           metadata: %{}
@@ -97,7 +97,7 @@ defmodule Hueworks.Import.JsonShapeTest do
     assert :ok == Materialize.materialize(bridge, normalized)
 
     light = Repo.get_by!(Light, bridge_id: bridge.id, source_id: "light.one")
-    assert light.room_id == nil
-    assert Repo.aggregate(Room, :count) == 1
+    assert light.area_id == nil
+    assert Repo.aggregate(Area, :count) == 1
   end
 end

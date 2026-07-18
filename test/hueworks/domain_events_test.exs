@@ -4,7 +4,7 @@ defmodule Hueworks.DomainEventsTest do
   alias Hueworks.PresenceInputs
   alias Hueworks.Repo
   alias Hueworks.Scenes
-  alias Hueworks.Schemas.{PresenceInput, Room, Scene}
+  alias Hueworks.Schemas.{PresenceInput, Area, Scene}
   alias Phoenix.PubSub
 
   setup do
@@ -13,34 +13,34 @@ defmodule Hueworks.DomainEventsTest do
   end
 
   test "scene CRUD publishes domain events" do
-    room = Repo.insert!(%Room{name: "Main Floor"})
-    room_id = room.id
+    area = Repo.insert!(%Area{name: "Main Floor"})
+    area_id = area.id
 
-    assert {:ok, %Scene{} = scene} = Scenes.create_scene(%{name: "Morning", room_id: room.id})
+    assert {:ok, %Scene{} = scene} = Scenes.create_scene(%{name: "Morning", area_id: area.id})
     scene_id = scene.id
 
-    assert_receive {:scene_saved, %Scene{id: ^scene_id, room_id: ^room_id}}
+    assert_receive {:scene_saved, %Scene{id: ^scene_id, area_id: ^area_id}}
 
     assert {:ok, %Scene{} = updated} = Scenes.update_scene(scene, %{name: "Evening"})
     assert_receive {:scene_saved, %Scene{id: ^scene_id, name: "Evening"}}
 
     assert {:ok, %Scene{} = deleted} = Scenes.delete_scene(updated)
     assert deleted.id == scene_id
-    assert_receive {:scene_deleted, %Scene{id: ^scene_id, room_id: ^room_id}}
+    assert_receive {:scene_deleted, %Scene{id: ^scene_id, area_id: ^area_id}}
   end
 
   test "presence input CRUD publishes domain events" do
-    room = Repo.insert!(%Room{name: "Office"})
+    area = Repo.insert!(%Area{name: "Office"})
 
     assert {:ok, %PresenceInput{} = input} =
-             PresenceInputs.create_input(room.id, %{name: "Desk", occupied: true})
+             PresenceInputs.create_input(area.id, %{name: "Desk", occupied: true})
 
     input_id = input.id
 
     assert_receive {:presence_input_changed,
-                    %PresenceInput{id: ^input_id, room_id: room_id, name: "Desk"}}
+                    %PresenceInput{id: ^input_id, area_id: area_id, name: "Desk"}}
 
-    assert room_id == room.id
+    assert area_id == area.id
 
     assert {:ok, %PresenceInput{} = updated} =
              PresenceInputs.update_input(input, %{name: "Sitting Area"})

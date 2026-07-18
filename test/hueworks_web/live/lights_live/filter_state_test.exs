@@ -4,29 +4,29 @@ defmodule HueworksWeb.LightsLive.FilterStateTest do
   alias HueworksWeb.LightsLive.FilterState
 
   test "param_updates keeps only nonblank filter params" do
-    assert %{group_filter: "kitchen", light_room_filter: "5"} =
+    assert %{group_filter: "kitchen", light_area_filter: "5"} =
              FilterState.param_updates(%{
                "group_filter" => "kitchen",
                "light_filter" => "",
-               "light_room_filter" => "5"
+               "light_area_filter" => "5"
              })
   end
 
-  test "event_updates normalizes room filters against known rooms" do
-    rooms = [%{id: 1}, %{id: 2}]
+  test "event_updates normalizes area filters against known areas" do
+    areas = [%{id: 1}, %{id: 2}]
 
-    assert %{group_room_filter: 2} =
+    assert %{group_area_filter: 2} =
              FilterState.event_updates(
-               "set_group_room_filter",
-               %{"group_room_filter" => "2"},
-               rooms
+               "set_group_area_filter",
+               %{"group_area_filter" => "2"},
+               areas
              )
 
-    assert %{light_room_filter: "all"} =
+    assert %{light_area_filter: "all"} =
              FilterState.event_updates(
-               "set_light_room_filter",
-               %{"light_room_filter" => "999"},
-               rooms
+               "set_light_area_filter",
+               %{"light_area_filter" => "999"},
+               areas
              )
   end
 

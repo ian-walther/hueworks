@@ -3,13 +3,13 @@ defmodule Hueworks.Import.MaterializeTest do
 
   alias Hueworks.Import.{Materialize, NormalizeFromDb, Plan, ReimportPlan}
   alias Hueworks.Repo
-  alias Hueworks.Schemas.{Bridge, Group, GroupLight, Light, Room}
+  alias Hueworks.Schemas.{Bridge, Group, GroupLight, Light, Area}
 
   setup do
     :ok = Ecto.Adapters.SQL.Sandbox.checkout(Repo)
   end
 
-  test "materializes rooms, lights, groups, and memberships while preserving edits" do
+  test "materializes areas, lights, groups, and memberships while preserving edits" do
     bridge =
       %Bridge{}
       |> Bridge.changeset(%{
@@ -22,7 +22,7 @@ defmodule Hueworks.Import.MaterializeTest do
       })
       |> Repo.insert!()
 
-    office_room = Repo.insert!(%Room{name: "Office"})
+    office_area = Repo.insert!(%Area{name: "Office"})
 
     existing_light =
       %Light{}
@@ -32,7 +32,7 @@ defmodule Hueworks.Import.MaterializeTest do
         source: :ha,
         source_id: "light.office_lamp",
         bridge_id: bridge.id,
-        room_id: office_room.id,
+        area_id: office_area.id,
         actual_min_kelvin: 2700,
         actual_max_kelvin: 6500,
         enabled: false
@@ -47,7 +47,7 @@ defmodule Hueworks.Import.MaterializeTest do
         source: :ha,
         source_id: "light.office_group",
         bridge_id: bridge.id,
-        room_id: office_room.id,
+        area_id: office_area.id,
         enabled: false
       })
       |> Repo.insert!()
@@ -56,10 +56,10 @@ defmodule Hueworks.Import.MaterializeTest do
 
     :ok = Materialize.materialize(bridge, normalized, Plan.build_default(normalized))
 
-    room = Repo.get_by!(Room, name: "Office")
+    area = Repo.get_by!(Area, name: "Office")
 
     light = Repo.get_by!(Light, bridge_id: bridge.id, source_id: "light.office_lamp")
-    assert light.room_id == room.id
+    assert light.area_id == area.id
     assert light.display_name == "Custom Lamp"
     refute light.enabled
     assert light.actual_min_kelvin == 2700
@@ -68,7 +68,7 @@ defmodule Hueworks.Import.MaterializeTest do
     assert light.reported_max_kelvin == 6500
 
     group = Repo.get_by!(Group, bridge_id: bridge.id, source_id: "light.office_group")
-    assert group.room_id == room.id
+    assert group.area_id == area.id
     assert group.display_name == "Custom Group"
     refute group.enabled
 
@@ -77,7 +77,7 @@ defmodule Hueworks.Import.MaterializeTest do
     assert Repo.get_by(Group, id: existing_group.id)
 
     studio_group = Repo.get_by!(Group, bridge_id: bridge.id, source_id: "light.studio_group")
-    assert studio_group.room_id == nil
+    assert studio_group.area_id == nil
   end
 
   test "materializes Hue metadata without caching bridge_host" do
@@ -106,53 +106,53 @@ defmodule Hueworks.Import.MaterializeTest do
     refute Map.has_key?(group.metadata, "bridge_host")
   end
 
-  test "reimport preserve action does not move existing lights to bridge-reported rooms" do
+  test "reimport preserve action does not move existing lights to bridge-reported areas" do
     bridge = insert_bridge()
-    original_room = insert_room("HueWorks Room")
-    imported_room = insert_room("Bridge Room")
+    original_area = insert_area("HueWorks Area")
+    imported_area = insert_area("Bridge Area")
 
     light =
       insert_light(bridge, %{
         source_id: "light.office_lamp",
-        room_id: original_room.id,
+        area_id: original_area.id,
         external_id: "ha:light.office_lamp"
       })
 
     insert_group(bridge, %{
       source_id: "light.office_group",
-      room_id: original_room.id,
+      area_id: original_area.id,
       external_id: "ha:light.office_group"
     })
 
     normalized = load_fixture("materialize_ha.json")
 
     plan = %{
-      rooms: %{"office" => %{"action" => "merge", "target_room_id" => "#{imported_room.id}"}},
+      areas: %{"office" => %{"action" => "merge", "target_area_id" => "#{imported_area.id}"}},
       lights: %{"light.office_lamp" => true, "light.studio_a" => false, "light.studio_b" => false},
       groups: %{"light.office_group" => true, "light.studio_group" => false}
     }
 
     :ok = Materialize.materialize(bridge, normalized, plan)
 
-    assert Repo.reload!(light).room_id == original_room.id
+    assert Repo.reload!(light).area_id == original_area.id
   end
 
-  test "reimport preserve action does not move existing groups to bridge-reported rooms" do
+  test "reimport preserve action does not move existing groups to bridge-reported areas" do
     bridge = insert_bridge()
-    original_room = insert_room("HueWorks Group Room")
-    imported_room = insert_room("Bridge Group Room")
+    original_area = insert_area("HueWorks Group Area")
+    imported_area = insert_area("Bridge Group Area")
 
     light =
       insert_light(bridge, %{
         source_id: "light.office_lamp",
-        room_id: original_room.id,
+        area_id: original_area.id,
         external_id: "ha:light.office_lamp"
       })
 
     group =
       insert_group(bridge, %{
         source_id: "light.office_group",
-        room_id: original_room.id,
+        area_id: original_area.id,
         external_id: "ha:light.office_group"
       })
 
@@ -161,14 +161,14 @@ defmodule Hueworks.Import.MaterializeTest do
     normalized = load_fixture("materialize_ha.json")
 
     plan = %{
-      rooms: %{"office" => %{"action" => "merge", "target_room_id" => "#{imported_room.id}"}},
+      areas: %{"office" => %{"action" => "merge", "target_area_id" => "#{imported_area.id}"}},
       lights: %{"light.office_lamp" => true, "light.studio_a" => false, "light.studio_b" => false},
       groups: %{"light.office_group" => true, "light.studio_group" => false}
     }
 
     :ok = Materialize.materialize(bridge, normalized, plan)
 
-    assert Repo.reload!(group).room_id == original_room.id
+    assert Repo.reload!(group).area_id == original_area.id
   end
 
   test "reimport preserve action refreshes existing imported capabilities without touching overrides" do
@@ -192,7 +192,7 @@ defmodule Hueworks.Import.MaterializeTest do
     normalized = load_fixture("materialize_ha.json")
 
     plan = %{
-      rooms: %{},
+      areas: %{},
       lights: %{"light.office_lamp" => true, "light.studio_a" => false, "light.studio_b" => false},
       groups: %{"light.office_group" => true, "light.studio_group" => false}
     }
@@ -230,7 +230,7 @@ defmodule Hueworks.Import.MaterializeTest do
     normalized = load_fixture("materialize_ha.json")
 
     plan = %{
-      rooms: %{},
+      areas: %{},
       lights: %{"light.office_lamp" => true, "light.studio_a" => false, "light.studio_b" => false},
       groups: %{"light.office_group" => true, "light.studio_group" => false}
     }
@@ -264,7 +264,7 @@ defmodule Hueworks.Import.MaterializeTest do
     normalized = load_fixture("materialize_ha.json")
 
     plan = %{
-      rooms: %{},
+      areas: %{},
       lights: %{"light.office_lamp" => true, "light.studio_a" => false, "light.studio_b" => false},
       groups: %{"light.office_group" => true, "light.studio_group" => false}
     }
@@ -293,7 +293,7 @@ defmodule Hueworks.Import.MaterializeTest do
     normalized = load_fixture("materialize_ha.json")
 
     plan = %{
-      rooms: %{},
+      areas: %{},
       lights: %{"light.office_lamp" => true, "light.studio_a" => false, "light.studio_b" => false},
       groups: %{"light.office_group" => true, "light.studio_group" => false}
     }
@@ -335,7 +335,7 @@ defmodule Hueworks.Import.MaterializeTest do
     normalized = load_fixture("materialize_ha.json")
 
     plan = %{
-      rooms: %{},
+      areas: %{},
       lights: %{"light.office_lamp" => true, "light.studio_a" => false, "light.studio_b" => false},
       groups: %{"light.office_group" => true, "light.studio_group" => false}
     }
@@ -390,7 +390,7 @@ defmodule Hueworks.Import.MaterializeTest do
       )
 
     plan = %{
-      rooms: %{},
+      areas: %{},
       lights: %{
         "light.office_lamp" => true,
         "light.studio_a" => true,
@@ -423,13 +423,13 @@ defmodule Hueworks.Import.MaterializeTest do
     Repo.insert!(%GroupLight{group_id: group.id, light_id: existing_light.id})
 
     normalized = %{
-      rooms: [],
+      areas: [],
       lights: [
         %{
           source: :ha,
           source_id: "light.office_lamp",
           name: "Office Lamp",
-          room_source_id: nil,
+          area_source_id: nil,
           capabilities: %{},
           identifiers: %{},
           metadata: %{}
@@ -440,7 +440,7 @@ defmodule Hueworks.Import.MaterializeTest do
           source: :ha,
           source_id: "light.office_group",
           name: "Office Group",
-          room_source_id: nil,
+          area_source_id: nil,
           type: "group",
           capabilities: %{},
           metadata: %{"members" => []}
@@ -450,7 +450,7 @@ defmodule Hueworks.Import.MaterializeTest do
     }
 
     plan = %{
-      rooms: %{},
+      areas: %{},
       lights: %{"light.office_lamp" => true},
       groups: %{"light.office_group" => true}
     }
@@ -478,14 +478,14 @@ defmodule Hueworks.Import.MaterializeTest do
     Repo.insert!(%GroupLight{group_id: group.id, light_id: existing_light.id})
 
     normalized = %{
-      rooms: [],
+      areas: [],
       lights: [],
       groups: [
         %{
           source: :ha,
           source_id: "light.office_group",
           name: "Office Group",
-          room_source_id: nil,
+          area_source_id: nil,
           type: "group",
           capabilities: %{},
           metadata: %{"members" => ["light.missing_member"]}
@@ -498,19 +498,19 @@ defmodule Hueworks.Import.MaterializeTest do
       }
     }
 
-    plan = %{rooms: %{}, lights: %{}, groups: %{"light.office_group" => true}}
+    plan = %{areas: %{}, lights: %{}, groups: %{"light.office_group" => true}}
 
     :ok = Materialize.materialize(bridge, normalized, plan)
 
     assert Repo.get_by(GroupLight, group_id: group.id, light_id: existing_light.id)
   end
 
-  test "reimport with no selected entities does not create imported rooms" do
+  test "reimport with no selected entities does not create imported areas" do
     bridge = insert_bridge()
     normalized = load_fixture("materialize_ha.json")
 
     plan = %{
-      rooms: %{
+      areas: %{
         "office" => %{"action" => "create"},
         "studio" => %{"action" => "create"}
       },
@@ -527,8 +527,8 @@ defmodule Hueworks.Import.MaterializeTest do
 
     :ok = Materialize.materialize(bridge, normalized, plan)
 
-    refute Repo.get_by(Room, name: "Office")
-    refute Repo.get_by(Room, name: "Studio")
+    refute Repo.get_by(Area, name: "Office")
+    refute Repo.get_by(Area, name: "Studio")
   end
 
   test "reimport preserve action does not duplicate a light when stable external id matches but source id changes" do
@@ -542,7 +542,7 @@ defmodule Hueworks.Import.MaterializeTest do
       })
 
     normalized = %{
-      rooms: [],
+      areas: [],
       lights: [
         %{
           source: :caseta,
@@ -557,7 +557,7 @@ defmodule Hueworks.Import.MaterializeTest do
       memberships: %{}
     }
 
-    plan = %{rooms: %{}, lights: %{"new-zone-id" => true}, groups: %{}}
+    plan = %{areas: %{}, lights: %{"new-zone-id" => true}, groups: %{}}
 
     :ok = Materialize.materialize(bridge, normalized, plan)
 
@@ -584,7 +584,7 @@ defmodule Hueworks.Import.MaterializeTest do
       })
 
     normalized = %{
-      rooms: [],
+      areas: [],
       lights: [
         %{
           source: :caseta,
@@ -599,7 +599,7 @@ defmodule Hueworks.Import.MaterializeTest do
       memberships: %{}
     }
 
-    plan = %{rooms: %{}, lights: %{"new-zone-id" => true}, groups: %{}}
+    plan = %{areas: %{}, lights: %{"new-zone-id" => true}, groups: %{}}
 
     :ok = Materialize.materialize(bridge, normalized, plan)
 
@@ -620,7 +620,7 @@ defmodule Hueworks.Import.MaterializeTest do
       })
 
     normalized = %{
-      rooms: [],
+      areas: [],
       lights: [],
       groups: [
         %{
@@ -635,7 +635,7 @@ defmodule Hueworks.Import.MaterializeTest do
       memberships: %{}
     }
 
-    plan = %{rooms: %{}, lights: %{}, groups: %{"new-group-zone-id" => true}}
+    plan = %{areas: %{}, lights: %{}, groups: %{"new-group-zone-id" => true}}
 
     :ok = Materialize.materialize(bridge, normalized, plan)
 
@@ -656,13 +656,13 @@ defmodule Hueworks.Import.MaterializeTest do
     ha_bridge = insert_bridge(%{type: :ha, import_complete: false, host: "10.0.0.50"})
 
     normalized = %{
-      rooms: [%{source: :ha, source_id: "office", name: "Office", metadata: %{}}],
+      areas: [%{source: :ha, source_id: "office", name: "Office", metadata: %{}}],
       lights: [
         %{
           source: :ha,
           source_id: "light.hue_lamp",
           name: "Hue Lamp via HA",
-          room_source_id: "office",
+          area_source_id: "office",
           capabilities: %{},
           identifiers: %{"mac" => "aa:bb:cc"},
           metadata: %{"unique_id" => "ha-hue-lamp"}
@@ -677,7 +677,7 @@ defmodule Hueworks.Import.MaterializeTest do
     ha_light = Repo.get_by!(Light, bridge_id: ha_bridge.id, source_id: "light.hue_lamp")
     assert ha_light.canonical_light_id == hue_light.id
     refute ha_light.enabled
-    assert ha_light.room_id == nil
+    assert ha_light.area_id == nil
     assert ha_light.ha_export_mode == :none
     assert ha_light.homekit_export_mode == :none
     assert ha_light.display_name == "Hue Lamp via HA"
@@ -704,13 +704,13 @@ defmodule Hueworks.Import.MaterializeTest do
     ha_bridge = insert_bridge(%{type: :ha, import_complete: false, host: "10.0.0.51"})
 
     normalized = %{
-      rooms: [],
+      areas: [],
       lights: [
         %{
           source: :ha,
           source_id: "light.hue_lamp",
           name: "Hue Lamp via HA",
-          room_source_id: nil,
+          area_source_id: nil,
           capabilities: %{},
           identifiers: %{"mac" => "aa:bb:cc"},
           metadata: %{"unique_id" => "ha-hue-lamp"}
@@ -721,7 +721,7 @@ defmodule Hueworks.Import.MaterializeTest do
           source: :ha,
           source_id: "light.hue_group",
           name: "Hue Group via HA",
-          room_source_id: nil,
+          area_source_id: nil,
           type: "group",
           capabilities: %{},
           metadata: %{"members" => ["light.hue_lamp"]}
@@ -742,7 +742,7 @@ defmodule Hueworks.Import.MaterializeTest do
     assert ha_light.canonical_light_id == hue_light.id
     assert ha_group.canonical_group_id == hue_group.id
     refute ha_group.enabled
-    assert ha_group.room_id == nil
+    assert ha_group.area_id == nil
     assert Repo.get_by(GroupLight, group_id: ha_group.id, light_id: ha_light.id)
   end
 
@@ -762,13 +762,13 @@ defmodule Hueworks.Import.MaterializeTest do
     ha_bridge = insert_bridge(%{type: :ha, import_complete: true, host: "10.0.0.57"})
 
     normalized = %{
-      rooms: [%{source: :ha, source_id: "office", name: "Office", metadata: %{}}],
+      areas: [%{source: :ha, source_id: "office", name: "Office", metadata: %{}}],
       lights: [
         %{
           source: :ha,
           source_id: "light.hue_lamp",
           name: "Hue Lamp via HA",
-          room_source_id: "office",
+          area_source_id: "office",
           capabilities: %{},
           identifiers: %{"mac" => "aa:bb:cc"},
           metadata: %{"unique_id" => "ha-hue-lamp"}
@@ -779,7 +779,7 @@ defmodule Hueworks.Import.MaterializeTest do
           source: :ha,
           source_id: "light.hue_group",
           name: "Hue Group via HA",
-          room_source_id: "office",
+          area_source_id: "office",
           type: "group",
           capabilities: %{},
           metadata: %{"members" => ["light.hue_lamp"]}
@@ -793,7 +793,7 @@ defmodule Hueworks.Import.MaterializeTest do
     }
 
     plan = %{
-      rooms: %{"office" => %{"action" => "create"}},
+      areas: %{"office" => %{"action" => "create"}},
       lights: %{
         "light.hue_lamp" => %{"selected" => true, "resolution" => "import_hidden_duplicate"}
       },
@@ -810,8 +810,8 @@ defmodule Hueworks.Import.MaterializeTest do
     assert ha_light.canonical_light_id == hue_light.id
     assert ha_group.canonical_group_id == hue_group.id
     refute ha_group.enabled
-    assert ha_group.room_id == nil
-    refute Repo.get_by(Room, name: "Office")
+    assert ha_group.area_id == nil
+    refute Repo.get_by(Area, name: "Office")
     assert Repo.get_by(GroupLight, group_id: ha_group.id, light_id: ha_light.id)
   end
 
@@ -845,13 +845,13 @@ defmodule Hueworks.Import.MaterializeTest do
       })
 
     normalized = %{
-      rooms: [],
+      areas: [],
       lights: [
         %{
           source: :ha,
           source_id: "light.hue_lamp",
           name: "Hue Lamp via HA",
-          room_source_id: nil,
+          area_source_id: nil,
           capabilities: %{},
           identifiers: %{},
           metadata: %{"unique_id" => "ha-hue-lamp"}
@@ -862,7 +862,7 @@ defmodule Hueworks.Import.MaterializeTest do
           source: :ha,
           source_id: "light.hue_group",
           name: "Hue Group via HA",
-          room_source_id: nil,
+          area_source_id: nil,
           type: "group",
           capabilities: %{},
           metadata: %{"members" => ["light.hue_lamp"]}
@@ -896,16 +896,16 @@ defmodule Hueworks.Import.MaterializeTest do
     })
 
     ha_bridge = insert_bridge(%{type: :ha, import_complete: true, host: "10.0.0.157"})
-    room = insert_room("Office")
+    area = insert_area("Office")
 
     normalized = %{
-      rooms: [%{source: :ha, source_id: "office", name: "Office", metadata: %{}}],
+      areas: [%{source: :ha, source_id: "office", name: "Office", metadata: %{}}],
       lights: [
         %{
           source: :ha,
           source_id: "light.hue_lamp",
           name: "Hue Lamp via HA",
-          room_source_id: "office",
+          area_source_id: "office",
           capabilities: %{},
           identifiers: %{"mac" => "aa:bb:cc"},
           metadata: %{"unique_id" => "ha-hue-lamp"}
@@ -916,7 +916,7 @@ defmodule Hueworks.Import.MaterializeTest do
     }
 
     plan = %{
-      rooms: %{"office" => %{"action" => "merge", "target_room_id" => "#{room.id}"}},
+      areas: %{"office" => %{"action" => "merge", "target_area_id" => "#{area.id}"}},
       lights: %{"light.hue_lamp" => %{"selected" => true, "resolution" => "import_real"}},
       groups: %{}
     }
@@ -926,7 +926,7 @@ defmodule Hueworks.Import.MaterializeTest do
     ha_light = Repo.get_by!(Light, bridge_id: ha_bridge.id, source_id: "light.hue_lamp")
     assert ha_light.canonical_light_id == nil
     assert ha_light.enabled
-    assert ha_light.room_id == room.id
+    assert ha_light.area_id == area.id
   end
 
   test "reimport imports selected HA wrapper group duplicates as real entities when requested" do
@@ -943,16 +943,16 @@ defmodule Hueworks.Import.MaterializeTest do
     Repo.insert!(%GroupLight{group_id: hue_group.id, light_id: hue_light.id})
 
     ha_bridge = insert_bridge(%{type: :ha, import_complete: true, host: "10.0.0.158"})
-    room = insert_room("Office")
+    area = insert_area("Office")
 
     normalized = %{
-      rooms: [%{source: :ha, source_id: "office", name: "Office", metadata: %{}}],
+      areas: [%{source: :ha, source_id: "office", name: "Office", metadata: %{}}],
       lights: [
         %{
           source: :ha,
           source_id: "light.hue_lamp",
           name: "Hue Lamp via HA",
-          room_source_id: "office",
+          area_source_id: "office",
           capabilities: %{},
           identifiers: %{"mac" => "aa:bb:cc"},
           metadata: %{"unique_id" => "ha-hue-lamp"}
@@ -963,7 +963,7 @@ defmodule Hueworks.Import.MaterializeTest do
           source: :ha,
           source_id: "light.hue_group",
           name: "Hue Group via HA",
-          room_source_id: "office",
+          area_source_id: "office",
           type: "group",
           capabilities: %{},
           metadata: %{"members" => ["light.hue_lamp"]}
@@ -977,7 +977,7 @@ defmodule Hueworks.Import.MaterializeTest do
     }
 
     plan = %{
-      rooms: %{"office" => %{"action" => "merge", "target_room_id" => "#{room.id}"}},
+      areas: %{"office" => %{"action" => "merge", "target_area_id" => "#{area.id}"}},
       lights: %{"light.hue_lamp" => %{"selected" => true, "resolution" => "import_real"}},
       groups: %{"light.hue_group" => %{"selected" => true, "resolution" => "import_real"}}
     }
@@ -990,7 +990,7 @@ defmodule Hueworks.Import.MaterializeTest do
     assert ha_light.canonical_light_id == nil
     assert ha_group.canonical_group_id == nil
     assert ha_group.enabled
-    assert ha_group.room_id == room.id
+    assert ha_group.area_id == area.id
     assert Repo.get_by(GroupLight, group_id: ha_group.id, light_id: ha_light.id)
   end
 
@@ -1010,13 +1010,13 @@ defmodule Hueworks.Import.MaterializeTest do
     ha_bridge = insert_bridge(%{type: :ha, import_complete: true, host: "10.0.0.58"})
 
     normalized = %{
-      rooms: [],
+      areas: [],
       lights: [
         %{
           source: :ha,
           source_id: "light.hue_lamp",
           name: "Hue Lamp via HA",
-          room_source_id: nil,
+          area_source_id: nil,
           capabilities: %{},
           identifiers: %{"mac" => "aa:bb:cc"},
           metadata: %{"unique_id" => "ha-hue-lamp"}
@@ -1027,7 +1027,7 @@ defmodule Hueworks.Import.MaterializeTest do
           source: :ha,
           source_id: "light.hue_group",
           name: "Hue Group via HA",
-          room_source_id: nil,
+          area_source_id: nil,
           type: "group",
           capabilities: %{},
           metadata: %{"members" => ["light.hue_lamp"]}
@@ -1041,7 +1041,7 @@ defmodule Hueworks.Import.MaterializeTest do
     }
 
     plan = %{
-      rooms: %{},
+      areas: %{},
       lights: %{"light.hue_lamp" => false},
       groups: %{
         "light.hue_group" => %{"selected" => true, "resolution" => "import_hidden_duplicate"}
@@ -1063,13 +1063,13 @@ defmodule Hueworks.Import.MaterializeTest do
     Repo.insert!(%GroupLight{group_id: existing_group.id, light_id: light.id})
 
     normalized = %{
-      rooms: [],
+      areas: [],
       lights: [
         %{
           source: :hue,
           source_id: "1",
           name: "Hue Lamp",
-          room_source_id: nil,
+          area_source_id: nil,
           capabilities: %{},
           identifiers: %{},
           metadata: %{}
@@ -1080,7 +1080,7 @@ defmodule Hueworks.Import.MaterializeTest do
           source: :hue,
           source_id: "3",
           name: "Another Hue Group",
-          room_source_id: nil,
+          area_source_id: nil,
           type: "group",
           capabilities: %{},
           metadata: %{"members" => ["1"]}
@@ -1093,7 +1093,7 @@ defmodule Hueworks.Import.MaterializeTest do
       }
     }
 
-    plan = %{rooms: %{}, lights: %{"1" => true}, groups: %{"3" => true}}
+    plan = %{areas: %{}, lights: %{"1" => true}, groups: %{"3" => true}}
 
     :ok = Materialize.materialize(bridge, normalized, plan)
 
@@ -1121,13 +1121,13 @@ defmodule Hueworks.Import.MaterializeTest do
     ha_bridge = insert_bridge(%{type: :ha, import_complete: false, host: "10.0.0.52"})
 
     normalized = %{
-      rooms: [],
+      areas: [],
       lights: [
         %{
           source: :ha,
           source_id: "light.ambiguous",
           name: "Ambiguous HA Light",
-          room_source_id: nil,
+          area_source_id: nil,
           capabilities: %{},
           identifiers: %{"mac" => "aa:bb:cc"},
           metadata: %{"unique_id" => "ha-ambiguous"}
@@ -1151,14 +1151,14 @@ defmodule Hueworks.Import.MaterializeTest do
     ha_bridge = insert_bridge(%{type: :ha, import_complete: false, host: "10.0.0.53"})
 
     normalized = %{
-      rooms: [],
+      areas: [],
       lights: [],
       groups: [
         %{
           source: :ha,
           source_id: "light.empty_group",
           name: "Empty HA Group",
-          room_source_id: nil,
+          area_source_id: nil,
           type: "group",
           capabilities: %{},
           metadata: %{"members" => []}
@@ -1186,11 +1186,11 @@ defmodule Hueworks.Import.MaterializeTest do
         source_id: "light.missing_wrapper",
         canonical_light_id: hue_light.id,
         enabled: false,
-        room_id: nil
+        area_id: nil
       })
 
-    normalized = %{rooms: [], lights: [], groups: [], memberships: %{}}
-    plan = %{rooms: %{}, lights: %{}, groups: %{}}
+    normalized = %{areas: [], lights: [], groups: [], memberships: %{}}
+    plan = %{areas: %{}, lights: %{}, groups: %{}}
 
     :ok = Materialize.materialize(ha_bridge, normalized, plan)
 
@@ -1210,17 +1210,17 @@ defmodule Hueworks.Import.MaterializeTest do
         external_id: "ha-hue-lamp",
         canonical_light_id: hue_light.id,
         enabled: false,
-        room_id: nil
+        area_id: nil
       })
 
     normalized = %{
-      rooms: [],
+      areas: [],
       lights: [
         %{
           source: :ha,
           source_id: "light.hue_lamp",
           name: "Hue Lamp via HA",
-          room_source_id: nil,
+          area_source_id: nil,
           capabilities: %{},
           identifiers: %{},
           metadata: %{"unique_id" => "ha-hue-lamp"}
@@ -1230,7 +1230,7 @@ defmodule Hueworks.Import.MaterializeTest do
       memberships: %{}
     }
 
-    plan = %{rooms: %{}, lights: %{"light.hue_lamp" => false}, groups: %{}}
+    plan = %{areas: %{}, lights: %{"light.hue_lamp" => false}, groups: %{}}
 
     :ok = Materialize.materialize(ha_bridge, normalized, plan)
 
@@ -1241,13 +1241,13 @@ defmodule Hueworks.Import.MaterializeTest do
     ha_bridge = insert_bridge(%{type: :ha, import_complete: false, host: "10.0.0.55"})
 
     normalized = %{
-      rooms: [],
+      areas: [],
       lights: [
         %{
           source: :ha,
           source_id: "light.hueworks_light_12_switch",
           name: "HueWorks Exported Lamp",
-          room_source_id: nil,
+          area_source_id: nil,
           capabilities: %{},
           identifiers: %{},
           metadata: %{"unique_id" => "hueworks_light_12_switch"}
@@ -1258,7 +1258,7 @@ defmodule Hueworks.Import.MaterializeTest do
           source: :ha,
           source_id: "light.hueworks_group_7",
           name: "HueWorks Exported Group",
-          room_source_id: nil,
+          area_source_id: nil,
           type: "group",
           capabilities: %{},
           metadata: %{"unique_id" => "hueworks_group_7_light"}
@@ -1289,13 +1289,13 @@ defmodule Hueworks.Import.MaterializeTest do
         source_id: "light.hue_lamp",
         canonical_light_id: hue_light.id,
         enabled: false,
-        room_id: nil
+        area_id: nil
       })
 
-    normalized = %{rooms: [], lights: [], groups: [], memberships: %{}}
+    normalized = %{areas: [], lights: [], groups: [], memberships: %{}}
 
     plan = %{
-      rooms: %{},
+      areas: %{},
       lights: %{"1" => %{"resolution" => "delete", "expected_external_id" => "hue-1"}},
       groups: %{}
     }
@@ -1315,10 +1315,10 @@ defmodule Hueworks.Import.MaterializeTest do
         external_id: "old-external-id"
       })
 
-    normalized = %{rooms: [], lights: [], groups: [], memberships: %{}}
+    normalized = %{areas: [], lights: [], groups: [], memberships: %{}}
 
     plan = %{
-      rooms: %{},
+      areas: %{},
       lights: %{
         "light.missing" => %{
           "selected" => false,
@@ -1335,21 +1335,21 @@ defmodule Hueworks.Import.MaterializeTest do
     assert Repo.reload!(light).enabled
   end
 
-  test "reimport preserve action does not clear rooms when the bridge reports no room" do
+  test "reimport preserve action does not clear areas when the bridge reports no area" do
     bridge = insert_bridge()
-    room = insert_room("User Assigned Room")
+    area = insert_area("User Assigned Area")
 
-    light = insert_light(bridge, %{source_id: "light.office_lamp", room_id: room.id})
-    group = insert_group(bridge, %{source_id: "light.office_group", room_id: room.id})
+    light = insert_light(bridge, %{source_id: "light.office_lamp", area_id: area.id})
+    group = insert_group(bridge, %{source_id: "light.office_group", area_id: area.id})
 
     normalized = %{
-      rooms: [],
+      areas: [],
       lights: [
         %{
           source: :ha,
           source_id: "light.office_lamp",
           name: "Office Lamp",
-          room_source_id: nil,
+          area_source_id: nil,
           capabilities: %{},
           identifiers: %{},
           metadata: %{}
@@ -1360,7 +1360,7 @@ defmodule Hueworks.Import.MaterializeTest do
           source: :ha,
           source_id: "light.office_group",
           name: "Office Group",
-          room_source_id: nil,
+          area_source_id: nil,
           type: "group",
           capabilities: %{},
           metadata: %{}
@@ -1370,34 +1370,34 @@ defmodule Hueworks.Import.MaterializeTest do
     }
 
     plan = %{
-      rooms: %{},
+      areas: %{},
       lights: %{"light.office_lamp" => true},
       groups: %{"light.office_group" => true}
     }
 
     :ok = Materialize.materialize(bridge, normalized, plan)
 
-    assert Repo.reload!(light).room_id == room.id
-    assert Repo.reload!(group).room_id == room.id
+    assert Repo.reload!(light).area_id == area.id
+    assert Repo.reload!(group).area_id == area.id
   end
 
-  test "reimport preserve action does not re-infer an existing group's room from member lights" do
+  test "reimport preserve action does not re-infer an existing group's area from member lights" do
     bridge = insert_bridge()
-    group_room = insert_room("Group Room")
-    light_room = insert_room("Light Room")
+    group_area = insert_area("Group Area")
+    light_area = insert_area("Light Area")
 
-    light = insert_light(bridge, %{source_id: "light.office_lamp", room_id: light_room.id})
-    group = insert_group(bridge, %{source_id: "light.office_group", room_id: group_room.id})
+    light = insert_light(bridge, %{source_id: "light.office_lamp", area_id: light_area.id})
+    group = insert_group(bridge, %{source_id: "light.office_group", area_id: group_area.id})
     Repo.insert!(%GroupLight{group_id: group.id, light_id: light.id})
 
     normalized = %{
-      rooms: [%{source: :ha, source_id: "office", name: "Light Room", metadata: %{}}],
+      areas: [%{source: :ha, source_id: "office", name: "Light Area", metadata: %{}}],
       lights: [
         %{
           source: :ha,
           source_id: "light.office_lamp",
           name: "Office Lamp",
-          room_source_id: "office",
+          area_source_id: "office",
           capabilities: %{},
           identifiers: %{},
           metadata: %{}
@@ -1408,7 +1408,7 @@ defmodule Hueworks.Import.MaterializeTest do
           source: :ha,
           source_id: "light.office_group",
           name: "Office Group",
-          room_source_id: nil,
+          area_source_id: nil,
           type: "group",
           capabilities: %{},
           metadata: %{}
@@ -1422,31 +1422,31 @@ defmodule Hueworks.Import.MaterializeTest do
     }
 
     plan = %{
-      rooms: %{"office" => %{"action" => "merge", "target_room_id" => "#{light_room.id}"}},
+      areas: %{"office" => %{"action" => "merge", "target_area_id" => "#{light_area.id}"}},
       lights: %{"light.office_lamp" => true},
       groups: %{"light.office_group" => true}
     }
 
     :ok = Materialize.materialize(bridge, normalized, plan)
 
-    assert Repo.reload!(light).room_id == light_room.id
-    assert Repo.reload!(group).room_id == group_room.id
+    assert Repo.reload!(light).area_id == light_area.id
+    assert Repo.reload!(group).area_id == group_area.id
   end
 
-  test "reimport does not recreate a room the user renamed when no new entities are imported" do
+  test "reimport does not recreate a area the user renamed when no new entities are imported" do
     bridge = insert_bridge()
-    renamed_room = insert_room("Workshop")
+    renamed_area = insert_area("Workshop")
 
-    light = insert_light(bridge, %{source_id: "light.office_lamp", room_id: renamed_room.id})
+    light = insert_light(bridge, %{source_id: "light.office_lamp", area_id: renamed_area.id})
 
     normalized = %{
-      rooms: [%{source: :ha, source_id: "office", name: "Office", metadata: %{}}],
+      areas: [%{source: :ha, source_id: "office", name: "Office", metadata: %{}}],
       lights: [
         %{
           source: :ha,
           source_id: "light.office_lamp",
           name: "Office Lamp",
-          room_source_id: "office",
+          area_source_id: "office",
           capabilities: %{},
           identifiers: %{},
           metadata: %{}
@@ -1456,32 +1456,32 @@ defmodule Hueworks.Import.MaterializeTest do
       memberships: %{}
     }
 
-    # Default reimport plan when the bridge room name no longer matches any
-    # HueWorks room (the user renamed it): the room falls back to "create"
+    # Default reimport plan when the bridge area name no longer matches any
+    # HueWorks area (the user renamed it): the area falls back to "create"
     # even though every entity in it already exists.
     plan = %{
-      rooms: %{"office" => %{"action" => "create", "target_room_id" => nil}},
+      areas: %{"office" => %{"action" => "create", "target_area_id" => nil}},
       lights: %{"light.office_lamp" => true},
       groups: %{}
     }
 
     :ok = Materialize.materialize(bridge, normalized, plan)
 
-    refute Repo.get_by(Room, name: "Office")
-    assert Repo.reload!(light).room_id == renamed_room.id
+    refute Repo.get_by(Area, name: "Office")
+    assert Repo.reload!(light).area_id == renamed_area.id
   end
 
   test "materialize without an explicit review plan refuses to reimport completed bridges" do
     bridge = insert_bridge(%{import_complete: true})
 
     normalized = %{
-      rooms: [],
+      areas: [],
       lights: [
         %{
           source: :ha,
           source_id: "light.new",
           name: "New Light",
-          room_source_id: nil,
+          area_source_id: nil,
           capabilities: %{},
           identifiers: %{},
           metadata: %{}
@@ -1515,8 +1515,8 @@ defmodule Hueworks.Import.MaterializeTest do
     |> Repo.insert!()
   end
 
-  defp insert_room(name) do
-    Repo.insert!(%Room{name: name})
+  defp insert_area(name) do
+    Repo.insert!(%Area{name: name})
   end
 
   defp insert_light(bridge, attrs) do

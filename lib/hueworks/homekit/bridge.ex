@@ -78,7 +78,7 @@ defmodule Hueworks.HomeKit.Bridge do
     {:noreply, state}
   end
 
-  def handle_info({:active_scene_updated, _room_id, _scene_id}, state) do
+  def handle_info({:active_scene_updated, _area_id, _scene_id}, state) do
     state.change_tokens
     |> Enum.filter(fn
       {{:scene, _scene_id}, _token} -> true

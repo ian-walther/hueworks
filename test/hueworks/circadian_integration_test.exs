@@ -8,7 +8,7 @@ defmodule Hueworks.CircadianIntegrationTest do
   alias Hueworks.Control.{CircadianPoller, DesiredState, HuePayload, Planner, State, Z2MPayload}
   alias Hueworks.Repo
   alias Hueworks.Scenes
-  alias Hueworks.Schemas.{ActiveScene, Bridge, Group, GroupLight, Light, Room}
+  alias Hueworks.Schemas.{ActiveScene, Bridge, Group, GroupLight, Light, Area}
   alias Hueworks.Subscription.HueEventStream.Mapper
   alias Hueworks.Subscription.Z2MEventStream.Connection.Handler, as: Z2MHandler
 
@@ -20,13 +20,13 @@ defmodule Hueworks.CircadianIntegrationTest do
   end
 
   test "circadian scene advances brightness during the pre-sunrise ramp before kelvin warms" do
-    %{room: room, scene: scene, solo_hue: solo_hue} = setup_mixed_scene_fixture()
+    %{area: area, scene: scene, solo_hue: solo_hue} = setup_mixed_scene_fixture()
 
     {:ok, _} = ActiveScenes.set_active(scene)
 
     dawn_ramp = apply_scene_at(scene, "2026-03-31 05:00:00")
     sunrise = apply_scene_at(scene, "2026-03-31 06:00:00")
-    actions = Planner.plan_room(room.id, sunrise.intent_diff)
+    actions = Planner.plan_area(area.id, sunrise.intent_diff)
 
     noon = apply_scene_at(scene, "2026-03-31 12:00:00")
 
@@ -65,13 +65,13 @@ defmodule Hueworks.CircadianIntegrationTest do
   test "mixed Hue and Z2M circadian scene keeps member, group, and UI state aligned across low and warm kelvin phases",
        %{conn: conn} do
     fixture = setup_mixed_scene_fixture()
-    %{room: room, scene: scene} = fixture
+    %{area: area, scene: scene} = fixture
 
     {:ok, _} = ActiveScenes.set_active(scene)
     {:ok, view, _html} = live(conn, "/lights")
 
-    assert_round_trip(view, room.id, fixture, "2026-03-31 05:00:00", 37, 2000, 2000)
-    assert_round_trip(view, room.id, fixture, "2026-03-31 12:00:00", 90, 4000, 3995)
+    assert_round_trip(view, area.id, fixture, "2026-03-31 05:00:00", 37, 2000, 2000)
+    assert_round_trip(view, area.id, fixture, "2026-03-31 12:00:00", 90, 4000, 3995)
   end
 
   test "z2m crossover-band events keep group and member UI aligned with hue values", %{conn: conn} do
@@ -131,37 +131,37 @@ defmodule Hueworks.CircadianIntegrationTest do
   end
 
   test "echoed refresh updates do not clear the active scene" do
-    %{room: room, scene: scene, solo_hue: solo_hue} = setup_mixed_scene_fixture()
+    %{area: area, scene: scene, solo_hue: solo_hue} = setup_mixed_scene_fixture()
 
     {:ok, _} = ActiveScenes.set_active(scene)
     _ = apply_scene_at(scene, "2026-03-31 05:00:00")
 
-    assert %ActiveScene{} = ActiveScenes.get_for_room(room.id)
+    assert %ActiveScene{} = ActiveScenes.get_for_area(area.id)
 
     _ = State.put(:light, solo_hue.id, %{power: :on, brightness: 45, kelvin: 2000})
 
-    assert %ActiveScene{} = ActiveScenes.get_for_room(room.id)
+    assert %ActiveScene{} = ActiveScenes.get_for_area(area.id)
   end
 
   test "active scene stays active through post-pending physical divergence" do
-    %{room: room, scene: scene, solo_hue: solo_hue, hue_floor_a: hue_floor_a} =
+    %{area: area, scene: scene, solo_hue: solo_hue, hue_floor_a: hue_floor_a} =
       setup_mixed_scene_fixture()
 
     {:ok, _} = ActiveScenes.set_active(scene)
     _ = apply_scene_at(scene, "2026-03-31 05:00:00")
 
     _ = State.put(:light, solo_hue.id, %{power: :on, brightness: 39, kelvin: 2000})
-    assert %ActiveScene{} = ActiveScenes.get_for_room(room.id)
+    assert %ActiveScene{} = ActiveScenes.get_for_area(area.id)
 
     _ = State.put(:light, hue_floor_a.id, %{power: :on, brightness: 37, kelvin: 2203})
-    assert %ActiveScene{} = ActiveScenes.get_for_room(room.id)
+    assert %ActiveScene{} = ActiveScenes.get_for_area(area.id)
 
     _ = State.put(:light, solo_hue.id, %{power: :on, brightness: 45, kelvin: 2000})
-    assert %ActiveScene{} = ActiveScenes.get_for_room(room.id)
+    assert %ActiveScene{} = ActiveScenes.get_for_area(area.id)
   end
 
   test "brightness drift beyond prior tolerance does not clear the active scene" do
-    %{room: room, scene: scene, solo_hue: solo_hue} = setup_mixed_scene_fixture("tolerance")
+    %{area: area, scene: scene, solo_hue: solo_hue} = setup_mixed_scene_fixture("tolerance")
 
     {:ok, _} = ActiveScenes.set_active(scene)
     result = apply_scene_at(scene, "2026-03-31 05:00:00")
@@ -175,7 +175,7 @@ defmodule Hueworks.CircadianIntegrationTest do
           kelvin: desired.kelvin
         })
 
-      assert %ActiveScene{} = ActiveScenes.get_for_room(room.id)
+      assert %ActiveScene{} = ActiveScenes.get_for_area(area.id)
     end
 
     _ =
@@ -185,19 +185,19 @@ defmodule Hueworks.CircadianIntegrationTest do
         kelvin: desired.kelvin
       })
 
-    assert %ActiveScene{} = ActiveScenes.get_for_room(room.id)
+    assert %ActiveScene{} = ActiveScenes.get_for_area(area.id)
   end
 
   test "z2m group stays truthful when only some members are on during an active circadian scene",
        %{conn: conn} do
     fixture = setup_mixed_scene_fixture()
-    %{room: room, scene: scene} = fixture
+    %{area: area, scene: scene} = fixture
 
     {:ok, _} = ActiveScenes.set_active(scene)
     {:ok, view, _html} = live(conn, "/lights")
 
     result = apply_scene_at(scene, "2026-03-31 05:00:00")
-    actions = Planner.plan_room(room.id, result.intent_diff)
+    actions = Planner.plan_area(area.id, result.intent_diff)
     desired = find_action_desired!(actions, :group, fixture.z2m_group.id)
 
     lower_payload =
@@ -232,20 +232,20 @@ defmodule Hueworks.CircadianIntegrationTest do
     assert_value(html, "#group-brightness-value-#{fixture.z2m_group.id}", "37%")
     assert_value(html, "#group-temp-value-#{fixture.z2m_group.id}", "2000K")
     assert has_element?(view, "#light-#{fixture.z2m_upper.id} button.hw-button-off", "On/Off")
-    assert %ActiveScene{} = ActiveScenes.get_for_room(room.id)
+    assert %ActiveScene{} = ActiveScenes.get_for_area(area.id)
   end
 
   test "late z2m group echo does not overwrite mixed member truth during an active scene", %{
     conn: conn
   } do
     fixture = setup_mixed_scene_fixture("late-group")
-    %{room: room, scene: scene} = fixture
+    %{area: area, scene: scene} = fixture
 
     {:ok, _} = ActiveScenes.set_active(scene)
     {:ok, view, _html} = live(conn, "/lights")
 
     result = apply_scene_at(scene, "2026-03-31 05:00:00")
-    actions = Planner.plan_room(room.id, result.intent_diff)
+    actions = Planner.plan_area(area.id, result.intent_diff)
     desired = find_action_desired!(actions, :group, fixture.z2m_group.id)
 
     lower_payload =
@@ -289,7 +289,7 @@ defmodule Hueworks.CircadianIntegrationTest do
     assert match?(%{power: :off}, State.get(:light, fixture.z2m_upper.id))
     assert_value(html, "#group-temp-value-#{fixture.z2m_group.id}", "2000K")
     assert has_element?(view, "#light-#{fixture.z2m_upper.id} button.hw-button-off", "On/Off")
-    assert %ActiveScene{} = ActiveScenes.get_for_room(room.id)
+    assert %ActiveScene{} = ActiveScenes.get_for_area(area.id)
   end
 
   test "circadian scene remains stable across the DST spring-forward boundary" do
@@ -437,7 +437,7 @@ defmodule Hueworks.CircadianIntegrationTest do
   end
 
   test "scene with mixed manual and circadian components keeps each component's intent distinct" do
-    room = Repo.insert!(%Room{name: "Component Room"})
+    area = Repo.insert!(%Area{name: "Component Area"})
 
     hue_bridge =
       insert_bridge!(%{
@@ -449,7 +449,7 @@ defmodule Hueworks.CircadianIntegrationTest do
       })
 
     manual_light =
-      insert_light(room, hue_bridge, %{
+      insert_light(area, hue_bridge, %{
         name: "Manual Lamp",
         display_name: "Manual Lamp",
         source: :hue,
@@ -460,7 +460,7 @@ defmodule Hueworks.CircadianIntegrationTest do
       })
 
     circadian_light =
-      insert_light(room, hue_bridge, %{
+      insert_light(area, hue_bridge, %{
         name: "Circadian Lamp",
         display_name: "Circadian Lamp",
         source: :hue,
@@ -486,7 +486,7 @@ defmodule Hueworks.CircadianIntegrationTest do
         "brightness_mode_time_light" => 10_800
       })
 
-    {:ok, scene} = Scenes.create_scene(%{name: "Mixed Components", room_id: room.id})
+    {:ok, scene} = Scenes.create_scene(%{name: "Mixed Components", area_id: area.id})
 
     {:ok, _} =
       Scenes.replace_scene_components(scene, [
@@ -537,7 +537,7 @@ defmodule Hueworks.CircadianIntegrationTest do
   end
 
   test "poller advances an active circadian scene using real elapsed time" do
-    room = Repo.insert!(%Room{name: "Poller Room"})
+    area = Repo.insert!(%Area{name: "Poller Area"})
 
     hue_bridge =
       insert_bridge!(%{
@@ -549,7 +549,7 @@ defmodule Hueworks.CircadianIntegrationTest do
       })
 
     light =
-      insert_light(room, hue_bridge, %{
+      insert_light(area, hue_bridge, %{
         name: "Poller Lamp",
         display_name: "Poller Lamp",
         source: :hue,
@@ -588,7 +588,7 @@ defmodule Hueworks.CircadianIntegrationTest do
         "brightness_mode_time_light" => 5
       })
 
-    {:ok, scene} = Scenes.create_scene(%{name: "Rapid Poller Scene", room_id: room.id})
+    {:ok, scene} = Scenes.create_scene(%{name: "Rapid Poller Scene", area_id: area.id})
 
     {:ok, _} =
       Scenes.replace_scene_components(scene, [
@@ -608,7 +608,7 @@ defmodule Hueworks.CircadianIntegrationTest do
       Scenes.apply_scene(scene, now: DateTime.utc_now())
 
     starting_desired = DesiredState.get(:light, light.id)
-    starting_active = Repo.get_by!(ActiveScene, room_id: room.id)
+    starting_active = Repo.get_by!(ActiveScene, area_id: area.id)
 
     {:ok, pid} = CircadianPoller.start_link(name: nil, interval_ms: 100)
 
@@ -618,7 +618,7 @@ defmodule Hueworks.CircadianIntegrationTest do
            end)
 
     assert eventually(fn ->
-             refreshed = Repo.get_by!(ActiveScene, room_id: room.id)
+             refreshed = Repo.get_by!(ActiveScene, area_id: area.id)
              DateTime.compare(refreshed.last_applied_at, starting_active.last_applied_at) == :gt
            end)
 
@@ -626,7 +626,7 @@ defmodule Hueworks.CircadianIntegrationTest do
   end
 
   test "compressed day progresses from brightness-only adaptation into warming kelvin" do
-    room = Repo.insert!(%Room{name: "Compressed Day Room"})
+    area = Repo.insert!(%Area{name: "Compressed Day Area"})
 
     hue_bridge =
       insert_bridge!(%{
@@ -638,7 +638,7 @@ defmodule Hueworks.CircadianIntegrationTest do
       })
 
     light =
-      insert_light(room, hue_bridge, %{
+      insert_light(area, hue_bridge, %{
         name: "Compressed Day Lamp",
         display_name: "Compressed Day Lamp",
         source: :hue,
@@ -661,7 +661,7 @@ defmodule Hueworks.CircadianIntegrationTest do
         "brightness_mode_time_light" => 5
       })
 
-    {:ok, scene} = Scenes.create_scene(%{name: "Compressed Day Scene", room_id: room.id})
+    {:ok, scene} = Scenes.create_scene(%{name: "Compressed Day Scene", area_id: area.id})
 
     {:ok, _} =
       Scenes.replace_scene_components(scene, [
@@ -696,7 +696,7 @@ defmodule Hueworks.CircadianIntegrationTest do
   end
 
   test "lights reload button preserves active scene during echoed refresh updates", %{conn: conn} do
-    %{room: room, scene: scene, solo_hue: solo_hue, hue_group: hue_group, z2m_group: z2m_group} =
+    %{area: area, scene: scene, solo_hue: solo_hue, hue_group: hue_group, z2m_group: z2m_group} =
       setup_mixed_scene_fixture("refresh")
 
     disable_bridges_for_refresh!([solo_hue.bridge_id, hue_group.bridge_id, z2m_group.bridge_id])
@@ -713,7 +713,7 @@ defmodule Hueworks.CircadianIntegrationTest do
     assert render(view) =~ "Reloaded database snapshot"
 
     _ = State.put(:light, solo_hue.id, %{power: :on, brightness: 45, kelvin: 2000})
-    assert %ActiveScene{} = ActiveScenes.get_for_room(room.id)
+    assert %ActiveScene{} = ActiveScenes.get_for_area(area.id)
   end
 
   test "reload plus mixed z2m echoes keeps partial-member truth while the scene stays active", %{
@@ -721,14 +721,14 @@ defmodule Hueworks.CircadianIntegrationTest do
   } do
     fixture = setup_mixed_scene_fixture("reload-z2m")
 
-    %{room: room, scene: scene, solo_hue: solo_hue, hue_group: hue_group, z2m_group: z2m_group} =
+    %{area: area, scene: scene, solo_hue: solo_hue, hue_group: hue_group, z2m_group: z2m_group} =
       fixture
 
     disable_bridges_for_refresh!([solo_hue.bridge_id, hue_group.bridge_id, z2m_group.bridge_id])
 
     {:ok, _} = ActiveScenes.set_active(scene)
     result = apply_scene_at(scene, "2026-03-31 05:00:00")
-    actions = Planner.plan_room(room.id, result.intent_diff)
+    actions = Planner.plan_area(area.id, result.intent_diff)
     desired = find_action_desired!(actions, :group, z2m_group.id)
 
     {:ok, view, _html} = live(conn, "/lights")
@@ -769,7 +769,7 @@ defmodule Hueworks.CircadianIntegrationTest do
 
     html = render(view)
 
-    assert %ActiveScene{} = ActiveScenes.get_for_room(room.id)
+    assert %ActiveScene{} = ActiveScenes.get_for_area(area.id)
 
     assert Map.take(State.get(:group, fixture.z2m_group.id), [:power, :brightness, :kelvin]) == %{
              power: :on,
@@ -784,7 +784,7 @@ defmodule Hueworks.CircadianIntegrationTest do
 
   test "sequential Hue grouped-light updates never overwrite member UI state", %{conn: conn} do
     fixture = setup_mixed_scene_fixture()
-    %{room: room, scene: scene} = fixture
+    %{area: area, scene: scene} = fixture
 
     {:ok, _} = ActiveScenes.set_active(scene)
     {:ok, view, _html} = live(conn, "/lights")
@@ -797,7 +797,7 @@ defmodule Hueworks.CircadianIntegrationTest do
     assert_value(low_html, "#light-temp-value-#{fixture.hue_floor_b.id}", "2203K")
 
     warm_result = apply_scene_at(scene, "2026-03-31 12:00:00")
-    warm_actions = Planner.plan_room(room.id, warm_result.intent_diff)
+    warm_actions = Planner.plan_area(area.id, warm_result.intent_diff)
 
     simulate_hue_group_action(warm_actions, fixture.hue_group, fixture.hue_mapper_state)
     group_only_html = render(view)
@@ -820,7 +820,7 @@ defmodule Hueworks.CircadianIntegrationTest do
     assert_value(member_html, "#light-temp-value-#{fixture.hue_floor_b.id}", "4000K")
   end
 
-  test "multiple active rooms stay isolated across clears and circadian updates" do
+  test "multiple active areas stay isolated across clears and circadian updates" do
     fixture_a = setup_mixed_scene_fixture("A")
     fixture_b = setup_mixed_scene_fixture("B")
 
@@ -844,9 +844,9 @@ defmodule Hueworks.CircadianIntegrationTest do
 
     _ = State.put(:light, fixture_a.solo_hue.id, %{power: :on, brightness: 45, kelvin: 2000})
 
-    assert %ActiveScene{scene_id: scene_a_id} = ActiveScenes.get_for_room(fixture_a.room.id)
+    assert %ActiveScene{scene_id: scene_a_id} = ActiveScenes.get_for_area(fixture_a.area.id)
     assert scene_a_id == fixture_a.scene.id
-    assert %ActiveScene{scene_id: scene_id} = ActiveScenes.get_for_room(fixture_b.room.id)
+    assert %ActiveScene{scene_id: scene_id} = ActiveScenes.get_for_area(fixture_b.area.id)
     assert scene_id == fixture_b.scene.id
 
     assert DesiredState.get(:light, fixture_b.solo_hue.id) == %{
@@ -857,15 +857,15 @@ defmodule Hueworks.CircadianIntegrationTest do
   end
 
   defp setup_mixed_scene_fixture(suffix \\ "") do
-    room_suffix = if suffix == "", do: "", else: " #{suffix}"
+    area_suffix = if suffix == "", do: "", else: " #{suffix}"
     id_suffix = if suffix == "", do: "", else: "-#{suffix}"
 
-    room = Repo.insert!(%Room{name: "Main Floor#{room_suffix}"})
+    area = Repo.insert!(%Area{name: "Main Floor#{area_suffix}"})
 
     hue_bridge =
       insert_bridge!(%{
         type: :hue,
-        name: "Hue Bridge#{room_suffix}",
+        name: "Hue Bridge#{area_suffix}",
         host: if(suffix == "", do: "10.0.0.40", else: "10.0.0.40#{id_suffix}"),
         credentials: %{"api_key" => "key"},
         enabled: true
@@ -874,16 +874,16 @@ defmodule Hueworks.CircadianIntegrationTest do
     z2m_bridge =
       insert_bridge!(%{
         type: :z2m,
-        name: "Z2M Bridge#{room_suffix}",
+        name: "Z2M Bridge#{area_suffix}",
         host: if(suffix == "", do: "10.0.0.80", else: "10.0.0.80#{id_suffix}"),
         credentials: %{"base_topic" => "zigbee2mqtt", "broker_port" => 1883},
         enabled: true
       })
 
     solo_hue =
-      insert_light(room, hue_bridge, %{
-        name: "Bar Accent#{room_suffix}",
-        display_name: "Bar Accent#{room_suffix}",
+      insert_light(area, hue_bridge, %{
+        name: "Bar Accent#{area_suffix}",
+        display_name: "Bar Accent#{area_suffix}",
         source: :hue,
         source_id: "hue-bar-accent#{id_suffix}",
         supports_temp: true,
@@ -892,9 +892,9 @@ defmodule Hueworks.CircadianIntegrationTest do
       })
 
     hue_floor_a =
-      insert_light(room, hue_bridge, %{
-        name: "Hue Floor A#{room_suffix}",
-        display_name: "Hue Floor A#{room_suffix}",
+      insert_light(area, hue_bridge, %{
+        name: "Hue Floor A#{area_suffix}",
+        display_name: "Hue Floor A#{area_suffix}",
         source: :hue,
         source_id: "hue-floor-a#{id_suffix}",
         supports_temp: true,
@@ -903,9 +903,9 @@ defmodule Hueworks.CircadianIntegrationTest do
       })
 
     hue_floor_b =
-      insert_light(room, hue_bridge, %{
-        name: "Hue Floor B#{room_suffix}",
-        display_name: "Hue Floor B#{room_suffix}",
+      insert_light(area, hue_bridge, %{
+        name: "Hue Floor B#{area_suffix}",
+        display_name: "Hue Floor B#{area_suffix}",
         source: :hue,
         source_id: "hue-floor-b#{id_suffix}",
         supports_temp: true,
@@ -914,9 +914,9 @@ defmodule Hueworks.CircadianIntegrationTest do
       })
 
     hue_group =
-      insert_group(room, hue_bridge, %{
-        name: "Hue Floor Group#{room_suffix}",
-        display_name: "Hue Floor Group#{room_suffix}",
+      insert_group(area, hue_bridge, %{
+        name: "Hue Floor Group#{area_suffix}",
+        display_name: "Hue Floor Group#{area_suffix}",
         source: :hue,
         source_id: "hue-group-1#{id_suffix}",
         supports_temp: true,
@@ -927,9 +927,9 @@ defmodule Hueworks.CircadianIntegrationTest do
     link_group(hue_group, [hue_floor_a, hue_floor_b])
 
     z2m_lower =
-      insert_light(room, z2m_bridge, %{
-        name: "Bar Lower Cabinet Lights#{room_suffix}",
-        display_name: "Bar Lower Cabinet Lights#{room_suffix}",
+      insert_light(area, z2m_bridge, %{
+        name: "Bar Lower Cabinet Lights#{area_suffix}",
+        display_name: "Bar Lower Cabinet Lights#{area_suffix}",
         source: :z2m,
         source_id: "bar_lower_cabinet#{id_suffix}",
         supports_temp: true,
@@ -941,9 +941,9 @@ defmodule Hueworks.CircadianIntegrationTest do
       })
 
     z2m_upper =
-      insert_light(room, z2m_bridge, %{
-        name: "Bar Upper Cabinet Lights#{room_suffix}",
-        display_name: "Bar Upper Cabinet Lights#{room_suffix}",
+      insert_light(area, z2m_bridge, %{
+        name: "Bar Upper Cabinet Lights#{area_suffix}",
+        display_name: "Bar Upper Cabinet Lights#{area_suffix}",
         source: :z2m,
         source_id: "bar_upper_cabinet#{id_suffix}",
         supports_temp: true,
@@ -955,9 +955,9 @@ defmodule Hueworks.CircadianIntegrationTest do
       })
 
     z2m_group =
-      insert_group(room, z2m_bridge, %{
-        name: "Bar Cabinet Lights#{room_suffix}",
-        display_name: "Bar Cabinet Lights#{room_suffix}",
+      insert_group(area, z2m_bridge, %{
+        name: "Bar Cabinet Lights#{area_suffix}",
+        display_name: "Bar Cabinet Lights#{area_suffix}",
         source: :z2m,
         source_id: "bar_cabinet_group#{id_suffix}",
         supports_temp: true,
@@ -972,7 +972,7 @@ defmodule Hueworks.CircadianIntegrationTest do
     link_group(z2m_group, [z2m_lower, z2m_upper])
 
     {:ok, circadian_state} =
-      Scenes.create_light_state("Integration Circadian#{room_suffix}", :circadian, %{
+      Scenes.create_light_state("Integration Circadian#{area_suffix}", :circadian, %{
         "sunrise_time" => "06:00:00",
         "sunset_time" => "18:00:00",
         "min_brightness" => 10,
@@ -985,7 +985,7 @@ defmodule Hueworks.CircadianIntegrationTest do
       })
 
     {:ok, scene} =
-      Scenes.create_scene(%{name: "Circadian Integration#{room_suffix}", room_id: room.id})
+      Scenes.create_scene(%{name: "Circadian Integration#{area_suffix}", area_id: area.id})
 
     {:ok, _} =
       Scenes.replace_scene_components(scene, [
@@ -1004,7 +1004,7 @@ defmodule Hueworks.CircadianIntegrationTest do
       })
 
     %{
-      room: room,
+      area: area,
       scene: scene,
       solo_hue: solo_hue,
       hue_floor_a: hue_floor_a,
@@ -1021,7 +1021,7 @@ defmodule Hueworks.CircadianIntegrationTest do
 
   defp assert_round_trip(
          view,
-         room_id,
+         area_id,
          fixture,
          local_time,
          expected_brightness,
@@ -1029,7 +1029,7 @@ defmodule Hueworks.CircadianIntegrationTest do
          expected_z2m_display_kelvin
        ) do
     result = apply_scene_at(fixture.scene, local_time)
-    actions = Planner.plan_room(room_id, result.intent_diff)
+    actions = Planner.plan_area(area_id, result.intent_diff)
 
     assert Enum.any?(actions)
 
@@ -1267,7 +1267,7 @@ defmodule Hueworks.CircadianIntegrationTest do
 
   defp round_trip_at(view, fixture, local_time) do
     result = apply_scene_at(fixture.scene, local_time)
-    actions = Planner.plan_room(fixture.room.id, result.intent_diff)
+    actions = Planner.plan_area(fixture.area.id, result.intent_diff)
 
     if Enum.any?(actions, &(&1.type == :light and &1.id == fixture.solo_hue.id)) do
       simulate_hue_action(actions, fixture.solo_hue, fixture.hue_mapper_state)
@@ -1337,7 +1337,7 @@ defmodule Hueworks.CircadianIntegrationTest do
         |> NaiveDateTime.to_iso8601()
 
       result = apply_scene_at(fixture.scene, local_time)
-      actions = Planner.plan_room(fixture.room.id, result.intent_diff)
+      actions = Planner.plan_area(fixture.area.id, result.intent_diff)
 
       if Enum.empty?(actions) do
         nil
@@ -1377,10 +1377,10 @@ defmodule Hueworks.CircadianIntegrationTest do
     end) || flunk("no local time found for round-tripped #{type} #{id}")
   end
 
-  defp insert_light(room, bridge, attrs) do
+  defp insert_light(area, bridge, attrs) do
     defaults = %{
       bridge_id: bridge.id,
-      room_id: room.id,
+      area_id: area.id,
       metadata: %{},
       enabled: true
     }
@@ -1388,10 +1388,10 @@ defmodule Hueworks.CircadianIntegrationTest do
     Repo.insert!(struct(Light, Map.merge(defaults, attrs)))
   end
 
-  defp insert_group(room, bridge, attrs) do
+  defp insert_group(area, bridge, attrs) do
     defaults = %{
       bridge_id: bridge.id,
-      room_id: room.id,
+      area_id: area.id,
       metadata: %{},
       enabled: true
     }

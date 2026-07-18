@@ -24,7 +24,7 @@ defmodule Hueworks.Picos.Summary do
       {action_type, %StoredActionConfig{target_kind: :scene} = config} ->
         target_id = StoredActionConfig.target_id(config)
 
-        "#{binding_action_label(action_type)} #{Targets.scene_name_for_target(target_id, device.room_id)}"
+        "#{binding_action_label(action_type)} #{Targets.scene_name_for_target(target_id, device.area_id)}"
 
       {action_type, %StoredActionConfig{light_ids: light_ids}} when light_ids != [] ->
         "#{binding_action_label(action_type)} Custom Lights"

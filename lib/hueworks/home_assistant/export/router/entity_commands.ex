@@ -31,10 +31,10 @@ defmodule Hueworks.HomeAssistant.Export.Router.EntityCommands do
       when kind in [:light, :group] and is_integer(id) and is_function(publish_fun, 3) do
     with entity when not is_nil(entity) <- Entities.fetch_entity(kind, id),
          {:ok, decoded} <- Commands.decode_json_payload(payload),
-         {room_id, light_ids} when is_integer(room_id) and light_ids != [] <-
+         {area_id, light_ids} when is_integer(area_id) and light_ids != [] <-
            Entities.control_target(kind, id),
          {:ok, action} <- Commands.normalize_light_command(decoded, entity) do
-      dispatch_light_action(action, kind, entity, room_id, light_ids, config, publish_fun)
+      dispatch_light_action(action, kind, entity, area_id, light_ids, config, publish_fun)
     else
       _ -> :ok
     end
@@ -46,12 +46,12 @@ defmodule Hueworks.HomeAssistant.Export.Router.EntityCommands do
          {:power, power},
          kind,
          entity,
-         room_id,
+         area_id,
          light_ids,
          _config,
          publish_fun
        ) do
-    case ManualControl.apply_power_action(room_id, light_ids, power) do
+    case ManualControl.apply_power_action(area_id, light_ids, power) do
       {:ok, _diff} ->
         publish_optimistic_power_state(kind, entity, power, publish_fun)
         :ok
@@ -65,12 +65,12 @@ defmodule Hueworks.HomeAssistant.Export.Router.EntityCommands do
          {:set_state, attrs},
          kind,
          entity,
-         room_id,
+         area_id,
          light_ids,
          _config,
          publish_fun
        ) do
-    case ManualControl.apply_updates(room_id, light_ids, attrs) do
+    case ManualControl.apply_updates(area_id, light_ids, attrs) do
       {:ok, _diff} ->
         publish_optimistic_light_state(kind, entity, attrs, publish_fun)
         :ok
@@ -85,8 +85,8 @@ defmodule Hueworks.HomeAssistant.Export.Router.EntityCommands do
     kind
     |> Entities.control_target(id)
     |> case do
-      {room_id, light_ids} when is_integer(room_id) and light_ids != [] ->
-        case ManualControl.apply_power_action(room_id, light_ids, power) do
+      {area_id, light_ids} when is_integer(area_id) and light_ids != [] ->
+        case ManualControl.apply_power_action(area_id, light_ids, power) do
           {:ok, _diff} ->
             if entity = Entities.fetch_entity(kind, id) do
               publish_optimistic_power_state(kind, entity, power, publish_fun)

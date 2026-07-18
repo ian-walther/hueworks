@@ -431,7 +431,7 @@
       "source_id": "light.foyer_lights",
       "name": "Foyer Lights",
       "classification": "ha_group",
-      "room_source_id": "foyer",
+      "area_source_id": "foyer",
       "capabilities": {
         "brightness": true,
         "color": false,
@@ -449,7 +449,7 @@
       "source_id": "light.hall_bath_lights",
       "name": "Hall Bath Lights",
       "classification": "ha_group",
-      "room_source_id": "hall_bath",
+      "area_source_id": "hall_bath",
       "capabilities": {
         "brightness": true,
         "color": false,
@@ -466,7 +466,7 @@
       "source_id": "light.master_bath_lights",
       "name": "Master Bath Lights",
       "classification": "ha_group",
-      "room_source_id": "master_bathroom",
+      "area_source_id": "master_bathroom",
       "capabilities": {
         "brightness": true,
         "color": false,
@@ -484,7 +484,7 @@
       "source_id": "light.bar_accent_lights",
       "name": "Bar Accent Lights",
       "classification": "ha_group",
-      "room_source_id": null,
+      "area_source_id": null,
       "capabilities": {
         "brightness": true,
         "color": true,
@@ -501,7 +501,7 @@
       "source_id": "light.office_accent_lights",
       "name": "Office Accent Lights",
       "classification": "ha_group",
-      "room_source_id": null,
+      "area_source_id": null,
       "capabilities": {
         "brightness": true,
         "color": true,
@@ -518,7 +518,7 @@
       "source_id": "light.kitchen_cabinet_lights_2",
       "name": "Kitchen Cabinet Lights",
       "classification": "ha_group",
-      "room_source_id": null,
+      "area_source_id": null,
       "capabilities": {
         "brightness": true,
         "color": true,
@@ -535,7 +535,7 @@
       "source_id": "light.master_bathroom_lights",
       "name": "Master Bathroom Lights",
       "classification": "ha_group",
-      "room_source_id": "master_bathroom",
+      "area_source_id": "master_bathroom",
       "capabilities": {
         "brightness": true,
         "color": false,
@@ -550,10 +550,10 @@
       ]
     },
     {
-      "source_id": "light.living_room_lamps",
-      "name": "light.living_room_lamps",
+      "source_id": "light.living_area_lamps",
+      "name": "light.living_area_lamps",
       "classification": "hue_group",
-      "room_source_id": "living_room",
+      "area_source_id": "living_area",
       "capabilities": {
         "brightness": true,
         "color": true,
@@ -573,10 +573,10 @@
       ]
     },
     {
-      "source_id": "light.living_room",
-      "name": "Living Room Lights",
+      "source_id": "light.living_area",
+      "name": "Living Area Lights",
       "classification": "hue_group",
-      "room_source_id": "living_room",
+      "area_source_id": "living_area",
       "capabilities": {
         "brightness": true,
         "color": true,
@@ -605,7 +605,7 @@
       "source_id": "light.ians_office",
       "name": "Office Lights",
       "classification": "hue_group",
-      "room_source_id": "office",
+      "area_source_id": "office",
       "capabilities": {
         "brightness": true,
         "color": true,
@@ -626,7 +626,7 @@
       "source_id": "light.kitchen_recessed_lights",
       "name": "Kitchen Recessed Lights",
       "classification": "hue_group",
-      "room_source_id": "kitchen",
+      "area_source_id": "kitchen",
       "capabilities": {
         "brightness": true,
         "color": true,
@@ -641,10 +641,10 @@
       ]
     },
     {
-      "source_id": "light.living_room_recessed_lights",
-      "name": "Living Room Ceiling Lights",
+      "source_id": "light.living_area_recessed_lights",
+      "name": "Living Area Ceiling Lights",
       "classification": "hue_group",
-      "room_source_id": "living_room",
+      "area_source_id": "living_area",
       "capabilities": {
         "brightness": true,
         "color": true,
@@ -665,7 +665,7 @@
       "source_id": "light.kitchen_hue",
       "name": "Kitchen All Lights Hue",
       "classification": "hue_group",
-      "room_source_id": "kitchen",
+      "area_source_id": "kitchen",
       "capabilities": {
         "brightness": true,
         "color": true,
@@ -695,7 +695,7 @@
       "source_id": "light.main_floor",
       "name": "light.main_floor",
       "classification": "hue_group",
-      "room_source_id": "main_floor",
+      "area_source_id": "main_floor",
       "capabilities": {
         "brightness": true,
         "color": true,
@@ -745,7 +745,7 @@
       "source_id": "light.office_overhead",
       "name": "Office Ceiling Light",
       "classification": "hue_group",
-      "room_source_id": "office",
+      "area_source_id": "office",
       "capabilities": {
         "brightness": true,
         "color": true,
@@ -762,7 +762,7 @@
       "source_id": "light.studio",
       "name": "Studio Lights",
       "classification": "hue_group",
-      "room_source_id": "studio",
+      "area_source_id": "studio",
       "capabilities": {
         "brightness": true,
         "color": true,
@@ -781,10 +781,10 @@
       ]
     },
     {
-      "source_id": "light.guest_room",
-      "name": "Guest Room Lights",
+      "source_id": "light.guest_area",
+      "name": "Guest Area Lights",
       "classification": "hue_group",
-      "room_source_id": "guest_room",
+      "area_source_id": "guest_area",
       "capabilities": {
         "brightness": true,
         "color": true,
@@ -804,7 +804,7 @@
       "source_id": "light.master_sitting_area",
       "name": "Master Bedroom Sitting Area Lights",
       "classification": "hue_group",
-      "room_source_id": "master_bedroom",
+      "area_source_id": "master_bedroom",
       "capabilities": {
         "brightness": true,
         "color": true,
@@ -822,7 +822,7 @@
       "source_id": "light.bar",
       "name": "Bar Ceiling Light",
       "classification": "hue_group",
-      "room_source_id": "bar",
+      "area_source_id": "bar",
       "capabilities": {
         "brightness": true,
         "color": true,
@@ -839,7 +839,7 @@
       "source_id": "light.master_bedroom",
       "name": "Master Bedroom Lights",
       "classification": "hue_group",
-      "room_source_id": "master_bedroom",
+      "area_source_id": "master_bedroom",
       "capabilities": {
         "brightness": true,
         "color": true,
@@ -860,7 +860,7 @@
       "source_id": "light.kitchen_hanging",
       "name": "Kitchen Hanging Lights Hue Lights",
       "classification": "hue_group",
-      "room_source_id": "kitchen",
+      "area_source_id": "kitchen",
       "capabilities": {
         "brightness": true,
         "color": false,
@@ -882,7 +882,7 @@
       "source_id": "light.kitchen_ceiling",
       "name": "Kitchen Ceiling Lights",
       "classification": "hue_group",
-      "room_source_id": "kitchen",
+      "area_source_id": "kitchen",
       "capabilities": {
         "brightness": true,
         "color": true,
@@ -903,7 +903,7 @@
       "source_id": "light.main_floor_ceiling",
       "name": "light.main_floor_ceiling",
       "classification": "hue_group",
-      "room_source_id": "main_floor",
+      "area_source_id": "main_floor",
       "capabilities": {
         "brightness": true,
         "color": true,
@@ -933,7 +933,7 @@
       "source_id": "light.main_floor_other",
       "name": "light.main_floor_other",
       "classification": "hue_group",
-      "room_source_id": "main_floor",
+      "area_source_id": "main_floor",
       "capabilities": {
         "brightness": true,
         "color": true,
@@ -957,7 +957,7 @@
       "source_id": "light.office_lamps",
       "name": "Office Lamps",
       "classification": "hue_group",
-      "room_source_id": "office",
+      "area_source_id": "office",
       "capabilities": {
         "brightness": true,
         "color": true,
@@ -976,7 +976,7 @@
       "source_id": "light.studio_ceiling",
       "name": "Studio Ceiling Lights",
       "classification": "hue_group",
-      "room_source_id": "studio",
+      "area_source_id": "studio",
       "capabilities": {
         "brightness": true,
         "color": true,
@@ -995,7 +995,7 @@
       "source_id": "light.studio_lamps",
       "name": "light.studio_lamps",
       "classification": "hue_group",
-      "room_source_id": "studio",
+      "area_source_id": "studio",
       "capabilities": {
         "brightness": true,
         "color": true,
@@ -1010,10 +1010,10 @@
       ]
     },
     {
-      "source_id": "light.guest_room_ceiling",
-      "name": "Guest Room Ceiling Lights",
+      "source_id": "light.guest_area_ceiling",
+      "name": "Guest Area Ceiling Lights",
       "classification": "hue_group",
-      "room_source_id": "guest_room",
+      "area_source_id": "guest_area",
       "capabilities": {
         "brightness": true,
         "color": true,
@@ -1028,10 +1028,10 @@
       ]
     },
     {
-      "source_id": "light.guest_room_lamps",
-      "name": "light.guest_room_lamps",
+      "source_id": "light.guest_area_lamps",
+      "name": "light.guest_area_lamps",
       "classification": "hue_group",
-      "room_source_id": "guest_room",
+      "area_source_id": "guest_area",
       "capabilities": {
         "brightness": true,
         "color": true,
@@ -1048,7 +1048,7 @@
       "source_id": "light.master_bedroom_ceiling",
       "name": "Master Bedroom Ceiling Lights",
       "classification": "hue_group",
-      "room_source_id": "master_bedroom",
+      "area_source_id": "master_bedroom",
       "capabilities": {
         "brightness": true,
         "color": true,
@@ -1065,7 +1065,7 @@
       "source_id": "light.master_bedroom_lamps",
       "name": "light.master_bedroom_lamps",
       "classification": "hue_group",
-      "room_source_id": "master_bedroom",
+      "area_source_id": "master_bedroom",
       "capabilities": {
         "brightness": true,
         "color": true,
@@ -1084,7 +1084,7 @@
       "source_id": "light.hallway",
       "name": "light.hallway",
       "classification": "hue_group",
-      "room_source_id": "upstairs_hallway",
+      "area_source_id": "upstairs_hallway",
       "capabilities": {
         "brightness": true,
         "color": true,
@@ -1105,7 +1105,7 @@
       "source_id": "light.master_bed_all",
       "name": "Master Bedroom All Lights",
       "classification": "hue_group",
-      "room_source_id": "master_bedroom",
+      "area_source_id": "master_bedroom",
       "capabilities": {
         "brightness": true,
         "color": true,
@@ -1129,7 +1129,7 @@
       "source_id": "light.dining_ceiling",
       "name": "Kitchen Dining Ceiling Lights",
       "classification": "hue_group",
-      "room_source_id": "kitchen",
+      "area_source_id": "kitchen",
       "capabilities": {
         "brightness": true,
         "color": true,
@@ -1147,7 +1147,7 @@
       "source_id": "light.dining_table_light",
       "name": "Dining Table Lights",
       "classification": "hue_group",
-      "room_source_id": "kitchen",
+      "area_source_id": "kitchen",
       "capabilities": {
         "brightness": true,
         "color": false,
@@ -1166,7 +1166,7 @@
       "source_id": "light.kitchen_pendant_lights",
       "name": "light.kitchen_pendant_lights",
       "classification": "hue_group",
-      "room_source_id": "kitchen",
+      "area_source_id": "kitchen",
       "capabilities": {
         "brightness": true,
         "color": false,
@@ -1184,7 +1184,7 @@
       "source_id": "light.cooking_lights",
       "name": "light.cooking_lights",
       "classification": "hue_group",
-      "room_source_id": "kitchen",
+      "area_source_id": "kitchen",
       "capabilities": {
         "brightness": true,
         "color": true,
@@ -1207,7 +1207,7 @@
       "source_id": "light.dining_lights",
       "name": "light.dining_lights",
       "classification": "hue_group",
-      "room_source_id": "kitchen",
+      "area_source_id": "kitchen",
       "capabilities": {
         "brightness": true,
         "color": true,
@@ -1229,7 +1229,7 @@
       "source_id": "light.garage",
       "name": "Garage Lights",
       "classification": "hue_group",
-      "room_source_id": "garage",
+      "area_source_id": "garage",
       "capabilities": {
         "brightness": true,
         "color": true,
@@ -1254,7 +1254,7 @@
       "source_id": "light.garage_ceiling",
       "name": "light.garage_ceiling",
       "classification": "hue_group",
-      "room_source_id": "garage",
+      "area_source_id": "garage",
       "capabilities": {
         "brightness": true,
         "color": true,
@@ -1277,7 +1277,7 @@
       "source_id": "light.garage_lamps_2",
       "name": "light.garage_lamps_2",
       "classification": "hue_group",
-      "room_source_id": "garage",
+      "area_source_id": "garage",
       "capabilities": {
         "brightness": true,
         "color": true,
@@ -1294,7 +1294,7 @@
       "source_id": "light.foyer",
       "name": "light.foyer",
       "classification": "hue_group",
-      "room_source_id": "foyer",
+      "area_source_id": "foyer",
       "capabilities": {
         "brightness": true,
         "color": true,
@@ -1310,7 +1310,7 @@
       "source_id": "light.pantry",
       "name": "light.pantry",
       "classification": "hue_group",
-      "room_source_id": null,
+      "area_source_id": null,
       "capabilities": {
         "brightness": true,
         "color": true,

@@ -6,10 +6,10 @@ defmodule Hueworks.PresenceInputsTest do
   alias Hueworks.PresenceInputs
   alias Hueworks.Repo
   alias Hueworks.Scenes
-  alias Hueworks.Schemas.{Light, PresenceInput, Room}
+  alias Hueworks.Schemas.{Light, PresenceInput, Area}
 
-  defp insert_room do
-    Repo.insert!(%Room{name: "Office"})
+  defp insert_area do
+    Repo.insert!(%Area{name: "Office"})
   end
 
   defp insert_bridge do
@@ -23,37 +23,37 @@ defmodule Hueworks.PresenceInputsTest do
     })
   end
 
-  defp insert_light(room, bridge, attrs) do
+  defp insert_light(area, bridge, attrs) do
     defaults = %{
       name: "Light",
       source: :hue,
       source_id: Integer.to_string(System.unique_integer([:positive])),
       bridge_id: bridge.id,
-      room_id: room.id,
+      area_id: area.id,
       metadata: %{}
     }
 
     Repo.insert!(struct(Light, Map.merge(defaults, attrs)))
   end
 
-  test "create_input persists a room-scoped boolean" do
-    room = insert_room()
+  test "create_input persists a area-scoped boolean" do
+    area = insert_area()
 
     assert {:ok, input} =
-             PresenceInputs.create_input(room.id, %{
+             PresenceInputs.create_input(area.id, %{
                name: "Desk Presence",
                occupied: false,
                metadata: %{}
              })
 
-    assert input.room_id == room.id
+    assert input.area_id == area.id
     assert input.name == "Desk Presence"
     assert input.occupied == false
   end
 
   test "update_input and delete_input manage ordinary presence inputs" do
-    room = insert_room()
-    input = Repo.insert!(%PresenceInput{room_id: room.id, name: "Desk", occupied: true})
+    area = insert_area()
+    input = Repo.insert!(%PresenceInput{area_id: area.id, name: "Desk", occupied: true})
 
     assert {:ok, updated} = PresenceInputs.update_input(input, %{name: "Sitting Area"})
     assert updated.name == "Sitting Area"
@@ -64,8 +64,8 @@ defmodule Hueworks.PresenceInputsTest do
   end
 
   test "set_occupied stores HA-driven state" do
-    room = insert_room()
-    input = Repo.insert!(%PresenceInput{room_id: room.id, name: "Desk", occupied: true})
+    area = insert_area()
+    input = Repo.insert!(%PresenceInput{area_id: area.id, name: "Desk", occupied: true})
 
     assert {:ok, updated} =
              PresenceInputs.set_occupied(input.id, false, refresh_home_assistant: false)
@@ -74,14 +74,14 @@ defmodule Hueworks.PresenceInputsTest do
     assert Repo.get!(PresenceInput, input.id).occupied == false
   end
 
-  test "set_occupied reapplies the active room scene when follow presence is used" do
-    room = insert_room()
+  test "set_occupied reapplies the active area scene when follow presence is used" do
+    area = insert_area()
     bridge = insert_bridge()
-    light = insert_light(room, bridge, %{name: "Desk Lamp"})
+    light = insert_light(area, bridge, %{name: "Desk Lamp"})
 
     input =
       Repo.insert!(%PresenceInput{
-        room_id: room.id,
+        area_id: area.id,
         name: "Desk Presence",
         occupied: true
       })
@@ -89,7 +89,7 @@ defmodule Hueworks.PresenceInputsTest do
     {:ok, state} =
       Scenes.create_manual_light_state("Soft", %{"brightness" => "40", "temperature" => "3000"})
 
-    {:ok, scene} = Scenes.create_scene(%{name: "Work", room_id: room.id})
+    {:ok, scene} = Scenes.create_scene(%{name: "Work", area_id: area.id})
 
     {:ok, _} =
       Scenes.replace_scene_components(scene, [
@@ -113,13 +113,13 @@ defmodule Hueworks.PresenceInputsTest do
   end
 
   test "set_occupied can turn a follow-presence light back on after vacancy" do
-    room = insert_room()
+    area = insert_area()
     bridge = insert_bridge()
-    light = insert_light(room, bridge, %{name: "Desk Lamp"})
+    light = insert_light(area, bridge, %{name: "Desk Lamp"})
 
     input =
       Repo.insert!(%PresenceInput{
-        room_id: room.id,
+        area_id: area.id,
         name: "Desk Presence",
         occupied: false
       })
@@ -127,7 +127,7 @@ defmodule Hueworks.PresenceInputsTest do
     {:ok, state} =
       Scenes.create_manual_light_state("Soft", %{"brightness" => "40", "temperature" => "3000"})
 
-    {:ok, scene} = Scenes.create_scene(%{name: "Work", room_id: room.id})
+    {:ok, scene} = Scenes.create_scene(%{name: "Work", area_id: area.id})
 
     {:ok, _} =
       Scenes.replace_scene_components(scene, [
@@ -151,21 +151,21 @@ defmodule Hueworks.PresenceInputsTest do
   end
 
   test "a presence input change leaves lights tied to other inputs untouched" do
-    room = insert_room()
+    area = insert_area()
     bridge = insert_bridge()
-    desk_light = insert_light(room, bridge, %{name: "Desk Lamp"})
-    sitting_light = insert_light(room, bridge, %{name: "Sitting Lamp"})
+    desk_light = insert_light(area, bridge, %{name: "Desk Lamp"})
+    sitting_light = insert_light(area, bridge, %{name: "Sitting Lamp"})
 
     desk_input =
-      Repo.insert!(%PresenceInput{room_id: room.id, name: "Desk Presence", occupied: true})
+      Repo.insert!(%PresenceInput{area_id: area.id, name: "Desk Presence", occupied: true})
 
     sitting_input =
-      Repo.insert!(%PresenceInput{room_id: room.id, name: "Sitting Presence", occupied: true})
+      Repo.insert!(%PresenceInput{area_id: area.id, name: "Sitting Presence", occupied: true})
 
     {:ok, state} =
       Scenes.create_manual_light_state("Soft", %{"brightness" => "40", "temperature" => "3000"})
 
-    {:ok, scene} = Scenes.create_scene(%{name: "Work", room_id: room.id})
+    {:ok, scene} = Scenes.create_scene(%{name: "Work", area_id: area.id})
 
     {:ok, _} =
       Scenes.replace_scene_components(scene, [
@@ -202,6 +202,6 @@ defmodule Hueworks.PresenceInputsTest do
              kelvin: 3000
            }
 
-    assert ActiveScenes.get_for_room(room.id).circadian_resume_at == resume_at
+    assert ActiveScenes.get_for_area(area.id).circadian_resume_at == resume_at
   end
 end

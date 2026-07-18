@@ -1,13 +1,13 @@
 # Audit Chunk 6b: Web (everything except the scene builder)
 
-Scope: remaining `lib/hueworks_web/**` (~9,700 lines) — lights/control/rooms/config/pico LiveViews, light-state editor, components, controllers, plugs, filter prefs.
+Scope: remaining `lib/hueworks_web/**` (~9,700 lines) — lights/control/areas/config/pico LiveViews, light-state editor, components, controllers, plugs, filter prefs.
 Status: audit complete — findings flushed per sub-area. Tracker:
 
 | Sub-area | Files | Status |
 |----------|-------|--------|
 | 6b-1: manual control surfaces (lights_live.ex + lights_live/* submodules, control_live.ex) | ~1,900 lines | done |
 | 6b-2: config surfaces (config_live, bridge_live, bridge_setup_live — the reimport review UI) | ~1,700 lines + heex | done |
-| 6b-3: pico_config_live + rooms_live + external_scene_config_live | ~1,500 lines + heex | done |
+| 6b-3: pico_config_live + areas_live + external_scene_config_live | ~1,500 lines + heex | done |
 | 6b-4: light_state_editor (+ form_state, preview), components, controllers, plugs, filter_prefs, heex sweep | remainder | done |
 
 Finding IDs are stable (WB-*); gaps in numbering mean the finding was implemented and removed.
@@ -36,15 +36,15 @@ All config-page findings (WB-9/10/11) implemented and removed. Explicitly fine (
 
 Assessment: a clean test-before-save wizard — connection tests are properly delegated to per-source `ConnectionTest` modules, Caseta cert uploads are staged-then-promoted, and duplicate bridges are blocked by the `[:type, :host]` unique constraint (verified: index + changeset constraint). All three findings (WB-12/13/14) implemented and removed per the forward-facing rule.
 
-## 6b-3 (part 1): Rooms + External Scene Config
+## 6b-3 (part 1): Areas + External Scene Config
 
-Assessment: both clean context-consumers — rooms CRUD, presence inputs, and scene activation (traced) all enter through domain APIs; the external-scene page delegates sync/mapping entirely to `ExternalScenes`. Both findings (WB-15/16) implemented and removed per the forward-facing rule.
+Assessment: both clean context-consumers — areas CRUD, presence inputs, and scene activation (traced) all enter through domain APIs; the external-scene page delegates sync/mapping entirely to `ExternalScenes`. Both findings (WB-15/16) implemented and removed per the forward-facing rule.
 
 ## 6b-3 (part 2): Pico Config
 
 Status: `pico_config_live.ex` audited line-by-line; HEEx audited with full structural scrutiny.
 
-Assessment: the Pico configuration write boundary is sound. Room/name changes use the `Picos` facade's focused device APIs, while clone, control-group, binding, and clear-config mutations all pass through `Picos.Config`; the LiveView does not reach into Pico metadata or button persistence directly. Runtime button actions remain below this surface and were already verified in chunk 5 to enter through normal control paths. Target pickers correctly reuse `Picos.Targets` expansion and filter disabled/canonical-linked entities rather than reimplementing hardware vocabulary. Async sync, focused editor coordinators, destructive confirmations, and context-aware binding-form normalization have landed. No open findings remain in 6b-3.
+Assessment: the Pico configuration write boundary is sound. Area/name changes use the `Picos` facade's focused device APIs, while clone, control-group, binding, and clear-config mutations all pass through `Picos.Config`; the LiveView does not reach into Pico metadata or button persistence directly. Runtime button actions remain below this surface and were already verified in chunk 5 to enter through normal control paths. Target pickers correctly reuse `Picos.Targets` expansion and filter disabled/canonical-linked entities rather than reimplementing hardware vocabulary. Async sync, focused editor coordinators, destructive confirmations, and context-aware binding-form normalization have landed. No open findings remain in 6b-3.
 
 Explicitly fine: control-group metadata storage remains an accepted chunk-5 choice; immediate persistence when adding/removing control-group targets is clearly disclosed in the UI; Pico press learning is PubSub-driven and does not bypass runtime control semantics; direct `Repo.get(Bridge, ...)` is a single page-loader query consistent with the other bridge config surfaces and does not justify a new bridge-context abstraction by itself.
 

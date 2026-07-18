@@ -15,7 +15,7 @@ defmodule Hueworks.HomeAssistant.Export.Runtime do
 
   defdelegate scenes_enabled?(config), to: Config
 
-  defdelegate room_selects_enabled?(config), to: Config
+  defdelegate area_selects_enabled?(config), to: Config
 
   defdelegate lights_enabled?(config), to: Config
 
@@ -28,7 +28,7 @@ defmodule Hueworks.HomeAssistant.Export.Runtime do
   def command_topic_filters(topic_prefix \\ @default_topic_prefix) do
     [
       "#{topic_prefix}/scenes/+/set",
-      "#{topic_prefix}/rooms/+/scene/set",
+      "#{topic_prefix}/areas/+/scene/set",
       "#{topic_prefix}/lights/+/switch/set",
       "#{topic_prefix}/lights/+/light/set",
       "#{topic_prefix}/groups/+/switch/set",

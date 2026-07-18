@@ -4,7 +4,7 @@ defmodule Hueworks.HomeAssistant.Export.Messages.State do
   alias Hueworks.ActiveScenes
   alias Hueworks.Control.GroupState
   alias Hueworks.Control.State
-  alias Hueworks.HomeAssistant.Export.Messages.RoomSceneOption
+  alias Hueworks.HomeAssistant.Export.Messages.AreaSceneOption
   alias Hueworks.Kelvin
   alias Hueworks.Schemas.{PresenceInput, Scene}
   alias Hueworks.Util
@@ -89,28 +89,28 @@ defmodule Hueworks.HomeAssistant.Export.Messages.State do
 
   def normalize_export_xy(_color), do: {nil, nil}
 
-  def room_select_state_payload(room_id, scenes) when is_integer(room_id) and is_list(scenes) do
+  def area_select_state_payload(area_id, scenes) when is_integer(area_id) and is_list(scenes) do
     active_scene_id =
-      case ActiveScenes.get_for_room(room_id) do
+      case ActiveScenes.get_for_area(area_id) do
         %{scene_id: scene_id} -> scene_id
         _ -> nil
       end
 
     scenes
-    |> room_scene_options()
-    |> Enum.find_value("Manual", fn %RoomSceneOption{label: label, scene: scene} ->
+    |> area_scene_options()
+    |> Enum.find_value("Manual", fn %AreaSceneOption{label: label, scene: scene} ->
       if scene.id == active_scene_id, do: label, else: nil
     end)
   end
 
-  def active_scene_name(room_id, scenes) when is_integer(room_id) and is_list(scenes) do
-    case room_select_state_payload(room_id, scenes) do
+  def active_scene_name(area_id, scenes) when is_integer(area_id) and is_list(scenes) do
+    case area_select_state_payload(area_id, scenes) do
       "Manual" -> nil
       value -> value
     end
   end
 
-  def room_scene_options(scenes) when is_list(scenes) do
+  def area_scene_options(scenes) when is_list(scenes) do
     duplicate_counts = Enum.frequencies_by(scenes, &scene_name/1)
 
     Enum.map(scenes, fn scene ->
@@ -123,7 +123,7 @@ defmodule Hueworks.HomeAssistant.Export.Messages.State do
           base_name
         end
 
-      %RoomSceneOption{label: label, scene: scene}
+      %AreaSceneOption{label: label, scene: scene}
     end)
   end
 

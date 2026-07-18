@@ -16,7 +16,7 @@ defmodule HueworksWeb.LightsLive.Editor do
       edit_show_link_selector: false,
       edit_canonical_light_id: nil,
       edit_link_targets: [],
-      edit_room_id: nil,
+      edit_area_id: nil,
       edit_actual_min_kelvin: "",
       edit_actual_max_kelvin: "",
       edit_extended_min_kelvin: "",
@@ -43,7 +43,7 @@ defmodule HueworksWeb.LightsLive.Editor do
          edit_show_link_selector: type == "light" and not is_nil(target.canonical_light_id),
          edit_canonical_light_id: canonical_light_id_for(type, target),
          edit_link_targets: link_targets(type, target),
-         edit_room_id: target.room_id,
+         edit_area_id: target.area_id,
          edit_actual_min_kelvin: Util.format_integer(target.actual_min_kelvin),
          edit_actual_max_kelvin: Util.format_integer(target.actual_max_kelvin),
          edit_extended_min_kelvin: Util.format_integer(target.extended_min_kelvin || 2000),
@@ -71,7 +71,7 @@ defmodule HueworksWeb.LightsLive.Editor do
         Map.get(params, "actual_max_kelvin", assigns.edit_actual_max_kelvin),
       edit_extended_min_kelvin:
         Map.get(params, "extended_min_kelvin", assigns.edit_extended_min_kelvin),
-      edit_room_id: Util.parse_optional_integer(Map.get(params, "room_id", assigns.edit_room_id)),
+      edit_area_id: Util.parse_optional_integer(Map.get(params, "area_id", assigns.edit_area_id)),
       edit_enabled: Util.parse_optional_bool(Map.get(params, "enabled", assigns.edit_enabled)),
       edit_ha_export_mode:
         normalize_ha_export_mode(Map.get(params, "ha_export_mode", assigns.edit_ha_export_mode)),
@@ -108,9 +108,9 @@ defmodule HueworksWeb.LightsLive.Editor do
   defp canonical_light_id_for(_type, _target), do: nil
 
   defp normalize_attrs(params) do
-    room_id =
-      if Map.has_key?(params, "room_id") do
-        Util.parse_optional_integer(Map.get(params, "room_id"))
+    area_id =
+      if Map.has_key?(params, "area_id") do
+        Util.parse_optional_integer(Map.get(params, "area_id"))
       else
         :skip
       end
@@ -123,7 +123,7 @@ defmodule HueworksWeb.LightsLive.Editor do
         else
           :skip
         end,
-      room_id: room_id,
+      area_id: area_id,
       actual_min_kelvin: Util.parse_optional_integer(Map.get(params, "actual_min_kelvin")),
       actual_max_kelvin: Util.parse_optional_integer(Map.get(params, "actual_max_kelvin")),
       extended_min_kelvin: Util.parse_optional_integer(Map.get(params, "extended_min_kelvin")),
@@ -134,7 +134,7 @@ defmodule HueworksWeb.LightsLive.Editor do
     ]
     |> Enum.reject(fn
       {_key, :skip} -> true
-      {:room_id, _} -> false
+      {:area_id, _} -> false
       {:canonical_light_id, _} -> false
       {_key, value} -> is_nil(value)
     end)

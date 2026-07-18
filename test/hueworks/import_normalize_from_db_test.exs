@@ -21,7 +21,7 @@ defmodule Hueworks.Import.NormalizeFromDbTest do
       "source_id" => "light-1",
       "name" => "Desk Lamp",
       "classification" => "light",
-      "room_source_id" => "room-1",
+      "area_source_id" => "area-1",
       "capabilities" => %{}
     }
 
@@ -29,8 +29,8 @@ defmodule Hueworks.Import.NormalizeFromDbTest do
       "source" => "hue",
       "source_id" => "group-1",
       "name" => "Office Group",
-      "classification" => "group_room",
-      "room_source_id" => "room-1",
+      "classification" => "group_area",
+      "area_source_id" => "area-1",
       "capabilities" => %{}
     }
 
@@ -66,7 +66,7 @@ defmodule Hueworks.Import.NormalizeFromDbTest do
 
     assert Enum.any?(normalized.lights, &(&1["source_id"] == "light-1"))
     assert Enum.any?(normalized.groups, &(&1["source_id"] == "group-1"))
-    assert normalized.rooms == []
+    assert normalized.areas == []
 
     assert normalized.memberships.group_lights == [
              %{group_source_id: "group-1", light_source_id: "light-1"}

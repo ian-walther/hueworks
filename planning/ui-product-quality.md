@@ -145,7 +145,7 @@ Continue the combined static and rendered audit as each workflow approaches impl
 ### Rendered Audit
 Exercise the major workflows with representative data:
 
-- Daily control and room drill-down.
+- Daily control and area drill-down.
 - Scene creation, editing, preview, activation, and power policy editing.
 - Light and group configuration.
 - Pico configuration and button assignment.

@@ -8,7 +8,7 @@ defmodule HueworksWeb.BridgeSetupLive do
   alias Hueworks.Import
   alias Hueworks.Import.{Normalize, Plan, ReviewPlan}
   alias Hueworks.Repo
-  alias Hueworks.Schemas.{Bridge, Room}
+  alias Hueworks.Schemas.{Bridge, Area}
 
   def mount(%{"id" => id}, _session, socket) do
     bridge = Repo.get!(Bridge, id)
@@ -27,7 +27,7 @@ defmodule HueworksWeb.BridgeSetupLive do
          normalized: nil,
          plan: nil,
          completion_summary: nil,
-         rooms: Repo.all(Room)
+         areas: Repo.all(Area)
        )}
     end
   end
@@ -47,20 +47,20 @@ defmodule HueworksWeb.BridgeSetupLive do
       ReviewPlan.apply_bulk_toggle(
         socket.assigns.plan,
         socket.assigns.normalized,
-        socket.assigns.rooms,
+        socket.assigns.areas,
         action
       )
 
     {:noreply, update_plan(socket, plan)}
   end
 
-  def handle_event("toggle_room", %{"room_id" => room_id, "action" => action}, socket) do
+  def handle_event("toggle_area", %{"area_id" => area_id, "action" => action}, socket) do
     plan =
-      ReviewPlan.apply_room_toggle(
+      ReviewPlan.apply_area_toggle(
         socket.assigns.plan,
         socket.assigns.normalized,
-        socket.assigns.rooms,
-        room_id,
+        socket.assigns.areas,
+        area_id,
         action
       )
 
@@ -68,15 +68,15 @@ defmodule HueworksWeb.BridgeSetupLive do
   end
 
   def handle_event(
-        "toggle_room_section",
-        %{"room_id" => room_id, "section" => section, "action" => action},
+        "toggle_area_section",
+        %{"area_id" => area_id, "section" => section, "action" => action},
         socket
       ) do
     plan =
-      ReviewPlan.apply_room_section_toggle(
+      ReviewPlan.apply_area_section_toggle(
         socket.assigns.plan,
         socket.assigns.normalized,
-        room_id,
+        area_id,
         section,
         action
       )
@@ -84,34 +84,34 @@ defmodule HueworksWeb.BridgeSetupLive do
     {:noreply, update_plan(socket, plan)}
   end
 
-  def handle_event("set_room_action", %{"room_id" => source_id, "action" => action}, socket) do
+  def handle_event("set_area_action", %{"area_id" => source_id, "action" => action}, socket) do
     {:noreply,
      update_plan(
        socket,
-       ReviewPlan.put_room(socket.assigns.plan, source_id, %{"action" => action})
+       ReviewPlan.put_area(socket.assigns.plan, source_id, %{"action" => action})
      )}
   end
 
   def handle_event(
-        "set_room_merge",
-        %{"room_id" => source_id, "target_room_id" => target_room_id},
+        "set_area_merge",
+        %{"area_id" => source_id, "target_area_id" => target_area_id},
         socket
       ) do
     plan =
-      ReviewPlan.put_room(socket.assigns.plan, source_id, %{
+      ReviewPlan.put_area(socket.assigns.plan, source_id, %{
         "action" => "merge",
-        "target_room_id" => target_room_id
+        "target_area_id" => target_area_id
       })
 
     {:noreply, update_plan(socket, plan)}
   end
 
   def handle_event(
-        "set_entity_room",
-        %{"type" => type, "source_id" => source_id, "target_room_id" => target_room_id},
+        "set_entity_area",
+        %{"type" => type, "source_id" => source_id, "target_area_id" => target_area_id},
         socket
       ) do
-    plan = ReviewPlan.put_entity_room(socket.assigns.plan, type, source_id, target_room_id)
+    plan = ReviewPlan.put_entity_area(socket.assigns.plan, type, source_id, target_area_id)
     {:noreply, update_plan(socket, plan)}
   end
 
@@ -147,7 +147,7 @@ defmodule HueworksWeb.BridgeSetupLive do
 
   attr(:title, :string, required: true)
   attr(:type, :atom, required: true)
-  attr(:room_id, :any, required: true)
+  attr(:area_id, :any, required: true)
   attr(:entries, :list, required: true)
   attr(:plan, :map, required: true)
 
@@ -167,8 +167,8 @@ defmodule HueworksWeb.BridgeSetupLive do
           <button
             class="hw-button"
             type="button"
-            phx-click="toggle_room_section"
-            phx-value-room_id={@room_id}
+            phx-click="toggle_area_section"
+            phx-value-area_id={@area_id}
             phx-value-section={@type}
             phx-value-action="check"
           >
@@ -177,8 +177,8 @@ defmodule HueworksWeb.BridgeSetupLive do
           <button
             class="hw-button"
             type="button"
-            phx-click="toggle_room_section"
-            phx-value-room_id={@room_id}
+            phx-click="toggle_area_section"
+            phx-value-area_id={@area_id}
             phx-value-section={@type}
             phx-value-action="uncheck"
           >
@@ -208,7 +208,7 @@ defmodule HueworksWeb.BridgeSetupLive do
   attr(:type, :atom, required: true)
   attr(:entries, :list, required: true)
   attr(:plan, :map, required: true)
-  attr(:rooms, :list, required: true)
+  attr(:areas, :list, required: true)
 
   def unassigned_entity_section(assigns) do
     assigns =
@@ -226,8 +226,8 @@ defmodule HueworksWeb.BridgeSetupLive do
           <button
             class="hw-button"
             type="button"
-            phx-click="toggle_room_section"
-            phx-value-room_id="unassigned"
+            phx-click="toggle_area_section"
+            phx-value-area_id="unassigned"
             phx-value-section={@type}
             phx-value-action="check"
           >
@@ -236,8 +236,8 @@ defmodule HueworksWeb.BridgeSetupLive do
           <button
             class="hw-button"
             type="button"
-            phx-click="toggle_room_section"
-            phx-value-room_id="unassigned"
+            phx-click="toggle_area_section"
+            phx-value-area_id="unassigned"
             phx-value-section={@type}
             phx-value-action="uncheck"
           >
@@ -260,19 +260,19 @@ defmodule HueworksWeb.BridgeSetupLive do
           </span>
         </label>
         <form
-          phx-change="set_entity_room"
+          phx-change="set_entity_area"
           class="hw-inline-form"
           data-type={@type}
           data-source-id={source_id}
         >
           <input type="hidden" name="type" value={@type} />
           <input type="hidden" name="source_id" value={source_id} />
-          <label class="hw-sr-only" for={"unassigned-room-#{@type}-#{source_id}"}>HueWorks room</label>
-          <select id={"unassigned-room-#{@type}-#{source_id}"} class="hw-select" name="target_room_id">
+          <label class="hw-sr-only" for={"unassigned-area-#{@type}-#{source_id}"}>HueWorks area</label>
+          <select id={"unassigned-area-#{@type}-#{source_id}"} class="hw-select" name="target_area_id">
             <option value="">Unassigned</option>
-            <%= for room <- @rooms do %>
-              <option value={room.id} selected={ReviewPlan.entity_target_room(@plan, @type, source_id) == to_string(room.id)}>
-                <%= Hueworks.Util.display_name(room) %>
+            <%= for area <- @areas do %>
+              <option value={area.id} selected={ReviewPlan.entity_target_area(@plan, @type, source_id) == to_string(area.id)}>
+                <%= Hueworks.Util.display_name(area) %>
               </option>
             <% end %>
           </select>
@@ -292,7 +292,7 @@ defmodule HueworksWeb.BridgeSetupLive do
         plan =
           review_blob
           |> Kernel.||(Plan.build_default(normalized))
-          |> ReviewPlan.apply_room_merge_defaults(normalized, socket.assigns.rooms)
+          |> ReviewPlan.apply_area_merge_defaults(normalized, socket.assigns.areas)
 
         socket
         |> assign(
@@ -314,8 +314,8 @@ defmodule HueworksWeb.BridgeSetupLive do
   defp update_plan(socket, plan), do: assign(socket, plan: plan)
 
   defp normalized_entries(normalized, key), do: Normalize.fetch(normalized, key) || []
-  defp room_action(plan, source_id), do: ReviewPlan.room_action(plan, source_id)
-  defp room_merge_target(plan, source_id), do: ReviewPlan.room_merge_target(plan, source_id)
+  defp area_action(plan, source_id), do: ReviewPlan.area_action(plan, source_id)
+  defp area_merge_target(plan, source_id), do: ReviewPlan.area_merge_target(plan, source_id)
 
   defp pipeline_module,
     do: Application.get_env(:hueworks, :import_pipeline, Hueworks.Import.Pipeline)

@@ -3,7 +3,7 @@ defmodule Hueworks.Import.JsonEdgeCasesTest do
 
   alias Hueworks.Import.{Materialize, Normalize}
   alias Hueworks.Repo
-  alias Hueworks.Schemas.{Bridge, Group, Light, Room}
+  alias Hueworks.Schemas.{Bridge, Group, Light, Area}
 
   test "normalize tolerates partial Hue payloads" do
     raw = %{
@@ -20,7 +20,7 @@ defmodule Hueworks.Import.JsonEdgeCasesTest do
     [light] = normalized.lights
     assert light.name == "Hue Light 1"
     assert light.source_id == "1"
-    assert light.room_source_id == nil
+    assert light.area_source_id == nil
     assert light.capabilities.reported_kelvin_min == nil
     assert light.capabilities.reported_kelvin_max == nil
   end
@@ -58,11 +58,11 @@ defmodule Hueworks.Import.JsonEdgeCasesTest do
     bridge = %Bridge{id: 3, type: :caseta, name: "Caseta", host: "10.0.0.3"}
     normalized = Normalize.normalize(bridge, raw)
 
-    assert length(normalized.rooms) == 0
+    assert length(normalized.areas) == 0
     assert length(normalized.lights) == 1
     [light] = normalized.lights
     assert light.source_id == "1"
-    assert light.room_source_id == nil
+    assert light.area_source_id == nil
   end
 
   test "normalize tolerates partial Z2M payloads" do
@@ -109,13 +109,13 @@ defmodule Hueworks.Import.JsonEdgeCasesTest do
       |> Repo.insert!()
 
     normalized = %{
-      rooms: [%{source_id: nil, name: "Room"}],
+      areas: [%{source_id: nil, name: "Area"}],
       lights: [
         %{
           source: :ha,
           source_id: nil,
           name: "Light",
-          room_source_id: nil,
+          area_source_id: nil,
           capabilities: %{},
           identifiers: %{},
           metadata: %{}
@@ -126,7 +126,7 @@ defmodule Hueworks.Import.JsonEdgeCasesTest do
           source: :ha,
           source_id: nil,
           name: "Group",
-          room_source_id: nil,
+          area_source_id: nil,
           type: "group",
           capabilities: %{},
           metadata: %{}
@@ -136,7 +136,7 @@ defmodule Hueworks.Import.JsonEdgeCasesTest do
     }
 
     assert :ok == Materialize.materialize(bridge, normalized)
-    assert Repo.aggregate(Room, :count) == 0
+    assert Repo.aggregate(Area, :count) == 0
     assert Repo.aggregate(Light, :count) == 0
     assert Repo.aggregate(Group, :count) == 0
   end

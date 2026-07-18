@@ -12,7 +12,7 @@ defmodule Hueworks.HomeAssistant.Export.Messages do
     defstruct [:kind, :mode, :id]
   end
 
-  defmodule RoomSceneOption do
+  defmodule AreaSceneOption do
     @moduledoc false
 
     @enforce_keys [:label, :scene]
@@ -22,9 +22,9 @@ defmodule Hueworks.HomeAssistant.Export.Messages do
   defdelegate availability_topic(), to: Topics
   defdelegate command_topic(scene_id), to: Topics
   defdelegate attributes_topic(scene_id), to: Topics
-  defdelegate room_select_command_topic(room_id), to: Topics
-  defdelegate room_select_state_topic(room_id), to: Topics
-  defdelegate room_select_attributes_topic(room_id), to: Topics
+  defdelegate area_select_command_topic(area_id), to: Topics
+  defdelegate area_select_state_topic(area_id), to: Topics
+  defdelegate area_select_attributes_topic(area_id), to: Topics
   defdelegate entity_attributes_topic(kind, id), to: Topics
   defdelegate presence_input_attributes_topic(id), to: Topics
   defdelegate switch_command_topic(kind, id), to: Topics
@@ -34,36 +34,36 @@ defmodule Hueworks.HomeAssistant.Export.Messages do
   defdelegate light_command_topic(kind, id), to: Topics
   defdelegate light_state_topic(kind, id), to: Topics
   defdelegate discovery_topic(scene_id, discovery_prefix), to: Topics
-  defdelegate room_select_discovery_topic(room_id, discovery_prefix), to: Topics
+  defdelegate area_select_discovery_topic(area_id, discovery_prefix), to: Topics
   defdelegate switch_discovery_topic(kind, id, discovery_prefix), to: Topics
   defdelegate presence_input_discovery_topic(id, discovery_prefix), to: Topics
   defdelegate light_discovery_topic(kind, id, discovery_prefix), to: Topics
   defdelegate command_scene_id(topic_levels, topic_prefix), to: Topics
-  defdelegate command_room_id(topic_levels, topic_prefix), to: Topics
+  defdelegate command_area_id(topic_levels, topic_prefix), to: Topics
   defdelegate command_export_target(topic, topic_prefix), to: Topics
 
   defdelegate discovery_payload(scene, config), to: Discovery
   defdelegate scene_attributes_payload(scene), to: Discovery
-  defdelegate room_select_discovery_payload(room, scenes, config), to: Discovery
-  defdelegate room_select_attributes_payload(room, scenes), to: Discovery
+  defdelegate area_select_discovery_payload(area, scenes, config), to: Discovery
+  defdelegate area_select_attributes_payload(area, scenes), to: Discovery
   defdelegate switch_discovery_payload(kind, entity, config), to: Discovery
   defdelegate presence_input_discovery_payload(input, config), to: Discovery
   defdelegate light_discovery_payload(kind, entity, config), to: Discovery
   defdelegate entity_attributes_payload(kind, entity), to: Discovery
   defdelegate presence_input_attributes_payload(input), to: Discovery
-  defdelegate room_scene_options(scenes), to: Discovery
-  defdelegate active_scene_name(room_id, scenes), to: Discovery
+  defdelegate area_scene_options(scenes), to: Discovery
+  defdelegate active_scene_name(area_id, scenes), to: Discovery
 
   defdelegate entity_export_mode(entity), to: State
   defdelegate normalize_power_payload(value), to: State
   defdelegate normalize_export_brightness(value), to: State
   defdelegate normalize_export_kelvin(value), to: State
   defdelegate normalize_export_xy(color), to: State
-  defdelegate room_select_state_payload(room_id, scenes), to: State
+  defdelegate area_select_state_payload(area_id, scenes), to: State
 
   def discovery_topic(scene_id), do: Topics.discovery_topic(scene_id)
 
-  def room_select_discovery_topic(room_id), do: Topics.room_select_discovery_topic(room_id)
+  def area_select_discovery_topic(area_id), do: Topics.area_select_discovery_topic(area_id)
 
   def switch_discovery_topic(kind, id), do: Topics.switch_discovery_topic(kind, id)
 
@@ -73,7 +73,7 @@ defmodule Hueworks.HomeAssistant.Export.Messages do
 
   def command_scene_id(topic_levels), do: Topics.command_scene_id(topic_levels)
 
-  def command_room_id(topic_levels), do: Topics.command_room_id(topic_levels)
+  def command_area_id(topic_levels), do: Topics.command_area_id(topic_levels)
 
   def command_export_target(topic), do: Topics.command_export_target(topic)
 

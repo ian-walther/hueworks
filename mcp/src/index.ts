@@ -60,26 +60,26 @@ export function createHueworksMcpServer(api: HueworksApi): McpServer {
   );
 
   server.registerTool(
-    "hueworks_list_rooms",
+    "hueworks_list_areas",
     {
-      description: "List HueWorks rooms with active-scene summaries and entity counts.",
+      description: "List HueWorks areas with active-scene summaries and entity counts.",
       annotations: readOnlyAnnotations,
     },
-    async () => toolResult(() => api.listRooms()),
+    async () => toolResult(() => api.listAreas()),
   );
 
   server.registerTool(
-    "hueworks_get_room",
+    "hueworks_get_area",
     {
       description:
-        "Read one room. Physical state is observed hardware state and may be null; desired state is HueWorks intent.",
+        "Read one area. Physical state is observed hardware state and may be null; desired state is HueWorks intent.",
       inputSchema: z.object({
-        room_id: positiveInteger,
+        area_id: positiveInteger,
         include_diagnostics: z.boolean().optional().default(false),
       }),
       annotations: readOnlyAnnotations,
     },
-    async ({ room_id, include_diagnostics }) => toolResult(() => api.room(room_id, include_diagnostics)),
+    async ({ area_id, include_diagnostics }) => toolResult(() => api.area(area_id, include_diagnostics)),
   );
 
   server.registerTool(
@@ -102,21 +102,21 @@ export function createHueworksMcpServer(api: HueworksApi): McpServer {
     "hueworks_search_entities",
     {
       description:
-        "Search HueWorks light and group names before acting on a name-based request. Only write when exact_controllable_match_count is exactly 1 and the selected result has match=exact and controllable=true; otherwise ask the user. Never infer an entity from partial matches or room aliases.",
+        "Search HueWorks light and group names before acting on a name-based request. Only write when exact_controllable_match_count is exactly 1 and the selected result has match=exact and controllable=true; otherwise ask the user. Never infer an entity from partial matches or area aliases.",
       inputSchema: z.object({
         query: z.string().trim().min(1).max(120),
         kind: entityKindSchema.optional(),
-        room_id: positiveInteger.optional(),
+        area_id: positiveInteger.optional(),
         limit: z.number().int().min(1).max(100).optional(),
       }),
       annotations: readOnlyAnnotations,
     },
-    async ({ query, kind, room_id, limit }) =>
+    async ({ query, kind, area_id, limit }) =>
       toolResult(() =>
         api.searchEntities({
           query,
           ...(kind === undefined ? {} : { kind }),
-          ...(room_id === undefined ? {} : { roomId: room_id }),
+          ...(area_id === undefined ? {} : { areaId: area_id }),
           ...(limit === undefined ? {} : { limit }),
         }),
       ),
@@ -129,7 +129,7 @@ export function createHueworksMcpServer(api: HueworksApi): McpServer {
         "Read recent bounded control lifecycle evidence. The trace buffer is in memory and is not a durable history.",
       inputSchema: z.object({
         trace_id: z.string().min(1).max(200).optional(),
-        room_id: positiveInteger.optional(),
+        area_id: positiveInteger.optional(),
         entity_kind: entityKindSchema.optional(),
         entity_id: positiveInteger.optional(),
         source: z.string().min(1).max(200).optional(),
@@ -141,7 +141,7 @@ export function createHueworksMcpServer(api: HueworksApi): McpServer {
       toolResult(() =>
         api.controlTrace({
           traceId: arguments_.trace_id,
-          roomId: arguments_.room_id,
+          areaId: arguments_.area_id,
           entityKind: arguments_.entity_kind,
           entityId: arguments_.entity_id,
           source: arguments_.source,
@@ -162,14 +162,14 @@ export function createHueworksMcpServer(api: HueworksApi): McpServer {
   );
 
   server.registerTool(
-    "hueworks_deactivate_room_scene",
+    "hueworks_deactivate_area_scene",
     {
       description:
-        "Explicitly clear a room's active HueWorks scene. This does not toggle a scene and does not directly dispatch hardware commands.",
-      inputSchema: z.object({ room_id: positiveInteger }),
+        "Explicitly clear a area's active HueWorks scene. This does not toggle a scene and does not directly dispatch hardware commands.",
+      inputSchema: z.object({ area_id: positiveInteger }),
       annotations: writeAnnotations,
     },
-    async ({ room_id }) => toolResult(() => api.deactivateRoomScene(room_id)),
+    async ({ area_id }) => toolResult(() => api.deactivateAreaScene(area_id)),
   );
 
   server.registerTool(

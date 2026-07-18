@@ -24,7 +24,7 @@
           <h2>Groups</h2>
         </div>
         <span class="hw-count">
-          <%= length(Filters.filter_entities(@groups, @group_filter, @group_room_filter, @show_disabled_groups)) %>
+          <%= length(Filters.filter_entities(@groups, @group_filter, @group_area_filter, @show_disabled_groups)) %>
         </span>
       </div>
       <div class="hw-filter-row hw-filter-toolbar">
@@ -37,15 +37,15 @@
             <option value="z2m" selected={@group_filter == "z2m"}>Z2M</option>
           </select>
         </form>
-        <form class="hw-filter" phx-change="set_group_room_filter">
-          <select name="group_room_filter" class="hw-select">
-            <option value="all" selected={@group_room_filter == "all"}>All Rooms</option>
-            <option value="unassigned" selected={@group_room_filter == "unassigned"}>
+        <form class="hw-filter" phx-change="set_group_area_filter">
+          <select name="group_area_filter" class="hw-select">
+            <option value="all" selected={@group_area_filter == "all"}>All Areas</option>
+            <option value="unassigned" selected={@group_area_filter == "unassigned"}>
               Unassigned
             </option>
-            <%= for room <- @rooms do %>
-              <option value={room.id} selected={room.id == @group_room_filter}>
-                <%= Hueworks.Util.display_name(room) %>
+            <%= for area <- @areas do %>
+              <option value={area.id} selected={area.id == @group_area_filter}>
+                <%= Hueworks.Util.display_name(area) %>
               </option>
             <% end %>
           </select>
@@ -63,7 +63,7 @@
         </form>
       </div>
       <div class="hw-list">
-        <%= for group <- Filters.filter_entities(@groups, @group_filter, @group_room_filter, @show_disabled_groups) do %>
+        <%= for group <- Filters.filter_entities(@groups, @group_filter, @group_area_filter, @show_disabled_groups) do %>
           <article class="hw-card hw-entity-card" id={"group-#{group.id}"}>
             <div class="hw-entity-card-header">
               <div>
@@ -84,14 +84,14 @@
                 </div>
                 <p class="hw-meta">source: <%= group.source %></p>
                 <p class="hw-meta">
-                  Room:
-                  <%= if group.room_id do %>
-                    <%= case Enum.find(@rooms, &(&1.id == group.room_id)) do %>
-                      <% nil -> %>No Room Assigned
-                      <% room -> %><%= Hueworks.Util.display_name(room) %>
+                  Area:
+                  <%= if group.area_id do %>
+                    <%= case Enum.find(@areas, &(&1.id == group.area_id)) do %>
+                      <% nil -> %>No Area Assigned
+                      <% area -> %><%= Hueworks.Util.display_name(area) %>
                     <% end %>
                   <% else %>
-                    No Room Assigned
+                    No Area Assigned
                   <% end %>
                 </p>
               </div>
@@ -100,7 +100,7 @@
 
             <div class="hw-entity-control-row">
               <% group_power = Presentation.state_value(@group_state, group.id, :power, :off) %>
-              <% manual_adjustment_locked = Presentation.manual_adjustment_locked?(@active_scene_by_room, group.room_id) %>
+              <% manual_adjustment_locked = Presentation.manual_adjustment_locked?(@active_scene_by_area, group.area_id) %>
               <button
                 class={"hw-button #{if group_power in [:on, "on", true], do: "hw-button-on", else: "hw-button-off"}"}
                 phx-click="toggle"
@@ -126,7 +126,7 @@
           <h2>Lights</h2>
         </div>
         <span class="hw-count">
-          <%= length(Filters.filter_lights(@lights, @light_filter, @light_room_filter, @show_disabled_lights, @show_linked_lights)) %>
+          <%= length(Filters.filter_lights(@lights, @light_filter, @light_area_filter, @show_disabled_lights, @show_linked_lights)) %>
         </span>
       </div>
       <div class="hw-filter-row hw-filter-toolbar">
@@ -139,15 +139,15 @@
             <option value="z2m" selected={@light_filter == "z2m"}>Z2M</option>
           </select>
         </form>
-        <form class="hw-filter" phx-change="set_light_room_filter">
-          <select name="light_room_filter" class="hw-select">
-            <option value="all" selected={@light_room_filter == "all"}>All Rooms</option>
-            <option value="unassigned" selected={@light_room_filter == "unassigned"}>
+        <form class="hw-filter" phx-change="set_light_area_filter">
+          <select name="light_area_filter" class="hw-select">
+            <option value="all" selected={@light_area_filter == "all"}>All Areas</option>
+            <option value="unassigned" selected={@light_area_filter == "unassigned"}>
               Unassigned
             </option>
-            <%= for room <- @rooms do %>
-              <option value={room.id} selected={room.id == @light_room_filter}>
-                <%= Hueworks.Util.display_name(room) %>
+            <%= for area <- @areas do %>
+              <option value={area.id} selected={area.id == @light_area_filter}>
+                <%= Hueworks.Util.display_name(area) %>
               </option>
             <% end %>
           </select>
@@ -176,7 +176,7 @@
         </form>
       </div>
       <div class="hw-list">
-        <%= for light <- Filters.filter_lights(@lights, @light_filter, @light_room_filter, @show_disabled_lights, @show_linked_lights) do %>
+        <%= for light <- Filters.filter_lights(@lights, @light_filter, @light_area_filter, @show_disabled_lights, @show_linked_lights) do %>
           <article class="hw-card hw-entity-card" id={"light-#{light.id}"}>
             <div class="hw-entity-card-header">
               <div>
@@ -197,14 +197,14 @@
                 </div>
                 <p class="hw-meta">source: <%= light.source %></p>
                 <p class="hw-meta">
-                  Room:
-                  <%= if light.room_id do %>
-                    <%= case Enum.find(@rooms, &(&1.id == light.room_id)) do %>
-                      <% nil -> %>No Room Assigned
-                      <% room -> %><%= Hueworks.Util.display_name(room) %>
+                  Area:
+                  <%= if light.area_id do %>
+                    <%= case Enum.find(@areas, &(&1.id == light.area_id)) do %>
+                      <% nil -> %>No Area Assigned
+                      <% area -> %><%= Hueworks.Util.display_name(area) %>
                     <% end %>
                   <% else %>
-                    No Room Assigned
+                    No Area Assigned
                   <% end %>
                 </p>
               </div>
@@ -213,7 +213,7 @@
 
             <div class="hw-entity-control-row">
               <% light_power = Presentation.state_value(@light_state, light.id, :power, :off) %>
-              <% manual_adjustment_locked = Presentation.manual_adjustment_locked?(@active_scene_by_room, light.room_id) %>
+              <% manual_adjustment_locked = Presentation.manual_adjustment_locked?(@active_scene_by_area, light.area_id) %>
               <button
                 class={"hw-button #{if light_power in [:on, "on", true], do: "hw-button-on", else: "hw-button-off"}"}
                 phx-click="toggle"
@@ -253,12 +253,12 @@
           class="hw-field-input"
           autocomplete="off"
         />
-        <label class="hw-field-label" for="room_id">Room</label>
-        <select id="room_id" name="room_id" class="hw-field-select">
+        <label class="hw-field-label" for="area_id">Area</label>
+        <select id="area_id" name="area_id" class="hw-field-select">
           <option value="">Unassigned</option>
-          <%= for room <- @rooms do %>
-            <option value={room.id} selected={room.id == @edit_room_id}>
-              <%= Hueworks.Util.display_name(room) %>
+          <%= for area <- @areas do %>
+            <option value={area.id} selected={area.id == @edit_area_id}>
+              <%= Hueworks.Util.display_name(area) %>
             </option>
           <% end %>
         </select>

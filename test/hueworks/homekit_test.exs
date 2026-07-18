@@ -13,7 +13,7 @@ defmodule Hueworks.HomeKitTest do
   alias Hueworks.Lights
   alias Hueworks.Repo
   alias Hueworks.Scenes
-  alias Hueworks.Schemas.{AppSetting, Bridge, Group, GroupLight, Light, Room, Scene}
+  alias Hueworks.Schemas.{AppSetting, Bridge, Group, GroupLight, Light, Area, Scene}
 
   setup do
     Repo.delete_all(AppSetting)
@@ -67,8 +67,8 @@ defmodule Hueworks.HomeKitTest do
   end
 
   test "accessory graph exposes all scenes behind the global scene toggle and opt-in entities" do
-    room = Repo.insert!(%Room{name: "Kitchen"})
-    other_room = Repo.insert!(%Room{name: "Foyer"})
+    area = Repo.insert!(%Area{name: "Kitchen"})
+    other_area = Repo.insert!(%Area{name: "Foyer"})
     bridge = insert_bridge!()
 
     light =
@@ -78,7 +78,7 @@ defmodule Hueworks.HomeKitTest do
         source: :hue,
         source_id: "1",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         homekit_export_mode: :switch
       })
 
@@ -88,7 +88,7 @@ defmodule Hueworks.HomeKitTest do
         source: :hue,
         source_id: "2",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         homekit_export_mode: :none
       })
 
@@ -99,15 +99,15 @@ defmodule Hueworks.HomeKitTest do
         source: :hue,
         source_id: "10",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         homekit_export_mode: :switch
       })
 
     Repo.insert!(%GroupLight{group_id: group.id, light_id: light.id})
     Repo.insert!(%GroupLight{group_id: group.id, light_id: hidden_light.id})
 
-    scene = Repo.insert!(%Scene{name: "Dinner", room_id: room.id})
-    other_scene = Repo.insert!(%Scene{name: "Welcome", room_id: other_room.id})
+    scene = Repo.insert!(%Scene{name: "Dinner", area_id: area.id})
+    other_scene = Repo.insert!(%Scene{name: "Welcome", area_id: other_area.id})
 
     {:ok, _settings} =
       AppSettings.upsert_global(%{
@@ -132,7 +132,7 @@ defmodule Hueworks.HomeKitTest do
   end
 
   test "accessory graph exposes brightness only for light export mode" do
-    room = Repo.insert!(%Room{name: "Kitchen"})
+    area = Repo.insert!(%Area{name: "Kitchen"})
     bridge = insert_bridge!()
 
     light =
@@ -142,7 +142,7 @@ defmodule Hueworks.HomeKitTest do
         source: :hue,
         source_id: "1",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         homekit_export_mode: :light
       })
 
@@ -153,7 +153,7 @@ defmodule Hueworks.HomeKitTest do
         source: :hue,
         source_id: "10",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         homekit_export_mode: :switch
       })
 
@@ -169,7 +169,7 @@ defmodule Hueworks.HomeKitTest do
   end
 
   test "value store reads entity power and active scene state" do
-    room = Repo.insert!(%Room{name: "Kitchen"})
+    area = Repo.insert!(%Area{name: "Kitchen"})
     bridge = insert_bridge!()
 
     light =
@@ -178,10 +178,10 @@ defmodule Hueworks.HomeKitTest do
         source: :hue,
         source_id: "1",
         bridge_id: bridge.id,
-        room_id: room.id
+        area_id: area.id
       })
 
-    scene = Repo.insert!(%Scene{name: "Dinner", room_id: room.id})
+    scene = Repo.insert!(%Scene{name: "Dinner", area_id: area.id})
 
     State.put(:light, light.id, %{power: :on})
     Hueworks.ActiveScenes.set_active(scene)
@@ -194,7 +194,7 @@ defmodule Hueworks.HomeKitTest do
     actions_agent: actions_agent,
     executor_server: executor_server
   } do
-    room = Repo.insert!(%Room{name: "Kitchen"})
+    area = Repo.insert!(%Area{name: "Kitchen"})
     bridge = insert_bridge!()
 
     light =
@@ -203,7 +203,7 @@ defmodule Hueworks.HomeKitTest do
         source: :hue,
         source_id: "1",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         homekit_export_mode: :light
       })
 
@@ -231,7 +231,7 @@ defmodule Hueworks.HomeKitTest do
     actions_agent: actions_agent,
     executor_server: executor_server
   } do
-    room = Repo.insert!(%Room{name: "Kitchen"})
+    area = Repo.insert!(%Area{name: "Kitchen"})
     bridge = insert_bridge!()
 
     light =
@@ -240,7 +240,7 @@ defmodule Hueworks.HomeKitTest do
         source: :hue,
         source_id: "1",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6500,
@@ -270,7 +270,7 @@ defmodule Hueworks.HomeKitTest do
     actions_agent: actions_agent,
     executor_server: executor_server
   } do
-    room = Repo.insert!(%Room{name: "Kitchen"})
+    area = Repo.insert!(%Area{name: "Kitchen"})
     bridge = insert_bridge!()
 
     light_a =
@@ -279,7 +279,7 @@ defmodule Hueworks.HomeKitTest do
         source: :hue,
         source_id: "1",
         bridge_id: bridge.id,
-        room_id: room.id
+        area_id: area.id
       })
 
     light_b =
@@ -288,7 +288,7 @@ defmodule Hueworks.HomeKitTest do
         source: :hue,
         source_id: "2",
         bridge_id: bridge.id,
-        room_id: room.id
+        area_id: area.id
       })
 
     group =
@@ -297,7 +297,7 @@ defmodule Hueworks.HomeKitTest do
         source: :hue,
         source_id: "10",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         homekit_export_mode: :switch
       })
 
@@ -330,7 +330,7 @@ defmodule Hueworks.HomeKitTest do
     actions_agent: actions_agent,
     executor_server: executor_server
   } do
-    room = Repo.insert!(%Room{name: "Kitchen"})
+    area = Repo.insert!(%Area{name: "Kitchen"})
     bridge = insert_bridge!()
 
     light =
@@ -339,7 +339,7 @@ defmodule Hueworks.HomeKitTest do
         source: :hue,
         source_id: "1",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6500
@@ -351,8 +351,8 @@ defmodule Hueworks.HomeKitTest do
         "temperature" => "3100"
       })
 
-    {:ok, scene} = Scenes.create_scene(%{name: "Dinner", room_id: room.id})
-    {:ok, other_scene} = Scenes.create_scene(%{name: "Cleanup", room_id: room.id})
+    {:ok, scene} = Scenes.create_scene(%{name: "Dinner", area_id: area.id})
+    {:ok, other_scene} = Scenes.create_scene(%{name: "Cleanup", area_id: area.id})
 
     {:ok, _} =
       Scenes.replace_scene_components(scene, [
@@ -365,7 +365,7 @@ defmodule Hueworks.HomeKitTest do
 
     drain_executor(executor_server)
 
-    assert %{scene_id: active_scene_id} = ActiveScenes.get_for_room(room.id)
+    assert %{scene_id: active_scene_id} = ActiveScenes.get_for_area(area.id)
     assert active_scene_id == scene.id
     assert ValueStore.get_value(kind: :scene, id: scene.id) == {:ok, true}
     assert ValueStore.get_value(kind: :scene, id: other_scene.id) == {:ok, false}
@@ -381,7 +381,7 @@ defmodule Hueworks.HomeKitTest do
     assert light_id == light.id
 
     assert :ok = ValueStore.put_value(false, kind: :scene, id: scene.id)
-    assert ActiveScenes.get_for_room(room.id) == nil
+    assert ActiveScenes.get_for_area(area.id) == nil
     assert ValueStore.get_value(kind: :scene, id: scene.id) == {:ok, false}
   end
 
@@ -473,7 +473,7 @@ defmodule Hueworks.HomeKitTest do
       restore_app_env(:hueworks, :homekit_test_sink, original_sink)
     end)
 
-    room = Repo.insert!(%Room{name: "Kitchen"})
+    area = Repo.insert!(%Area{name: "Kitchen"})
     bridge = insert_bridge!()
 
     light =
@@ -483,7 +483,7 @@ defmodule Hueworks.HomeKitTest do
         source: :hue,
         source_id: "1",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         homekit_export_mode: :none
       })
 
@@ -527,12 +527,12 @@ defmodule Hueworks.HomeKitTest do
         homekit_scenes_enabled: true
       })
 
-    room = Repo.insert!(%Room{name: "Kitchen"})
+    area = Repo.insert!(%Area{name: "Kitchen"})
 
     start_supervised!({HomeKitBridge, []})
     refute_receive {:hap_started, _names}
 
-    assert {:ok, _scene} = Scenes.create_scene(%{name: "Dinner", room_id: room.id})
+    assert {:ok, _scene} = Scenes.create_scene(%{name: "Dinner", area_id: area.id})
     assert_receive {:hap_started, ["Dinner"]}
   end
 
@@ -560,7 +560,7 @@ defmodule Hueworks.HomeKitTest do
       restore_app_env(:hueworks, :homekit_test_sink, original_sink)
     end)
 
-    room = Repo.insert!(%Room{name: "Kitchen"})
+    area = Repo.insert!(%Area{name: "Kitchen"})
     bridge = insert_bridge!()
 
     Repo.insert!(%Light{
@@ -569,7 +569,7 @@ defmodule Hueworks.HomeKitTest do
       source: :hue,
       source_id: "1",
       bridge_id: bridge.id,
-      room_id: room.id,
+      area_id: area.id,
       homekit_export_mode: :switch
     })
 
@@ -606,7 +606,7 @@ defmodule Hueworks.HomeKitTest do
       restore_app_env(:hueworks, :homekit_test_sink, original_sink)
     end)
 
-    room = Repo.insert!(%Room{name: "Kitchen"})
+    area = Repo.insert!(%Area{name: "Kitchen"})
     bridge = insert_bridge!()
 
     Repo.insert!(%Light{
@@ -615,7 +615,7 @@ defmodule Hueworks.HomeKitTest do
       source: :hue,
       source_id: "1",
       bridge_id: bridge.id,
-      room_id: room.id,
+      area_id: area.id,
       homekit_export_mode: :switch
     })
 

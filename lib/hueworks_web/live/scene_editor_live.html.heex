@@ -1,12 +1,12 @@
 <HueworksWeb.PageComponents.page
   class="hw-scene-editor-page"
   flash={@flash}
-  eyebrow="Room scene"
+  eyebrow="Area scene"
   title={if @scene_mode == :edit, do: "Edit Scene", else: "Add Scene"}
-  subtitle={"Build the lighting behavior for #{@room_name}."}
+  subtitle={"Build the lighting behavior for #{@area_name}."}
 >
   <:actions>
-    <a class="hw-button" href="/rooms">Back to Rooms</a>
+    <a class="hw-button" href="/areas">Back to Areas</a>
   </:actions>
 
   <div class="hw-scene-editor-layout">
@@ -80,8 +80,8 @@
       <.live_component
         module={HueworksWeb.SceneBuilderComponent}
         id="scene-builder"
-        room_lights={@scene_room_lights}
-        groups={@scene_room_groups}
+        area_lights={@scene_area_lights}
+        groups={@scene_area_groups}
         presence_inputs={@scene_presence_inputs}
         components={@scene_components}
         light_states={@scene_light_states}
@@ -92,7 +92,7 @@
     <div class="hw-scene-editor-actions">
       <span class="hw-meta">Changes stay on this page after saving so you can preview and refine them.</span>
       <div class="hw-actions">
-        <a class="hw-button hw-button-off" href="/rooms">Cancel</a>
+        <a class="hw-button hw-button-off" href="/areas">Cancel</a>
         <%= if @scene_id do %>
           <button
             id="scene-toggle-activation"

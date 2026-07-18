@@ -4,7 +4,7 @@ defmodule Hueworks.Subscription.Z2MHandlerTest do
   alias Hueworks.Control.HomeAssistantPayload
   alias Hueworks.Control.State
   alias Hueworks.Repo
-  alias Hueworks.Schemas.{Group, Light, Room}
+  alias Hueworks.Schemas.{Group, Light, Area}
   alias Hueworks.Subscription.Z2MEventStream.Connection.Handler
 
   setup do
@@ -16,7 +16,7 @@ defmodule Hueworks.Subscription.Z2MHandlerTest do
   end
 
   test "handler maps device and group MQTT events into control state" do
-    room = Repo.insert!(%Room{name: "Main"})
+    area = Repo.insert!(%Area{name: "Main"})
 
     bridge =
       insert_bridge!(%{
@@ -33,7 +33,7 @@ defmodule Hueworks.Subscription.Z2MHandlerTest do
         source: :z2m,
         source_id: "kitchen_strip",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6500
@@ -45,7 +45,7 @@ defmodule Hueworks.Subscription.Z2MHandlerTest do
         source: :z2m,
         source_id: "kitchen_ceiling",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6500
@@ -57,7 +57,7 @@ defmodule Hueworks.Subscription.Z2MHandlerTest do
         source: :z2m,
         source_id: "kitchen_group",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6500,
@@ -115,7 +115,7 @@ defmodule Hueworks.Subscription.Z2MHandlerTest do
   end
 
   test "handler uses extended color payload mapping for low kelvin updates" do
-    room = Repo.insert!(%Room{name: "Extended"})
+    area = Repo.insert!(%Area{name: "Extended"})
 
     bridge =
       insert_bridge!(%{
@@ -132,7 +132,7 @@ defmodule Hueworks.Subscription.Z2MHandlerTest do
         source: :z2m,
         source_id: "cabinet_strip",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6329,
@@ -160,7 +160,7 @@ defmodule Hueworks.Subscription.Z2MHandlerTest do
   end
 
   test "handler prefers color_temp when z2m color_mode is color_temp even if xy is present" do
-    room = Repo.insert!(%Room{name: "Color Temp Preferred"})
+    area = Repo.insert!(%Area{name: "Color Temp Preferred"})
 
     bridge =
       insert_bridge!(%{
@@ -177,7 +177,7 @@ defmodule Hueworks.Subscription.Z2MHandlerTest do
         source: :z2m,
         source_id: "cabinet_midrange",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6329,
@@ -206,7 +206,7 @@ defmodule Hueworks.Subscription.Z2MHandlerTest do
   end
 
   test "handler prefers xy in the 2600-2700 crossover band even when z2m reports color_temp mode" do
-    room = Repo.insert!(%Room{name: "Color Temp Crossover"})
+    area = Repo.insert!(%Area{name: "Color Temp Crossover"})
 
     bridge =
       insert_bridge!(%{
@@ -223,7 +223,7 @@ defmodule Hueworks.Subscription.Z2MHandlerTest do
         source: :z2m,
         source_id: "cabinet_crossover",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6329,
@@ -252,7 +252,7 @@ defmodule Hueworks.Subscription.Z2MHandlerTest do
   end
 
   test "handler remaps reported low-end floor when extended range is enabled and xy is absent" do
-    room = Repo.insert!(%Room{name: "Extended Floor"})
+    area = Repo.insert!(%Area{name: "Extended Floor"})
 
     bridge =
       insert_bridge!(%{
@@ -269,7 +269,7 @@ defmodule Hueworks.Subscription.Z2MHandlerTest do
         source: :z2m,
         source_id: "cabinet_floor",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_temp: true,
         reported_min_kelvin: 2288,
         reported_max_kelvin: 6500,
@@ -292,7 +292,7 @@ defmodule Hueworks.Subscription.Z2MHandlerTest do
   end
 
   test "group updates update group state without overwriting member light state" do
-    room = Repo.insert!(%Room{name: "Grouped Extended"})
+    area = Repo.insert!(%Area{name: "Grouped Extended"})
 
     bridge =
       insert_bridge!(%{
@@ -309,7 +309,7 @@ defmodule Hueworks.Subscription.Z2MHandlerTest do
         source: :z2m,
         source_id: "grouped_cabinet",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6329,
@@ -324,7 +324,7 @@ defmodule Hueworks.Subscription.Z2MHandlerTest do
         source: :z2m,
         source_id: "grouped_cabinet_group",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6329,
@@ -348,7 +348,7 @@ defmodule Hueworks.Subscription.Z2MHandlerTest do
   end
 
   test "group updates do not overwrite diverged member light states" do
-    room = Repo.insert!(%Room{name: "Bar Cabinets"})
+    area = Repo.insert!(%Area{name: "Bar Cabinets"})
 
     bridge =
       insert_bridge!(%{
@@ -365,7 +365,7 @@ defmodule Hueworks.Subscription.Z2MHandlerTest do
         source: :z2m,
         source_id: "bar_lower_cabinet",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6500
@@ -377,7 +377,7 @@ defmodule Hueworks.Subscription.Z2MHandlerTest do
         source: :z2m,
         source_id: "bar_upper_cabinet",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6500
@@ -389,7 +389,7 @@ defmodule Hueworks.Subscription.Z2MHandlerTest do
         source: :z2m,
         source_id: "bar_cabinet_group",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6500,
@@ -433,7 +433,7 @@ defmodule Hueworks.Subscription.Z2MHandlerTest do
   end
 
   test "group state follows member-mapped low kelvin values" do
-    room = Repo.insert!(%Room{name: "Mapped Cabinets"})
+    area = Repo.insert!(%Area{name: "Mapped Cabinets"})
 
     bridge =
       insert_bridge!(%{
@@ -450,7 +450,7 @@ defmodule Hueworks.Subscription.Z2MHandlerTest do
         source: :z2m,
         source_id: "mapped_lower_cabinet",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6329,
@@ -465,7 +465,7 @@ defmodule Hueworks.Subscription.Z2MHandlerTest do
         source: :z2m,
         source_id: "mapped_upper_cabinet",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6329,
@@ -480,7 +480,7 @@ defmodule Hueworks.Subscription.Z2MHandlerTest do
         source: :z2m,
         source_id: "mapped_cabinet_group",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6329,
@@ -510,7 +510,7 @@ defmodule Hueworks.Subscription.Z2MHandlerTest do
   end
 
   test "handler keeps stale xy plus midrange white temp out of extended low-end band" do
-    room = Repo.insert!(%Room{name: "Midrange Extended"})
+    area = Repo.insert!(%Area{name: "Midrange Extended"})
 
     bridge =
       insert_bridge!(%{
@@ -527,7 +527,7 @@ defmodule Hueworks.Subscription.Z2MHandlerTest do
         source: :z2m,
         source_id: "midrange_cabinet",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6329,
@@ -555,7 +555,7 @@ defmodule Hueworks.Subscription.Z2MHandlerTest do
   end
 
   test "handler refreshes indexes and resolves newly imported entities after debounce window" do
-    room = Repo.insert!(%Room{name: "Refresh"})
+    area = Repo.insert!(%Area{name: "Refresh"})
 
     bridge =
       insert_bridge!(%{
@@ -574,7 +574,7 @@ defmodule Hueworks.Subscription.Z2MHandlerTest do
         source: :z2m,
         source_id: "late_device",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         supports_temp: true,
         reported_min_kelvin: 2000,
         reported_max_kelvin: 6500

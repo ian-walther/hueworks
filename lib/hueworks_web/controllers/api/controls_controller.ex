@@ -13,12 +13,12 @@ defmodule HueworksWeb.Api.ControlsController do
     end
   end
 
-  def deactivate_room_scene(conn, %{"id" => id}) do
-    with {:ok, room_id} <- parse_id(id),
-         {:ok, result} <- Api.deactivate_room_scene(room_id) do
+  def deactivate_area_scene(conn, %{"id" => id}) do
+    with {:ok, area_id} <- parse_id(id),
+         {:ok, result} <- Api.deactivate_area_scene(area_id) do
       Response.ok(conn, result)
     else
-      error -> control_error(conn, error, "Room")
+      error -> control_error(conn, error, "Area")
     end
   end
 

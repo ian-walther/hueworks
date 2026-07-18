@@ -29,7 +29,7 @@
       <div class="hw-row">
         <p class="hw-muted">
           Used by <%= length(@light_state_usages) %> <%= if length(@light_state_usages) == 1, do: "scene", else: "scenes" %>:
-          <%= Enum.map_join(@light_state_usages, ", ", fn usage -> "#{usage.room_name} / #{usage.scene_name}" end) %>
+          <%= Enum.map_join(@light_state_usages, ", ", fn usage -> "#{usage.area_name} / #{usage.scene_name}" end) %>
         </p>
       </div>
     <% end %>

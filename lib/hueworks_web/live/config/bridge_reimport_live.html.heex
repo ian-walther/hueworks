@@ -29,7 +29,7 @@
       <p class="hw-eyebrow">Bridge review complete</p>
       <h2>Changes applied safely</h2>
       <p>
-        HueWorks applied the selected changes while preserving HueWorks-owned names, rooms,
+        HueWorks applied the selected changes while preserving HueWorks-owned names, areas,
         scenes, exports, and Pico configuration.
       </p>
     </div>
@@ -54,7 +54,7 @@
       <div class="hw-review-summary-intro">
         <p class="hw-eyebrow">Bridge review</p>
         <h2>What changed</h2>
-        <p>HueWorks-owned names, rooms, enablement, exports, scenes, and Pico configuration stay untouched unless you explicitly choose otherwise.</p>
+        <p>HueWorks-owned names, areas, enablement, exports, scenes, and Pico configuration stay untouched unless you explicitly choose otherwise.</p>
       </div>
       <div class="hw-summary-strip">
         <div class="hw-summary-stat hw-summary-stat-removed">
@@ -112,14 +112,14 @@
 
       <div :if={@review.removed == []} class="hw-review-empty">Nothing was removed from the bridge.</div>
 
-      <div :for={room <- @review.removed} class="hw-review-room">
-        <h3 class="hw-review-room-title"><%= room.room %></h3>
+      <div :for={area <- @review.removed} class="hw-review-area">
+        <h3 class="hw-review-area-title"><%= area.area %></h3>
         <div class="hw-review-rows">
-          <article :for={item <- room.items} class="hw-review-row" id={"removed-#{item.type}-#{item.source_id}"}>
+          <article :for={item <- area.items} class="hw-review-row" id={"removed-#{item.type}-#{item.source_id}"}>
             <div class="hw-review-entity">
               <span class="hw-status-badge hw-status-badge-removed">Removed upstream</span>
               <h4><%= item.name %></h4>
-              <p><%= item.type_label %> · <%= item.source_id %> · HueWorks room: <%= item.current_room %></p>
+              <p><%= item.type_label %> · <%= item.source_id %> · HueWorks area: <%= item.current_area %></p>
             </div>
             <div class="hw-review-decision">
               <label for={"resolution-#{item.type}-#{item.source_id}"}>HueWorks action</label>
@@ -161,26 +161,26 @@
         <div>
           <p class="hw-eyebrow">02 / Bridge facts</p>
           <h2>Existing</h2>
-          <p>Existing entities stay in their current HueWorks rooms. Bridge-owned facts refresh automatically.</p>
+          <p>Existing entities stay in their current HueWorks areas. Bridge-owned facts refresh automatically.</p>
         </div>
         <span class="hw-count"><%= @review.summary.existing %></span>
       </header>
 
       <div :if={@review.existing == []} class="hw-review-empty">No existing entities matched this bridge observation.</div>
 
-      <article :for={room <- @review.existing} class="hw-review-room">
-        <header class="hw-review-room-header">
-          <h3 class="hw-review-room-title"><%= room.room %></h3>
-          <span><%= length(room.items) %> entities</span>
+      <article :for={area <- @review.existing} class="hw-review-area">
+        <header class="hw-review-area-header">
+          <h3 class="hw-review-area-title"><%= area.area %></h3>
+          <span><%= length(area.items) %> entities</span>
         </header>
 
-        <details :if={room.membership_warnings != []} class="hw-review-disclosure hw-review-disclosure-warning" open>
+        <details :if={area.membership_warnings != []} class="hw-review-disclosure hw-review-disclosure-warning" open>
           <summary>
             <span>Membership Warnings</span>
-            <span class="hw-count"><%= length(room.membership_warnings) %></span>
+            <span class="hw-count"><%= length(area.membership_warnings) %></span>
           </summary>
           <div class="hw-review-rows">
-            <article :for={item <- room.membership_warnings} class="hw-review-row">
+            <article :for={item <- area.membership_warnings} class="hw-review-row">
               <div class="hw-review-entity">
                 <span class="hw-status-badge hw-status-badge-warning">Membership kept</span>
                 <h4><%= item.name %></h4>
@@ -191,17 +191,17 @@
           </div>
         </details>
 
-        <details :if={room.automatic_updates != []} class="hw-review-disclosure">
+        <details :if={area.automatic_updates != []} class="hw-review-disclosure">
           <summary>
             <span>Automatic Updates</span>
-            <span class="hw-count"><%= length(room.automatic_updates) %></span>
+            <span class="hw-count"><%= length(area.automatic_updates) %></span>
           </summary>
           <div class="hw-review-rows">
-            <article :for={item <- room.automatic_updates} class="hw-review-row hw-review-row-comparison">
+            <article :for={item <- area.automatic_updates} class="hw-review-row hw-review-row-comparison">
               <div class="hw-review-entity">
                 <span class="hw-status-badge hw-status-badge-changed">Auto refresh</span>
                 <h4><%= item.name %></h4>
-                <p><%= item.type_label %> · stays in <%= item.current_room %></p>
+                <p><%= item.type_label %> · stays in <%= item.current_area %></p>
               </div>
               <div class="hw-comparison-list">
                 <div :for={change <- item.changes} class="hw-comparison-row">
@@ -220,13 +220,13 @@
           </div>
         </details>
 
-        <details :if={room.unchanged != []} class="hw-review-disclosure">
+        <details :if={area.unchanged != []} class="hw-review-disclosure">
           <summary>
             <span>Unchanged</span>
-            <span class="hw-count"><%= length(room.unchanged) %></span>
+            <span class="hw-count"><%= length(area.unchanged) %></span>
           </summary>
           <div class="hw-unchanged-grid">
-            <div :for={item <- room.unchanged}>
+            <div :for={item <- area.unchanged}>
               <strong><%= item.name %></strong>
               <span><%= item.type_label %></span>
             </div>
@@ -263,13 +263,13 @@
 
       <div :if={@review.new == []} class="hw-review-empty">No new entities were discovered.</div>
 
-      <article :for={room <- @review.new} class="hw-review-room">
-        <header class="hw-review-room-header">
-          <h3 class="hw-review-room-title"><%= room.room %></h3>
-          <span>Bridge room</span>
+      <article :for={area <- @review.new} class="hw-review-area">
+        <header class="hw-review-area-header">
+          <h3 class="hw-review-area-title"><%= area.area %></h3>
+          <span>Bridge area</span>
         </header>
         <div class="hw-review-rows">
-          <article :for={item <- room.items} class="hw-review-row" id={"new-#{item.type}-#{item.source_id}"}>
+          <article :for={item <- area.items} class="hw-review-row" id={"new-#{item.type}-#{item.source_id}"}>
             <div class="hw-review-entity">
               <span class={[
                 "hw-status-badge",
@@ -279,7 +279,7 @@
                 <%= HueworksWeb.BridgeReimportLive.status_label(item.status) %>
               </span>
               <h4><%= item.bridge_name || item.name %></h4>
-              <p><%= item.type_label %> · <%= item.source_id %> · Bridge room: <%= item.bridge_room %></p>
+              <p><%= item.type_label %> · <%= item.source_id %> · Bridge area: <%= item.bridge_area %></p>
               <p :if={item.status == :duplicate} class="hw-review-note">
                 This Home Assistant entity appears to mirror a native entity. The safe default imports hidden bookkeeping for bridge topology.
               </p>
@@ -305,24 +305,24 @@
 
               <form
                 :if={item.resolution in ["import", "import_real"]}
-                phx-change="set_entity_room"
+                phx-change="set_entity_area"
                 class="hw-destination-control"
                 data-type={if item.type == :light, do: "lights", else: "groups"}
                 data-source-id={item.source_id}
               >
                 <input type="hidden" name="type" value={if item.type == :light, do: "lights", else: "groups"} />
                 <input type="hidden" name="source_id" value={item.source_id} />
-                <label for={"room-#{item.type}-#{item.source_id}"}>HueWorks destination</label>
-                <select id={"room-#{item.type}-#{item.source_id}"} class="hw-select" name="target_room_id">
-                  <option value="unassigned" selected={item.target_room_id in [nil, "unassigned"]}>Unassigned</option>
-                  <%= if create_value = HueworksWeb.BridgeReimportLive.create_room_value(@reimport.plan, item.incoming) do %>
-                    <option value={create_value} selected={item.target_room_id == "bridge_room"}>
-                      Create &quot;<%= item.bridge_room %>&quot;
+                <label for={"area-#{item.type}-#{item.source_id}"}>HueWorks destination</label>
+                <select id={"area-#{item.type}-#{item.source_id}"} class="hw-select" name="target_area_id">
+                  <option value="unassigned" selected={item.target_area_id in [nil, "unassigned"]}>Unassigned</option>
+                  <%= if create_value = HueworksWeb.BridgeReimportLive.create_area_value(@reimport.plan, item.incoming) do %>
+                    <option value={create_value} selected={item.target_area_id == "bridge_area"}>
+                      Create &quot;<%= item.bridge_area %>&quot;
                     </option>
                   <% end %>
-                  <%= for room_option <- @rooms do %>
-                    <option value={room_option.id} selected={item.target_room_id == to_string(room_option.id)}>
-                      <%= Hueworks.Util.display_name(room_option) %>
+                  <%= for area_option <- @areas do %>
+                    <option value={area_option.id} selected={item.target_area_id == to_string(area_option.id)}>
+                      <%= Hueworks.Util.display_name(area_option) %>
                     </option>
                   <% end %>
                 </select>

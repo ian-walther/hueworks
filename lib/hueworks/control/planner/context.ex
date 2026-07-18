@@ -7,44 +7,44 @@ defmodule Hueworks.Control.Planner.Context do
   alias Hueworks.Control.TransitionPolicy
 
   defstruct [
-    :room_id,
+    :area_id,
     :trace,
     :operation,
     :transition_policy,
-    room_lights: [],
+    area_lights: [],
     desired_by_light: %{},
     desired_revisions_by_light: %{},
     physical_by_light: %{},
     group_memberships: [],
-    room_light_ids: MapSet.new(),
+    area_light_ids: MapSet.new(),
     group_candidate_light_ids: MapSet.new(),
     protected_light_ids: MapSet.new()
   ]
 
   def from_snapshot(snapshot, opts) when is_map(snapshot) and is_list(opts) do
-    room_lights = Map.get(snapshot, :room_lights, [])
+    area_lights = Map.get(snapshot, :area_lights, [])
     desired_by_light = Map.get(snapshot, :desired_by_light, %{})
-    room_light_ids = MapSet.new(Enum.map(room_lights, & &1.id))
+    area_light_ids = MapSet.new(Enum.map(area_lights, & &1.id))
     operation = Keyword.get(opts, :operation)
 
     %__MODULE__{
-      room_id: Map.get(snapshot, :room_id),
+      area_id: Map.get(snapshot, :area_id),
       trace: operation_trace(operation, opts),
       operation: operation,
       transition_policy: transition_policy(operation, opts),
-      room_lights: room_lights,
-      desired_by_light: effective_desired_by_light(room_lights, desired_by_light),
+      area_lights: area_lights,
+      desired_by_light: effective_desired_by_light(area_lights, desired_by_light),
       desired_revisions_by_light: Map.get(snapshot, :desired_revisions_by_light, %{}),
       physical_by_light: Map.get(snapshot, :physical_by_light, %{}),
       group_memberships: Map.get(snapshot, :group_memberships, []),
-      room_light_ids: room_light_ids,
-      group_candidate_light_ids: initial_group_candidate_light_ids(opts, room_light_ids),
+      area_light_ids: area_light_ids,
+      group_candidate_light_ids: initial_group_candidate_light_ids(opts, area_light_ids),
       protected_light_ids: light_id_set(Keyword.get(opts, :protected_light_ids, []))
     }
   end
 
-  def bridge_for_light(%__MODULE__{room_lights: room_lights}, id) do
-    room_lights
+  def bridge_for_light(%__MODULE__{area_lights: area_lights}, id) do
+    area_lights
     |> Enum.find(&(&1.id == id))
     |> case do
       nil -> nil
@@ -52,14 +52,14 @@ defmodule Hueworks.Control.Planner.Context do
     end
   end
 
-  def diff_light_ids(%__MODULE__{room_light_ids: room_light_ids}, diff) when is_map(diff) do
+  def diff_light_ids(%__MODULE__{area_light_ids: area_light_ids}, diff) when is_map(diff) do
     diff
     |> Map.keys()
     |> Enum.flat_map(fn
       {:light, id} when is_integer(id) -> [id]
       _ -> []
     end)
-    |> Enum.filter(&MapSet.member?(room_light_ids, &1))
+    |> Enum.filter(&MapSet.member?(area_light_ids, &1))
   end
 
   def desired_for_light(%__MODULE__{desired_by_light: desired_by_light}, id) do
@@ -86,8 +86,8 @@ defmodule Hueworks.Control.Planner.Context do
     |> MapSet.difference(context.protected_light_ids)
   end
 
-  defp effective_desired_by_light(room_lights, desired_by_light) do
-    room_lights
+  defp effective_desired_by_light(area_lights, desired_by_light) do
+    area_lights
     |> Map.new(fn light ->
       desired = Map.get(desired_by_light, light.id) || %{}
       {light.id, LightStateSemantics.effective_desired_for_light(desired, light)}
@@ -106,11 +106,11 @@ defmodule Hueworks.Control.Planner.Context do
     end
   end
 
-  defp initial_group_candidate_light_ids(opts, room_light_ids) do
+  defp initial_group_candidate_light_ids(opts, area_light_ids) do
     case Keyword.get(opts, :group_candidate_light_ids) do
-      nil -> room_light_ids
-      :all -> room_light_ids
-      ids -> light_id_set(ids) |> MapSet.intersection(room_light_ids)
+      nil -> area_light_ids
+      :all -> area_light_ids
+      ids -> light_id_set(ids) |> MapSet.intersection(area_light_ids)
     end
   end
 

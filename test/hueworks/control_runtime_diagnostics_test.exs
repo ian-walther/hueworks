@@ -40,7 +40,7 @@ defmodule Hueworks.ControlRuntimeDiagnosticsTest do
   test "trace buffer keeps bounded safe events and filters them by target" do
     for sequence <- 1..1_002 do
       TraceBuffer.record(
-        %{trace_id: "trace-#{sequence}", source: "test", room_id: 9},
+        %{trace_id: "trace-#{sequence}", source: "test", area_id: 9},
         :planned,
         %{entity_kind: :light, entity_id: sequence, desired: %{power: :on}, planner_ms: 1}
       )
@@ -59,7 +59,7 @@ defmodule Hueworks.ControlRuntimeDiagnosticsTest do
     action = %{
       trace_id: "api-control-1",
       trace_source: "api.manual_control",
-      trace_room_id: 9,
+      trace_area_id: 9,
       type: :light,
       id: 71_003,
       bridge_id: 12,
@@ -86,7 +86,7 @@ defmodule Hueworks.ControlRuntimeDiagnosticsTest do
   end
 
   test "trace summaries retain plan totals beyond the public event-list limit" do
-    trace = %{trace_id: "api-large-plan-1", source: "api.scene_activate", room_id: 3}
+    trace = %{trace_id: "api-large-plan-1", source: "api.scene_activate", area_id: 3}
 
     for id <- 1..150 do
       TraceBuffer.record(trace, :enqueued, %{

@@ -11,10 +11,10 @@ defmodule HueworksWeb.Api.EntitiesController do
   def search(conn, params) do
     with {:ok, query} <- parse_query(params["query"]),
          {:ok, kind} <- parse_kind(params["kind"]),
-         {:ok, room_id} <- parse_optional_id(params["room_id"], "room_id"),
+         {:ok, area_id} <- parse_optional_id(params["area_id"], "area_id"),
          {:ok, limit} <- parse_optional_limit(params["limit"]) do
       filters =
-        [kind: kind, room_id: room_id, limit: limit]
+        [kind: kind, area_id: area_id, limit: limit]
         |> Enum.reject(fn {_key, value} -> is_nil(value) end)
 
       Response.ok(conn, Api.search_entities(query, filters))

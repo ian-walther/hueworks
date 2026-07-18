@@ -9,7 +9,7 @@ defmodule Hueworks.Import.Materialize do
     Normalize,
     Plan,
     ReimportApply,
-    Rooms
+    Areas
   }
 
   alias Hueworks.Bridges
@@ -33,38 +33,38 @@ defmodule Hueworks.Import.Materialize do
   end
 
   defp materialize_initial(bridge, normalized, plan) do
-    rooms = Normalize.fetch(normalized, :rooms) || []
+    areas = Normalize.fetch(normalized, :areas) || []
     groups = (Normalize.fetch(normalized, :groups) || []) |> Duplicates.reject_hueworks_exported()
     lights = (Normalize.fetch(normalized, :lights) || []) |> Duplicates.reject_hueworks_exported()
     memberships = Normalize.fetch(normalized, :memberships) || %{}
 
-    plan_rooms = Normalize.fetch(plan, :rooms) || %{}
+    plan_areas = Normalize.fetch(plan, :areas) || %{}
     plan_lights = Normalize.fetch(plan, :lights) || %{}
     plan_groups = Normalize.fetch(plan, :groups) || %{}
 
-    room_map = upsert_rooms(rooms, plan_rooms)
+    area_map = upsert_areas(areas, plan_areas)
     lights = filter_entities(lights, plan_lights)
     groups = filter_entities(groups, plan_groups)
     memberships = filter_memberships(memberships, plan_lights, plan_groups)
     duplicate_light_targets = Duplicates.light_targets(lights)
 
-    light_result = upsert_lights(bridge, lights, room_map, plan_lights, duplicate_light_targets)
-    group_map = upsert_groups(bridge, groups, room_map, plan_groups, light_result)
+    light_result = upsert_lights(bridge, lights, area_map, plan_lights, duplicate_light_targets)
+    group_map = upsert_groups(bridge, groups, area_map, plan_groups, light_result)
 
     upsert_group_lights(memberships, light_result.source_id_to_db_id, group_map)
-    infer_group_rooms(group_map)
+    infer_group_areas(group_map)
 
     :ok
   end
 
-  defp upsert_rooms(rooms, plan_rooms) do
-    Enum.reduce(rooms, %{}, fn room, acc ->
-      source_id = Normalize.normalize_source_id(Normalize.fetch(room, :source_id))
+  defp upsert_areas(areas, plan_areas) do
+    Enum.reduce(areas, %{}, fn area, acc ->
+      source_id = Normalize.normalize_source_id(Normalize.fetch(area, :source_id))
 
       if is_binary(source_id) do
-        case Rooms.upsert(room, Normalize.fetch(plan_rooms, source_id) || %{}) do
+        case Areas.upsert(area, Normalize.fetch(plan_areas, source_id) || %{}) do
           nil -> acc
-          room_id -> Map.put(acc, source_id, room_id)
+          area_id -> Map.put(acc, source_id, area_id)
         end
       else
         acc
@@ -72,7 +72,7 @@ defmodule Hueworks.Import.Materialize do
     end)
   end
 
-  defp upsert_lights(bridge, lights, room_map, plan_lights, duplicate_targets) do
+  defp upsert_lights(bridge, lights, area_map, plan_lights, duplicate_targets) do
     bridge_id = bridge.id
 
     initial = %{source_id_to_db_id: %{}, source_id_to_canonical_db_id: %{}}
@@ -84,7 +84,7 @@ defmodule Hueworks.Import.Materialize do
         attrs =
           bridge
           |> EntityAttrs.light_attrs(light)
-          |> Map.put(:room_id, Rooms.target_id_for(light, room_map, plan_lights))
+          |> Map.put(:area_id, Areas.target_id_for(light, area_map, plan_lights))
 
         canonical_light_id = Map.get(duplicate_targets, source_id)
 
@@ -122,7 +122,7 @@ defmodule Hueworks.Import.Materialize do
     end)
   end
 
-  defp upsert_groups(bridge, groups, room_map, plan_groups, light_result) do
+  defp upsert_groups(bridge, groups, area_map, plan_groups, light_result) do
     bridge_id = bridge.id
 
     Enum.reduce(groups, %{}, fn group, acc ->
@@ -132,7 +132,7 @@ defmodule Hueworks.Import.Materialize do
         attrs =
           bridge
           |> EntityAttrs.group_attrs(group)
-          |> Map.put(:room_id, Rooms.target_id_for(group, room_map, plan_groups))
+          |> Map.put(:area_id, Areas.target_id_for(group, area_map, plan_groups))
 
         attrs =
           case Duplicates.group_target(group, light_result.source_id_to_canonical_db_id) do
@@ -183,7 +183,7 @@ defmodule Hueworks.Import.Materialize do
     end)
   end
 
-  defp infer_group_rooms(group_map) do
+  defp infer_group_areas(group_map) do
     group_ids = Map.values(group_map)
 
     if group_ids == [] do
@@ -194,22 +194,22 @@ defmodule Hueworks.Import.Materialize do
           join: l in Light,
           on: l.id == gl.light_id,
           where: gl.group_id in ^group_ids,
-          select: {gl.group_id, l.room_id}
+          select: {gl.group_id, l.area_id}
         )
       )
-      |> Enum.group_by(fn {group_id, _room_id} -> group_id end, fn {_group_id, room_id} ->
-        room_id
+      |> Enum.group_by(fn {group_id, _area_id} -> group_id end, fn {_group_id, area_id} ->
+        area_id
       end)
-      |> Enum.each(fn {group_id, room_ids} ->
-        rooms =
-          room_ids
+      |> Enum.each(fn {group_id, area_ids} ->
+        areas =
+          area_ids
           |> Enum.filter(&is_integer/1)
           |> Enum.uniq()
 
-        case rooms do
-          [room_id] ->
+        case areas do
+          [area_id] ->
             from(g in Group, where: g.id == ^group_id)
-            |> Repo.update_all(set: [room_id: room_id])
+            |> Repo.update_all(set: [area_id: area_id])
 
           _ ->
             :ok

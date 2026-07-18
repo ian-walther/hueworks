@@ -3,7 +3,7 @@
 Scope: `lib/hueworks/import/**`, `lib/hueworks/bridges.ex`, `lib/hueworks/bridge_seeds.ex`. Import-owned schemas were read as encountered.
 Status: audit complete; **no open findings** (IDs IM-1 through IM-8 were all implemented and removed per the forward-facing rule; the IM-2 display_name divergence sub-claim was refuted during implementation — see correction below).
 
-Overall assessment: the reimport backend implements the reimport product contract (now `planning/import-resync.md`, rewritten as the review-UI plan) with real care — field ownership respected on refresh, staleness validation enforced for destructive resolutions, rollback on duplicate-classification drift, post-commit-only integration effects — and `ReimportApply` now has a 12-case characterization suite covering the full contract matrix. Shared construction lives in `Import.EntityAttrs`/`Import.Rooms`/`Import.IdentifierIndex`/`Import.Source`; fetch transports consume `CasetaLeap`/`Z2MConfig`.
+Overall assessment: the reimport backend implements the reimport product contract (now `planning/import-resync.md`, rewritten as the review-UI plan) with real care — field ownership respected on refresh, staleness validation enforced for destructive resolutions, rollback on duplicate-classification drift, post-commit-only integration effects — and `ReimportApply` now has a 12-case characterization suite covering the full contract matrix. Shared construction lives in `Import.EntityAttrs`/`Import.Areas`/`Import.IdentifierIndex`/`Import.Source`; fetch transports consume `CasetaLeap`/`Z2MConfig`.
 
 ## Audit Correction (recorded so it isn't re-found)
 

@@ -16,7 +16,7 @@ defmodule HueworksWeb.Api.TracesController do
 
   defp parse_filters(params) do
     with {:ok, limit} <- optional_integer(params, "limit", 1..100),
-         {:ok, room_id} <- optional_integer(params, "room_id", 1..2_147_483_647),
+         {:ok, area_id} <- optional_integer(params, "area_id", 1..2_147_483_647),
          {:ok, entity_id} <- optional_integer(params, "entity_id", 1..2_147_483_647),
          {:ok, entity_kind} <- optional_entity_kind(params["entity_kind"]),
          {:ok, trace_id} <- optional_string(params["trace_id"]),
@@ -24,7 +24,7 @@ defmodule HueworksWeb.Api.TracesController do
       filters =
         [
           limit: limit,
-          room_id: room_id,
+          area_id: area_id,
           entity_id: entity_id,
           entity_kind: entity_kind,
           trace_id: trace_id,

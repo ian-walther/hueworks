@@ -3,7 +3,7 @@ defmodule Hueworks.Import.ReimportApply do
 
   import Ecto.Query, only: [from: 2]
 
-  alias Hueworks.Import.{Duplicates, EntityAttrs, EntityMatch, Identifiers, Normalize, Rooms}
+  alias Hueworks.Import.{Duplicates, EntityAttrs, EntityMatch, Identifiers, Normalize, Areas}
   alias Hueworks.HomeAssistant.Export, as: HomeAssistantExport
   alias Hueworks.HomeKit
   alias Hueworks.Repo
@@ -21,7 +21,7 @@ defmodule Hueworks.Import.ReimportApply do
   end
 
   defp apply!(bridge, normalized, plan) do
-    rooms = Normalize.fetch(normalized, :rooms) || []
+    areas = Normalize.fetch(normalized, :areas) || []
 
     lights =
       normalized
@@ -36,7 +36,7 @@ defmodule Hueworks.Import.ReimportApply do
       |> Duplicates.reject_hueworks_exported()
 
     memberships = Normalize.fetch(normalized, :memberships) || %{}
-    plan_rooms = Normalize.fetch(plan, :rooms) || %{}
+    plan_areas = Normalize.fetch(plan, :areas) || %{}
     plan_lights = Normalize.fetch(plan, :lights) || %{}
     plan_groups = Normalize.fetch(plan, :groups) || %{}
 
@@ -45,8 +45,8 @@ defmodule Hueworks.Import.ReimportApply do
 
     duplicate_light_targets = Duplicates.light_targets(lights)
 
-    needed_room_source_ids =
-      needed_room_source_ids(
+    needed_area_source_ids =
+      needed_area_source_ids(
         lights,
         groups,
         existing_lights,
@@ -55,20 +55,20 @@ defmodule Hueworks.Import.ReimportApply do
         plan_groups
       )
 
-    room_map = upsert_needed_rooms(rooms, plan_rooms, needed_room_source_ids)
+    area_map = upsert_needed_areas(areas, plan_areas, needed_area_source_ids)
 
     light_result =
       apply_lights(
         bridge,
         lights,
-        room_map,
+        area_map,
         plan_lights,
         existing_lights,
         duplicate_light_targets
       )
 
     group_result =
-      apply_groups(bridge, groups, room_map, plan_groups, existing_groups, light_result)
+      apply_groups(bridge, groups, area_map, plan_groups, existing_groups, light_result)
 
     refresh_group_lights(
       groups,
@@ -92,7 +92,7 @@ defmodule Hueworks.Import.ReimportApply do
   defp list_bridge_groups(bridge_id),
     do: Repo.all(from(g in Group, where: g.bridge_id == ^bridge_id))
 
-  defp needed_room_source_ids(
+  defp needed_area_source_ids(
          lights,
          groups,
          existing_lights,
@@ -109,7 +109,7 @@ defmodule Hueworks.Import.ReimportApply do
           not hidden_duplicate_resolution?(plan_lights, source_id) and
           is_nil(EntityMatch.match_existing(existing_lights, light, :light))
       end)
-      |> Enum.map(&room_source_id/1)
+      |> Enum.map(&area_source_id/1)
 
     group_ids =
       groups
@@ -120,21 +120,21 @@ defmodule Hueworks.Import.ReimportApply do
           not hidden_duplicate_resolution?(plan_groups, source_id) and
           is_nil(EntityMatch.match_existing(existing_groups, group, :group))
       end)
-      |> Enum.map(&room_source_id/1)
+      |> Enum.map(&area_source_id/1)
 
     (light_ids ++ group_ids)
     |> Enum.filter(&is_binary/1)
     |> MapSet.new()
   end
 
-  defp upsert_needed_rooms(rooms, plan_rooms, needed_room_source_ids) do
-    Enum.reduce(rooms, %{}, fn room, acc ->
-      source_id = source_id(room)
+  defp upsert_needed_areas(areas, plan_areas, needed_area_source_ids) do
+    Enum.reduce(areas, %{}, fn area, acc ->
+      source_id = source_id(area)
 
-      if is_binary(source_id) and MapSet.member?(needed_room_source_ids, source_id) do
-        case Rooms.upsert(room, Normalize.fetch(plan_rooms, source_id) || %{}) do
+      if is_binary(source_id) and MapSet.member?(needed_area_source_ids, source_id) do
+        case Areas.upsert(area, Normalize.fetch(plan_areas, source_id) || %{}) do
           nil -> acc
-          room_id -> Map.put(acc, source_id, room_id)
+          area_id -> Map.put(acc, source_id, area_id)
         end
       else
         acc
@@ -142,7 +142,7 @@ defmodule Hueworks.Import.ReimportApply do
     end)
   end
 
-  defp apply_lights(bridge, lights, room_map, plan_lights, existing_lights, duplicate_targets) do
+  defp apply_lights(bridge, lights, area_map, plan_lights, existing_lights, duplicate_targets) do
     initial = %{
       source_id_to_db_id: %{},
       source_id_to_canonical_db_id: %{},
@@ -173,7 +173,7 @@ defmodule Hueworks.Import.ReimportApply do
                         insert_light!(
                           bridge,
                           light,
-                          Rooms.target_id_for(light, room_map, plan_lights)
+                          Areas.target_id_for(light, area_map, plan_lights)
                         )
 
                       {record, record.id, false}
@@ -194,7 +194,7 @@ defmodule Hueworks.Import.ReimportApply do
                         insert_light!(
                           bridge,
                           light,
-                          Rooms.target_id_for(light, room_map, plan_lights)
+                          Areas.target_id_for(light, area_map, plan_lights)
                         )
 
                       {record, record.id, false}
@@ -232,7 +232,7 @@ defmodule Hueworks.Import.ReimportApply do
     end)
   end
 
-  defp apply_groups(bridge, groups, room_map, plan_groups, existing_groups, light_result) do
+  defp apply_groups(bridge, groups, area_map, plan_groups, existing_groups, light_result) do
     initial = %{source_id_to_db_id: %{}, seen_existing_ids: MapSet.new()}
 
     Enum.reduce(groups, initial, fn group, acc ->
@@ -258,7 +258,7 @@ defmodule Hueworks.Import.ReimportApply do
                       {insert_group!(
                          bridge,
                          group,
-                         Rooms.target_id_for(group, room_map, plan_groups),
+                         Areas.target_id_for(group, area_map, plan_groups),
                          nil
                        ), false}
                     else
@@ -276,7 +276,7 @@ defmodule Hueworks.Import.ReimportApply do
                       {insert_group!(
                          bridge,
                          group,
-                         Rooms.target_id_for(group, room_map, plan_groups),
+                         Areas.target_id_for(group, area_map, plan_groups),
                          nil
                        ), false}
                     end
@@ -380,9 +380,9 @@ defmodule Hueworks.Import.ReimportApply do
     end
   end
 
-  defp insert_light!(bridge, light, room_id) do
+  defp insert_light!(bridge, light, area_id) do
     %Light{}
-    |> Light.changeset(bridge |> EntityAttrs.light_attrs(light) |> Map.put(:room_id, room_id))
+    |> Light.changeset(bridge |> EntityAttrs.light_attrs(light) |> Map.put(:area_id, area_id))
     |> Repo.insert!()
   end
 
@@ -411,11 +411,11 @@ defmodule Hueworks.Import.ReimportApply do
     |> Repo.update!()
   end
 
-  defp insert_group!(bridge, group, room_id, canonical_group_id) do
+  defp insert_group!(bridge, group, area_id, canonical_group_id) do
     attrs =
       bridge
       |> EntityAttrs.group_attrs(group)
-      |> Map.put(:room_id, room_id)
+      |> Map.put(:area_id, area_id)
 
     attrs =
       if is_integer(canonical_group_id) do
@@ -450,7 +450,7 @@ defmodule Hueworks.Import.ReimportApply do
       from(l in Light,
         where:
           l.bridge_id == ^bridge.id and not is_nil(l.canonical_light_id) and l.enabled == false and
-            is_nil(l.room_id) and l.id not in ^keep_light_ids
+            is_nil(l.area_id) and l.id not in ^keep_light_ids
       )
     )
 
@@ -458,7 +458,7 @@ defmodule Hueworks.Import.ReimportApply do
       from(g in Group,
         where:
           g.bridge_id == ^bridge.id and not is_nil(g.canonical_group_id) and g.enabled == false and
-            is_nil(g.room_id) and g.id not in ^keep_group_ids
+            is_nil(g.area_id) and g.id not in ^keep_group_ids
       )
     )
   end
@@ -468,7 +468,7 @@ defmodule Hueworks.Import.ReimportApply do
       from(l in Light,
         where:
           l.bridge_id == ^bridge_id and not is_nil(l.canonical_light_id) and l.enabled == false and
-            is_nil(l.room_id)
+            is_nil(l.area_id)
       )
     )
   end
@@ -478,7 +478,7 @@ defmodule Hueworks.Import.ReimportApply do
       from(g in Group,
         where:
           g.bridge_id == ^bridge_id and not is_nil(g.canonical_group_id) and g.enabled == false and
-            is_nil(g.room_id)
+            is_nil(g.area_id)
       )
     )
   end
@@ -553,7 +553,7 @@ defmodule Hueworks.Import.ReimportApply do
     hidden_group_ids =
       Repo.all(
         from(g in Group,
-          where: g.canonical_group_id in ^group_ids and g.enabled == false and is_nil(g.room_id),
+          where: g.canonical_group_id in ^group_ids and g.enabled == false and is_nil(g.area_id),
           select: g.id
         )
       )
@@ -576,7 +576,7 @@ defmodule Hueworks.Import.ReimportApply do
     hidden_light_ids =
       Repo.all(
         from(l in Light,
-          where: l.canonical_light_id in ^light_ids and l.enabled == false and is_nil(l.room_id),
+          where: l.canonical_light_id in ^light_ids and l.enabled == false and is_nil(l.area_id),
           select: l.id
         )
       )
@@ -736,6 +736,6 @@ defmodule Hueworks.Import.ReimportApply do
   defp source_id(entity),
     do: entity |> Normalize.fetch(:source_id) |> Normalize.normalize_source_id()
 
-  defp room_source_id(entity),
-    do: entity |> Normalize.fetch(:room_source_id) |> Normalize.normalize_source_id()
+  defp area_source_id(entity),
+    do: entity |> Normalize.fetch(:area_source_id) |> Normalize.normalize_source_id()
 end

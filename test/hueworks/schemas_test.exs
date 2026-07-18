@@ -11,7 +11,7 @@ defmodule Hueworks.SchemasTest do
     Light,
     LightState,
     PresenceInput,
-    Room,
+    Area,
     Scene,
     SceneComponent,
     SceneComponentLight
@@ -34,8 +34,8 @@ defmodule Hueworks.SchemasTest do
     insert_bridge!(Map.merge(defaults, attrs))
   end
 
-  defp insert_room(name \\ "Room") do
-    Repo.insert!(%Room{name: name})
+  defp insert_area(name \\ "Area") do
+    Repo.insert!(%Area{name: name})
   end
 
   defp insert_light(bridge, attrs \\ %{}) do
@@ -262,27 +262,27 @@ defmodule Hueworks.SchemasTest do
     assert errors[:actual_max_kelvin] == ["only supported for HA and Z2M entities"]
   end
 
-  test "room requires name" do
-    changeset = Room.changeset(%Room{}, %{})
+  test "area requires name" do
+    changeset = Area.changeset(%Area{}, %{})
     assert errors_on(changeset)[:name] == ["can't be blank"]
   end
 
-  test "room changeset generates immutable persisted Home Assistant identities" do
-    create_changeset = Room.changeset(%Room{}, %{name: "Office"})
+  test "area changeset generates immutable persisted Home Assistant identities" do
+    create_changeset = Area.changeset(%Area{}, %{name: "Office"})
 
-    assert "hueworks_room_" <> device_suffix =
+    assert "hueworks_area_" <> device_suffix =
              Ecto.Changeset.get_change(create_changeset, :ha_device_identifier)
 
-    assert "hueworks_room_scene_select_" <> select_suffix =
+    assert "hueworks_area_scene_select_" <> select_suffix =
              Ecto.Changeset.get_change(create_changeset, :ha_scene_select_identifier)
 
     assert device_suffix != ""
     assert select_suffix != ""
 
-    room = Ecto.Changeset.apply_changes(create_changeset)
+    area = Ecto.Changeset.apply_changes(create_changeset)
 
     update_changeset =
-      Room.changeset(room, %{
+      Area.changeset(area, %{
         name: "Renamed Office",
         ha_device_identifier: "replacement-device",
         ha_scene_select_identifier: "replacement-select"
@@ -292,17 +292,17 @@ defmodule Hueworks.SchemasTest do
     refute Ecto.Changeset.get_change(update_changeset, :ha_scene_select_identifier)
 
     assert Ecto.Changeset.get_field(update_changeset, :ha_device_identifier) ==
-             room.ha_device_identifier
+             area.ha_device_identifier
 
     assert Ecto.Changeset.get_field(update_changeset, :ha_scene_select_identifier) ==
-             room.ha_scene_select_identifier
+             area.ha_scene_select_identifier
   end
 
-  test "scene requires name and room_id" do
+  test "scene requires name and area_id" do
     changeset = Scene.changeset(%Scene{}, %{})
     errors = errors_on(changeset)
     assert errors[:name] == ["can't be blank"]
-    assert errors[:room_id] == ["can't be blank"]
+    assert errors[:area_id] == ["can't be blank"]
   end
 
   test "scene_component requires scene_id and a light state source" do
@@ -498,17 +498,17 @@ defmodule Hueworks.SchemasTest do
     assert get_change(valid_changeset, :presence_input_id) == 3
   end
 
-  test "presence_input requires room_id and name and defaults to unoccupied" do
+  test "presence_input requires area_id and name and defaults to unoccupied" do
     changeset = PresenceInput.changeset(%PresenceInput{}, %{})
     errors = errors_on(changeset)
 
-    assert errors[:room_id] == ["can't be blank"]
+    assert errors[:area_id] == ["can't be blank"]
     assert errors[:name] == ["can't be blank"]
     assert Ecto.Changeset.apply_changes(changeset).occupied == false
 
     valid_changeset =
       PresenceInput.changeset(%PresenceInput{}, %{
-        room_id: 1,
+        area_id: 1,
         name: "Desk Area",
         occupied: true
       })
@@ -552,12 +552,12 @@ defmodule Hueworks.SchemasTest do
 
   test "scene_component_light and group_light changesets accept valid data" do
     bridge = insert_bridge(%{host: "10.0.0.4"})
-    room = insert_room()
-    light = insert_light(bridge, %{source_id: "1", room_id: room.id})
-    group = insert_group(bridge, %{source_id: "g1", room_id: room.id})
+    area = insert_area()
+    light = insert_light(bridge, %{source_id: "1", area_id: area.id})
+    group = insert_group(bridge, %{source_id: "g1", area_id: area.id})
 
     light_state = Repo.insert!(%LightState{name: "State", type: :manual})
-    scene = Repo.insert!(%Scene{name: "Scene", room_id: room.id})
+    scene = Repo.insert!(%Scene{name: "Scene", area_id: area.id})
     component = Repo.insert!(%SceneComponent{scene_id: scene.id, light_state_id: light_state.id})
 
     assert %SceneComponentLight{} =

@@ -5,7 +5,7 @@ defmodule HueworksWeb.LightStateEditorLiveTest do
 
   alias Hueworks.Repo
   alias Hueworks.Scenes
-  alias Hueworks.Schemas.{AppSetting, LightState, Room, SceneComponent}
+  alias Hueworks.Schemas.{AppSetting, LightState, Area, SceneComponent}
 
   setup do
     Repo.delete_all(AppSetting)
@@ -22,8 +22,8 @@ defmodule HueworksWeb.LightStateEditorLiveTest do
     :ok
   end
 
-  defp insert_room do
-    Repo.insert!(%Room{name: "Studio", metadata: %{}})
+  defp insert_area do
+    Repo.insert!(%Area{name: "Studio", metadata: %{}})
   end
 
   test "new manual editor renders manual controls and creates a temperature state", %{conn: conn} do
@@ -446,7 +446,7 @@ defmodule HueworksWeb.LightStateEditorLiveTest do
   end
 
   test "edit editor shows where a light state is used", %{conn: conn} do
-    room = insert_room()
+    area = insert_area()
 
     insert_bridge!(%{
       type: :hue,
@@ -458,7 +458,7 @@ defmodule HueworksWeb.LightStateEditorLiveTest do
     })
 
     {:ok, state} = Scenes.create_manual_light_state("Soft")
-    {:ok, scene} = Scenes.create_scene(%{name: "Chill", room_id: room.id})
+    {:ok, scene} = Scenes.create_scene(%{name: "Chill", area_id: area.id})
 
     Repo.insert!(%SceneComponent{
       name: "Component 1",

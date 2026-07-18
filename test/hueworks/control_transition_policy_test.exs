@@ -4,7 +4,7 @@ defmodule Hueworks.Control.TransitionPolicyTest do
   alias Hueworks.Control.{Operation, TransitionPolicy}
   alias Hueworks.Repo
   alias Hueworks.Scenes
-  alias Hueworks.Schemas.{AppSetting, Room, Scene}
+  alias Hueworks.Schemas.{AppSetting, Area, Scene}
 
   setup do
     Repo.delete_all(AppSetting)
@@ -64,12 +64,12 @@ defmodule Hueworks.Control.TransitionPolicyTest do
   end
 
   test "scene persistence accepts a ten-minute custom activation transition" do
-    room = Repo.insert!(%Room{name: "Transition Policy Room"})
+    area = Repo.insert!(%Area{name: "Transition Policy Area"})
 
     assert {:ok, scene} =
              Scenes.create_scene(%{
                name: "Slow Evening",
-               room_id: room.id,
+               area_id: area.id,
                activation_transition_ms: 600_000
              })
 

@@ -33,15 +33,15 @@ defmodule Hueworks.HomeAssistant.Export.Router.SceneCommands do
 
   def activate_scene(_scene_id, _opts), do: :ok
 
-  def handle_room_select_command(room_id, payload)
-      when is_integer(room_id) and is_binary(payload) do
-    case room_select_command(payload) do
+  def handle_area_select_command(area_id, payload)
+      when is_integer(area_id) and is_binary(payload) do
+    case area_select_command(payload) do
       {:clear, _opts} ->
-        ActiveScenes.clear_for_room(room_id)
+        ActiveScenes.clear_for_area(area_id)
 
       {:select, option_label, opts} ->
-        room_id
-        |> Entities.scene_for_room_option(option_label)
+        area_id
+        |> Entities.scene_for_area_option(option_label)
         |> case do
           %Scene{} = scene ->
             trace = %{source: :home_assistant_mqtt_export_select}
@@ -51,19 +51,19 @@ defmodule Hueworks.HomeAssistant.Export.Router.SceneCommands do
                 :ok
 
               {:error, reason} ->
-                Logger.warning("HA export room select activation failed: #{inspect(reason)}")
+                Logger.warning("HA export area select activation failed: #{inspect(reason)}")
             end
 
           nil ->
-            log_invalid_command("room select", room_id, payload, "unknown option")
+            log_invalid_command("area select", area_id, payload, "unknown option")
         end
 
       :error ->
-        log_invalid_command("room select", room_id, payload)
+        log_invalid_command("area select", area_id, payload)
     end
   end
 
-  def handle_room_select_command(_room_id, _option_label), do: :ok
+  def handle_area_select_command(_area_id, _option_label), do: :ok
 
   defp scene_activation_opts("ON"), do: {:ok, []}
 
@@ -76,14 +76,14 @@ defmodule Hueworks.HomeAssistant.Export.Router.SceneCommands do
     end
   end
 
-  defp room_select_command(payload) do
+  defp area_select_command(payload) do
     if json_payload?(payload) do
       case Jason.decode(payload) do
         {:ok, %{"option" => option_label, "transition_ms" => duration_ms}}
         when is_binary(option_label) ->
           transition_opts(duration_ms)
           |> case do
-            {:ok, opts} -> room_select_option(option_label, opts)
+            {:ok, opts} -> area_select_option(option_label, opts)
             :error -> :error
           end
 
@@ -91,14 +91,14 @@ defmodule Hueworks.HomeAssistant.Export.Router.SceneCommands do
           :error
       end
     else
-      room_select_option(payload, [])
+      area_select_option(payload, [])
     end
   end
 
-  defp room_select_option(option_label, opts) when option_label in ["Manual", "None", ""],
+  defp area_select_option(option_label, opts) when option_label in ["Manual", "None", ""],
     do: {:clear, opts}
 
-  defp room_select_option(option_label, opts), do: {:select, option_label, opts}
+  defp area_select_option(option_label, opts), do: {:select, option_label, opts}
 
   defp transition_opts(duration_ms) when is_integer(duration_ms) and duration_ms > 0,
     do: {:ok, [transition_ms: duration_ms]}

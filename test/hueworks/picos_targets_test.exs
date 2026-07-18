@@ -3,10 +3,10 @@ defmodule Hueworks.PicosTargetsTest do
 
   alias Hueworks.Picos.Targets
   alias Hueworks.Repo
-  alias Hueworks.Schemas.{Group, GroupLight, Light, Room, Scene}
+  alias Hueworks.Schemas.{Group, GroupLight, Light, Area, Scene}
 
-  defp insert_room(name) do
-    Repo.insert!(%Room{name: name, metadata: %{}})
+  defp insert_area(name) do
+    Repo.insert!(%Area{name: name, metadata: %{}})
   end
 
   defp insert_bridge do
@@ -20,31 +20,31 @@ defmodule Hueworks.PicosTargetsTest do
     })
   end
 
-  defp insert_light(room, bridge, attrs) do
+  defp insert_light(area, bridge, attrs) do
     defaults = %{
       name: "Light",
       source: :hue,
       source_id: Integer.to_string(System.unique_integer([:positive])),
       bridge_id: bridge.id,
-      room_id: room.id,
+      area_id: area.id,
       metadata: %{}
     }
 
     Repo.insert!(struct(Light, Map.merge(defaults, attrs)))
   end
 
-  test "expand_room_targets keeps only room-local, non-linked light targets" do
+  test "expand_area_targets keeps only area-local, non-linked light targets" do
     bridge = insert_bridge()
-    room = insert_room("Kitchen")
-    other_room = insert_room("Other")
+    area = insert_area("Kitchen")
+    other_area = insert_area("Other")
 
-    direct_light = insert_light(room, bridge, %{name: "Direct"})
-    grouped_light = insert_light(room, bridge, %{name: "Grouped"})
+    direct_light = insert_light(area, bridge, %{name: "Direct"})
+    grouped_light = insert_light(area, bridge, %{name: "Grouped"})
 
     linked_light =
-      insert_light(room, bridge, %{name: "Linked", canonical_light_id: direct_light.id})
+      insert_light(area, bridge, %{name: "Linked", canonical_light_id: direct_light.id})
 
-    other_room_light = insert_light(other_room, bridge, %{name: "Other"})
+    other_area_light = insert_light(other_area, bridge, %{name: "Other"})
 
     group =
       Repo.insert!(%Group{
@@ -52,7 +52,7 @@ defmodule Hueworks.PicosTargetsTest do
         source: :hue,
         source_id: "kitchen-group",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         enabled: true
       })
 
@@ -62,28 +62,28 @@ defmodule Hueworks.PicosTargetsTest do
         source: :hue,
         source_id: "other-group",
         bridge_id: bridge.id,
-        room_id: other_room.id,
+        area_id: other_area.id,
         enabled: true
       })
 
     Repo.insert!(%GroupLight{group_id: group.id, light_id: grouped_light.id})
-    Repo.insert!(%GroupLight{group_id: other_group.id, light_id: other_room_light.id})
+    Repo.insert!(%GroupLight{group_id: other_group.id, light_id: other_area_light.id})
 
-    assert Targets.expand_room_targets(
-             room.id,
+    assert Targets.expand_area_targets(
+             area.id,
              [group.id, other_group.id],
-             [direct_light.id, linked_light.id, other_room_light.id]
+             [direct_light.id, linked_light.id, other_area_light.id]
            ) == [grouped_light.id, direct_light.id]
   end
 
-  test "valid_room_targets? rejects groups or lights from other rooms and linked lights" do
+  test "valid_area_targets? rejects groups or lights from other areas and linked lights" do
     bridge = insert_bridge()
-    room = insert_room("Kitchen")
-    other_room = insert_room("Other")
+    area = insert_area("Kitchen")
+    other_area = insert_area("Other")
 
-    light = insert_light(room, bridge, %{name: "Direct"})
-    linked_light = insert_light(room, bridge, %{name: "Linked", canonical_light_id: light.id})
-    other_light = insert_light(other_room, bridge, %{name: "Other"})
+    light = insert_light(area, bridge, %{name: "Direct"})
+    linked_light = insert_light(area, bridge, %{name: "Linked", canonical_light_id: light.id})
+    other_light = insert_light(other_area, bridge, %{name: "Other"})
 
     group =
       Repo.insert!(%Group{
@@ -91,7 +91,7 @@ defmodule Hueworks.PicosTargetsTest do
         source: :hue,
         source_id: "kitchen-group",
         bridge_id: bridge.id,
-        room_id: room.id,
+        area_id: area.id,
         enabled: true
       })
 
@@ -101,24 +101,24 @@ defmodule Hueworks.PicosTargetsTest do
         source: :hue,
         source_id: "other-group",
         bridge_id: bridge.id,
-        room_id: other_room.id,
+        area_id: other_area.id,
         enabled: true
       })
 
-    assert Targets.valid_room_targets?(room.id, [group.id], [light.id])
-    refute Targets.valid_room_targets?(room.id, [other_group.id], [light.id])
-    refute Targets.valid_room_targets?(room.id, [group.id], [linked_light.id])
-    refute Targets.valid_room_targets?(room.id, [group.id], [other_light.id])
+    assert Targets.valid_area_targets?(area.id, [group.id], [light.id])
+    refute Targets.valid_area_targets?(area.id, [other_group.id], [light.id])
+    refute Targets.valid_area_targets?(area.id, [group.id], [linked_light.id])
+    refute Targets.valid_area_targets?(area.id, [group.id], [other_light.id])
   end
 
-  test "scene_name_for_target scopes lookup to the room" do
-    room = insert_room("Kitchen")
-    other_room = insert_room("Other")
+  test "scene_name_for_target scopes lookup to the area" do
+    area = insert_area("Kitchen")
+    other_area = insert_area("Other")
 
-    scene = Repo.insert!(%Scene{name: "Evening", room_id: room.id, metadata: %{}})
-    _other_scene = Repo.insert!(%Scene{name: "Evening", room_id: other_room.id, metadata: %{}})
+    scene = Repo.insert!(%Scene{name: "Evening", area_id: area.id, metadata: %{}})
+    _other_scene = Repo.insert!(%Scene{name: "Evening", area_id: other_area.id, metadata: %{}})
 
-    assert Targets.scene_name_for_target(scene.id, room.id) == "Evening"
-    assert Targets.scene_name_for_target(scene.id, other_room.id) == "Unknown Scene"
+    assert Targets.scene_name_for_target(scene.id, area.id) == "Evening"
+    assert Targets.scene_name_for_target(scene.id, other_area.id) == "Unknown Scene"
   end
 end
