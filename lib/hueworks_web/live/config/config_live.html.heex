@@ -4,28 +4,31 @@
   subtitle="See what is connected, what needs attention, and where each setting lives."
   flash={@flash}
 >
-  <section :if={!@setup_complete?} id="first-run-checklist" class="hw-setup-checklist" aria-labelledby="first-run-title">
+  <section :if={@show_setup_callout?} id="setup-resume-callout" class="hw-setup-checklist" aria-labelledby="setup-resume-title">
     <div class="hw-setup-checklist-intro">
-      <p class="hw-eyebrow">First run</p>
-      <h2 id="first-run-title">Set up HueWorks</h2>
-      <p>Work through these steps in order. Completed setup stays editable, and nothing here locks the rest of the application.</p>
+      <p class="hw-eyebrow"><%= if @onboarding.path, do: "Setup in progress", else: "First run" %></p>
+      <h2 id="setup-resume-title"><%= if @onboarding.path, do: "Continue setting up HueWorks", else: "Set up HueWorks" %></h2>
+      <p>The guide reads progress from this configuration. You can leave it at any time without losing completed work.</p>
     </div>
 
-    <ol class="hw-setup-steps">
-      <li
-        :for={step <- @setup_steps}
-        id={"setup-step-#{step.id}"}
-        class={["hw-setup-step", step.complete? && "hw-setup-step-complete"]}
-        data-complete={to_string(step.complete?)}
-      >
-        <span class="hw-setup-step-marker" aria-hidden="true"><%= if step.complete?, do: "✓", else: "" %></span>
-        <div class="hw-setup-step-copy">
-          <h3><%= step.title %></h3>
-          <p><%= step.description %></p>
-        </div>
-        <a class="hw-button hw-button-quiet" href={step.href}><%= step.action %></a>
-      </li>
-    </ol>
+    <div class="hw-setup-callout-actions">
+      <div class="hw-stat-list">
+        <span><%= @onboarding.bridge_count %> bridges</span>
+        <span><%= @onboarding.area_count %> Areas</span>
+        <span><%= @onboarding.scene_count %> scenes</span>
+      </div>
+      <div class="hw-actions">
+        <a class="hw-button hw-button-primary" href="/setup"><%= if @onboarding.path, do: "Resume setup", else: "Start setup" %></a>
+        <button
+          type="button"
+          class="hw-button hw-button-quiet"
+          phx-click="dismiss_setup"
+          data-confirm="Dismiss the setup guide? Your completed configuration will be kept."
+        >
+          Dismiss
+        </button>
+      </div>
+    </div>
   </section>
 
   <section class="hw-config-overview-grid" aria-label="Configuration overview">

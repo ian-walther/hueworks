@@ -1,0 +1,314 @@
+<HueworksWeb.PageComponents.page
+  class="hw-setup-page"
+  eyebrow="First run"
+  title="Set up HueWorks"
+  subtitle="Build a trustworthy lighting model one committed step at a time. You can leave and resume without losing completed work."
+  flash={@flash}
+>
+  <:actions>
+    <a class="hw-button" href="/config">Leave for Config</a>
+    <button
+      :if={@status.path}
+      type="button"
+      class="hw-button hw-button-quiet"
+      phx-click="dismiss_setup"
+      data-confirm="Dismiss the setup guide? Your completed configuration will be kept."
+    >
+      Dismiss guide
+    </button>
+  </:actions>
+
+  <section
+    :if={is_nil(@status.path) or @path_choice_open?}
+    id="setup-path-choice"
+    class="hw-setup-paths"
+    aria-labelledby="setup-path-title"
+  >
+    <div class="hw-section-header">
+      <div>
+        <p class="hw-eyebrow">Choose a starting point</p>
+        <h2 id="setup-path-title">How should HueWorks learn about your house?</h2>
+      </div>
+    </div>
+
+    <div class="hw-setup-path-grid">
+      <article class="hw-card hw-setup-path-card hw-setup-path-recommended">
+        <span class="hw-status-badge hw-status-badge-success">Recommended</span>
+        <h3>Use Home Assistant to guide setup</h3>
+        <p>
+          Read your existing integrations, Floors, Areas, and stable device identities. HueWorks
+          uses that inventory as guidance while remaining the durable owner of Areas, scenes, and control.
+        </p>
+        <button
+          type="button"
+          class="hw-button hw-button-primary"
+          phx-click="choose_path"
+          phx-value-path="ha_assisted"
+        >
+          Start with Home Assistant
+        </button>
+      </article>
+
+      <article class="hw-card hw-setup-path-card">
+        <span class="hw-status-badge">Direct setup</span>
+        <h3>Set up HueWorks directly</h3>
+        <p>
+          Create HueWorks Areas and connect each lighting source without using Home Assistant as
+          an inventory assistant. The resulting configuration has the same capabilities.
+        </p>
+        <button
+          type="button"
+          class="hw-button"
+          phx-click="choose_path"
+          phx-value-path="direct"
+        >
+          Set up HueWorks directly
+        </button>
+      </article>
+    </div>
+  </section>
+
+  <div :if={@status.path && !@path_choice_open?} id="setup-workspace" data-path={@status.path} class="hw-setup-workspace">
+    <aside class="hw-setup-rail" aria-label="Setup progress">
+      <div class="hw-setup-rail-heading">
+        <p class="hw-eyebrow"><%= if @status.path == :ha_assisted, do: "HA-assisted", else: "Direct" %></p>
+        <h2>Your setup path</h2>
+        <button type="button" class="hw-link-button" phx-click="change_path">Change path</button>
+      </div>
+
+      <ol class="hw-setup-steps">
+        <li
+          :for={step <- @steps}
+          id={"setup-#{step.id}"}
+          class={["hw-setup-step", step.complete? && "hw-setup-step-complete"]}
+          data-complete={to_string(step.complete?)}
+        >
+          <span class="hw-setup-step-marker" aria-hidden="true"><%= if step.complete?, do: "✓", else: "" %></span>
+          <div class="hw-setup-step-copy">
+            <h3><%= step.title %></h3>
+            <p :if={step.optional?}>Optional</p>
+          </div>
+          <a class="hw-button hw-button-small hw-button-quiet" href={step.href}>Open</a>
+        </li>
+      </ol>
+    </aside>
+
+    <div class="hw-setup-main">
+      <section class="hw-panel" id="setup-location-panel">
+        <div class="hw-panel-header">
+          <div>
+            <p class="hw-eyebrow">Foundation</p>
+            <h2>Location and Areas</h2>
+          </div>
+          <span class={["hw-status-badge", @status.location_configured? && "hw-status-badge-success"]}>
+            <%= if @status.location_configured?, do: "Location ready", else: "Location needed" %>
+          </span>
+        </div>
+        <p class="hw-muted">
+          Location drives solar and circadian behavior. HueWorks Areas are the boundaries whose lights and scenes should coordinate together.
+        </p>
+        <div class="hw-actions">
+          <a class="hw-button" href="/config/general">Configure location</a>
+          <a class="hw-button" href="/areas">Manage Areas</a>
+        </div>
+      </section>
+
+      <section :if={@status.path == :ha_assisted} class="hw-panel" id="home-assistant-setup">
+        <div class="hw-panel-header">
+          <div>
+            <p class="hw-eyebrow">Inventory first</p>
+            <h2>Home Assistant guidance</h2>
+          </div>
+          <a class="hw-button hw-button-primary" href="/config/bridges/new?type=ha">Add Home Assistant</a>
+        </div>
+
+        <div :if={@ha_entries == []} class="hw-empty-state hw-empty-state-compact">
+          <h3>No Home Assistant connection yet</h3>
+          <p>Connect one instance to inspect your existing spatial model without importing its lights.</p>
+        </div>
+
+        <article
+          :for={entry <- @ha_entries}
+          id={"ha-inventory-#{entry.bridge.id}"}
+          class="hw-resource-card hw-ha-inventory-card"
+        >
+          <header class="hw-resource-card-header">
+            <div>
+              <h3><%= entry.bridge.name %></h3>
+              <p class="hw-meta"><%= entry.bridge.host %></p>
+            </div>
+            <button
+              type="button"
+              class="hw-button"
+              phx-click="refresh_ha_inventory"
+              phx-value-bridge_id={entry.bridge.id}
+              disabled={@inventory_refreshing_id == entry.bridge.id}
+            >
+              <%= if @inventory_refreshing_id == entry.bridge.id, do: "Refreshing...", else: "Refresh inventory" %>
+            </button>
+          </header>
+
+          <div :if={is_nil(entry.inventory)} class="hw-empty-state hw-empty-state-compact">
+            <h4>Inventory not fetched</h4>
+            <p>Refresh to read HA registry data. This does not create HueWorks lights or groups.</p>
+          </div>
+
+          <div :if={entry.inventory} class="hw-inventory-summary">
+            <div class="hw-stat-list">
+              <span><%= count_label(length(entry.inventory.floors), "floor") %></span>
+              <span><%= count_label(length(entry.inventory.areas), "HA area") %></span>
+              <span><%= count_label(length(entry.inventory.native_sources), "native source") %></span>
+              <span><%= count_label(length(entry.inventory.ha_only_entities), "HA-only entity") %></span>
+            </div>
+            <p class="hw-callout hw-callout-accent">
+              Inventory is read-only. Add supported native bridges below before importing selected HA-only entities.
+            </p>
+
+            <div :if={entry.inventory.native_sources != []} class="hw-native-source-list">
+              <article :for={source <- entry.inventory.native_sources} class="hw-data-row">
+                <div class="hw-data-row-main">
+                  <strong><%= source.title %></strong>
+                  <span class="hw-meta"><%= source_label(source.kind) %> · <%= count_label(source.entity_count, "entity") %></span>
+                </div>
+                <a class="hw-button hw-button-small" href={"/config/bridges/new?type=#{source.kind}"}>
+                  Add natively
+                </a>
+              </article>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <section :if={@status.path == :ha_assisted && Enum.any?(@ha_entries, & &1.design)} class="hw-panel" id="ha-area-design">
+        <div class="hw-panel-header">
+          <div>
+            <p class="hw-eyebrow">Review before import</p>
+            <h2>Design HueWorks Areas</h2>
+          </div>
+        </div>
+        <p class="hw-muted">
+          Home Assistant spaces are evidence, not ownership. Merge several source spaces into one coordination Area or keep them separate.
+        </p>
+
+        <div :for={entry <- @ha_entries} :if={entry.design} class="hw-area-design-source">
+          <article
+            :for={floor <- entry.design.floors}
+            id={"ha-floor-#{floor.space.external_id}"}
+            class="hw-card hw-floor-design-card"
+          >
+            <header class="hw-floor-design-header">
+              <div>
+                <p class="hw-eyebrow">HA Floor</p>
+                <h3><%= floor.space.name %></h3>
+                <p class="hw-meta"><%= count_label(floor.entity_count, "relevant entity") %> across <%= count_label(length(floor.children), "HA area") %></p>
+              </div>
+              <span :if={area_name(floor.space)} class="hw-status-badge hw-status-badge-success">
+                Mapped to <%= area_name(floor.space) %>
+              </span>
+            </header>
+
+            <div class="hw-floor-choice-grid">
+              <form phx-submit="use_floor_one" class="hw-choice-card">
+                <input type="hidden" name="bridge_id" value={entry.bridge.id} />
+                <input type="hidden" name="external_id" value={floor.space.external_id} />
+                <strong>Use this Floor as one Area</strong>
+                <input class="hw-field-input" name="name" value={floor.space.name} aria-label="HueWorks Area name" />
+                <button class="hw-button hw-button-primary" type="submit">Use one Area</button>
+              </form>
+              <div class="hw-choice-card">
+                <strong>Use HA Areas separately</strong>
+                <p class="hw-meta">Create one HueWorks Area for each child below.</p>
+                <button
+                  class="hw-button"
+                  type="button"
+                  phx-click="use_floor_separate"
+                  phx-value-bridge_id={entry.bridge.id}
+                  phx-value-external_id={floor.space.external_id}
+                >
+                  Create separate Areas
+                </button>
+              </div>
+              <div class="hw-choice-card">
+                <strong>Skip this Floor</strong>
+                <p class="hw-meta">Leave the Floor and its child spaces unmapped.</p>
+                <button
+                  class="hw-button hw-button-quiet"
+                  type="button"
+                  phx-click="skip_floor"
+                  phx-value-bridge_id={entry.bridge.id}
+                  phx-value-external_id={floor.space.external_id}
+                >
+                  Skip
+                </button>
+              </div>
+            </div>
+
+            <div class="hw-source-space-list">
+              <.space_row :for={child <- floor.children} entry={entry} item={child} areas={@areas} />
+            </div>
+          </article>
+
+          <div :if={entry.design.unfloored_areas != []} class="hw-unfloored-spaces">
+            <div class="hw-section-header">
+              <div>
+                <p class="hw-eyebrow">Outside a Floor</p>
+                <h3>Unfloored HA Areas</h3>
+              </div>
+            </div>
+            <div class="hw-source-space-list">
+              <.space_row :for={item <- entry.design.unfloored_areas} entry={entry} item={item} areas={@areas} />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="hw-panel" id="native-bridge-sequence">
+        <div class="hw-panel-header">
+          <div>
+            <p class="hw-eyebrow">Native sources first</p>
+            <h2>Connect and import lighting bridges</h2>
+          </div>
+        </div>
+        <p class="hw-muted">
+          Import Hue, Caseta, and Zigbee2MQTT before HA-only entities so physical duplicates can be linked in the supported direction.
+        </p>
+        <div class="hw-actions">
+          <a class="hw-button" href="/config/bridges/new?type=hue">Add Hue</a>
+          <a class="hw-button" href="/config/bridges/new?type=caseta">Add Caseta</a>
+          <a class="hw-button" href="/config/bridges/new?type=z2m">Add Zigbee2MQTT</a>
+        </div>
+        <div :if={@native_bridges != []} class="hw-data-list">
+          <div :for={bridge <- @native_bridges} class="hw-data-row">
+            <div class="hw-data-row-main">
+              <strong><%= bridge.name %></strong>
+              <span class="hw-meta"><%= source_label(bridge.type) %></span>
+            </div>
+            <span class={["hw-status-badge", Hueworks.Bridges.imported?(bridge) && "hw-status-badge-success"]}>
+              <%= if Hueworks.Bridges.imported?(bridge), do: "Imported", else: "Needs import" %>
+            </span>
+            <a class="hw-button hw-button-small" href={"/config/bridges/#{bridge.id}/import"}>Review import</a>
+          </div>
+        </div>
+      </section>
+
+      <section class="hw-panel" id="setup-finish">
+        <div class="hw-panel-header">
+          <div>
+            <p class="hw-eyebrow">Your call</p>
+            <h2>Finish when the house is useful</h2>
+          </div>
+        </div>
+        <p class="hw-muted">
+          Setup does not lock steps. You may finish with intentionally unassigned entities or optional integrations still incomplete; the checklist remains normal configuration afterward.
+        </p>
+        <div class="hw-actions">
+          <a class="hw-button" href="/areas">Create or review scenes</a>
+          <a class="hw-button" href="/lights">Review light placement</a>
+          <button type="button" class="hw-button hw-button-primary" phx-click="finish_setup">
+            Finish setup
+          </button>
+        </div>
+      </section>
+    </div>
+  </div>
+</HueworksWeb.PageComponents.page>

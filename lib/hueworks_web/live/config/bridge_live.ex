@@ -10,15 +10,16 @@ defmodule HueworksWeb.BridgeLive do
   alias Hueworks.Schemas.Bridge
   alias Hueworks.Util
 
-  def mount(_params, _session, socket) do
+  def mount(params, _session, socket) do
     ha_export_mqtt = ha_export_mqtt_connection()
+    type = initial_type(params)
 
     socket =
       socket
       |> assign(
         mode: :new,
         host: "",
-        type: "hue",
+        type: type,
         hue_setup_mode: :guided,
         hue_api_key: "",
         hue_discovery_status: :idle,
@@ -55,10 +56,21 @@ defmodule HueworksWeb.BridgeLive do
       |> allow_upload(:caseta_key, accept: ~w(.key), max_entries: 1, auto_upload: true)
       |> allow_upload(:caseta_cacert, accept: ~w(.crt), max_entries: 1, auto_upload: true)
 
-    socket = if connected?(socket), do: start_hue_discovery(socket), else: socket
+    socket = if connected?(socket), do: start_initial_discovery(socket), else: socket
 
     {:ok, socket}
   end
+
+  defp initial_type(%{"type" => type}) when type in ["hue", "ha", "caseta", "z2m"], do: type
+  defp initial_type(_params), do: "hue"
+
+  defp start_initial_discovery(%{assigns: %{type: "hue"}} = socket),
+    do: start_hue_discovery(socket)
+
+  defp start_initial_discovery(%{assigns: %{type: "ha"}} = socket),
+    do: start_ha_discovery(socket)
+
+  defp start_initial_discovery(socket), do: socket
 
   def handle_event("update_bridge", %{"type" => "hue"} = params, socket) do
     host = Util.normalize_host_input(Map.get(params, "host", socket.assigns.host))
@@ -115,30 +127,7 @@ defmodule HueworksWeb.BridgeLive do
         %{"host" => host, "external_id" => external_id},
         socket
       ) do
-    case find_pairable_hue(socket.assigns.hue_discoveries, host, external_id) do
-      nil ->
-        {:noreply,
-         assign(socket,
-           hue_pair_status: :error,
-           hue_pair_error: "Rediscover Hue bridges before trying to pair."
-         )}
-
-      %{device: device} ->
-        request_id = System.unique_integer([:positive])
-
-        socket =
-          assign(socket,
-            hue_pair_status: :pairing,
-            hue_pair_error: nil,
-            hue_pair_host: device.host,
-            hue_pair_request_id: request_id
-          )
-
-        {:noreply,
-         start_async(socket, {:pair_hue, request_id}, fn ->
-           hue_onboarding_module().pair(device.host, device.id)
-         end)}
-    end
+    pair_hue_bridge(socket, host, external_id)
   end
 
   def handle_event("cancel_hue_pairing", _params, socket) do
@@ -521,6 +510,37 @@ defmodule HueworksWeb.BridgeLive do
   end
 
   defp test_bridge(socket) do
+    run_bridge_test(socket)
+  end
+
+  defp pair_hue_bridge(socket, host, external_id) do
+    case find_pairable_hue(socket.assigns.hue_discoveries, host, external_id) do
+      nil ->
+        {:noreply,
+         assign(socket,
+           hue_pair_status: :error,
+           hue_pair_error: "Rediscover Hue bridges before trying to pair."
+         )}
+
+      %{device: device} ->
+        request_id = System.unique_integer([:positive])
+
+        socket =
+          assign(socket,
+            hue_pair_status: :pairing,
+            hue_pair_error: nil,
+            hue_pair_host: device.host,
+            hue_pair_request_id: request_id
+          )
+
+        {:noreply,
+         start_async(socket, {:pair_hue, request_id}, fn ->
+           hue_onboarding_module().pair(device.host, device.id)
+         end)}
+    end
+  end
+
+  defp run_bridge_test(socket) do
     case build_connection_request(socket) do
       {:ok, socket, request} ->
         request_id = System.unique_integer([:positive])

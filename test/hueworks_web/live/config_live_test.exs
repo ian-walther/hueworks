@@ -96,18 +96,14 @@ defmodule HueworksWeb.ConfigLiveTest do
     refute html =~ "MQTT Password"
   end
 
-  test "an empty installation shows a state-derived first-run checklist", %{conn: conn} do
+  test "an empty installation offers the dedicated first-run workspace", %{conn: conn} do
     {:ok, view, _html} = live(conn, "/config")
 
-    assert has_element?(view, "#first-run-checklist", "Set up HueWorks")
-    assert has_element?(view, "#setup-step-general[data-complete='false']", "Set location")
-    assert has_element?(view, "#setup-step-bridges[data-complete='false']", "Add a bridge")
-    assert has_element?(view, "#setup-step-import[data-complete='false']", "Import entities")
-    assert has_element?(view, "#setup-step-areas[data-complete='false']", "Review areas")
-    assert has_element?(view, "#setup-step-scenes[data-complete='false']", "Create a scene")
+    assert has_element?(view, "#setup-resume-callout", "Set up HueWorks")
+    assert has_element?(view, "#setup-resume-callout a[href='/setup']", "Start setup")
   end
 
-  test "the first-run checklist disappears after a useful setup exists", %{conn: conn} do
+  test "the setup callout remains until setup is explicitly finished or dismissed", %{conn: conn} do
     Repo.insert!(%AppSetting{
       scope: "global",
       latitude: 40.7128,
@@ -140,7 +136,10 @@ defmodule HueworksWeb.ConfigLiveTest do
 
     {:ok, view, _html} = live(conn, "/config")
 
-    refute has_element?(view, "#first-run-checklist")
+    assert has_element?(view, "#setup-resume-callout", "Set up HueWorks")
+
+    view |> element("button[phx-click='dismiss_setup']") |> render_click()
+    refute has_element?(view, "#setup-resume-callout")
   end
 
   test "focused config pages keep their section active and show breadcrumbs", %{conn: conn} do

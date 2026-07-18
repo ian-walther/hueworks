@@ -555,6 +555,202 @@ body {
   font-size: 0.82rem;
 }
 
+.hw-setup-callout-actions {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1rem;
+  justify-content: center;
+}
+
+.hw-setup-paths {
+  border: 1px solid var(--border);
+  border-radius: 1.35rem;
+  padding: clamp(1.15rem, 3vw, 2rem);
+  background:
+    radial-gradient(circle at 82% 0%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 34%),
+    var(--hw-surface-raised);
+}
+
+.hw-setup-path-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.hw-setup-path-card {
+  display: flex;
+  min-height: 18rem;
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding: 1.5rem;
+}
+
+.hw-setup-path-card h3,
+.hw-setup-path-card p {
+  margin: 0;
+}
+
+.hw-setup-path-card h3 {
+  font-family: "Fraunces", serif;
+  font-size: clamp(1.35rem, 2.4vw, 1.8rem);
+}
+
+.hw-setup-path-card p {
+  color: var(--hw-text-muted);
+  line-height: 1.65;
+}
+
+.hw-setup-path-card .hw-button {
+  margin-top: auto;
+}
+
+.hw-setup-path-recommended {
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--border));
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--accent) 9%, var(--hw-surface-raised)), var(--hw-surface-raised));
+}
+
+.hw-setup-workspace {
+  display: grid;
+  grid-template-columns: minmax(15rem, 0.36fr) minmax(0, 1fr);
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.hw-setup-rail {
+  position: sticky;
+  top: 5.75rem;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 1.2rem;
+  background: color-mix(in srgb, var(--hw-surface-raised) 94%, transparent);
+  box-shadow: 0 14px 35px color-mix(in srgb, var(--hw-shadow-color) 7%, transparent);
+}
+
+.hw-setup-rail-heading {
+  border-bottom: 1px solid var(--border);
+  padding: 1.2rem;
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+
+.hw-setup-rail-heading h2 {
+  margin: 0.25rem 0 0.4rem;
+  font-family: "Fraunces", serif;
+  font-size: 1.35rem;
+}
+
+.hw-setup-rail .hw-setup-steps {
+  padding: 0.35rem 1.2rem;
+}
+
+.hw-setup-rail .hw-setup-step {
+  grid-template-columns: 1.55rem minmax(0, 1fr);
+  padding: 0.85rem 0;
+}
+
+.hw-setup-rail .hw-setup-step .hw-button {
+  grid-column: 2;
+  justify-self: start;
+}
+
+.hw-setup-main {
+  display: grid;
+  min-width: 0;
+  gap: 1rem;
+}
+
+.hw-ha-inventory-card {
+  margin-top: 1rem;
+}
+
+.hw-inventory-summary,
+.hw-area-design-source {
+  display: grid;
+  gap: 1rem;
+}
+
+.hw-inventory-summary {
+  padding-top: 1rem;
+}
+
+.hw-native-source-list,
+.hw-source-space-list {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.hw-floor-design-card {
+  padding: clamp(1rem, 2vw, 1.4rem);
+}
+
+.hw-floor-design-header {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.hw-floor-design-header h3,
+.hw-floor-design-header p {
+  margin: 0;
+}
+
+.hw-floor-choice-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.hw-choice-card {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.65rem;
+  border: 1px solid color-mix(in srgb, var(--ink) 12%, transparent);
+  border-radius: 0.9rem;
+  padding: 0.9rem;
+  background: color-mix(in srgb, var(--hw-surface-raised) 72%, transparent);
+}
+
+.hw-choice-card .hw-button {
+  margin-top: auto;
+  align-self: flex-start;
+}
+
+.hw-source-space-list {
+  margin-top: 1rem;
+}
+
+.hw-source-space-row {
+  display: grid;
+  grid-template-columns: minmax(10rem, 0.7fr) minmax(14rem, 1fr) minmax(14rem, 1fr) auto;
+  gap: 0.65rem;
+  align-items: center;
+  border-top: 1px solid color-mix(in srgb, var(--ink) 10%, transparent);
+  padding-top: 0.8rem;
+}
+
+.hw-source-space-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.2rem;
+  align-items: flex-start;
+}
+
+.hw-space-map-form,
+.hw-space-create-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.hw-unfloored-spaces {
+  margin-top: 1.25rem;
+}
+
 .hw-config-overview-card {
   display: flex;
   min-height: 13rem;
@@ -3248,6 +3444,28 @@ body {
     padding-top: 1.15rem;
     padding-left: 0;
   }
+
+  .hw-setup-workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .hw-setup-rail {
+    position: static;
+  }
+
+  .hw-setup-rail .hw-setup-steps {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0 1rem;
+  }
+
+  .hw-floor-choice-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .hw-source-space-row {
+    grid-template-columns: 1fr 1fr;
+  }
 }
 
 @media (max-width: 720px) {
@@ -3349,8 +3567,31 @@ body {
   }
 
   .hw-config-overview-grid,
-  .hw-form-grid {
+  .hw-form-grid,
+  .hw-setup-path-grid {
     grid-template-columns: 1fr;
+  }
+
+  .hw-setup-path-card {
+    min-height: 0;
+  }
+
+  .hw-setup-rail .hw-setup-steps,
+  .hw-source-space-row {
+    grid-template-columns: 1fr;
+  }
+
+  .hw-setup-rail .hw-setup-step {
+    grid-template-columns: 1.55rem minmax(0, 1fr);
+  }
+
+  .hw-space-map-form,
+  .hw-space-create-form {
+    grid-template-columns: 1fr;
+  }
+
+  .hw-floor-design-header {
+    flex-direction: column;
   }
 
   .hw-config-overview-card {

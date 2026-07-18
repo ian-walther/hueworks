@@ -160,6 +160,15 @@ defmodule HueworksWeb.BridgeLiveTest do
     assert has_element?(view, "#bridge_host[value='192.168.1.41:8123']")
   end
 
+  test "query parameter opens the existing workflow on the requested bridge type", %{conn: conn} do
+    {:ok, view, _html} = live(conn, "/config/bridges/new?type=ha")
+    html = render_async(view)
+
+    assert has_element?(view, "#bridge_type option[value='ha'][selected]")
+    assert html =~ "Choose Home Assistant"
+    refute html =~ "Choose your Hue bridge"
+  end
+
   test "marks a discovered Home Assistant instance that is already configured", %{conn: conn} do
     %Bridge{}
     |> Bridge.changeset(%{
