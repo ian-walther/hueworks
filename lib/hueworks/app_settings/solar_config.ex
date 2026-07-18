@@ -32,7 +32,7 @@ defmodule Hueworks.AppSettings.SolarConfig do
       latitude: Util.to_number(config[:latitude] || config["latitude"]),
       longitude: Util.to_number(config[:longitude] || config["longitude"]),
       timezone: fallback_value(parse_string(config[:timezone] || config["timezone"])),
-      default_transition_ms: Application.get_env(:hueworks, :default_transition_ms, 0),
+      default_transition_ms: Application.get_env(:hueworks, :default_transition_ms, 750),
       scale_transition_by_brightness:
         Util.parse_optional_bool(
           Application.get_env(:hueworks, :scale_transition_by_brightness, false)

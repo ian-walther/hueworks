@@ -111,6 +111,21 @@ defmodule Hueworks.SchemasTest do
            } = Ecto.Changeset.apply_changes(changeset).credentials
   end
 
+  test "bridge accepts a stable source identity" do
+    bridge =
+      %Bridge{}
+      |> Bridge.changeset(%{
+        type: :hue,
+        name: "Hue Bridge",
+        host: "192.168.1.10",
+        external_id: "001788fffe111111",
+        credentials: %{"api_key" => "key"}
+      })
+      |> Repo.insert!()
+
+    assert bridge.external_id == "001788fffe111111"
+  end
+
   test "bridge credentials struct exposes typed credentials for the bridge type" do
     bridge =
       %Bridge{

@@ -16,6 +16,7 @@ defmodule HueworksWeb.ConfigLiveTest do
     LightState,
     PicoDevice,
     Room,
+    Scene,
     SceneComponent
   }
 
@@ -89,8 +90,57 @@ defmodule HueworksWeb.ConfigLiveTest do
     assert has_element?(view, "a[href='/config/integrations']", "Integrations")
     assert has_element?(view, "nav[aria-label='Configuration sections'] .hw-config-content-frame")
     assert has_element?(view, "main.hw-config-content-frame")
+    assert has_element?(view, "#system-status", "HueWorks 0.1.0")
+    assert has_element?(view, "#system-status .hw-status-badge", "Healthy")
     refute html =~ "Save General Settings"
     refute html =~ "MQTT Password"
+  end
+
+  test "an empty installation shows a state-derived first-run checklist", %{conn: conn} do
+    {:ok, view, _html} = live(conn, "/config")
+
+    assert has_element?(view, "#first-run-checklist", "Set up HueWorks")
+    assert has_element?(view, "#setup-step-general[data-complete='false']", "Set location")
+    assert has_element?(view, "#setup-step-bridges[data-complete='false']", "Add a bridge")
+    assert has_element?(view, "#setup-step-import[data-complete='false']", "Import entities")
+    assert has_element?(view, "#setup-step-rooms[data-complete='false']", "Review rooms")
+    assert has_element?(view, "#setup-step-scenes[data-complete='false']", "Create a scene")
+  end
+
+  test "the first-run checklist disappears after a useful setup exists", %{conn: conn} do
+    Repo.insert!(%AppSetting{
+      scope: "global",
+      latitude: 40.7128,
+      longitude: -74.0060,
+      timezone: "America/New_York"
+    })
+
+    HueworksApp.Cache.flush_namespace(:app_settings)
+
+    bridge =
+      Repo.insert!(%Bridge{
+        type: :hue,
+        name: "Hue Bridge",
+        host: "192.0.2.10",
+        credentials: %Bridge.Credentials{api_key: "test-key"},
+        import_complete: true
+      })
+
+    room = Repo.insert!(%Room{name: "Living Room"})
+
+    Repo.insert!(%Light{
+      name: "Lamp",
+      source: :hue,
+      source_id: "1",
+      bridge_id: bridge.id,
+      room_id: room.id
+    })
+
+    Repo.insert!(%Scene{name: "Auto", room_id: room.id})
+
+    {:ok, view, _html} = live(conn, "/config")
+
+    refute has_element?(view, "#first-run-checklist")
   end
 
   test "focused config pages keep their section active and show breadcrumbs", %{conn: conn} do
@@ -262,7 +312,8 @@ defmodule HueworksWeb.ConfigLiveTest do
     assert html =~ "HomeKit Bridge"
     assert html =~ "Apple Home Setup Code"
     assert html =~ ~r/\d{3}-\d{2}-\d{3}/
-    assert html =~ "ready to pair"
+    assert html =~ "Runtime disabled"
+    refute html =~ "ready to pair"
     assert html =~ "Save HomeKit Bridge"
     assert html =~ "Reset Pairing"
 
@@ -296,7 +347,7 @@ defmodule HueworksWeb.ConfigLiveTest do
 
     html = render(view)
     assert html =~ "Reset 1 HomeKit pairing."
-    assert html =~ "ready to pair"
+    assert html =~ "Runtime disabled"
   end
 
   test "AI API controls generate, reveal, disable, and rotate a persistent token", %{conn: conn} do
@@ -529,7 +580,7 @@ defmodule HueworksWeb.ConfigLiveTest do
     assert html =~ ~s(value="America/New_York" selected)
   end
 
-  test "shows persisted timezone even when it is outside the curated timezone shortlist", %{
+  test "shows the complete IANA timezone list and preserves the selected zone", %{
     conn: conn
   } do
     Repo.insert!(%AppSetting{
@@ -555,6 +606,8 @@ defmodule HueworksWeb.ConfigLiveTest do
     {:ok, _view, html} = live(conn, "/config/general")
 
     assert html =~ ~s(value="America/Indiana/Indianapolis")
+    assert html =~ ~s(value="Pacific/Chatham")
+    assert html =~ ~s(value="Africa/Abidjan")
     assert html =~ ~s(value="750")
     assert html =~ ~s(id="global_scale_transition_by_brightness")
     assert html =~ ~s(checked)

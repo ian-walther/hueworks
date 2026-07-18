@@ -15,7 +15,11 @@ defmodule Hueworks.Import do
              :ok <- Materialize.materialize(bridge, normalized, plan),
              {:ok, applied} <- mark_applied(reviewed),
              {:ok, updated_bridge} <- mark_bridge_complete(bridge) do
-          %{bridge_import: applied, bridge: updated_bridge}
+          %{
+            bridge_import: applied,
+            bridge: updated_bridge,
+            summary: Bridges.import_summary(updated_bridge, plan)
+          }
         else
           {:error, reason} -> Repo.rollback(reason)
         end

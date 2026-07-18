@@ -1,0 +1,6 @@
+services:
+  hueworks:
+    environment:
+      BRIDGE_SECRETS_PATH: /run/hueworks/secrets.json
+    volumes:
+      - ./secrets.json:/run/hueworks/secrets.json:ro

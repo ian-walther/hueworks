@@ -1,30 +1,77 @@
 defmodule Hueworks.ConnectionTest.Z2MTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
 
   alias Hueworks.ConnectionTest.Z2M
+
+  defmodule SnapshotSuccess do
+    def fetch(config) do
+      send(self(), {:snapshot_config, config})
+
+      {:ok,
+       %{
+         bridge_info: %{"version" => "2.1.0"},
+         devices: [%{"friendly_name" => "Lamp"}],
+         groups: [%{"friendly_name" => "Room"}]
+       }}
+    end
+  end
+
+  defmodule SnapshotFailure do
+    def fetch(_config),
+      do: {:error, "timed out waiting for MQTT snapshot topics: custom/bridge/groups"}
+  end
+
+  setup do
+    original = Application.get_env(:hueworks, :z2m_snapshot_module)
+
+    on_exit(fn ->
+      if original do
+        Application.put_env(:hueworks, :z2m_snapshot_module, original)
+      else
+        Application.delete_env(:hueworks, :z2m_snapshot_module)
+      end
+    end)
+
+    :ok
+  end
 
   test "returns validation error when host is missing" do
     assert {:error, "Z2M test failed: host is required."} == Z2M.test("", %{})
   end
 
-  test "connects to broker host/port" do
-    {:ok, listener} =
-      :gen_tcp.listen(0, [:binary, active: false, reuseaddr: true, ip: {127, 0, 0, 1}])
+  test "validates the retained Zigbee2MQTT snapshot with the pending connection details" do
+    Application.put_env(:hueworks, :z2m_snapshot_module, SnapshotSuccess)
 
-    {:ok, {{127, 0, 0, 1}, port}} = :inet.sockname(listener)
+    assert {:ok, "Zigbee2MQTT (1 device, 1 group)"} ==
+             Z2M.test("mqtt.local", %{
+               "broker_port" => "1884",
+               "username" => "hueworks",
+               "password" => "secret",
+               "base_topic" => "custom"
+             })
 
-    accept_task =
-      Task.async(fn ->
-        {:ok, socket} = :gen_tcp.accept(listener, 2_000)
-        :gen_tcp.close(socket)
-      end)
+    assert_received {:snapshot_config,
+                     %{
+                       host: "mqtt.local",
+                       port: 1884,
+                       username: "hueworks",
+                       password: "secret",
+                       base_topic: "custom"
+                     }}
+  end
 
-    on_exit(fn ->
-      :gen_tcp.close(listener)
-    end)
+  test "reports retained snapshot failures without exposing credentials" do
+    Application.put_env(:hueworks, :z2m_snapshot_module, SnapshotFailure)
 
-    assert {:ok, "Zigbee2MQTT"} == Z2M.test("127.0.0.1", %{"broker_port" => port})
+    assert {:error, message} =
+             Z2M.test("mqtt.local", %{
+               "username" => "hueworks",
+               "password" => "do-not-leak",
+               "base_topic" => "custom"
+             })
 
-    Task.await(accept_task, 3_000)
+    assert message =~ "Z2M test failed"
+    assert message =~ "custom/bridge/groups"
+    refute message =~ "do-not-leak"
   end
 end

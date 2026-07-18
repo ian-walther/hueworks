@@ -8,6 +8,7 @@ defmodule Hueworks.Schemas.Bridge do
     field(:type, Ecto.Enum, values: [:hue, :caseta, :ha, :z2m])
     field(:name, :string)
     field(:host, :string)
+    field(:external_id, :string)
 
     embeds_one(:credentials, Credentials,
       source: :credentials,
@@ -25,10 +26,11 @@ defmodule Hueworks.Schemas.Bridge do
 
   def changeset(bridge, attrs) do
     bridge
-    |> cast(attrs, [:type, :name, :host, :enabled, :import_complete])
+    |> cast(attrs, [:type, :name, :host, :external_id, :enabled, :import_complete])
     |> validate_required([:type, :name, :host])
     |> cast_bridge_credentials(attrs)
     |> unique_constraint([:type, :host])
+    |> unique_constraint([:type, :external_id])
   end
 
   def credentials_struct(%__MODULE__{credentials: %Credentials{} = credentials}), do: credentials

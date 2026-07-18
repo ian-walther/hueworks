@@ -74,6 +74,26 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
     assert get_assign(view, :import_status) == :error
   end
 
+  test "successful initial import stays in context with a summary and next actions", %{conn: conn} do
+    {view, bridge} = setup_import_view(conn, with_unassigned: false)
+
+    html =
+      view
+      |> element("button[phx-click='apply_materialization']")
+      |> render_click()
+
+    assert html =~ "Import complete"
+    assert html =~ "2 lights"
+    assert html =~ "2 groups"
+    assert has_element?(view, ".hw-summary-stat:first-child strong", "2")
+    assert has_element?(view, ".hw-summary-stat:first-child span", "rooms created")
+    assert html =~ ~s(href="/rooms")
+    assert html =~ "Review Rooms"
+    assert html =~ "Create First Scene"
+    assert Repo.reload!(bridge).import_complete == true
+    refute html =~ "Apply Initial Import"
+  end
+
   test "skipping rooms in the UI plan updates the plan state", %{conn: conn} do
     bridge =
       %Bridge{}
@@ -690,10 +710,72 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
     render(reimport_view)
 
     assert has_element?(reimport_view, "section[aria-label='Reimport summary']")
-    assert has_element?(reimport_view, "#apply-reimport")
+    assert has_element?(reimport_view, ".hw-state-message-success")
+    assert has_element?(reimport_view, "a[href='/config/bridges']", "Return to Bridges")
+    refute has_element?(reimport_view, "#apply-reimport")
     refute has_element?(reimport_view, "#initial-import-review")
     refute has_element?(reimport_view, "form[phx-change='set_room_action']")
     refute has_element?(reimport_view, "#removed-from-bridge")
+  end
+
+  test "applied reimport stays in context with a transaction receipt", %{conn: conn} do
+    bridge =
+      %Bridge{}
+      |> Bridge.changeset(%{
+        type: :hue,
+        name: "Hue Bridge",
+        host: "10.0.0.230",
+        credentials: %{"api_key" => "key"},
+        import_complete: true,
+        enabled: true
+      })
+      |> Repo.insert!()
+
+    light =
+      %Light{}
+      |> Light.changeset(%{
+        name: "Old bridge name",
+        source: :hue,
+        source_id: "light-1",
+        bridge_id: bridge.id,
+        metadata: %{},
+        normalized_json: %{
+          "source" => "hue",
+          "source_id" => "light-1",
+          "name" => "Old bridge name",
+          "capabilities" => %{}
+        }
+      })
+      |> Repo.insert!()
+
+    Application.put_env(:hueworks, :import_pipeline_payload, %{
+      rooms: [],
+      lights: [
+        %{
+          source: :hue,
+          source_id: "light-1",
+          name: "New bridge name",
+          room_source_id: nil,
+          capabilities: %{},
+          identifiers: %{},
+          metadata: %{}
+        }
+      ],
+      groups: [],
+      memberships: %{}
+    })
+
+    {:ok, view, _html} = live(conn, "/config/bridges/#{bridge.id}/reimport")
+    render(view)
+
+    assert has_element?(view, "#apply-reimport")
+    render_click(element(view, "#apply-reimport"))
+
+    assert has_element?(view, "#reimport-complete")
+    assert has_element?(view, "[aria-label='Applied bridge changes']")
+    assert has_element?(view, "a[href='/config/bridges']", "Return to Bridges")
+    assert has_element?(view, "button[phx-click='import_configuration']", "Review Again")
+    assert Repo.get!(Light, light.id).name == "New bridge name"
   end
 
   test "default reimport apply preserves an existing HA light left unlinked", %{conn: conn} do
@@ -1455,7 +1537,7 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
           source_id: "1",
           name: "Hue Lamp",
           room_source_id: nil,
-          capabilities: %{},
+          capabilities: %{color: true},
           identifiers: %{"mac" => "aa:bb:cc"},
           metadata: %{"uniqueid" => "aa:bb:cc-1"}
         }

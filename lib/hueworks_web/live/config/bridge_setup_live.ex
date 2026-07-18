@@ -26,6 +26,7 @@ defmodule HueworksWeb.BridgeSetupLive do
          import_error: nil,
          normalized: nil,
          plan: nil,
+         completion_summary: nil,
          rooms: Repo.all(Room)
        )}
     end
@@ -125,12 +126,11 @@ defmodule HueworksWeb.BridgeSetupLive do
            socket.assigns.normalized,
            socket.assigns.plan || %{}
          ) do
-      {:ok, %{bridge: bridge}} ->
+      {:ok, %{bridge: bridge, summary: summary}} ->
         {:noreply,
          socket
-         |> assign(bridge: bridge, import_status: :applied)
-         |> put_notice(:info, "Bridge import applied successfully.")
-         |> push_navigate(to: "/config/bridges")}
+         |> assign(bridge: bridge, import_status: :applied, completion_summary: summary)
+         |> put_notice(:info, "Bridge import applied successfully.")}
 
       {:error, reason} ->
         message = inspect(reason)

@@ -44,6 +44,7 @@ defmodule Hueworks.MixProject do
       # MQTT for Zigbee2MQTT
       {:tortoise, "~> 0.10"},
       {:hap, "~> 0.6.0"},
+      {:mdns_lite, "~> 0.8.11"},
       {:solarex, "~> 0.1.2"},
       {:tzdata, "~> 1.1"},
 
@@ -67,7 +68,7 @@ defmodule Hueworks.MixProject do
     [
       setup: ["deps.get", "ecto.setup", "assets.setup", "assets.build"],
       "ecto.setup": ["ecto.create", "ecto.migrate"],
-      "ecto.reset": ["ecto.drop", "ecto.setup", "run priv/repo/seeds.exs"],
+      "ecto.reset": ["ecto.drop", "ecto.setup"],
       "assets.setup": ["tailwind.install --if-missing", "esbuild.install --if-missing"],
       "assets.build": ["tailwind hueworks", "esbuild hueworks"],
       "assets.deploy": [

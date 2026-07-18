@@ -9,6 +9,17 @@ defmodule Hueworks.HomeKit do
   def reload, do: Bridge.reload()
   def put_change_token(opts, change_token), do: Bridge.put_change_token(opts, change_token)
 
+  def runtime_status do
+    if Application.get_env(:hueworks, :homekit_runtime_enabled, true) do
+      case Bridge.status() do
+        %{running?: true} -> :running
+        _status -> :unavailable
+      end
+    else
+      :disabled
+    end
+  end
+
   def paired? do
     current_config()
     |> Map.fetch!(:data_path)

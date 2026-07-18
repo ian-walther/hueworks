@@ -37,33 +37,11 @@ defmodule HueworksWeb.ConfigHelpers do
   def parse_boolean_param(_value), do: false
 
   def timezone_options(current_timezone) do
-    base_timezones = [
-      "Etc/UTC",
-      "America/New_York",
-      "America/Chicago",
-      "America/Denver",
-      "America/Los_Angeles",
-      "America/Phoenix",
-      "America/Anchorage",
-      "Pacific/Honolulu",
-      "Europe/London",
-      "Europe/Paris",
-      "Europe/Berlin",
-      "Europe/Madrid",
-      "Europe/Rome",
-      "Asia/Tokyo",
-      "Asia/Seoul",
-      "Asia/Shanghai",
-      "Asia/Singapore",
-      "Asia/Kolkata",
-      "Australia/Sydney",
-      "Australia/Melbourne",
-      "Pacific/Auckland"
-    ]
+    base_timezones = Tzdata.zone_list() |> Enum.sort()
 
     case normalize_timezone(current_timezone) do
       nil -> base_timezones
-      timezone -> Enum.uniq([timezone | base_timezones])
+      timezone -> Enum.sort(Enum.uniq([timezone | base_timezones]))
     end
   end
 

@@ -86,6 +86,20 @@ defmodule Hueworks.SceneBuilderComponentTest do
     refute html =~ "option value=\"1\">Lamp</option>"
   end
 
+  test "explains component semantics and associates scene controls with labels", %{conn: conn} do
+    {:ok, view, _html} = live_isolated(conn, TestLive)
+
+    assert render(view) =~ "Components let different lights use different states."
+    assert render(view) =~ "How power policies work"
+
+    assert has_element?(view, "label[for='scene-component-1-light-state']")
+    assert has_element?(view, "#scene-component-1-light-state")
+    assert has_element?(view, "label[for='scene-component-1-add-light']")
+    assert has_element?(view, "#scene-component-1-add-light")
+    assert has_element?(view, "label[for='scene-component-1-add-group']")
+    assert has_element?(view, "#scene-component-1-add-group")
+  end
+
   test "selecting a group auto-adds its lights and removes the group from options", %{conn: conn} do
     {:ok, view, _html} = live_isolated(conn, TestLive)
 
@@ -120,6 +134,11 @@ defmodule Hueworks.SceneBuilderComponentTest do
 
     assert render(view) =~ "Lamp"
     assert render(view) =~ "Ceiling"
+
+    assert has_element?(
+             view,
+             "button[phx-click='remove_group'][phx-value-group_id='10'][aria-label]"
+           )
 
     view
     |> element(
@@ -210,7 +229,7 @@ defmodule Hueworks.SceneBuilderComponentTest do
 
     assert has_element?(
              view,
-             "#scene-component-1-group-11-light-1 button[phx-click='remove_light'][phx-value-component_id='1'][phx-value-light_id='1']"
+             "#scene-component-1-group-11-light-1 button[phx-click='remove_light'][phx-value-component_id='1'][phx-value-light_id='1'][aria-label]"
            )
 
     assert has_element?(

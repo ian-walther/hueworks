@@ -24,7 +24,44 @@
     <button type="button" class="hw-button" phx-click="import_configuration">Try Again</button>
   </div>
 
-  <%= if @normalized do %>
+  <section :if={@import_status == :applied} id="initial-import-complete" class="hw-completion-panel">
+    <div>
+      <p class="hw-eyebrow">Bridge connected</p>
+      <h2>Import complete</h2>
+      <p>
+        HueWorks imported <strong><%= @completion_summary.lights %> lights</strong> and
+        <strong><%= @completion_summary.groups %> groups</strong> from <%= @bridge.name %>.
+      </p>
+    </div>
+
+    <div class="hw-summary-strip" aria-label="Initial import summary">
+      <div class="hw-summary-stat"><strong><%= @completion_summary.rooms_created %></strong><span>rooms created</span></div>
+      <div class="hw-summary-stat"><strong><%= @completion_summary.rooms_merged %></strong><span>rooms merged</span></div>
+      <div class="hw-summary-stat"><strong><%= @completion_summary.hidden_duplicates %></strong><span>linked wrappers</span></div>
+      <div class="hw-summary-stat"><strong><%= @completion_summary.unassigned %></strong><span>unassigned</span></div>
+    </div>
+
+    <div :if={@completion_summary.unassigned > 0} class="hw-callout hw-callout-accent">
+      <strong>Some imported entities are unassigned.</strong>
+      Inspect Lights before creating scenes so every device lands in the intended HueWorks room.
+    </div>
+
+    <div class="hw-completion-actions">
+      <a class="hw-button hw-button-primary" href="/rooms">Review Rooms</a>
+      <a class="hw-button" href="/lights">Inspect Lights</a>
+      <a
+        :if={@completion_summary.first_room_id}
+        class="hw-button"
+        href={"/rooms/#{@completion_summary.first_room_id}/scenes/new"}
+      >
+        Create First Scene
+      </a>
+      <a class="hw-button" href="/config/bridges/new">Add Another Bridge</a>
+      <a class="hw-link-button" href="/config/bridges">Done</a>
+    </div>
+  </section>
+
+  <%= if not is_nil(@normalized) and @import_status != :applied do %>
     <% rooms = normalized_entries(@normalized, :rooms) %>
     <% lights = normalized_entries(@normalized, :lights) %>
     <% groups = normalized_entries(@normalized, :groups) %>

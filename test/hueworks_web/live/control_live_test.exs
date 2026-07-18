@@ -83,6 +83,14 @@ defmodule HueworksWeb.ControlLiveTest do
 
   defp eventually(_fun, 0), do: false
 
+  test "empty control page points a new installation to bridge setup", %{conn: conn} do
+    {:ok, _view, html} = live(conn, "/control")
+
+    assert html =~ "Nothing to control yet"
+    assert html =~ ~s(href="/config/bridges/new")
+    assert html =~ "Add Bridge"
+  end
+
   test "control page renders room cards with scenes and recursive collapsed controls", %{
     conn: conn
   } do

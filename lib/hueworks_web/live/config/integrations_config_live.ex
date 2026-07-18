@@ -25,6 +25,7 @@ defmodule HueworksWeb.IntegrationsConfigLive do
        homekit_bridge_name: app_setting.homekit_bridge_name || "HueWorks",
        homekit_pairing_code: ConfigHelpers.homekit_pairing_code(app_setting),
        homekit_paired?: HomeKit.paired?(),
+       homekit_runtime_status: HomeKit.runtime_status(),
        api_enabled: AppSettings.api_enabled?(),
        api_token: nil,
        api_token_revealed?: false,
@@ -153,6 +154,7 @@ defmodule HueworksWeb.IntegrationsConfigLive do
         {:noreply,
          socket
          |> assign(homekit_paired?: HomeKit.paired?())
+         |> assign(homekit_runtime_status: HomeKit.runtime_status())
          |> put_notice(:info, message)}
 
       {:error, reason} ->

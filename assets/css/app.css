@@ -475,6 +475,86 @@ body {
   gap: 1rem;
 }
 
+.hw-setup-checklist {
+  display: grid;
+  grid-template-columns: minmax(14rem, 0.7fr) minmax(0, 1.3fr);
+  gap: 2rem;
+  margin-bottom: 1.5rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--border));
+  border-radius: 1.2rem;
+  padding: 1.5rem;
+  background:
+    radial-gradient(circle at top left, color-mix(in srgb, var(--accent) 9%, transparent), transparent 45%),
+    var(--hw-surface-raised);
+  box-shadow: 0 14px 35px color-mix(in srgb, var(--hw-shadow-color) 7%, transparent);
+}
+
+.hw-setup-checklist-intro h2 {
+  margin: 0;
+  font-family: "Fraunces", serif;
+  font-size: clamp(1.55rem, 3vw, 2.15rem);
+}
+
+.hw-setup-checklist-intro > p:last-child {
+  margin: 0.65rem 0 0;
+  color: var(--hw-text-muted);
+}
+
+.hw-setup-steps {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hw-setup-step {
+  display: grid;
+  grid-template-columns: 1.75rem minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: center;
+  border-bottom: 1px solid color-mix(in srgb, var(--ink) 9%, transparent);
+  padding: 0.8rem 0;
+}
+
+.hw-setup-step:first-child {
+  padding-top: 0;
+}
+
+.hw-setup-step:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.hw-setup-step-marker {
+  display: grid;
+  width: 1.55rem;
+  height: 1.55rem;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--ink) 24%, transparent);
+  border-radius: 999px;
+  color: transparent;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.hw-setup-step-complete .hw-setup-step-marker {
+  border-color: color-mix(in srgb, var(--hw-success) 40%, transparent);
+  background: color-mix(in srgb, var(--hw-success) 13%, transparent);
+  color: var(--hw-success);
+}
+
+.hw-setup-step-copy h3 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.hw-setup-step-copy p {
+  margin: 0.2rem 0 0;
+  color: var(--hw-text-muted);
+  font-size: 0.82rem;
+}
+
 .hw-config-overview-card {
   display: flex;
   min-height: 13rem;
@@ -563,6 +643,172 @@ body {
 
 .hw-settings-panel {
   width: min(100%, 56rem);
+}
+
+.hw-completion-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hw-space-4);
+  border: 1px solid color-mix(in srgb, var(--hw-success) 35%, var(--border));
+  border-radius: var(--hw-radius-panel);
+  padding: clamp(1.25rem, 4vw, 2.5rem);
+  background: color-mix(in srgb, var(--hw-success) 6%, var(--panel));
+  box-shadow: var(--hw-shadow-panel);
+}
+
+.hw-completion-panel h2,
+.hw-completion-panel p {
+  margin: 0;
+}
+
+.hw-completion-panel h2 {
+  margin-block: var(--hw-space-1) var(--hw-space-2);
+  font-family: "Fraunces", serif;
+  font-size: clamp(1.8rem, 4vw, 2.6rem);
+}
+
+.hw-completion-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--hw-space-2);
+}
+
+.hw-onboarding-flow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hw-space-3);
+  margin-top: var(--hw-space-2);
+}
+
+.hw-onboarding-intro,
+.hw-discovery-card,
+.hw-discovery-title-row,
+.hw-onboarding-status {
+  display: flex;
+  align-items: center;
+}
+
+.hw-onboarding-intro {
+  justify-content: space-between;
+  gap: var(--hw-space-4);
+}
+
+.hw-onboarding-intro h3,
+.hw-discovery-card h4,
+.hw-discovery-card p {
+  margin: 0;
+}
+
+.hw-onboarding-intro h3 {
+  margin-block: var(--hw-space-1);
+  font-size: 1.15rem;
+}
+
+.hw-discovery-list {
+  display: grid;
+  gap: var(--hw-space-2);
+}
+
+.hw-discovery-card {
+  justify-content: space-between;
+  gap: var(--hw-space-4);
+  min-width: 0;
+  padding: var(--hw-space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--hw-radius-card);
+  background: var(--hw-surface-raised);
+  box-shadow: var(--hw-shadow-card);
+}
+
+.hw-discovery-copy {
+  min-width: 0;
+}
+
+.hw-discovery-title-row {
+  flex-wrap: wrap;
+  gap: var(--hw-space-2);
+  margin-bottom: var(--hw-space-1);
+}
+
+.hw-mono {
+  overflow-wrap: anywhere;
+  font-family: ui-monospace, "SFMono-Regular", "Cascadia Code", monospace;
+}
+
+.hw-onboarding-status {
+  flex-wrap: wrap;
+  gap: var(--hw-space-2);
+  color: var(--hw-text-muted);
+}
+
+.hw-onboarding-pulse {
+  width: 0.65rem;
+  height: 0.65rem;
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 45%, transparent);
+  animation: hw-onboarding-pulse 1.4s ease-out infinite;
+}
+
+.hw-callout {
+  padding: var(--hw-space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--hw-radius-control);
+  background: var(--hw-surface-quiet);
+  color: var(--hw-text-muted);
+  line-height: 1.55;
+}
+
+.hw-callout-accent {
+  border-color: color-mix(in srgb, var(--accent) 32%, var(--border));
+  background: color-mix(in srgb, var(--accent) 8%, var(--hw-surface-quiet));
+}
+
+.hw-callout-warning {
+  border-color: color-mix(in srgb, var(--hw-warning) 32%, var(--border));
+  background: color-mix(in srgb, var(--hw-warning) 10%, var(--hw-surface-quiet));
+}
+
+.hw-callout strong {
+  color: var(--ink);
+}
+
+.hw-scene-builder-guide details {
+  margin-top: var(--hw-space-2);
+}
+
+.hw-scene-builder-guide summary {
+  cursor: pointer;
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.hw-scene-builder-guide p {
+  margin: var(--hw-space-2) 0 0;
+}
+
+.hw-link-button {
+  align-self: flex-start;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--accent);
+  font-weight: 700;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  text-underline-offset: 0.2em;
+}
+
+.hw-link-button:hover {
+  text-decoration-color: var(--accent);
+}
+
+@keyframes hw-onboarding-pulse {
+  70%,
+  100% {
+    box-shadow: 0 0 0 0.55rem transparent;
+  }
 }
 
 .hw-api-code-value {
@@ -2988,6 +3234,10 @@ body {
 }
 
 @media (max-width: 900px) {
+  .hw-setup-checklist {
+    grid-template-columns: 1fr;
+  }
+
   .hw-room-ledger-body {
     grid-template-columns: 1fr;
   }
@@ -3107,6 +3357,15 @@ body {
     min-height: 11rem;
   }
 
+  .hw-setup-step {
+    grid-template-columns: 1.75rem minmax(0, 1fr);
+  }
+
+  .hw-setup-step .hw-button {
+    grid-column: 2;
+    justify-self: start;
+  }
+
   .hw-api-value-row {
     grid-template-columns: 1fr;
   }
@@ -3114,6 +3373,17 @@ body {
   .hw-api-utility-actions,
   .hw-api-danger-actions {
     justify-content: flex-start;
+  }
+
+  .hw-onboarding-intro,
+  .hw-discovery-card {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .hw-onboarding-intro .hw-button,
+  .hw-discovery-card .hw-button {
+    align-self: flex-start;
   }
 
   .hw-resource-card,

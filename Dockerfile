@@ -32,15 +32,15 @@ ENV LANG=C.UTF-8 \
     ELIXIR_ERL_OPTIONS=+fnu
 
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends libstdc++6 openssl libncurses6 ca-certificates sqlite3 && \
+    apt-get install -y --no-install-recommends libstdc++6 openssl libncurses6 ca-certificates sqlite3 curl && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
 RUN groupadd --system --gid 1000 hueworks && \
     useradd --system --uid 1000 --gid 1000 --create-home --home-dir /app hueworks && \
-    mkdir -p /data && \
-    chown -R hueworks:hueworks /app /data
+    mkdir -p /data /credentials && \
+    chown -R hueworks:hueworks /app /data /credentials
 
 COPY --from=builder --chown=hueworks:hueworks /app/_build/prod/rel/hueworks ./
 COPY --from=builder --chown=hueworks:hueworks /app/docker/start.sh /app/bin/docker-start

@@ -158,9 +158,14 @@
         </div>
         <span class={[
           "hw-status-badge",
-          @homekit_paired? && "hw-status-badge-success"
+          @homekit_runtime_status == :running && "hw-status-badge-success",
+          @homekit_runtime_status == :unavailable && "hw-status-badge-warning"
         ]}>
-          <%= if @homekit_paired?, do: "Paired", else: "Ready to pair" %>
+          <%= case @homekit_runtime_status do %>
+            <% :disabled -> %> Runtime disabled
+            <% :unavailable -> %> Runtime unavailable
+            <% :running -> %> <%= if @homekit_paired?, do: "Paired", else: "Ready to pair" %>
+          <% end %>
         </span>
       </div>
 
@@ -168,12 +173,32 @@
         Expose HueWorks scenes and opt-in lights/groups to Apple Home through a local bridge.
       </p>
 
+      <div :if={@homekit_runtime_status == :disabled} class="hw-callout hw-callout-accent">
+        <strong>HomeKit is disabled for this installation.</strong>
+        Set <code>HOMEKIT_RUNTIME_ENABLED=true</code> and restart HueWorks before pairing.
+      </div>
+
+      <div :if={@homekit_runtime_status == :unavailable} class="hw-callout hw-callout-warning">
+        <strong>HomeKit is enabled but not running.</strong>
+        Restart HueWorks and review its startup logs before attempting to pair.
+      </div>
+
       <div class="hw-form">
         <label class="hw-field-label" for="homekit_pairing_code">Apple Home Setup Code</label>
         <code id="homekit_pairing_code" class="hw-field-input"><%= @homekit_pairing_code %></code>
         <p class="hw-muted">Use this code when Apple Home asks to add the HueWorks bridge manually.</p>
         <p class="hw-muted">
-          Pairing status: <strong><%= if @homekit_paired?, do: "paired", else: "ready to pair" %></strong>
+          Runtime status:
+          <strong>
+            <%= cond do %>
+              <% @homekit_runtime_status == :disabled -> %>runtime disabled
+              <% @homekit_runtime_status == :unavailable -> %>runtime unavailable
+              <% true -> %>running
+            <% end %>
+          </strong>
+        </p>
+        <p class="hw-muted">
+          Saved pairing: <strong><%= if @homekit_paired?, do: "paired", else: "not paired" %></strong>
         </p>
       </div>
 

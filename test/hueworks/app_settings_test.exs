@@ -12,6 +12,12 @@ defmodule Hueworks.AppSettingsTest do
     :ok
   end
 
+  test "new installations start with a comfortable manual transition" do
+    settings = AppSettings.get_global()
+
+    assert settings.default_transition_ms == 750
+  end
+
   test "derives legacy ha_export_enabled when only room scene selectors are enabled" do
     {:ok, settings} =
       AppSettings.upsert_global(%{

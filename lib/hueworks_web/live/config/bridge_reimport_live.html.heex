@@ -24,6 +24,31 @@
     <button type="button" class="hw-button" phx-click="import_configuration">Try Again</button>
   </div>
 
+  <section :if={@import_status == :applied} id="reimport-complete" class="hw-completion-panel">
+    <div>
+      <p class="hw-eyebrow">Bridge review complete</p>
+      <h2>Changes applied safely</h2>
+      <p>
+        HueWorks applied the selected changes while preserving HueWorks-owned names, rooms,
+        scenes, exports, and Pico configuration.
+      </p>
+    </div>
+
+    <div class="hw-summary-strip" aria-label="Applied bridge changes">
+      <div class="hw-summary-stat"><strong><%= @completion_summary.import %></strong><span>imported</span></div>
+      <div class="hw-summary-stat"><strong><%= @completion_summary.disable %></strong><span>disabled</span></div>
+      <div class="hw-summary-stat"><strong><%= @completion_summary.delete %></strong><span>deleted</span></div>
+      <div class="hw-summary-stat hw-summary-stat-changed">
+        <strong><%= @completion_summary.automatic_updates %></strong><span>bridge facts refreshed</span>
+      </div>
+    </div>
+
+    <div class="hw-completion-actions">
+      <a class="hw-button hw-button-primary" href="/config/bridges">Return to Bridges</a>
+      <button class="hw-button" type="button" phx-click="import_configuration">Review Again</button>
+    </div>
+  </section>
+
   <%= if @review do %>
     <section class="hw-review-summary" aria-label="Reimport summary">
       <div class="hw-review-summary-intro">
@@ -66,6 +91,9 @@
       <p class="hw-eyebrow">Up to date</p>
       <h2>No bridge changes need your attention</h2>
       <p><%= @review.summary.unchanged %> existing entities match the latest bridge observation.</p>
+      <div class="hw-completion-actions">
+        <a class="hw-button hw-button-primary" href="/config/bridges">Return to Bridges</a>
+      </div>
     </div>
 
     <section
@@ -305,7 +333,11 @@
       </article>
     </section>
 
-    <aside class="hw-review-action-bar" aria-label="Apply bridge changes">
+    <aside
+      :if={HueworksWeb.BridgeReimportLive.review_attention?(@review.summary)}
+      class="hw-review-action-bar"
+      aria-label="Apply bridge changes"
+    >
       <div>
         <p class="hw-eyebrow">Planned transaction</p>
         <strong>

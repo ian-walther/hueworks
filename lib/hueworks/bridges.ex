@@ -22,10 +22,84 @@ defmodule Hueworks.Bridges do
     Repo.all(Bridge)
   end
 
+  def any_bridges?, do: Repo.exists?(Bridge)
+
+  def ha_import_order_risk do
+    lights =
+      Repo.aggregate(
+        from(l in Light,
+          where: l.source == :ha and is_nil(l.canonical_light_id)
+        ),
+        :count,
+        :id
+      )
+
+    groups =
+      Repo.aggregate(
+        from(g in Group,
+          where: g.source == :ha and is_nil(g.canonical_group_id)
+        ),
+        :count,
+        :id
+      )
+
+    %{lights: lights, groups: groups, total: lights + groups}
+  end
+
   def get_bridge(id), do: Repo.get(Bridge, id)
 
   def imported?(%Bridge{} = bridge) do
     bridge.import_complete or bridge_has_entities?(bridge.id)
+  end
+
+  def import_summary(%Bridge{id: bridge_id}, plan) when is_map(plan) do
+    lights =
+      Repo.all(
+        from(l in Light,
+          where: l.bridge_id == ^bridge_id,
+          select: {l.canonical_light_id, l.room_id}
+        )
+      )
+
+    groups =
+      Repo.all(
+        from(g in Group,
+          where: g.bridge_id == ^bridge_id,
+          select: {g.canonical_group_id, g.room_id}
+        )
+      )
+
+    visible_lights =
+      Enum.reject(lights, fn {canonical_id, _room_id} -> is_integer(canonical_id) end)
+
+    visible_groups =
+      Enum.reject(groups, fn {canonical_id, _room_id} -> is_integer(canonical_id) end)
+
+    room_actions = plan |> fetch_map(:rooms) |> action_counts()
+
+    room_ids =
+      (visible_lights ++ visible_groups)
+      |> Enum.map(fn {_canonical_id, room_id} -> room_id end)
+      |> Enum.filter(&is_integer/1)
+      |> Enum.uniq()
+      |> Enum.sort()
+
+    %{
+      lights: length(visible_lights),
+      groups: length(visible_groups),
+      hidden_duplicates:
+        length(lights) + length(groups) - length(visible_lights) - length(visible_groups),
+      unassigned:
+        Enum.count(visible_lights ++ visible_groups, fn {_canonical_id, room_id} ->
+          is_nil(room_id)
+        end),
+      rooms_created: Map.get(room_actions, "create", 0),
+      rooms_merged: Map.get(room_actions, "merge", 0),
+      rooms_skipped: Map.get(room_actions, "skip", 0),
+      entities_skipped:
+        count_unselected(fetch_map(plan, :lights)) + count_unselected(fetch_map(plan, :groups)),
+      first_room_id: List.first(room_ids)
+    }
   end
 
   def latest_import(%Bridge{id: bridge_id}), do: latest_import(bridge_id)
@@ -191,6 +265,40 @@ defmodule Hueworks.Bridges do
 
   defp select_import_id(query) do
     from(bi in query, select: bi.id)
+  end
+
+  defp fetch_map(map, key) do
+    case Map.get(map, key) || Map.get(map, Atom.to_string(key)) do
+      value when is_map(value) -> value
+      _ -> %{}
+    end
+  end
+
+  defp action_counts(room_plan) do
+    room_plan
+    |> Map.values()
+    |> Enum.reduce(%{}, fn entry, counts ->
+      action = if is_map(entry), do: Map.get(entry, "action") || Map.get(entry, :action)
+
+      if action in ["create", "merge", "skip"] do
+        Map.update(counts, action, 1, &(&1 + 1))
+      else
+        counts
+      end
+    end)
+  end
+
+  defp count_unselected(entity_plan) do
+    Enum.count(entity_plan, fn
+      {_source_id, false} ->
+        true
+
+      {_source_id, entry} when is_map(entry) ->
+        Map.get(entry, "selected", Map.get(entry, :selected, true)) == false
+
+      _ ->
+        false
+    end)
   end
 
   defp normalize_ids(ids) do

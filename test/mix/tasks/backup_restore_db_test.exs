@@ -110,6 +110,24 @@ defmodule Hueworks.BackupRestoreDbTest do
     assert table_values(result.recovery_path, "lights") == ["current"]
   end
 
+  test "prunes only older backups from the requested retention set", %{tmp_dir: tmp_dir} do
+    automated =
+      for timestamp <- ~w(20260710T120000 20260711T120000 20260712T120000) do
+        path = Path.join(tmp_dir, "hueworks_pre_migration_#{timestamp}.db")
+        File.write!(path, timestamp)
+        path
+      end
+
+    manual = Path.join(tmp_dir, "hueworks_manual_20260709T120000.db")
+    File.write!(manual, "manual")
+
+    assert :ok = DatabaseMaintenance.prune_backups(tmp_dir, "hueworks_pre_migration_", 2)
+
+    refute File.exists?(hd(automated))
+    assert Enum.all?(tl(automated), &File.exists?/1)
+    assert File.exists?(manual)
+  end
+
   defp create_values_db!(path, table, values) do
     {:ok, conn} = Sqlite3.open(path)
 

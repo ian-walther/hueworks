@@ -226,7 +226,14 @@ defmodule HueworksWeb.ControlLive do
           <button class="hw-button" phx-click="refresh">Reload</button>
       </:actions>
 
-      <div class="hw-list hw-room-ledger-list">
+      <div :if={@room_models == []} class="hw-empty-state hw-empty-state-guided">
+        <p class="hw-eyebrow">First step</p>
+        <h2>Nothing to control yet</h2>
+        <p>Connect and import a lighting source, then HueWorks will organize its rooms here.</p>
+        <a class="hw-button hw-button-primary" href="/config/bridges/new">Add Bridge</a>
+      </div>
+
+      <div :if={@room_models != []} class="hw-list hw-room-ledger-list">
         <%= for room_model <- @room_models do %>
           <% active_scene_id = Map.get(@active_scene_by_room, room_model.room.id) %>
           <% active_scene = Enum.find(room_model.scenes, &(&1.id == active_scene_id)) %>

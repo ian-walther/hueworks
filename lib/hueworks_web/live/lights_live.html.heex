@@ -9,7 +9,14 @@
       <button class="hw-button" phx-click="refresh">Reload</button>
   </:actions>
 
-  <div class="hw-entity-columns">
+  <div :if={@lights == [] and @groups == []} class="hw-empty-state hw-empty-state-guided">
+    <p class="hw-eyebrow">Device workspace</p>
+    <h2>No devices imported yet</h2>
+    <p>Add a bridge and choose which lights and groups HueWorks should manage.</p>
+    <a class="hw-button hw-button-primary" href="/config/bridges/new">Add Bridge</a>
+  </div>
+
+  <div :if={@lights != [] or @groups != []} class="hw-entity-columns">
     <section class="hw-panel hw-entity-panel">
       <div class="hw-section-header hw-entity-section-header">
         <div>

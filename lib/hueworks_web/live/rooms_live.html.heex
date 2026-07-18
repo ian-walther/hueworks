@@ -270,7 +270,10 @@
 
     <div :if={@rooms == []} class="hw-empty-state">
       <h3>No rooms yet</h3>
-      <p>Add a room to begin organizing lights, groups, scenes, and presence inputs.</p>
+      <p>
+        Rooms are normally created during bridge import. Add a bridge first, or create a room manually when you need a HueWorks-only layout.
+      </p>
+      <a class="hw-button hw-button-primary" href="/config/bridges/new">Add Bridge</a>
     </div>
   </div>
 </HueworksWeb.PageComponents.page>

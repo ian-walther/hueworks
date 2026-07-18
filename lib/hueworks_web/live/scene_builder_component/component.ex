@@ -124,17 +124,32 @@ defmodule HueworksWeb.SceneBuilderComponent.Component do
     config
     |> FormState.manual_default_edits()
     |> Map.put("mode", "color")
-    |> Map.put_new("brightness", "100")
-    |> Map.put_new("hue", "0")
-    |> Map.put_new("saturation", "100")
+    |> put_default_when_blank("brightness", "100")
+    |> put_default_when_blank("hue", "0")
+    |> put_default_when_blank("saturation", "100")
+    |> Map.take(["mode", "brightness", "hue", "saturation"])
   end
 
   def default_custom_config(config, _mode) do
     config
     |> FormState.manual_default_edits()
     |> Map.put("mode", "temperature")
-    |> Map.put_new("brightness", "100")
-    |> Map.put_new("temperature", "3000")
+    |> put_default_when_blank("brightness", "100")
+    |> put_default_when_blank("temperature", "3000")
+    |> Map.take(["mode", "brightness", "temperature"])
+  end
+
+  defp put_default_when_blank(config, key, default) do
+    case Map.get(config, key) do
+      value when is_binary(value) ->
+        if String.trim(value) == "", do: Map.put(config, key, default), else: config
+
+      nil ->
+        Map.put(config, key, default)
+
+      _value ->
+        config
+    end
   end
 
   defp known_attrs(%__MODULE__{} = component), do: Map.from_struct(component)

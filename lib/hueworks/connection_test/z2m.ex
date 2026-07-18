@@ -3,6 +3,7 @@ defmodule Hueworks.ConnectionTest.Z2M do
 
   @default_port 1883
 
+  alias Hueworks.Control.Z2MConfig
   alias Hueworks.Util
 
   def test(host, opts \\ %{}) do
@@ -16,19 +17,30 @@ defmodule Hueworks.ConnectionTest.Z2M do
         |> fetch_opt("broker_port")
         |> normalize_port()
 
-      case :gen_tcp.connect(String.to_charlist(host), port, [:binary, active: false], 5_000) do
-        {:ok, socket} ->
-          :gen_tcp.close(socket)
-          {:ok, "Zigbee2MQTT"}
+      config = %{
+        host: host,
+        port: port,
+        username: opts |> fetch_opt("username") |> Z2MConfig.normalize_optional(),
+        password: opts |> fetch_opt("password") |> Z2MConfig.normalize_optional(),
+        base_topic: opts |> fetch_opt("base_topic") |> Z2MConfig.normalize_base_topic()
+      }
+
+      case snapshot_module().fetch(config) do
+        {:ok, %{devices: devices, groups: groups}} when is_list(devices) and is_list(groups) ->
+          {:ok,
+           "Zigbee2MQTT (#{count_label(devices, "device")}, #{count_label(groups, "group")})"}
+
+        {:ok, _snapshot} ->
+          {:error, "Z2M test failed: retained devices or groups payload has an unexpected shape."}
 
         {:error, reason} ->
-          {:error, "Z2M test failed: #{inspect(reason)}"}
+          {:error, "Z2M test failed: #{format_reason(reason)}"}
       end
     end
   end
 
-  defp fetch_opt(map, "broker_port") when is_map(map) do
-    Map.get(map, "broker_port") || Map.get(map, :broker_port)
+  defp fetch_opt(map, key) when is_map(map) do
+    Map.get(map, key) || Map.get(map, String.to_existing_atom(key))
   end
 
   defp fetch_opt(_map, _key), do: nil
@@ -43,5 +55,17 @@ defmodule Hueworks.ConnectionTest.Z2M do
       port when is_integer(port) and port > 0 and port <= 65_535 -> port
       _ -> @default_port
     end
+  end
+
+  defp count_label(items, noun) do
+    count = length(items)
+    "#{count} #{noun}#{if count == 1, do: "", else: "s"}"
+  end
+
+  defp format_reason(reason) when is_binary(reason), do: reason
+  defp format_reason(reason), do: inspect(reason)
+
+  defp snapshot_module do
+    Application.get_env(:hueworks, :z2m_snapshot_module, Hueworks.Z2M.Snapshot)
   end
 end

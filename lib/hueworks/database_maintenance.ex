@@ -62,6 +62,24 @@ defmodule Hueworks.DatabaseMaintenance do
     |> is_pid()
   end
 
+  def prune_backups(dir, prefix, retention)
+      when is_binary(dir) and is_binary(prefix) and is_integer(retention) and retention >= 1 do
+    paths =
+      dir
+      |> Path.join("#{prefix}*")
+      |> Path.wildcard()
+      |> Enum.sort(:desc)
+      |> Enum.drop(retention)
+
+    Enum.reduce_while(paths, :ok, fn path, :ok ->
+      case File.rm(path) do
+        :ok -> {:cont, :ok}
+        {:error, :enoent} -> {:cont, :ok}
+        {:error, reason} -> {:halt, {:error, {:prune_failed, path, reason}}}
+      end
+    end)
+  end
+
   defp require_existing_file(path) do
     if File.regular?(path), do: :ok, else: {:error, {:missing_database, path}}
   end

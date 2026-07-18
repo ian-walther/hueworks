@@ -66,7 +66,7 @@ defmodule Hueworks.AppSettings do
       latitude: app_setting.latitude,
       longitude: app_setting.longitude,
       timezone: app_setting.timezone,
-      default_transition_ms: app_setting.default_transition_ms || 0,
+      default_transition_ms: app_setting.default_transition_ms || 750,
       scale_transition_by_brightness: app_setting.scale_transition_by_brightness == true,
       ha_export_enabled: app_setting.ha_export_enabled == true,
       ha_export_scenes_enabled: app_setting.ha_export_scenes_enabled == true,
@@ -189,7 +189,7 @@ defmodule Hueworks.AppSettings do
       latitude: s.latitude,
       longitude: s.longitude,
       timezone: s.timezone,
-      default_transition_ms: s.default_transition_ms || 0,
+      default_transition_ms: s.default_transition_ms || 750,
       scale_transition_by_brightness: s.scale_transition_by_brightness == true
     }
   end

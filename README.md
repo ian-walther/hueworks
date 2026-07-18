@@ -25,16 +25,21 @@ It imports devices from Hue, Caseta, Home Assistant, and Zigbee2MQTT, links them
 ## Main UI Surfaces
 
 - `/config`
-  - global solar settings
-  - Home Assistant MQTT export
-  - light state configs
-  - bridge list and bridge setup entrypoints
-- `/config/bridge/:id/setup`
-  - import/reimport review and apply
-- `/config/bridge/:id/picos`
+  - first-run checklist and system readiness
+- `/config/general`
+  - location, timezone, and transition defaults
+- `/config/bridges`
+  - bridge setup, initial import, and reimport entrypoints
+- `/config/bridges/:id/import`
+  - initial import review and apply
+- `/config/bridges/:id/reimport`
+  - upstream change review and explicit resolutions
+- `/config/bridges/:id/picos`
   - Pico list and per-device configuration
-- `/config/bridge/:id/external-scenes`
+- `/config/bridges/:id/external-scenes`
   - Home Assistant scene mapping
+- `/config/integrations`
+  - Home Assistant MQTT export, HomeKit, and local AI API
 - `/lights`
   - live control for lights and groups
   - display name edits
@@ -71,25 +76,38 @@ At runtime, `Hueworks.Application` supervises the Repo, PubSub, caches, control 
 
 ## Getting Started
 
+### First-Run Journey
+
+After startup, open HueWorks at the configured `PHX_HOST` and port. An empty installation routes to Config and shows a state-derived checklist:
+
+1. Set location and timezone under General.
+2. Add native bridges before Home Assistant so mirrored HA entities can be recognized as wrappers instead of visible duplicates.
+3. Review and apply each initial import. Bridge rooms can be created, merged into an existing HueWorks room, or skipped.
+4. Review imported rooms and lights.
+5. Create and activate a first scene, then use Control for everyday operation.
+
+Hue bridges can be discovered and paired through their physical link button without handling an API key. Home Assistant can be discovered locally but still uses a manually supplied long-lived token until browser OAuth is implemented. Zigbee2MQTT can reuse the configured Home Assistant-export MQTT connection and validates its retained snapshot before saving. Caseta currently requires certificate files; guided physical-button certificate acquisition remains pre-release work.
+
 ### Local Development
 
 ```bash
 mix setup
-mix seed_bridges
 iex -S mix phx.server
 ```
 
 Open [http://localhost:4000](http://localhost:4000).
 
-If you are starting from a clean database and want the bridge seed step included, you can also use:
+To discard local development data and recreate an empty database:
 
 ```bash
 mix ecto.reset
 ```
 
-### Required Secrets
+Bridges are configured through the application. A clean setup does not require a seed file.
 
-Bridge seeds are loaded from `secrets.json` in the repo root by default. You can override that path with `BRIDGE_SECRETS_PATH`.
+### Optional Bridge Seeds
+
+`secrets.json` is an optional advanced bootstrap and recovery mechanism. It is not part of the normal setup path. To seed bridge rows from a file, create `secrets.json` in the repo root or override its location with `BRIDGE_SECRETS_PATH`.
 
 Example:
 
@@ -143,6 +161,8 @@ Then run:
 mix seed_bridges
 ```
 
+This task fails explicitly when the requested file is missing. It is never run by `mix setup` or `mix ecto.reset`.
+
 Caseta credential files uploaded through the UI are stored under `priv/credentials/caseta/` by default. You can override the root with `CREDENTIALS_ROOT`.
 
 ## Security boundary
@@ -152,6 +172,8 @@ HueWorks is deliberately an unauthenticated trusted-LAN appliance. Any client th
 Never expose HueWorks to the public Internet. Do not port-forward it, publish it through a public tunnel, or make it reachable from an untrusted network or VLAN. Plain HTTP is supported only inside the isolated trusted LAN. An optional private HTTPS reverse proxy may set `PHX_SCHEME=https` and `PHX_URL_PORT`, but those settings describe the browser-facing canonical URL; HueWorks itself still listens over HTTP.
 
 CSRF protection and WebSocket origin checks remain enabled as defense in depth, but they are not authentication. A future remote-access use case requires a new security design before any exposure, including authentication, authorization, TLS, session policy, and secret handling.
+
+See [SECURITY.md](SECURITY.md) before deploying and use private security reporting rather than a public issue for credential exposure or control-boundary vulnerabilities.
 
 ## AI API And MCP
 
@@ -237,20 +259,31 @@ For a fresh deployment:
 cp .env.example .env
 mkdir -p data credentials
 
+# The container runs as UID 1000. On Linux, make these bind mounts writable by that UID.
+sudo chown -R 1000:1000 data credentials
+
 # set SECRET_KEY_BASE and PHX_HOST in .env
 # direct Compose access uses PHX_SCHEME=http; set https only behind TLS termination
 # set PHX_URL_PORT when the public proxy port is not the scheme default
-# create or copy secrets.json into the repo root
 
 docker compose up -d
 ```
 
 What startup does:
 
-- runs release migrations automatically
-- seeds bridges from `secrets.json` on first boot if present
-- leaves bridge bootstrap unmarked when `secrets.json` is absent, so adding it and restarting retries the seed
+- checks for pending migrations and creates a consistent SQLite snapshot before applying them
+- retains the five newest automatic pre-migration snapshots in `./data/backups` by default
+- runs release migrations automatically after the safety snapshot succeeds
 - starts the Phoenix server on port `4000`
+- reports container health through the non-sensitive `GET /health` readiness endpoint
+
+To use the optional bridge-seed bootstrap, create `secrets.json` and start with the seed overlay:
+
+```bash
+COMPOSE_FILE=docker-compose.yml:docker-compose.seeds.yml docker compose up -d
+```
+
+The overlay seeds bridges once, records the successful bootstrap in `./data`, and leaves normal UI-based setup unchanged when the overlay is not selected.
 
 Persistent data:
 
@@ -284,7 +317,22 @@ Useful commands:
 ```bash
 docker compose logs -f
 docker compose ps
+curl http://localhost:4000/health
+
+# Create a manual SQLite snapshot in ./data/backups.
+docker compose exec hueworks /app/bin/hueworks eval 'Hueworks.Release.backup()'
 ```
+
+Database restore is intentionally offline and destructive. Stop the normal service, choose an explicit backup path from `./data/backups`, run the one-off release command with the exact `RESTORE` confirmation, then start HueWorks again:
+
+```bash
+docker compose stop hueworks
+docker compose run --rm --no-deps hueworks \
+  /app/bin/hueworks eval 'Hueworks.Release.restore("/data/backups/hueworks_manual_YYYYMMDDTHHMMSS.db", "RESTORE")'
+docker compose up -d
+```
+
+Restore validates the selected backup, preserves it, and creates a `*_pre_restore_*` recovery snapshot of the current database before replacement. `DATABASE_BACKUP_RETENTION` changes the automatic pre-migration retention count; manual and pre-restore snapshots are never pruned automatically.
 
 ## Common Mix Tasks
 
@@ -295,10 +343,10 @@ mix setup
 # create DB and run migrations
 mix ecto.setup
 
-# drop, recreate, migrate, and seed
+# drop, recreate, and migrate to an empty database
 mix ecto.reset
 
-# seed bridge rows from secrets.json
+# optional advanced bridge bootstrap from secrets.json
 mix seed_bridges
 
 # legacy/offline bridge import file tools
@@ -329,6 +377,8 @@ mix dialyzer
 - `BRIDGE_SECRETS_PATH=/path/to/secrets.json` overrides the default seed file path.
 - `CREDENTIALS_ROOT=/path/to/credentials` overrides where uploaded bridge credentials are stored.
 - `ha_export_runtime_enabled` and `circadian_poll_enabled` can be toggled through application config if you need to disable those runtimes in a given environment.
+- See [CONTRIBUTING.md](CONTRIBUTING.md) for the test and documentation expectations used in this repository.
+- See [Compatibility and Known Limitations](docs/compatibility.md) and [Troubleshooting](docs/troubleshooting.md) before filing an integration issue.
 
 ## License
 

@@ -17,6 +17,10 @@ defmodule HueworksWeb.Router do
     plug(HueworksWeb.Plugs.ApiAuth)
   end
 
+  pipeline :health do
+    plug(:accepts, ["json"])
+  end
+
   scope "/", HueworksWeb do
     pipe_through(:browser)
 
@@ -40,6 +44,12 @@ defmodule HueworksWeb.Router do
     live("/config/bridges/:id/picos", PicoConfigLive, :index)
     live("/config/bridges/:id/picos/:pico_id", PicoConfigLive, :show)
     live("/config/bridges/:id/external-scenes", ExternalSceneConfigLive, :index)
+  end
+
+  scope "/", HueworksWeb do
+    pipe_through(:health)
+
+    get("/health", HealthController, :show)
   end
 
   scope "/api/v1", HueworksWeb.Api do

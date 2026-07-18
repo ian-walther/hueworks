@@ -1,6 +1,8 @@
 defmodule HueworksWeb.BridgeLive do
   use Phoenix.LiveView
 
+  alias Hueworks.AppSettings
+  alias Hueworks.Bridges
   alias Hueworks.Credentials
   alias Hueworks.Control.Z2MConfig
   alias Hueworks.Import.Source
@@ -9,18 +11,37 @@ defmodule HueworksWeb.BridgeLive do
   alias Hueworks.Util
 
   def mount(_params, _session, socket) do
+    ha_export_mqtt = ha_export_mqtt_connection()
+
     socket =
       socket
       |> assign(
         mode: :new,
         host: "",
         type: "hue",
+        hue_setup_mode: :guided,
         hue_api_key: "",
+        hue_discovery_status: :idle,
+        hue_discovery_error: nil,
+        hue_discoveries: [],
+        hue_discovery_request_id: nil,
+        hue_pair_status: :idle,
+        hue_pair_error: nil,
+        hue_pair_host: nil,
+        hue_pair_request_id: nil,
+        ha_setup_mode: :guided,
         ha_token: "",
+        ha_external_id: nil,
+        ha_discovery_status: :idle,
+        ha_discovery_error: nil,
+        ha_discoveries: [],
+        ha_discovery_request_id: nil,
         z2m_broker_port: "1883",
         z2m_username: "",
         z2m_password: "",
         z2m_base_topic: "zigbee2mqtt",
+        ha_export_mqtt: ha_export_mqtt,
+        ha_import_order_risk: Bridges.ha_import_order_risk(),
         caseta_cert_path: "",
         caseta_key_path: "",
         caseta_cacert_path: "",
@@ -33,6 +54,8 @@ defmodule HueworksWeb.BridgeLive do
       |> allow_upload(:caseta_cert, accept: ~w(.crt), max_entries: 1, auto_upload: true)
       |> allow_upload(:caseta_key, accept: ~w(.key), max_entries: 1, auto_upload: true)
       |> allow_upload(:caseta_cacert, accept: ~w(.crt), max_entries: 1, auto_upload: true)
+
+    socket = if connected?(socket), do: start_hue_discovery(socket), else: socket
 
     {:ok, socket}
   end
@@ -54,21 +77,154 @@ defmodule HueworksWeb.BridgeLive do
      )}
   end
 
+  def handle_event("discover_hue_bridges", _params, socket) do
+    {:noreply, start_hue_discovery(socket)}
+  end
+
+  def handle_event("show_manual_hue", _params, socket) do
+    {:noreply,
+     assign(socket,
+       hue_setup_mode: :manual,
+       hue_pair_status: :idle,
+       hue_pair_error: nil,
+       hue_pair_request_id: nil
+     )}
+  end
+
+  def handle_event("show_guided_hue", _params, socket) do
+    socket =
+      assign(socket,
+        hue_setup_mode: :guided,
+        test_status: :idle,
+        test_error: nil,
+        test_request_id: nil
+      )
+
+    socket =
+      if socket.assigns.hue_discovery_status in [:idle, :error] do
+        start_hue_discovery(socket)
+      else
+        socket
+      end
+
+    {:noreply, socket}
+  end
+
+  def handle_event(
+        "pair_hue_bridge",
+        %{"host" => host, "external_id" => external_id},
+        socket
+      ) do
+    case find_pairable_hue(socket.assigns.hue_discoveries, host, external_id) do
+      nil ->
+        {:noreply,
+         assign(socket,
+           hue_pair_status: :error,
+           hue_pair_error: "Rediscover Hue bridges before trying to pair."
+         )}
+
+      %{device: device} ->
+        request_id = System.unique_integer([:positive])
+
+        socket =
+          assign(socket,
+            hue_pair_status: :pairing,
+            hue_pair_error: nil,
+            hue_pair_host: device.host,
+            hue_pair_request_id: request_id
+          )
+
+        {:noreply,
+         start_async(socket, {:pair_hue, request_id}, fn ->
+           hue_onboarding_module().pair(device.host, device.id)
+         end)}
+    end
+  end
+
+  def handle_event("cancel_hue_pairing", _params, socket) do
+    {:noreply,
+     assign(socket,
+       hue_pair_status: :idle,
+       hue_pair_error: nil,
+       hue_pair_host: nil,
+       hue_pair_request_id: nil
+     )}
+  end
+
   def handle_event("update_bridge", %{"type" => "ha"} = params, socket) do
     host = Util.normalize_host_input(Map.get(params, "host", socket.assigns.host))
     clear_caseta_staged_paths(socket)
 
+    socket =
+      assign(socket,
+        host: host,
+        type: Map.get(params, "type", socket.assigns.type),
+        ha_token: Map.get(params, "ha_token", socket.assigns.ha_token),
+        caseta_staged_paths: %{},
+        test_status: :idle,
+        test_error: nil,
+        test_bridge_name: nil,
+        test_request_id: nil
+      )
+
+    socket =
+      if socket.assigns.ha_discovery_status == :idle do
+        start_ha_discovery(socket)
+      else
+        socket
+      end
+
+    {:noreply, socket}
+  end
+
+  def handle_event("discover_ha_instances", _params, socket) do
+    {:noreply, start_ha_discovery(socket)}
+  end
+
+  def handle_event("select_ha_instance", %{"host" => host, "external_id" => external_id}, socket) do
+    case find_selectable_ha(socket.assigns.ha_discoveries, host, external_id) do
+      nil ->
+        {:noreply,
+         assign(socket,
+           ha_discovery_error: "Rediscover Home Assistant before selecting that instance."
+         )}
+
+      %{device: device} ->
+        {:noreply,
+         assign(socket,
+           host: Hueworks.BridgeOnboarding.HomeAssistant.Device.endpoint(device),
+           ha_external_id: device.id,
+           ha_discovery_error: nil,
+           test_status: :idle,
+           test_error: nil
+         )}
+    end
+  end
+
+  def handle_event("show_manual_ha", _params, socket) do
     {:noreply,
      assign(socket,
-       host: host,
-       type: Map.get(params, "type", socket.assigns.type),
-       ha_token: Map.get(params, "ha_token", socket.assigns.ha_token),
-       caseta_staged_paths: %{},
+       ha_setup_mode: :manual,
+       host: "",
+       ha_external_id: nil,
+       ha_discovery_error: nil,
        test_status: :idle,
-       test_error: nil,
-       test_bridge_name: nil,
-       test_request_id: nil
+       test_error: nil
      )}
+  end
+
+  def handle_event("show_guided_ha", _params, socket) do
+    socket =
+      assign(socket,
+        ha_setup_mode: :guided,
+        host: "",
+        ha_external_id: nil,
+        ha_token: "",
+        test_status: :idle,
+        test_error: nil
+      )
+
+    {:noreply, start_ha_discovery(socket)}
   end
 
   def handle_event("update_bridge", %{"type" => "caseta"} = params, socket) do
@@ -107,6 +263,32 @@ defmodule HueworksWeb.BridgeLive do
        test_bridge_name: nil,
        test_request_id: nil
      )}
+  end
+
+  def handle_event("use_ha_export_mqtt", _params, socket) do
+    case socket.assigns.ha_export_mqtt do
+      %{host: host, port: port, username: username, password: password} ->
+        {:noreply,
+         socket
+         |> assign(
+           host: host,
+           z2m_broker_port: Integer.to_string(port),
+           z2m_username: username || "",
+           z2m_password: password || "",
+           test_status: :idle,
+           test_error: nil,
+           test_bridge_name: nil,
+           test_request_id: nil
+         )
+         |> put_flash(
+           :info,
+           "Copied the existing MQTT connection. Confirm the Zigbee2MQTT base topic, then test it."
+         )}
+
+      nil ->
+        {:noreply,
+         put_flash(socket, :error, "Configure Home Assistant MQTT export before reusing it here.")}
+    end
   end
 
   def handle_event("update_bridge", params, socket) do
@@ -151,6 +333,120 @@ defmodule HueworksWeb.BridgeLive do
     end
   end
 
+  def handle_async({:discover_hue, request_id}, {:ok, result}, socket) do
+    if socket.assigns.hue_discovery_request_id == request_id do
+      case result do
+        {:ok, devices} ->
+          {:noreply,
+           assign(socket,
+             hue_discovery_status: :ok,
+             hue_discovery_error: nil,
+             hue_discoveries: decorate_hue_devices(devices),
+             hue_discovery_request_id: nil
+           )}
+
+        {:error, message} ->
+          {:noreply,
+           assign(socket,
+             hue_discovery_status: :error,
+             hue_discovery_error: message,
+             hue_discoveries: [],
+             hue_discovery_request_id: nil
+           )}
+      end
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_async({:discover_ha, request_id}, {:ok, result}, socket) do
+    if socket.assigns.ha_discovery_request_id == request_id do
+      case result do
+        {:ok, devices} ->
+          {:noreply,
+           assign(socket,
+             ha_discovery_status: :ok,
+             ha_discovery_error: nil,
+             ha_discoveries: decorate_ha_devices(devices),
+             ha_discovery_request_id: nil
+           )}
+
+        {:error, message} ->
+          {:noreply,
+           assign(socket,
+             ha_discovery_status: :error,
+             ha_discovery_error: message,
+             ha_discoveries: [],
+             ha_discovery_request_id: nil
+           )}
+      end
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_async({:discover_ha, request_id}, {:exit, _reason}, socket) do
+    if socket.assigns.ha_discovery_request_id == request_id do
+      {:noreply,
+       assign(socket,
+         ha_discovery_status: :error,
+         ha_discovery_error:
+           "Home Assistant discovery stopped unexpectedly. Retry or use the manual address fallback.",
+         ha_discoveries: [],
+         ha_discovery_request_id: nil
+       )}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_async({:discover_hue, request_id}, {:exit, _reason}, socket) do
+    if socket.assigns.hue_discovery_request_id == request_id do
+      {:noreply,
+       assign(socket,
+         hue_discovery_status: :error,
+         hue_discovery_error:
+           "Hue discovery stopped unexpectedly. Retry or use the manual address fallback.",
+         hue_discoveries: [],
+         hue_discovery_request_id: nil
+       )}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_async({:pair_hue, request_id}, {:ok, result}, socket) do
+    if socket.assigns.hue_pair_request_id == request_id do
+      case result do
+        {:ok, pairing} ->
+          save_paired_hue(socket, pairing)
+
+        {:error, message} ->
+          {:noreply,
+           assign(socket,
+             hue_pair_status: :error,
+             hue_pair_error: message,
+             hue_pair_request_id: nil
+           )}
+      end
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_async({:pair_hue, request_id}, {:exit, _reason}, socket) do
+    if socket.assigns.hue_pair_request_id == request_id do
+      {:noreply,
+       assign(socket,
+         hue_pair_status: :error,
+         hue_pair_error: "Hue pairing stopped unexpectedly. Press the link button and retry.",
+         hue_pair_request_id: nil
+       )}
+    else
+      {:noreply, socket}
+    end
+  end
+
   def handle_async({:test_bridge, request_id}, {:exit, reason}, socket) do
     if socket.assigns.test_request_id == request_id do
       {:noreply,
@@ -178,6 +474,7 @@ defmodule HueworksWeb.BridgeLive do
             type: type,
             name: name,
             host: socket.assigns.host,
+            external_id: bridge_external_id(socket),
             credentials: credentials,
             enabled: true,
             import_complete: false
@@ -194,6 +491,32 @@ defmodule HueworksWeb.BridgeLive do
                test_error: Util.format_changeset_error(changeset)
              )}
         end
+    end
+  end
+
+  defp save_paired_hue(socket, pairing) do
+    changeset =
+      Bridge.changeset(%Bridge{}, %{
+        type: :hue,
+        name: pairing.name,
+        host: socket.assigns.hue_pair_host,
+        external_id: pairing.external_id,
+        credentials: %{"api_key" => pairing.api_key},
+        enabled: true,
+        import_complete: false
+      })
+
+    case Repo.insert(changeset) do
+      {:ok, bridge} ->
+        {:noreply, push_navigate(socket, to: "/config/bridges/#{bridge.id}/import")}
+
+      {:error, changeset} ->
+        {:noreply,
+         assign(socket,
+           hue_pair_status: :error,
+           hue_pair_error: paired_hue_save_error(changeset),
+           hue_pair_request_id: nil
+         )}
     end
   end
 
@@ -257,7 +580,8 @@ defmodule HueworksWeb.BridgeLive do
        opts: %{
          "broker_port" => socket.assigns.z2m_broker_port,
          "username" => socket.assigns.z2m_username,
-         "password" => socket.assigns.z2m_password
+         "password" => socket.assigns.z2m_password,
+         "base_topic" => socket.assigns.z2m_base_topic
        }
      }}
   end
@@ -308,10 +632,139 @@ defmodule HueworksWeb.BridgeLive do
     |> Map.get(type, default_connection_test_module(type))
   end
 
+  defp start_hue_discovery(socket) do
+    request_id = System.unique_integer([:positive])
+
+    socket
+    |> assign(
+      hue_setup_mode: :guided,
+      hue_discovery_status: :searching,
+      hue_discovery_error: nil,
+      hue_discoveries: [],
+      hue_discovery_request_id: request_id,
+      hue_pair_status: :idle,
+      hue_pair_error: nil,
+      hue_pair_host: nil,
+      hue_pair_request_id: nil
+    )
+    |> start_async({:discover_hue, request_id}, fn -> hue_onboarding_module().discover() end)
+  end
+
+  defp hue_onboarding_module do
+    Application.get_env(:hueworks, :hue_onboarding_module, Hueworks.BridgeOnboarding.Hue)
+  end
+
+  defp start_ha_discovery(socket) do
+    request_id = System.unique_integer([:positive])
+
+    socket
+    |> assign(
+      ha_setup_mode: :guided,
+      ha_discovery_status: :searching,
+      ha_discovery_error: nil,
+      ha_discoveries: [],
+      ha_discovery_request_id: request_id
+    )
+    |> start_async({:discover_ha, request_id}, fn -> ha_onboarding_module().discover() end)
+  end
+
+  defp ha_onboarding_module do
+    Application.get_env(
+      :hueworks,
+      :ha_onboarding_module,
+      Hueworks.BridgeOnboarding.HomeAssistant
+    )
+  end
+
+  defp decorate_hue_devices(devices) do
+    configured = Bridges.list_bridges()
+
+    Enum.map(devices, fn device ->
+      existing =
+        Enum.find(configured, fn bridge ->
+          bridge.type == :hue and
+            ((is_binary(device.id) and bridge.external_id == device.id) or
+               bridge.host == device.host)
+        end)
+
+      %{device: device, configured?: not is_nil(existing), existing: existing}
+    end)
+  end
+
+  defp find_pairable_hue(discoveries, host, external_id) do
+    external_id = empty_to_nil(external_id)
+
+    Enum.find(discoveries, fn discovery ->
+      discovery.configured? == false and discovery.device.host == host and
+        discovery.device.id == external_id
+    end)
+  end
+
+  defp decorate_ha_devices(devices) do
+    configured = Bridges.list_bridges()
+
+    Enum.map(devices, fn device ->
+      endpoint = Hueworks.BridgeOnboarding.HomeAssistant.Device.endpoint(device)
+
+      existing =
+        Enum.find(configured, fn bridge ->
+          bridge.type == :ha and
+            ((is_binary(device.id) and bridge.external_id == device.id) or bridge.host == endpoint)
+        end)
+
+      %{device: device, configured?: not is_nil(existing), existing: existing}
+    end)
+  end
+
+  defp find_selectable_ha(discoveries, host, external_id) do
+    external_id = empty_to_nil(external_id)
+
+    Enum.find(discoveries, fn discovery ->
+      discovery.configured? == false and
+        Hueworks.BridgeOnboarding.HomeAssistant.Device.endpoint(discovery.device) == host and
+        discovery.device.id == external_id
+    end)
+  end
+
+  defp paired_hue_save_error(changeset) do
+    errors = Util.format_changeset_error(changeset)
+
+    if String.contains?(errors, "has already been taken") do
+      "That Hue bridge is already configured. Rediscover bridges to refresh this page."
+    else
+      errors
+    end
+  end
+
+  defp empty_to_nil(""), do: nil
+  defp empty_to_nil(value), do: value
+
+  defp bridge_external_id(%{assigns: %{type: "ha", ha_external_id: external_id}}),
+    do: external_id
+
+  defp bridge_external_id(_socket), do: nil
+
   defp default_connection_test_module(:hue), do: Hueworks.ConnectionTest.Hue
   defp default_connection_test_module(:ha), do: Hueworks.ConnectionTest.HomeAssistant
   defp default_connection_test_module(:caseta), do: Hueworks.ConnectionTest.Caseta
   defp default_connection_test_module(:z2m), do: Hueworks.ConnectionTest.Z2M
+
+  defp ha_export_mqtt_connection do
+    settings = AppSettings.global_map()
+
+    case settings.ha_export_mqtt_host do
+      host when is_binary(host) and host != "" ->
+        %{
+          host: host,
+          port: settings.ha_export_mqtt_port,
+          username: settings.ha_export_mqtt_username,
+          password: settings.ha_export_mqtt_password
+        }
+
+      _ ->
+        nil
+    end
+  end
 
   defp validate_required_fields(%{assigns: %{type: "hue"}} = socket) do
     missing =

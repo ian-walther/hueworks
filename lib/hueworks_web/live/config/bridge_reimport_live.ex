@@ -36,6 +36,7 @@ defmodule HueworksWeb.BridgeReimportLive do
          reimport: nil,
          plan: nil,
          review: nil,
+         completion_summary: nil,
          destructive_preview: [],
          destructive_confirmation: [],
          rooms: Repo.all(from(r in Room, order_by: [asc: r.name]))
@@ -293,9 +294,14 @@ defmodule HueworksWeb.BridgeReimportLive do
 
         {:noreply,
          socket
-         |> assign(bridge: bridge, destructive_confirmation: [])
-         |> put_notice(:info, message)
-         |> push_navigate(to: "/config/bridges")}
+         |> assign(
+           bridge: bridge,
+           import_status: :applied,
+           review: nil,
+           completion_summary: transaction,
+           destructive_confirmation: []
+         )
+         |> put_notice(:info, message)}
 
       {:error, reason} ->
         {:noreply, handle_apply_error(socket, reason)}

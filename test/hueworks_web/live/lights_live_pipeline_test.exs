@@ -47,6 +47,14 @@ defmodule Hueworks.LightsLivePipelineTest do
     {:ok, actions_agent: actions_agent, executor_server: server}
   end
 
+  test "empty device workspace points a new installation to bridge setup", %{conn: conn} do
+    {:ok, _view, html} = live(conn, "/lights")
+
+    assert html =~ "No devices imported yet"
+    assert html =~ ~s(href="/config/bridges/new")
+    assert html =~ "Add Bridge"
+  end
+
   test "manual light toggle enqueues through desired-state pipeline without direct state mutation",
        %{
          conn: conn,
@@ -681,6 +689,24 @@ defmodule Hueworks.LightsLivePipelineTest do
   end
 
   test "group/light filter prefs persist across page reload", %{conn: conn} do
+    room = Repo.insert!(%Room{name: "Studio"})
+
+    bridge =
+      insert_bridge!(%{
+        name: "Hue Bridge",
+        type: :hue,
+        host: "192.168.1.91",
+        credentials: %{"api_key" => "test"}
+      })
+
+    Repo.insert!(%Light{
+      name: "Desk Lamp",
+      source: :hue,
+      source_id: "filter-light",
+      bridge_id: bridge.id,
+      room_id: room.id
+    })
+
     session_id = Ecto.UUID.generate()
     conn = Plug.Test.init_test_session(conn, %{"filter_session_id" => session_id})
 

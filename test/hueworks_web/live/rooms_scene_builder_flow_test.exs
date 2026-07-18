@@ -480,6 +480,100 @@ defmodule Hueworks.RoomsSceneBuilderFlowTest do
            }
   end
 
+  test "saving untouched Custom controls persists the displayed defaults", %{conn: conn} do
+    room = insert_room()
+    bridge = insert_bridge()
+    light = insert_light(room, bridge, %{name: "Lamp", supports_temp: true})
+
+    {:ok, view, _html} = live(conn, "/rooms/#{room.id}/scenes/new")
+
+    view
+    |> form("form[phx-change='select_light'][data-component-id='1']", %{
+      "light_id" => Integer.to_string(light.id)
+    })
+    |> render_change()
+
+    view
+    |> form("form[phx-change='select_light_state'][data-component-id='1']", %{
+      "component_id" => "1",
+      "light_state_id" => "custom"
+    })
+    |> render_change()
+
+    assert has_element?(view, "input[name='brightness'][value='100']")
+    assert has_element?(view, "input[name='temperature'][value='3000']")
+
+    view
+    |> form("form[phx-change='update_scene']", %{"name" => "Default Custom Scene"})
+    |> render_change()
+
+    view
+    |> element("button[phx-click='save_scene']")
+    |> render_click()
+
+    scene =
+      Repo.one(
+        from(s in Scene, where: s.room_id == ^room.id and s.name == "Default Custom Scene")
+      )
+
+    component = Repo.one(from(sc in SceneComponent, where: sc.scene_id == ^scene.id))
+
+    assert component.embedded_manual_config == %{
+             "brightness" => 100,
+             "mode" => "temperature",
+             "temperature" => 3000
+           }
+  end
+
+  test "saving untouched Custom Color controls persists the displayed defaults", %{conn: conn} do
+    room = insert_room()
+    bridge = insert_bridge()
+    light = insert_light(room, bridge, %{name: "Lamp", supports_color: true})
+
+    {:ok, view, _html} = live(conn, "/rooms/#{room.id}/scenes/new")
+
+    view
+    |> form("form[phx-change='select_light'][data-component-id='1']", %{
+      "light_id" => Integer.to_string(light.id)
+    })
+    |> render_change()
+
+    view
+    |> form("form[phx-change='select_light_state'][data-component-id='1']", %{
+      "component_id" => "1",
+      "light_state_id" => "custom_color"
+    })
+    |> render_change()
+
+    assert has_element?(view, "input[name='brightness'][value='100']")
+    assert has_element?(view, "input[name='hue'][value='0']")
+    assert has_element?(view, "input[name='saturation'][value='100']")
+
+    view
+    |> form("form[phx-change='update_scene']", %{"name" => "Default Custom Color Scene"})
+    |> render_change()
+
+    view
+    |> element("button[phx-click='save_scene']")
+    |> render_click()
+
+    scene =
+      Repo.one(
+        from(s in Scene,
+          where: s.room_id == ^room.id and s.name == "Default Custom Color Scene"
+        )
+      )
+
+    component = Repo.one(from(sc in SceneComponent, where: sc.scene_id == ^scene.id))
+
+    assert component.embedded_manual_config == %{
+             "brightness" => 100,
+             "hue" => 0,
+             "mode" => "color",
+             "saturation" => 100
+           }
+  end
+
   test "saved scenes can be activated from the editor and active scene edits refresh desired state",
        %{conn: conn} do
     room = insert_room()

@@ -22,30 +22,221 @@
         <option value="z2m" selected={@type == "z2m"}>Zigbee2MQTT</option>
       </select>
 
-      <label class="hw-field-label" for="bridge_host">IP Address</label>
-      <input
-        id="bridge_host"
-        name="host"
-        type="text"
-        value={@host}
-        class="hw-field-input"
-        placeholder="192.168.1.100"
-        autocomplete="off"
-      />
+      <div
+        :if={@type in ["hue", "caseta", "z2m"] and @ha_import_order_risk.total > 0}
+        id="native-import-order-warning"
+        class="hw-callout hw-callout-warning"
+      >
+        <strong>Home Assistant entities were imported first.</strong>
+        HueWorks found <%= @ha_import_order_risk.lights %> unlinked Home Assistant lights and
+        <%= @ha_import_order_risk.groups %> unlinked groups. Importing native sources first gives
+        HueWorks the best chance to recognize HA mirrors; adding this bridge now may leave visible
+        twins that need review.
+      </div>
 
-      <%= if @type == "hue" do %>
-        <label class="hw-field-label" for="hue_api_key">Hue API Key</label>
+      <%= if @type == "hue" and @hue_setup_mode == :guided do %>
+        <div id="hue-guided-setup" class="hw-onboarding-flow">
+          <div class="hw-onboarding-intro">
+            <div>
+              <p class="hw-eyebrow">Automatic setup</p>
+              <h3>Choose your Hue bridge</h3>
+              <p class="hw-muted">
+                HueWorks searches only standard Hue discovery services. It does not scan arbitrary devices on your network.
+              </p>
+            </div>
+            <button
+              type="button"
+              class="hw-button hw-button-secondary"
+              phx-click="discover_hue_bridges"
+              disabled={@hue_discovery_status == :searching}
+            >
+              <%= if @hue_discovery_status == :searching, do: "Searching...", else: "Search Again" %>
+            </button>
+          </div>
+
+          <%= if @hue_discovery_status == :searching do %>
+            <div class="hw-onboarding-status" role="status">
+              <span class="hw-onboarding-pulse"></span>
+              Looking for Hue bridges on your network...
+            </div>
+          <% end %>
+
+          <%= if @hue_discoveries != [] do %>
+            <div class="hw-discovery-list">
+              <%= for discovery <- @hue_discoveries do %>
+                <article class="hw-discovery-card">
+                  <div class="hw-discovery-copy">
+                    <div class="hw-discovery-title-row">
+                      <h4><%= discovery.device.name || "Hue Bridge" %></h4>
+                      <span
+                        :if={discovery.configured?}
+                        class="hw-status-badge hw-status-badge-success"
+                      >
+                        Already configured
+                      </span>
+                    </div>
+                    <p class="hw-mono"><%= discovery.device.host %></p>
+                    <p :if={discovery.device.id} class="hw-muted">
+                      Bridge ID <%= discovery.device.id %>
+                    </p>
+                  </div>
+                  <button
+                    :if={!discovery.configured?}
+                    type="button"
+                    class="hw-button hw-button-primary"
+                    phx-click="pair_hue_bridge"
+                    phx-value-host={discovery.device.host}
+                    phx-value-external_id={discovery.device.id || ""}
+                    disabled={@hue_pair_status == :pairing}
+                  >
+                    <%= if @hue_pair_status == :pairing and @hue_pair_host == discovery.device.host,
+                      do: "Pairing...",
+                      else: "Pair Bridge" %>
+                  </button>
+                </article>
+              <% end %>
+            </div>
+
+            <div class="hw-callout hw-callout-accent">
+              <strong>Press the link button first.</strong>
+              Press the round button on the selected Hue bridge, then choose Pair Bridge within 30 seconds. HueWorks will create and verify its own credential automatically.
+            </div>
+          <% end %>
+
+          <%= if @hue_pair_status == :pairing do %>
+            <div class="hw-onboarding-status" role="status">
+              <span class="hw-onboarding-pulse"></span>
+              Waiting for the Hue bridge to approve and validate HueWorks...
+              <button type="button" class="hw-link-button" phx-click="cancel_hue_pairing">
+                Cancel
+              </button>
+            </div>
+          <% end %>
+
+          <p :if={@hue_discovery_status == :error} class="hw-error">
+            <%= @hue_discovery_error %>
+          </p>
+          <p :if={@hue_pair_status == :error} class="hw-error"><%= @hue_pair_error %></p>
+
+          <button type="button" class="hw-link-button" phx-click="show_manual_hue">
+            Enter a bridge address and API key manually
+          </button>
+        </div>
+      <% end %>
+
+      <%= if @type == "ha" and @ha_setup_mode == :guided do %>
+        <div id="ha-guided-setup" class="hw-onboarding-flow">
+          <div class="hw-onboarding-intro">
+            <div>
+              <p class="hw-eyebrow">Local discovery</p>
+              <h3>Choose Home Assistant</h3>
+              <p class="hw-muted">
+                HueWorks uses Home Assistant's official local advertisement and does not scan arbitrary network hosts.
+              </p>
+            </div>
+            <button
+              type="button"
+              class="hw-button hw-button-secondary"
+              phx-click="discover_ha_instances"
+              disabled={@ha_discovery_status == :searching}
+            >
+              <%= if @ha_discovery_status == :searching, do: "Searching...", else: "Search Again" %>
+            </button>
+          </div>
+
+          <div :if={@ha_discovery_status == :searching} class="hw-onboarding-status" role="status">
+            <span class="hw-onboarding-pulse"></span>
+            Looking for Home Assistant on your network...
+          </div>
+
+          <div :if={@ha_discoveries != []} class="hw-discovery-list">
+            <article :for={discovery <- @ha_discoveries} class="hw-discovery-card">
+              <div class="hw-discovery-copy">
+                <div class="hw-discovery-title-row">
+                  <h4><%= discovery.device.name || "Home Assistant" %></h4>
+                  <span
+                    :if={discovery.configured?}
+                    class="hw-status-badge hw-status-badge-success"
+                  >
+                    Already configured
+                  </span>
+                  <span
+                    :if={!discovery.configured? and @ha_external_id == discovery.device.id}
+                    class="hw-status-badge hw-status-badge-success"
+                  >
+                    Selected
+                  </span>
+                </div>
+                <p class="hw-mono">
+                  <%= Hueworks.BridgeOnboarding.HomeAssistant.Device.endpoint(discovery.device) %>
+                </p>
+                <p :if={discovery.device.id} class="hw-muted">
+                  Instance ID <%= discovery.device.id %>
+                </p>
+              </div>
+              <button
+                :if={!discovery.configured? and @ha_external_id != discovery.device.id}
+                type="button"
+                class="hw-button hw-button-primary"
+                phx-click="select_ha_instance"
+                phx-value-host={Hueworks.BridgeOnboarding.HomeAssistant.Device.endpoint(discovery.device)}
+                phx-value-external_id={discovery.device.id || ""}
+              >
+                Use This Instance
+              </button>
+            </article>
+          </div>
+
+          <p :if={@ha_discovery_status == :error} class="hw-error"><%= @ha_discovery_error %></p>
+
+          <div :if={@host != ""} class="hw-callout hw-callout-accent">
+            <strong>Instance selected.</strong>
+            Enter a long-lived access token below to validate this connection. Browser authorization will replace this recovery credential path before public release.
+          </div>
+
+          <button type="button" class="hw-link-button" phx-click="show_manual_ha">
+            Enter an address and long-lived token manually
+          </button>
+        </div>
+      <% end %>
+
+      <%= if (@type == "hue" and @hue_setup_mode == :manual) or
+          @type in ["caseta", "z2m"] or
+          (@type == "ha" and (@ha_setup_mode == :manual or @host != "")) do %>
+        <label class="hw-field-label" for="bridge_host">IP Address</label>
         <input
-          id="hue_api_key"
-          name="hue_api_key"
+          id="bridge_host"
+          name="host"
           type="text"
-          value={@hue_api_key}
+          value={@host}
           class="hw-field-input"
+          placeholder="192.168.1.100"
           autocomplete="off"
         />
       <% end %>
 
-      <%= if @type == "ha" do %>
+      <%= if @type == "hue" and @hue_setup_mode == :manual do %>
+        <div class="hw-callout">
+          Manual setup is intended for recovery and segmented networks. Automatic pairing is the recommended path.
+        </div>
+        <label class="hw-field-label" for="hue_api_key">Hue API Key</label>
+        <input
+          id="hue_api_key"
+          name="hue_api_key"
+          type="password"
+          value={@hue_api_key}
+          class="hw-field-input"
+          autocomplete="new-password"
+        />
+        <button type="button" class="hw-link-button" phx-click="show_guided_hue">
+          Use discovery instead
+        </button>
+      <% end %>
+
+      <%= if @type == "ha" and (@ha_setup_mode == :manual or @host != "") do %>
+        <div :if={@ha_setup_mode == :manual} class="hw-callout">
+          Manual setup is intended for segmented networks, reverse proxies, and discovery failures.
+        </div>
         <label class="hw-field-label" for="ha_token">Home Assistant Token</label>
         <input
           id="ha_token"
@@ -55,6 +246,14 @@
           class="hw-field-input"
           autocomplete="off"
         />
+        <button
+          :if={@ha_setup_mode == :manual}
+          type="button"
+          class="hw-link-button"
+          phx-click="show_guided_ha"
+        >
+          Use discovery instead
+        </button>
       <% end %>
 
       <%= if @type == "caseta" do %>
@@ -87,6 +286,16 @@
       <% end %>
 
       <%= if @type == "z2m" do %>
+        <div :if={@ha_export_mqtt} class="hw-callout hw-callout-accent">
+          <div>
+            <strong>Already publishing to Home Assistant?</strong>
+            Reuse that MQTT broker connection here, then confirm the Zigbee2MQTT base topic.
+          </div>
+          <button type="button" class="hw-button" phx-click="use_ha_export_mqtt">
+            Use Existing MQTT Connection
+          </button>
+        </div>
+
         <label class="hw-field-label" for="z2m_broker_port">MQTT Port</label>
         <input
           id="z2m_broker_port"
@@ -130,7 +339,7 @@
         />
       <% end %>
 
-      <div class="hw-modal-actions">
+      <div :if={@type != "hue" or @hue_setup_mode == :manual} class="hw-modal-actions">
         <%= if @test_status == :ok do %>
           <button type="button" class="hw-button hw-button-on" phx-click="proceed_bridge">
             Proceed

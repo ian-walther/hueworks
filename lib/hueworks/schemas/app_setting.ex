@@ -7,7 +7,7 @@ defmodule Hueworks.Schemas.AppSetting do
     field(:latitude, :float)
     field(:longitude, :float)
     field(:timezone, :string)
-    field(:default_transition_ms, :integer, default: 0)
+    field(:default_transition_ms, :integer, default: 750)
     field(:scale_transition_by_brightness, :boolean, default: false)
     field(:ha_export_enabled, :boolean, default: false)
     field(:ha_export_scenes_enabled, :boolean, default: false)
