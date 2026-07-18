@@ -24,8 +24,11 @@ It imports devices from Hue, Caseta, Home Assistant, and Zigbee2MQTT, links them
 
 ## Main UI Surfaces
 
+- `/setup`
+  - recommended Home Assistant-assisted first-run guidance
+  - direct setup alternative, Area design, and resumable progress
 - `/config`
-  - first-run checklist and system readiness
+  - configuration hub, resumable setup entrypoint, and system readiness
 - `/config/general`
   - location, timezone, and transition defaults
 - `/config/bridges`
@@ -78,13 +81,13 @@ At runtime, `Hueworks.Application` supervises the Repo, PubSub, caches, control 
 
 ### First-Run Journey
 
-After startup, open HueWorks at the configured `PHX_HOST` and port. An empty installation routes to Config and shows a state-derived checklist:
+After startup, open HueWorks at the configured `PHX_HOST` and port. An empty installation routes to the resumable setup workspace. Choose either the recommended Home Assistant-assisted path or the fully supported direct path:
 
 1. Set location and timezone under General.
-2. Add native bridges before Home Assistant so mirrored HA entities can be recognized as wrappers instead of visible duplicates.
-3. Review and apply each initial import. Bridge areas can be created, merged into an existing HueWorks area, or skipped.
-4. Review imported areas and lights.
-5. Create and activate a first scene, then use Control for everyday operation.
+2. With Home Assistant assistance, inspect HA Floors, Areas, integrations, and HA-only entities without importing any lights yet.
+3. Design HueWorks Areas by mapping several external spaces into one coordination boundary, keeping spaces separate, or skipping them.
+4. Add and import native bridges before selected Home Assistant-only entities so mirrored HA entities can be recognized as wrappers instead of visible duplicates.
+5. Review final Area placement, create and activate a first scene, then use Control for everyday operation.
 
 Hue bridges can be discovered and paired through their physical link button without handling an API key. Home Assistant can be discovered locally but still uses a manually supplied long-lived token until browser OAuth is implemented. Zigbee2MQTT can reuse the configured Home Assistant-export MQTT connection and validates its retained snapshot before saving. Caseta currently requires certificate files; guided physical-button certificate acquisition remains pre-release work.
 
@@ -180,7 +183,7 @@ See [SECURITY.md](SECURITY.md) before deploying and use private security reporti
 HueWorks includes an opt-in, token-authenticated JSON API at `/api/v1` for
 local diagnostics and explicit operational controls. It is disabled by default.
 
-1. Open `/config` and enable **AI API**.
+1. Open `/config/integrations` and enable **AI API**.
 2. Reveal and copy the generated token only into your local MCP configuration.
 3. Rotate the token from the same panel whenever that local configuration needs
    to be revoked.
@@ -203,13 +206,13 @@ narrow write endpoints are:
 | Endpoint | Operation |
 | --- | --- |
 | `POST /api/v1/scenes/:id/activate` | Activate or reapply one scene. |
-| `DELETE /api/v1/areas/:id/active-scene` | Explicitly deactivate a area scene. |
+| `DELETE /api/v1/areas/:id/active-scene` | Explicitly deactivate an Area scene. |
 | `POST /api/v1/lights/:id/control` | Send exactly one `power`, `brightness`, `kelvin`, or `color` command. |
 | `POST /api/v1/groups/:id/control` | Apply the same explicit command through existing group membership. |
 | `POST /api/v1/runtime/physical-state/refresh` | Start an asynchronous observed-state refresh. |
 
 Manual color input uses `{ "color": { "hue": 0..360, "saturation": 0..100 } }`.
-Brightness, temperature, and color remain unavailable while a area scene is
+Brightness, temperature, and color remain unavailable while an Area scene is
 active, just as they are in the browser UI. Configuration, reimport, Pico
 configuration, credentials, and destructive operations are deliberately not
 available through the API.
@@ -374,6 +377,7 @@ mix dialyzer
 ## Development Notes
 
 - `ADVANCED_DEBUG_LOGGING=true` enables verbose planner and control logs.
+- `HUEWORKS_RUNTIME_IO_DISABLED=true` starts the web and database surfaces without bridge discovery, event streams, executor dispatch, circadian polling, Home Assistant export, or HomeKit. Use it only for isolated migration and copied-database verification; `/health` reports `runtime_io: disabled` and `executor: disabled` while it is active.
 - `BRIDGE_SECRETS_PATH=/path/to/secrets.json` overrides the default seed file path.
 - `CREDENTIALS_ROOT=/path/to/credentials` overrides where uploaded bridge credentials are stored.
 - `ha_export_runtime_enabled` and `circadian_poll_enabled` can be toggled through application config if you need to disable those runtimes in a given environment.

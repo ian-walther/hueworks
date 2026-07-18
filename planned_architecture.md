@@ -87,6 +87,38 @@ Rules:
 - Route specialized update functions through the same validated mutation path instead of maintaining parallel rule copies.
 - Commit multi-row topology changes in one database transaction, then run external integration effects only after a successful commit.
 
+### Areas Own Lighting Coordination
+
+HueWorks Areas are authored lighting coordination boundaries. An Area may represent one physical room, several rooms in an open floor plan, or a larger zone whose lights and scenes should behave together.
+
+Rules:
+- Keep Areas flat unless recursive composition is separately designed; do not infer hierarchy from names or source topology.
+- Treat source-reported rooms, zones, Floors, and Areas as `ExternalSpace` evidence rather than HueWorks ownership.
+- Persist user-reviewed `ExternalSpaceMapping` records separately from source facts. Many external spaces may map to one Area, while one external space maps to at most one Area.
+- Use mappings only as placement defaults for newly imported entities. A source rename, hierarchy change, mapping edit, import, or reimport must not silently move existing lights or groups.
+- Keep bridge group membership as bridge-owned topology even when it diverges from HueWorks Area placement.
+
+### Persist Published Identity
+
+Externally published identity is durable data, not a formatting function.
+
+Rules:
+- Generate an external identity once, store the final published value, and reuse it for the life of the record.
+- Renames, terminology changes, source-space remaps, and display-name changes must not regenerate published identity.
+- Existing identity strings may retain historical vocabulary as opaque data; do not preserve deprecated routes, APIs, topics, or domain models merely because an old identity contains that vocabulary.
+- Missing or duplicate persisted identities are integrity errors. Do not silently repair them during ordinary reads or exports.
+
+### Keep Onboarding State-Derived
+
+Guided setup is an orchestration surface over normal HueWorks configuration, not a second configuration model.
+
+Rules:
+- Derive setup progress from committed Areas, bridges, imports, scenes, and integration state wherever possible.
+- Persist only the selected setup path and explicit completion or dismissal state.
+- Home Assistant-assisted setup may use HA inventory to propose native sources and spatial mappings, but HueWorks remains the owner of Areas, placement, scenes, desired state, and control behavior.
+- Inventory Home Assistant before native setup when helpful, but materialize native entities before selected HA-only entities so duplicate linking retains its supported direction.
+- Keep direct setup fully supported and allow either path to leave for normal configuration without losing completed work.
+
 ### Fan Out Integration Effects After Commit
 
 Rules:

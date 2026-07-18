@@ -132,7 +132,7 @@ HueWorks-managed entities that appear through a Home Assistant bridge import sho
 Upstream areas are used only for placing new entities during manual reimport.
 
 During a reimport review:
-- For a new real entity, show a area destination control.
+- For a new real entity, show an Area destination control.
 - Preselect an existing HueWorks area only when the upstream area name clearly matches a current HueWorks area by normalized name.
 - If no clear match exists, default the new real entity to unassigned and offer `Create area` or `Choose area`.
 - Upstream areas with no imported entities should not create areas or require decisions.
