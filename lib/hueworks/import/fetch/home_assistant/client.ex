@@ -7,12 +7,23 @@ defmodule Hueworks.Import.Fetch.HomeAssistant.Client do
 
   require Logger
 
-  @default_state %{token: nil, authenticated: false, next_id: 1, pending: %{}, queue: []}
+  @default_state %{
+    token: nil,
+    authenticated: false,
+    auth_waiters: [],
+    next_id: 1,
+    pending: %{},
+    queue: []
+  }
 
   def connect(host, token) do
-    url = "ws://#{Host.normalize(host)}/api/websocket"
+    url = Host.websocket_url(host, "/api/websocket")
     state = %{@default_state | token: token}
-    WebSockex.start_link(url, __MODULE__, state)
+
+    with {:ok, pid} <- WebSockex.start_link(url, __MODULE__, state),
+         :ok <- await_authenticated(pid) do
+      {:ok, pid}
+    end
   end
 
   def request(pid, type, params \\ %{}) do
@@ -49,6 +60,17 @@ defmodule Hueworks.Import.Fetch.HomeAssistant.Client do
     end
   end
 
+  def handle_cast({:await_authenticated, ref, from}, state) do
+    state = normalize_state(state)
+
+    if state.authenticated do
+      send(from, {:ha_authenticated, ref, :ok})
+      {:ok, state}
+    else
+      {:ok, %{state | auth_waiters: [{ref, from} | state.auth_waiters]}}
+    end
+  end
+
   @impl true
   def handle_frame({:text, message}, state) do
     state = normalize_state(state)
@@ -59,12 +81,15 @@ defmodule Hueworks.Import.Fetch.HomeAssistant.Client do
         {:reply, {:text, Jason.encode!(auth)}, state}
 
       {:ok, %{"type" => "auth_ok"}} ->
-        state = %{state | authenticated: true}
+        notify_auth_waiters(state.auth_waiters, :ok)
+        state = %{state | authenticated: true, auth_waiters: []}
         send_next_queued(state)
 
-      {:ok, %{"type" => "auth_invalid"} = payload} ->
-        Logger.error("Home Assistant auth failed: #{inspect(payload)}")
-        {:ok, state}
+      {:ok, %{"type" => "auth_invalid"}} ->
+        Logger.warning("Home Assistant authentication rejected")
+        notify_auth_waiters(state.auth_waiters, {:error, :unauthorized})
+        reject_queued(state.queue, :unauthorized)
+        {:close, %{state | auth_waiters: [], queue: []}}
 
       {:ok, %{"type" => "result", "id" => id} = payload} ->
         {pending, pending_map} = Map.pop(state.pending, id)
@@ -122,4 +147,25 @@ defmodule Hueworks.Import.Fetch.HomeAssistant.Client do
   end
 
   defp normalize_state(_state), do: @default_state
+
+  defp await_authenticated(pid) do
+    ref = make_ref()
+    WebSockex.cast(pid, {:await_authenticated, ref, self()})
+
+    receive do
+      {:ha_authenticated, ^ref, result} -> result
+    after
+      10_000 -> {:error, :timeout}
+    end
+  end
+
+  defp notify_auth_waiters(waiters, result) do
+    Enum.each(waiters, fn {ref, from} -> send(from, {:ha_authenticated, ref, result}) end)
+  end
+
+  defp reject_queued(queue, reason) do
+    Enum.each(queue, fn {ref, from, _type, _params, _fun} ->
+      send(from, {:response, ref, {:error, reason}})
+    end)
+  end
 end

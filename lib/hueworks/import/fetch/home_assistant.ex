@@ -7,7 +7,7 @@ defmodule Hueworks.Import.Fetch.HomeAssistant do
 
   alias Hueworks.Import.Fetch.Common
   alias Hueworks.Import.Fetch.HomeAssistant.Client
-  alias Hueworks.Schemas.Bridge
+  alias Hueworks.HomeAssistant.TokenProvider
 
   def fetch do
     :ha
@@ -21,17 +21,13 @@ defmodule Hueworks.Import.Fetch.HomeAssistant do
   end
 
   defp fetch_snapshot(bridge, log?) do
-    token = Bridge.credentials_struct(bridge).token
-
-    if Common.invalid_credential?(token) do
-      raise "Missing Home Assistant token for bridge #{bridge.name} (#{bridge.host})"
-    end
+    token = token_for_bridge!(bridge)
 
     if log? do
       Logger.info("Connecting to Home Assistant...")
     end
 
-    {:ok, pid} = client_module().connect(bridge.host, token)
+    {:ok, pid} = connect_client(bridge, token)
 
     if log? do
       Logger.info("Fetching entity registry...")
@@ -114,13 +110,8 @@ defmodule Hueworks.Import.Fetch.HomeAssistant do
   end
 
   def fetch_scene_entities_for_bridge(bridge) do
-    token = Bridge.credentials_struct(bridge).token
-
-    if Common.invalid_credential?(token) do
-      raise "Missing Home Assistant token for bridge #{bridge.name} (#{bridge.host})"
-    end
-
-    {:ok, pid} = Client.connect(bridge.host, token)
+    token = token_for_bridge!(bridge)
+    {:ok, pid} = connect_client(bridge, token, Client)
     states = get_states(pid)
 
     states
@@ -131,6 +122,39 @@ defmodule Hueworks.Import.Fetch.HomeAssistant do
     end)
     |> Enum.map(&simplify_scene/1)
     |> Enum.filter(&is_map/1)
+  end
+
+  defp token_for_bridge!(bridge) do
+    case TokenProvider.token_for(bridge) do
+      {:ok, token} ->
+        token
+
+      {:error, :missing_token} ->
+        raise "Missing Home Assistant token"
+
+      {:error, :reauthorization_required} ->
+        raise "Home Assistant authorization required"
+
+      {:error, :temporarily_unavailable} ->
+        raise "Home Assistant authorization temporarily unavailable"
+
+      {:error, _reason} ->
+        raise "Home Assistant authorization unavailable"
+    end
+  end
+
+  defp connect_client(bridge, token, client \\ nil) do
+    client = client || client_module()
+
+    case client.connect(bridge.host, token) do
+      {:error, :unauthorized} ->
+        with {:ok, refreshed} <- TokenProvider.refresh(bridge) do
+          client.connect(bridge.host, refreshed)
+        end
+
+      result ->
+        result
+    end
   end
 
   defp get_entity_registry(pid) do

@@ -15,6 +15,12 @@ defmodule Hueworks.Schemas.Bridge.Credentials do
     field(:username, :string)
     field(:password, :string)
     field(:base_topic, :string)
+    field(:auth_type, :string)
+    field(:access_token, :string)
+    field(:refresh_token, :string)
+    field(:expires_at, :integer)
+    field(:client_id, :string)
+    field(:auth_status, :string)
   end
 
   @fields [
@@ -26,7 +32,13 @@ defmodule Hueworks.Schemas.Bridge.Credentials do
     :broker_port,
     :username,
     :password,
-    :base_topic
+    :base_topic,
+    :auth_type,
+    :access_token,
+    :refresh_token,
+    :expires_at,
+    :client_id,
+    :auth_status
   ]
 
   def load(type, %__MODULE__{} = credentials) when type in [:hue, :ha, :caseta, :z2m],
@@ -65,6 +77,8 @@ defmodule Hueworks.Schemas.Bridge.Credentials do
     credentials
     |> cast(attrs, @fields)
     |> validate_number(:broker_port, greater_than_or_equal_to: 1, less_than_or_equal_to: 65_535)
+    |> validate_inclusion(:auth_type, ["manual", "oauth"])
+    |> validate_inclusion(:auth_status, ["ready", "reauthorization_required"])
     |> prune_unused_fields(type)
   end
 
@@ -81,6 +95,12 @@ defmodule Hueworks.Schemas.Bridge.Credentials do
     |> maybe_put("username", credentials.username)
     |> maybe_put("password", credentials.password)
     |> maybe_put("base_topic", credentials.base_topic)
+    |> maybe_put("auth_type", credentials.auth_type)
+    |> maybe_put("access_token", credentials.access_token)
+    |> maybe_put("refresh_token", credentials.refresh_token)
+    |> maybe_put("expires_at", credentials.expires_at)
+    |> maybe_put("client_id", credentials.client_id)
+    |> maybe_put("auth_status", credentials.auth_status)
   end
 
   defp normalize_input(attrs) do
@@ -97,11 +117,19 @@ defmodule Hueworks.Schemas.Bridge.Credentials do
   end
 
   defp normalize_value("broker_port", value), do: normalize_port(value)
+  defp normalize_value("expires_at", value), do: normalize_integer(value)
   defp normalize_value(_key, value), do: normalize_optional_string(value)
 
   defp normalize_port(value) do
     case Util.parse_optional_integer(value) do
       port when is_integer(port) -> port
+      _ -> value
+    end
+  end
+
+  defp normalize_integer(value) do
+    case Util.parse_optional_integer(value) do
+      integer when is_integer(integer) -> integer
       _ -> value
     end
   end
@@ -120,7 +148,15 @@ defmodule Hueworks.Schemas.Bridge.Credentials do
 
   defp prune_unused_fields(changeset, :ha) do
     changeset
-    |> keep_fields([:token])
+    |> keep_fields([
+      :token,
+      :auth_type,
+      :access_token,
+      :refresh_token,
+      :expires_at,
+      :client_id,
+      :auth_status
+    ])
   end
 
   defp prune_unused_fields(changeset, :caseta) do

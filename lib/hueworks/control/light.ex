@@ -55,9 +55,11 @@ defmodule Hueworks.Control.Light do
   end
 
   defp dispatch(%{source: :ha} = light, action, apply_opts) do
-    with {:ok, host, token} <- HomeAssistantBridge.credentials_for(light),
-         {service, payload} <- HomeAssistantPayload.action_payload(action, light, apply_opts),
-         {:ok, _resp} <- HomeAssistantClient.request(host, token, service, payload) do
+    with {service, payload} <- HomeAssistantPayload.action_payload(action, light, apply_opts),
+         {:ok, _resp} <-
+           HomeAssistantBridge.request(light, fn host, token ->
+             HomeAssistantClient.request(host, token, service, payload)
+           end) do
       {:ok, DispatchReceipt.new(HomeAssistantPayload.effective_transition_ms(apply_opts))}
     else
       {:error, _} = error -> error

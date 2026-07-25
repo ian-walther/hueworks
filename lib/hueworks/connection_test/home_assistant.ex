@@ -4,7 +4,7 @@ defmodule Hueworks.ConnectionTest.HomeAssistant do
   alias Hueworks.HomeAssistant.Host
 
   def test(host, token) do
-    url = "http://#{Host.normalize(host)}/api/config"
+    url = Host.http_url(host, "/api/config")
     headers = [{"Authorization", "Bearer #{token}"}]
 
     case HTTPoison.get(url, headers, recv_timeout: 5_000) do

@@ -144,6 +144,33 @@ defmodule Hueworks.SchemasTest do
     assert credentials.cacert_path == "/tmp/caseta-ca.crt"
   end
 
+  test "Home Assistant credentials preserve browser authorization metadata" do
+    changeset =
+      Bridge.changeset(%Bridge{}, %{
+        type: :ha,
+        name: "Home Assistant",
+        host: "ha.local:8123",
+        credentials: %{
+          "auth_type" => "oauth",
+          "access_token" => "short-lived",
+          "refresh_token" => "refresh-token",
+          "expires_at" => 1_800_000_000,
+          "client_id" => "http://hueworks.home",
+          "auth_status" => "ready"
+        }
+      })
+
+    assert changeset.valid?
+
+    credentials = Ecto.Changeset.apply_changes(changeset).credentials
+    assert credentials.auth_type == "oauth"
+    assert credentials.access_token == "short-lived"
+    assert credentials.refresh_token == "refresh-token"
+    assert credentials.expires_at == 1_800_000_000
+    assert credentials.client_id == "http://hueworks.home"
+    assert credentials.auth_status == "ready"
+  end
+
   test "bridge import requires bridge_id, raw_blob, status, imported_at" do
     changeset = BridgeImport.changeset(%BridgeImport{}, %{})
     errors = errors_on(changeset)

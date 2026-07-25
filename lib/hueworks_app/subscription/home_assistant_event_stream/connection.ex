@@ -9,23 +9,17 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.Connection do
 
   alias Hueworks.ExternalScenes
   alias Hueworks.HomeAssistant.Host
+  alias Hueworks.HomeAssistant.TokenProvider
   alias Hueworks.Control.{DesiredState, GroupState, State}
   alias Hueworks.Control.StateParser
   alias Hueworks.Repo
   alias Hueworks.Schemas.Group
   alias Hueworks.Schemas.Light
-  alias Hueworks.Schemas.Bridge
 
   @refresh_interval_ms 2_000
 
   def start_link(bridge, websockex \\ WebSockex) do
-    url = "ws://#{Host.normalize(bridge.host)}/api/websocket"
-    token = Bridge.credentials_struct(bridge).token
-
-    if invalid_credential?(token) do
-      Logger.warning("HA events missing token for #{bridge.name} (#{bridge.host})")
-      {:error, :missing_token}
-    else
+    with {:ok, token} <- TokenProvider.token_for(bridge.id) do
       state = %{
         bridge: bridge,
         token: token,
@@ -37,7 +31,13 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.Connection do
         last_refresh_at: 0
       }
 
-      websockex.start_link(url, __MODULE__, state, async: true)
+      websockex.start_link(Host.websocket_url(bridge.host, "/api/websocket"), __MODULE__, state,
+        async: true
+      )
+    else
+      {:error, reason} ->
+        Logger.warning("HA events unavailable for #{bridge.name} (#{bridge.host}): #{reason}")
+        {:error, reason}
     end
   end
 
@@ -60,6 +60,10 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.Connection do
 
       {:ok, %{"type" => "auth_ok"}} ->
         subscribe_next_event_type(state)
+
+      {:ok, %{"type" => "auth_invalid"}} ->
+        _ = TokenProvider.refresh(state.bridge.id)
+        {:close, state}
 
       {:ok, %{"type" => "result", "success" => true}} ->
         subscribe_next_event_type(state)
@@ -247,9 +251,5 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.Connection do
 
   defp next_id(state) do
     {state.next_id, %{state | next_id: state.next_id + 1}}
-  end
-
-  defp invalid_credential?(value) do
-    not is_binary(value) or value == "" or value == "CHANGE_ME"
   end
 end

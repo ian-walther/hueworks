@@ -135,6 +135,43 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.ConnectionTest do
     assert state.group_members == %{}
   end
 
+  test "start_link preserves secure Home Assistant websocket URLs" do
+    bridge =
+      insert_bridge!(%{
+        type: :ha,
+        name: "Secure HA",
+        host: "https://ha.example.test:8443",
+        credentials: %{"token" => "token"},
+        enabled: true
+      })
+
+    assert {:ok, _pid} = Connection.start_link(bridge, FakeWebSockex)
+
+    assert_receive {:websockex_start_link, "wss://ha.example.test:8443/api/websocket", Connection,
+                    state, _opts}
+
+    assert state.token == "token"
+  end
+
+  test "auth rejection marks manual credentials for reauthorization before reconnecting" do
+    bridge =
+      insert_bridge!(%{
+        type: :ha,
+        name: "Rejected HA",
+        host: "ha.local:8123",
+        credentials: %{"token" => "rejected-token"},
+        enabled: true
+      })
+
+    state = ha_state(bridge, %{token: "rejected-token"})
+    payload = %{"type" => "auth_invalid", "message" => "Invalid access token"}
+
+    assert {:close, ^state} = Connection.handle_frame({:text, Jason.encode!(payload)}, state)
+
+    credentials = bridge.id |> then(&Repo.get!(Bridge, &1)) |> Bridge.credentials_struct()
+    assert credentials.auth_status == "reauthorization_required"
+  end
+
   test "handle_connect loads HA entity indexes inside the connection process" do
     area = Repo.insert!(%Area{name: "Connected HA"})
 

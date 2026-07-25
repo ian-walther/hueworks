@@ -4,6 +4,7 @@ defmodule Hueworks.Control.Bootstrap.HomeAssistant do
   import Ecto.Query, only: [from: 2]
 
   alias Hueworks.Control.Indexes
+  alias Hueworks.Control.HomeAssistantBridge
   alias Hueworks.Control.StateParser
   alias Hueworks.HomeAssistant.Host
   alias Hueworks.Repo
@@ -24,44 +25,53 @@ defmodule Hueworks.Control.Bootstrap.HomeAssistant do
   end
 
   defp bootstrap_bridge(%Bridge{} = bridge) do
-    token = Bridge.credentials_struct(bridge).token
-
-    if is_binary(token) and token != "" do
-      lights_by_id = Indexes.lights_by_source_id(bridge.id, :ha)
-      groups_by_id = Indexes.groups_by_source_id(bridge.id, :ha)
-      states = fetch_ha_states(bridge.host, token)
-
-      Enum.each(states, fn state ->
-        entity_id = state["entity_id"]
-        attrs = state["attributes"] || %{}
-        current = build_ha_state(state["state"], attrs, entity_id, lights_by_id, groups_by_id)
-
-        case Map.get(lights_by_id, entity_id) do
-          nil -> :ok
-          db_light -> State.put(:light, db_light.id, current)
-        end
-
-        case Map.get(groups_by_id, entity_id) do
-          nil -> :ok
-          db_group -> State.put(:group, db_group.id, current)
-        end
+    result =
+      HomeAssistantBridge.request(%{bridge_id: bridge.id}, fn host, token ->
+        fetch_ha_states(host, token)
       end)
+
+    case result do
+      {:ok, states} ->
+        lights_by_id = Indexes.lights_by_source_id(bridge.id, :ha)
+        groups_by_id = Indexes.groups_by_source_id(bridge.id, :ha)
+
+        Enum.each(states, fn state ->
+          entity_id = state["entity_id"]
+          attrs = state["attributes"] || %{}
+          current = build_ha_state(state["state"], attrs, entity_id, lights_by_id, groups_by_id)
+
+          case Map.get(lights_by_id, entity_id) do
+            nil -> :ok
+            db_light -> State.put(:light, db_light.id, current)
+          end
+
+          case Map.get(groups_by_id, entity_id) do
+            nil -> :ok
+            db_group -> State.put(:group, db_group.id, current)
+          end
+        end)
+
+      {:error, _reason} ->
+        :ok
     end
   end
 
   defp fetch_ha_states(host, token) do
-    url = "http://#{Host.normalize(host)}/api/states"
+    url = Host.http_url(host, "/api/states")
     headers = [{"Authorization", "Bearer #{token}"}, {"Content-Type", "application/json"}]
 
     case HTTPoison.get(url, headers, recv_timeout: 10_000) do
       {:ok, %HTTPoison.Response{status_code: 200, body: body}} ->
         case Jason.decode(body) do
-          {:ok, data} when is_list(data) -> data
-          _ -> []
+          {:ok, data} when is_list(data) -> {:ok, data}
+          _ -> {:error, :invalid_response}
         end
 
-      _ ->
-        []
+      {:ok, %HTTPoison.Response{status_code: status, body: body}} ->
+        {:error, {:http_error, status, body}}
+
+      {:error, %HTTPoison.Error{reason: reason}} ->
+        {:error, {:http_error, reason}}
     end
   end
 

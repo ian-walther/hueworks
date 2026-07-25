@@ -16,6 +16,7 @@ defmodule Hueworks.Application do
       Hueworks.Repo,
       {Phoenix.PubSub, name: Hueworks.PubSub},
       HueworksApp.Cache.Store,
+      Hueworks.HomeAssistant.TokenProvider,
       Hueworks.Control.State,
       Hueworks.Control.DesiredState,
       Hueworks.Control.TraceBuffer

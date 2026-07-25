@@ -6,6 +6,7 @@ config :hueworks, Hueworks.Repo,
   show_sensitive_data_on_connection_error: true
 
 config :hueworks, HueworksWeb.Endpoint,
+  url: [host: "localhost", port: 4000, scheme: "http"],
   http: [ip: {127, 0, 0, 1}, port: 4000],
   check_origin: false,
   code_reloader: true,

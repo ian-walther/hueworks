@@ -1,8 +1,10 @@
 defmodule Hueworks.Control.HomeAssistantClient do
   @moduledoc false
 
+  alias Hueworks.HomeAssistant.Host
+
   def request(host, token, service, payload) do
-    url = "http://#{host}/api/services/light/#{service}"
+    url = Host.http_url(host, "/api/services/light/#{service}")
     body = Jason.encode!(payload)
 
     headers = [
