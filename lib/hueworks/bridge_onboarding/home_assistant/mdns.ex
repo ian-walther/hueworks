@@ -3,14 +3,18 @@ defmodule Hueworks.BridgeOnboarding.HomeAssistant.Mdns do
 
   import MdnsLite.DNS
 
-  alias Hueworks.BridgeOnboarding.HomeAssistant.Device
+  alias Hueworks.BridgeOnboarding.{HomeAssistant.Device, MdnsTransport}
 
   @service ~c"_home-assistant._tcp.local"
 
-  def discover do
+  def discover(opts \\ []) do
     query = dns_query(class: :in, type: :ptr, domain: @service)
-    response = MdnsLite.query(query, 1_000)
-    {:ok, parse(response)}
+    transport = Keyword.get(opts, :transport, MdnsTransport)
+
+    case transport.query(query, 1_000) do
+      {:ok, response} -> {:ok, parse(response)}
+      {:error, reason} -> {:error, reason}
+    end
   end
 
   def parse(%{answer: answers, additional: additional}) do

@@ -58,7 +58,15 @@ defmodule Hueworks.BridgeOnboarding.HomeAssistantTest do
     assert message =~ "manual"
   end
 
+  test "mDNS discovery preserves transport failures" do
+    assert {:error, :network_down} = Mdns.discover(transport: __MODULE__.UnavailableTransport)
+  end
+
   defmodule EmptyDiscovery do
     def discover, do: {:ok, []}
+  end
+
+  defmodule UnavailableTransport do
+    def query(_query, _timeout), do: {:error, :network_down}
   end
 end

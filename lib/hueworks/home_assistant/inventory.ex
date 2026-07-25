@@ -31,8 +31,9 @@ defmodule Hueworks.HomeAssistant.Inventory do
     lights = Normalize.fetch(normalized, :lights) || []
     groups = Normalize.fetch(normalized, :groups) || []
     config_entries = Normalize.fetch(raw, :config_entries) |> Normalize.normalize_list()
+    device_registry = Normalize.fetch(raw, :device_registry) |> Normalize.normalize_list()
 
-    native_sources = native_sources(config_entries, lights, groups)
+    native_sources = native_sources(config_entries, device_registry, lights, groups)
 
     %{
       floors: spaces_of_kind(normalized, "ha_floor"),
@@ -60,7 +61,7 @@ defmodule Hueworks.HomeAssistant.Inventory do
     end
   end
 
-  defp native_sources(config_entries, lights, groups) do
+  defp native_sources(config_entries, device_registry, lights, groups) do
     entities = lights ++ groups
 
     config_entries
@@ -88,7 +89,9 @@ defmodule Hueworks.HomeAssistant.Inventory do
               config_entry_id: entry_id,
               title: Normalize.fetch(entry, :title) || domain,
               entity_count: entity_count,
-              confidence: native_source_confidence(kind, entry)
+              confidence: native_source_confidence(kind, entry),
+              external_id: native_source_external_id(kind, entry, device_registry),
+              host: native_source_host(kind, entry)
             }
           ]
       end
@@ -98,6 +101,79 @@ defmodule Hueworks.HomeAssistant.Inventory do
 
   defp native_source_confidence(:z2m, _entry), do: :possible
   defp native_source_confidence(_kind, _entry), do: :confirmed
+
+  defp native_source_external_id(:hue, entry, devices) do
+    entry_id = Normalize.fetch(entry, :entry_id) || Normalize.fetch(entry, :config_entry_id)
+
+    devices
+    |> Enum.filter(&device_for_entry?(&1, entry_id))
+    |> Enum.flat_map(&(Normalize.fetch(&1, :identifiers) |> Normalize.normalize_list()))
+    |> Enum.find_value(fn
+      ["hue", id] when is_binary(id) -> hue_bridge_id(id)
+      {"hue", id} when is_binary(id) -> hue_bridge_id(id)
+      _ -> nil
+    end)
+  end
+
+  defp native_source_external_id(:caseta, entry, _devices) do
+    entry
+    |> Normalize.fetch(:title)
+    |> case do
+      value when is_binary(value) ->
+        value = value |> String.trim() |> String.downcase()
+        if Regex.match?(~r/^[0-9a-f]{8}$/, value), do: value
+
+      _ ->
+        nil
+    end
+  end
+
+  defp native_source_external_id(_kind, _entry, _devices), do: nil
+
+  defp native_source_host(:z2m, entry) do
+    entry
+    |> Normalize.fetch(:title)
+    |> network_host()
+  end
+
+  defp native_source_host(_kind, _entry), do: nil
+
+  defp device_for_entry?(device, entry_id) when is_binary(entry_id) do
+    config_entries =
+      device
+      |> Normalize.fetch(:config_entries)
+      |> Normalize.normalize_list()
+
+    entry_id in config_entries or Normalize.fetch(device, :config_entry_id) == entry_id
+  end
+
+  defp device_for_entry?(_device, _entry_id), do: false
+
+  defp hue_bridge_id(id) do
+    normalized = id |> String.trim() |> String.downcase()
+    if Regex.match?(~r/^[0-9a-f]{16}$/, normalized), do: normalized
+  end
+
+  defp network_host(value) when is_binary(value) do
+    value = String.trim(value)
+
+    cond do
+      value == "" ->
+        nil
+
+      match?({:ok, _address}, :inet.parse_address(String.to_charlist(value))) ->
+        value
+
+      String.contains?(value, ".") and
+          Regex.match?(~r/^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/i, value) ->
+        value
+
+      true ->
+        nil
+    end
+  end
+
+  defp network_host(_value), do: nil
 
   defp spaces_of_kind(normalized, kind) do
     normalized

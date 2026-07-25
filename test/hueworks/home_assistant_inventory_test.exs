@@ -7,8 +7,16 @@ defmodule Hueworks.HomeAssistant.InventoryTest do
     raw = %{
       config_entries: [
         %{entry_id: "hue-entry", domain: "hue", title: "Hue Bridge"},
+        %{entry_id: "caseta-entry", domain: "lutron_caseta", title: "047a00fc"},
         %{entry_id: "zha-entry", domain: "zha", title: "ZHA"},
-        %{entry_id: "mqtt-entry", domain: "mqtt", title: "MQTT"}
+        %{entry_id: "mqtt-entry", domain: "mqtt", title: "192.168.1.41"}
+      ],
+      device_registry: [
+        %{
+          config_entries: ["hue-entry"],
+          model: "Hue Bridge",
+          identifiers: [["hue", "001788fffe111111"]]
+        }
       ],
       floors: [],
       areas: []
@@ -30,12 +38,18 @@ defmodule Hueworks.HomeAssistant.InventoryTest do
     assert Enum.map(inventory.ha_only_entities, & &1.source_id) == ["light.template"]
 
     assert Enum.any?(inventory.native_sources, fn source ->
-             source.kind == :hue and source.confidence == :confirmed and
+             source.kind == :hue and source.external_id == "001788fffe111111" and
+               source.confidence == :confirmed and
                source.entity_count == 1
            end)
 
     assert Enum.any?(inventory.native_sources, fn source ->
-             source.kind == :z2m and source.confidence == :possible
+             source.kind == :caseta and source.external_id == "047a00fc"
+           end)
+
+    assert Enum.any?(inventory.native_sources, fn source ->
+             source.kind == :z2m and source.host == "192.168.1.41" and
+               source.confidence == :possible
            end)
   end
 
