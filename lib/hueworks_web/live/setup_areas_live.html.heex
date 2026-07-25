@@ -1,0 +1,147 @@
+<HueworksWeb.PageComponents.page
+  class="hw-setup-area-page"
+  eyebrow="Setup"
+  title="Design HueWorks Areas"
+  subtitle="Decide how Home Assistant spaces should guide HueWorks placement before importing native bridges."
+  flash={@flash}
+>
+  <:preamble>
+    <HueworksWeb.ConfigComponents.breadcrumbs
+      items={[%{label: "Setup", to: "/setup"}, %{label: "Area design"}]}
+    />
+  </:preamble>
+  <:actions>
+    <a class="hw-button" href="/setup">Back to setup</a>
+  </:actions>
+
+  <section id="area-design-progress" class="hw-panel hw-area-progress-panel">
+    <div>
+      <p class="hw-eyebrow">Progress</p>
+      <h2>
+        <%= if @complete?,
+          do: "Every space has a saved decision",
+          else: "#{@progress.total - @progress.resolved} decisions remain" %>
+      </h2>
+      <p class="hw-muted">
+        Mappings and ignored spaces are durable configuration. You can leave and return without losing progress.
+      </p>
+    </div>
+    <div
+      class="hw-area-progress-meter"
+      role="progressbar"
+      aria-valuemin="0"
+      aria-valuemax={@progress.total}
+      aria-valuenow={@progress.resolved}
+    >
+      <div style={"--hw-progress: #{progress_percent(@progress)}%"}></div>
+      <span><%= @progress.resolved %> of <%= @progress.total %> resolved</span>
+    </div>
+  </section>
+
+  <section :if={@entries == []} class="hw-panel hw-empty-state">
+    <h2>Connect Home Assistant first</h2>
+    <p>HueWorks needs a read-only inventory before it can offer spatial guidance.</p>
+    <a class="hw-button hw-button-primary" href="/config/bridges/new?type=ha">Add Home Assistant</a>
+  </section>
+
+  <section
+    :if={Enum.any?(@entries, &is_nil(&1.design))}
+    class="hw-panel hw-empty-state"
+    id="area-design-inventory-needed"
+  >
+    <h2>Refresh Home Assistant inventory</h2>
+    <p>Return to setup and fetch inventory before making Area decisions.</p>
+    <a class="hw-button" href="/setup">Return to setup</a>
+  </section>
+
+  <section
+    :if={!@complete? && @progress.total > 0}
+    class="hw-area-work-queue"
+    id="area-design-work-queue"
+  >
+    <div class="hw-section-header">
+      <div>
+        <p class="hw-eyebrow">Work queue</p>
+        <h2>Spaces needing a decision</h2>
+        <p class="hw-muted">Each saved choice leaves this list immediately.</p>
+      </div>
+    </div>
+
+    <div :for={entry <- @entries} :if={entry.design} class="hw-area-design-source">
+      <div :if={length(@entries) > 1} class="hw-section-header hw-area-source-heading">
+        <div>
+          <p class="hw-eyebrow">Home Assistant</p>
+          <h3><%= entry.bridge.name %></h3>
+        </div>
+      </div>
+
+      <.floor_editor
+        :for={floor <- entry.design.pending_floors}
+        entry={entry}
+        floor={floor}
+        areas={@areas}
+        open={MapSet.member?(@open_floor_customizer_ids, floor.space.id)}
+      />
+
+      <div :if={entry.design.pending_unfloored_areas != []} class="hw-unfloored-spaces hw-card">
+        <div class="hw-section-header">
+          <div>
+            <p class="hw-eyebrow">Outside a Floor</p>
+            <h3>Unfloored HA Areas</h3>
+            <p class="hw-muted">These spaces have no parent Floor and need individual decisions.</p>
+          </div>
+        </div>
+        <div class="hw-source-space-list">
+          <.space_row
+            :for={item <- entry.design.pending_unfloored_areas}
+            entry={entry}
+            item={item}
+            areas={@areas}
+          />
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section :if={@complete?} class="hw-panel hw-area-design-complete" id="area-design-complete">
+    <p class="hw-eyebrow">Ready for native bridges</p>
+    <h2>Area guidance is complete</h2>
+    <p class="hw-muted">
+      Confident identifier matches can now preselect native lights and groups into these HueWorks Areas. Existing entity placement will never be moved automatically.
+    </p>
+    <div class="hw-actions hw-actions-start">
+      <a class="hw-button hw-button-primary" href="/setup">Continue setup</a>
+    </div>
+  </section>
+
+  <details
+    :if={@progress.resolved > 0}
+    class="hw-panel hw-completed-decisions"
+    id="area-design-completed-decisions"
+  >
+    <summary>
+      <span>
+        <span class="hw-eyebrow">Saved configuration</span>
+        <strong>Completed decisions</strong>
+      </span>
+      <span class="hw-status-badge hw-status-badge-success"><%= @progress.resolved %> resolved</span>
+    </summary>
+    <div class="hw-completed-decisions-body">
+      <div :for={entry <- @entries} :if={entry.design} class="hw-area-design-source">
+        <.floor_editor
+          :for={floor <- entry.design.resolved_floors}
+          entry={entry}
+          floor={floor}
+          areas={@areas}
+          completed={true}
+        />
+        <.space_row
+          :for={item <- entry.design.resolved_unfloored_areas}
+          entry={entry}
+          item={item}
+          areas={@areas}
+        />
+      </div>
+    </div>
+  </details>
+</HueworksWeb.PageComponents.page>

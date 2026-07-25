@@ -12,6 +12,67 @@
         <h2>Location and transitions</h2>
       </div>
     </div>
+
+    <div class="hw-location-entry-tools">
+      <div>
+        <h3>Find approximate coordinates</h3>
+        <p class="hw-muted">
+          Look up a ZIP or postal code, use this browser's location, or enter coordinates manually below.
+        </p>
+      </div>
+
+      <form
+        id="postal-code-lookup-form"
+        class="hw-postal-code-form"
+        phx-submit="lookup_postal_code"
+      >
+        <div class="hw-inline-field-stack hw-postal-country-field">
+          <label class="hw-field-label" for="postal_country_code">Country</label>
+          <input
+            id="postal_country_code"
+            name="country_code"
+            type="text"
+            value={@postal_country_code}
+            class="hw-field-input"
+            maxlength="2"
+            autocomplete="country"
+            autocapitalize="characters"
+            aria-describedby="postal-country-help"
+          />
+          <small id="postal-country-help" class="hw-field-help">Two-letter code</small>
+        </div>
+
+        <div class="hw-inline-field-stack">
+          <label class="hw-field-label" for="postal_code">ZIP or Postal Code</label>
+          <input
+            id="postal_code"
+            name="postal_code"
+            type="text"
+            value={@postal_code}
+            class="hw-field-input"
+            maxlength="20"
+            autocomplete="postal-code"
+          />
+        </div>
+
+        <button
+          type="submit"
+          class="hw-button"
+          disabled={@postal_lookup_status == :loading}
+          phx-disable-with="Looking up..."
+        >
+          <%= if @postal_lookup_status == :loading, do: "Looking up...", else: "Look Up" %>
+        </button>
+      </form>
+
+      <div class="hw-location-browser-action">
+        <span class="hw-muted">or</span>
+        <button type="button" class="hw-button" id="locate-btn" phx-hook="GeoLocate">
+          Use Current Location
+        </button>
+      </div>
+    </div>
+
     <form class="hw-form" phx-change="update_global_solar" phx-submit="save_global_solar">
       <label class="hw-field-label" for="global_timezone">Timezone</label>
       <select id="global_timezone" name="timezone" class="hw-select">
@@ -19,12 +80,6 @@
           <option value={timezone} selected={timezone == @timezone}><%= timezone %></option>
         <% end %>
       </select>
-
-      <div class="hw-modal-actions hw-actions-start">
-        <button type="button" class="hw-button" id="locate-btn" phx-hook="GeoLocate">
-          Use Current Location
-        </button>
-      </div>
 
       <div class="hw-form-grid">
         <div>
@@ -64,7 +119,7 @@
         step="1"
         value={@default_transition_ms}
         class="hw-field-input"
-        placeholder="0"
+        placeholder="500"
         autocomplete="off"
       />
 
@@ -84,7 +139,7 @@
       </label>
 
       <div class="hw-modal-actions">
-        <button type="submit" class="hw-button hw-button-primary">Save General Settings</button>
+        <button type="submit" class="hw-button hw-button-primary">Save And Exit</button>
       </div>
     </form>
   </section>

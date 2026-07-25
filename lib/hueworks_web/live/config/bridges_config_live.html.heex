@@ -37,10 +37,34 @@
               ]}>
                 <%= if entry.imported?, do: "Imported", else: "Setup incomplete" %>
               </span>
+              <span
+                :if={entry.home_assistant_auth == :oauth}
+                class="hw-status-badge hw-status-badge-success"
+              >
+                Browser authorized
+              </span>
+              <span
+                :if={entry.home_assistant_auth == :manual}
+                class="hw-status-badge"
+              >
+                Manual token
+              </span>
+              <span
+                :if={entry.home_assistant_auth == :reauthorization_required}
+                class="hw-status-badge hw-status-badge-warning"
+              >
+                Authorization required
+              </span>
             </div>
             <p class="hw-meta"><%= entry.bridge.type %> · <%= entry.bridge.host %></p>
             <p :if={entry.latest_import} class="hw-meta">
               Last checked <%= Calendar.strftime(entry.latest_import.imported_at, "%b %-d, %Y at %-I:%M %p") %>
+            </p>
+            <p
+              :if={entry.home_assistant_auth == :reauthorization_required}
+              class="hw-error"
+            >
+              Home Assistant rejected these credentials. Reconnect before importing or controlling HA entities.
             </p>
           </div>
 
@@ -64,6 +88,20 @@
             </a>
             <a :if={entry.bridge.type == :ha} class="hw-button" href={"/config/bridges/#{entry.bridge.id}/external-scenes"}>
               Scene Import
+            </a>
+            <a
+              :if={entry.home_assistant_auth == :manual}
+              class="hw-button"
+              href={"/config/bridges/home-assistant/authorize?bridge_id=#{entry.bridge.id}"}
+            >
+              Switch to Browser Authorization
+            </a>
+            <a
+              :if={entry.home_assistant_auth in [:oauth, :reauthorization_required]}
+              class="hw-button"
+              href={"/config/bridges/home-assistant/authorize?bridge_id=#{entry.bridge.id}"}
+            >
+              Reconnect Home Assistant
             </a>
           </div>
         </div>

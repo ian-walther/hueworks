@@ -2,13 +2,20 @@ defmodule Hueworks.Schemas.AppSetting do
   use Ecto.Schema
   import Ecto.Changeset
 
+  @default_transition_ms 500
+  @default_scale_transition_by_brightness true
+
   schema "app_settings" do
     field(:scope, :string, default: "global")
     field(:latitude, :float)
     field(:longitude, :float)
     field(:timezone, :string)
-    field(:default_transition_ms, :integer, default: 750)
-    field(:scale_transition_by_brightness, :boolean, default: false)
+    field(:default_transition_ms, :integer, default: @default_transition_ms)
+
+    field(:scale_transition_by_brightness, :boolean,
+      default: @default_scale_transition_by_brightness
+    )
+
     field(:ha_export_enabled, :boolean, default: false)
     field(:ha_export_scenes_enabled, :boolean, default: false)
     field(:ha_export_area_selects_enabled, :boolean, default: false)

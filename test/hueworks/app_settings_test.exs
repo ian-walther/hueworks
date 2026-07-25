@@ -15,7 +15,8 @@ defmodule Hueworks.AppSettingsTest do
   test "new installations start with a comfortable manual transition" do
     settings = AppSettings.get_global()
 
-    assert settings.default_transition_ms == 750
+    assert settings.default_transition_ms == 500
+    assert settings.scale_transition_by_brightness == true
   end
 
   test "derives legacy ha_export_enabled when only area scene selectors are enabled" do

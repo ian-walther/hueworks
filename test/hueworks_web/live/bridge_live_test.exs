@@ -10,6 +10,7 @@ defmodule HueworksWeb.BridgeLiveTest do
   setup do
     previous_modules = Application.get_env(:hueworks, :connection_test_modules)
     previous_hue_onboarding = Application.get_env(:hueworks, :hue_onboarding_module)
+    previous_caseta_onboarding = Application.get_env(:hueworks, :caseta_onboarding_module)
     previous_ha_onboarding = Application.get_env(:hueworks, :ha_onboarding_module)
     previous_test_pid = Application.get_env(:hueworks, :bridge_live_test_pid)
     previous_runtime_io_disabled = Application.get_env(:hueworks, :runtime_io_disabled)
@@ -29,6 +30,7 @@ defmodule HueworksWeb.BridgeLiveTest do
     on_exit(fn ->
       restore_app_env(:hueworks, :connection_test_modules, previous_modules)
       restore_app_env(:hueworks, :hue_onboarding_module, previous_hue_onboarding)
+      restore_app_env(:hueworks, :caseta_onboarding_module, previous_caseta_onboarding)
       restore_app_env(:hueworks, :ha_onboarding_module, previous_ha_onboarding)
       restore_app_env(:hueworks, :bridge_live_test_pid, previous_test_pid)
       restore_app_env(:hueworks, :runtime_io_disabled, previous_runtime_io_disabled)
@@ -173,8 +175,16 @@ defmodule HueworksWeb.BridgeLiveTest do
         "external_id" => "1234567890abcdef"
       })
 
-    assert html =~ "Home Assistant Token"
-    assert has_element?(view, "#bridge_host[value='192.168.1.41:8123']")
+    refute html =~ "Home Assistant Token"
+
+    assert has_element?(
+             view,
+             ".hw-callout-flow #authorize-home-assistant[href*='host=192.168.1.41%3A8123'][href*='external_id=1234567890abcdef']",
+             "Authorize with Home Assistant"
+           )
+
+    refute has_element?(view, "#bridge_host")
+    refute has_element?(view, "button[phx-click='test_bridge']")
   end
 
   test "query parameter opens the existing workflow on the requested bridge type", %{conn: conn} do
@@ -184,6 +194,47 @@ defmodule HueworksWeb.BridgeLiveTest do
     assert has_element?(view, "#bridge_type option[value='ha'][selected]")
     assert html =~ "Choose Home Assistant"
     refute html =~ "Choose your Hue bridge"
+  end
+
+  test "query parameters prefill a Zigbee2MQTT broker discovered through Home Assistant", %{
+    conn: conn
+  } do
+    {:ok, view, _html} = live(conn, "/config/bridges/new?type=z2m&host=192.168.1.41")
+
+    assert has_element?(view, "#bridge_type option[value='z2m'][selected]")
+    assert has_element?(view, "#bridge_host[value='192.168.1.41']")
+  end
+
+  test "Home Assistant Hue identity selects the matching discovered bridge", %{conn: conn} do
+    Application.put_env(
+      :hueworks,
+      :hue_onboarding_module,
+      HueworksWeb.BridgeLiveTest.MultipleHueOnboarding
+    )
+
+    {:ok, view, _html} =
+      live(conn, "/config/bridges/new?type=hue&external_id=001788fffe222222")
+
+    html = render_async(view)
+
+    assert html =~ "Upstairs Hue"
+    assert html =~ "Selected from Home Assistant"
+    refute html =~ "Office Hue"
+  end
+
+  test "Home Assistant Caseta identity discovers and prefills the bridge address", %{conn: conn} do
+    Application.put_env(
+      :hueworks,
+      :caseta_onboarding_module,
+      HueworksWeb.BridgeLiveTest.CasetaOnboarding
+    )
+
+    {:ok, view, _html} =
+      live(conn, "/config/bridges/new?type=caseta&external_id=047a00fc")
+
+    render_async(view)
+
+    assert has_element?(view, "#bridge_host[value='192.168.1.123']")
   end
 
   test "marks a discovered Home Assistant instance that is already configured", %{conn: conn} do
@@ -205,7 +256,9 @@ defmodule HueworksWeb.BridgeLiveTest do
     refute html =~ ~s(phx-click="select_ha_instance")
   end
 
-  test "persists the selected Home Assistant identity after connection validation", %{conn: conn} do
+  test "keeps long-lived Home Assistant tokens as a non-refreshable manual fallback", %{
+    conn: conn
+  } do
     Application.put_env(:hueworks, :connection_test_modules, %{
       ha: HueworksWeb.BridgeLiveTest.SuccessfulHomeAssistant
     })
@@ -214,11 +267,10 @@ defmodule HueworksWeb.BridgeLiveTest do
 
     render_change(view, "update_bridge", %{"type" => "ha"})
     render_async(view)
+    html = render_click(view, "show_manual_ha", %{})
 
-    render_click(view, "select_ha_instance", %{
-      "host" => "192.168.1.41:8123",
-      "external_id" => "1234567890abcdef"
-    })
+    assert html =~ "Long-lived tokens cannot be refreshed automatically."
+    assert html =~ "Home Assistant Token"
 
     render_change(view, "update_bridge", %{
       "type" => "ha",
@@ -232,10 +284,11 @@ defmodule HueworksWeb.BridgeLiveTest do
     assert {:error, {:live_redirect, %{to: to}}} =
              render_click(view, "proceed_bridge", %{})
 
-    bridge = Repo.get_by!(Bridge, type: :ha, external_id: "1234567890abcdef")
+    bridge = Repo.get_by!(Bridge, type: :ha, host: "192.168.1.41:8123")
     assert bridge.host == "192.168.1.41:8123"
+    assert is_nil(bridge.external_id)
     assert Bridge.credentials_struct(bridge).token == "long-lived-token"
-    assert to == "/config/bridges/#{bridge.id}/import"
+    assert to == "/setup?refresh_ha_inventory=#{bridge.id}"
   end
 
   test "renders z2m fields when type is selected", %{conn: conn} do
@@ -302,6 +355,10 @@ defmodule HueworksWeb.BridgeLiveTest do
 
     {:ok, view, _html} = live(conn, "/config/bridges/new")
 
+    render_change(view, "update_bridge", %{"type" => "ha"})
+    render_async(view)
+    render_click(view, "show_manual_ha", %{})
+
     render_change(view, "update_bridge", %{
       "type" => "ha",
       "host" => "ha.local",
@@ -349,6 +406,10 @@ defmodule HueworksWeb.BridgeLiveTest do
 
   test "cannot proceed before running a successful connection test", %{conn: conn} do
     {:ok, view, _html} = live(conn, "/config/bridges/new")
+
+    render_change(view, "update_bridge", %{"type" => "ha"})
+    render_async(view)
+    render_click(view, "show_manual_ha", %{})
 
     render_change(view, "update_bridge", %{
       "type" => "ha",
@@ -424,6 +485,38 @@ defmodule HueworksWeb.BridgeLiveTest.HueOnboarding do
        name: "Office Hue",
        external_id: "001788fffe111111"
      }}
+  end
+end
+
+defmodule HueworksWeb.BridgeLiveTest.MultipleHueOnboarding do
+  alias Hueworks.BridgeOnboarding.Hue.Device
+
+  def discover do
+    {:ok,
+     [
+       %Device{
+         id: "001788fffe111111",
+         host: "192.168.1.10",
+         name: "Office Hue",
+         sources: [:mdns]
+       },
+       %Device{
+         id: "001788fffe222222",
+         host: "192.168.1.11",
+         name: "Upstairs Hue",
+         sources: [:mdns]
+       }
+     ]}
+  end
+end
+
+defmodule HueworksWeb.BridgeLiveTest.CasetaOnboarding do
+  def discover do
+    {:ok,
+     [
+       %{id: "047a00fc", host: "192.168.1.123", name: "Lutron 047a00fc"},
+       %{id: "12345678", host: "192.168.1.124", name: "Lutron 12345678"}
+     ]}
   end
 end
 

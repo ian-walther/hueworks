@@ -26,6 +26,7 @@ defmodule HueworksWeb.Router do
 
     get("/", RedirectController, :home)
     live("/setup", SetupLive, :index)
+    live("/setup/areas", SetupAreasLive, :index)
     live("/control", ControlLive, :index)
     live("/lights", LightsLive, :index)
     live("/areas", AreasLive, :index)
@@ -40,6 +41,8 @@ defmodule HueworksWeb.Router do
     live("/config/light-states/new/circadian", LightStateEditorLive, :new_circadian)
     live("/config/light-states/:id/edit", LightStateEditorLive, :edit)
     live("/config/bridges/new", BridgeLive, :index)
+    get("/config/bridges/home-assistant/authorize", HomeAssistantAuthController, :authorize)
+    get("/config/bridges/home-assistant/callback", HomeAssistantAuthController, :callback)
     live("/config/bridges/:id/import", BridgeSetupLive, :import)
     live("/config/bridges/:id/reimport", BridgeReimportLive, :index)
     live("/config/bridges/:id/picos", PicoConfigLive, :index)

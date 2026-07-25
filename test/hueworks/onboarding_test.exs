@@ -24,6 +24,8 @@ defmodule Hueworks.OnboardingTest do
   test "selected path, completion, and dismissal are the only persisted onboarding state" do
     assert {:ok, selected} = Onboarding.choose_path(:ha_assisted)
     assert selected.onboarding_path == "ha_assisted"
+    assert selected.default_transition_ms == 500
+    assert selected.scale_transition_by_brightness == true
 
     assert %{path: :ha_assisted, auto_open?: true} = Onboarding.status()
 

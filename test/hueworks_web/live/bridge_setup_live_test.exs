@@ -350,7 +350,17 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
           metadata: %{}
         }
       ],
-      groups: [],
+      groups: [
+        %{
+          source: :hue,
+          source_id: "group-1",
+          name: "Office Group",
+          area_source_id: "1",
+          space_refs: [%{kind: "hue_area", external_id: "1", relationship: "direct"}],
+          capabilities: %{},
+          metadata: %{}
+        }
+      ],
       memberships: %{}
     }
 
@@ -371,6 +381,14 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
 
     assert Hueworks.ExternalSpaces.mapped_area_id(hue_bridge, "hue_area", "1") ==
              destination.id
+
+    assert Repo.get_by!(Hueworks.Schemas.Light, bridge_id: hue_bridge.id, source_id: "1").area_id ==
+             destination.id
+
+    assert Repo.get_by!(Hueworks.Schemas.Group,
+             bridge_id: hue_bridge.id,
+             source_id: "group-1"
+           ).area_id == destination.id
   end
 
   test "check all preserves merge selection for matching areas", %{conn: conn} do

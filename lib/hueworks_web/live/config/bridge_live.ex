@@ -13,13 +13,16 @@ defmodule HueworksWeb.BridgeLive do
   def mount(params, _session, socket) do
     ha_export_mqtt = ha_export_mqtt_connection()
     type = initial_type(params)
+    host = initial_host(params)
+    source_external_id = initial_external_id(params)
 
     socket =
       socket
       |> assign(
         mode: :new,
-        host: "",
+        host: host,
         type: type,
+        source_external_id: source_external_id,
         hue_setup_mode: :guided,
         hue_api_key: "",
         hue_discovery_status: :idle,
@@ -47,6 +50,9 @@ defmodule HueworksWeb.BridgeLive do
         caseta_key_path: "",
         caseta_cacert_path: "",
         caseta_staged_paths: %{},
+        caseta_discovery_status: :idle,
+        caseta_discovery_error: nil,
+        caseta_discovery_request_id: nil,
         test_status: :idle,
         test_error: nil,
         test_bridge_name: nil,
@@ -64,11 +70,29 @@ defmodule HueworksWeb.BridgeLive do
   defp initial_type(%{"type" => type}) when type in ["hue", "ha", "caseta", "z2m"], do: type
   defp initial_type(_params), do: "hue"
 
+  defp initial_host(%{"host" => host}) when is_binary(host), do: Util.normalize_host_input(host)
+  defp initial_host(_params), do: ""
+
+  defp initial_external_id(%{"external_id" => external_id}) when is_binary(external_id) do
+    external_id
+    |> String.trim()
+    |> String.downcase()
+    |> empty_to_nil()
+  end
+
+  defp initial_external_id(_params), do: nil
+
   defp start_initial_discovery(%{assigns: %{type: "hue"}} = socket),
     do: start_hue_discovery(socket)
 
   defp start_initial_discovery(%{assigns: %{type: "ha"}} = socket),
     do: start_ha_discovery(socket)
+
+  defp start_initial_discovery(
+         %{assigns: %{type: "caseta", source_external_id: external_id, host: ""}} = socket
+       )
+       when is_binary(external_id),
+       do: start_caseta_discovery(socket)
 
   defp start_initial_discovery(socket), do: socket
 
@@ -334,6 +358,8 @@ defmodule HueworksWeb.BridgeLive do
     if socket.assigns.hue_discovery_request_id == request_id do
       case result do
         {:ok, devices} ->
+          devices = prefer_requested_hue(devices, socket.assigns.source_external_id)
+
           {:noreply,
            assign(socket,
              hue_discovery_status: :ok,
@@ -349,6 +375,43 @@ defmodule HueworksWeb.BridgeLive do
              hue_discovery_error: message,
              hue_discoveries: [],
              hue_discovery_request_id: nil
+           )}
+      end
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_async({:discover_caseta, request_id}, {:ok, result}, socket) do
+    if socket.assigns.caseta_discovery_request_id == request_id do
+      case result do
+        {:ok, devices} ->
+          case find_requested_caseta(devices, socket.assigns.source_external_id) do
+            nil ->
+              {:noreply,
+               assign(socket,
+                 caseta_discovery_status: :error,
+                 caseta_discovery_error:
+                   "The selected Caseta bridge was not found. Enter its address manually.",
+                 caseta_discovery_request_id: nil
+               )}
+
+            device ->
+              {:noreply,
+               assign(socket,
+                 host: device.host,
+                 caseta_discovery_status: :ok,
+                 caseta_discovery_error: nil,
+                 caseta_discovery_request_id: nil
+               )}
+          end
+
+        {:error, message} ->
+          {:noreply,
+           assign(socket,
+             caseta_discovery_status: :error,
+             caseta_discovery_error: message,
+             caseta_discovery_request_id: nil
            )}
       end
     else
@@ -406,6 +469,20 @@ defmodule HueworksWeb.BridgeLive do
            "Hue discovery stopped unexpectedly. Retry or use the manual address fallback.",
          hue_discoveries: [],
          hue_discovery_request_id: nil
+       )}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_async({:discover_caseta, request_id}, {:exit, _reason}, socket) do
+    if socket.assigns.caseta_discovery_request_id == request_id do
+      {:noreply,
+       assign(socket,
+         caseta_discovery_status: :error,
+         caseta_discovery_error:
+           "Caseta discovery stopped unexpectedly. Enter the bridge address manually.",
+         caseta_discovery_request_id: nil
        )}
     else
       {:noreply, socket}
@@ -479,7 +556,14 @@ defmodule HueworksWeb.BridgeLive do
 
         case Repo.insert(changeset) do
           {:ok, bridge} ->
-            {:noreply, push_navigate(socket, to: "/config/bridges/#{bridge.id}/import")}
+            destination =
+              if bridge.type == :ha do
+                "/setup?refresh_ha_inventory=#{bridge.id}"
+              else
+                "/config/bridges/#{bridge.id}/import"
+              end
+
+            {:noreply, push_navigate(socket, to: destination)}
 
           {:error, changeset} ->
             {:noreply,
@@ -704,6 +788,45 @@ defmodule HueworksWeb.BridgeLive do
     Application.get_env(:hueworks, :hue_onboarding_module, Hueworks.BridgeOnboarding.Hue)
   end
 
+  defp start_caseta_discovery(socket) do
+    if Hueworks.RuntimeIO.disabled?() do
+      assign(socket,
+        caseta_discovery_status: :error,
+        caseta_discovery_error: "Runtime I/O is disabled for this verification instance.",
+        caseta_discovery_request_id: nil
+      )
+    else
+      request_id = System.unique_integer([:positive])
+      external_id = socket.assigns.source_external_id
+
+      socket
+      |> assign(
+        caseta_discovery_status: :searching,
+        caseta_discovery_error: nil,
+        caseta_discovery_request_id: request_id
+      )
+      |> start_async({:discover_caseta, request_id}, fn ->
+        discover_caseta(caseta_onboarding_module(), external_id)
+      end)
+    end
+  end
+
+  defp discover_caseta(module, external_id) do
+    if Code.ensure_loaded?(module) and function_exported?(module, :discover, 1) do
+      module.discover(external_id: external_id)
+    else
+      module.discover()
+    end
+  end
+
+  defp caseta_onboarding_module do
+    Application.get_env(
+      :hueworks,
+      :caseta_onboarding_module,
+      Hueworks.BridgeOnboarding.Caseta
+    )
+  end
+
   defp start_ha_discovery(socket) do
     if Hueworks.RuntimeIO.disabled?() do
       assign(socket,
@@ -754,6 +877,28 @@ defmodule HueworksWeb.BridgeLive do
       %{device: device, configured?: not is_nil(existing), existing: existing}
     end)
   end
+
+  defp prefer_requested_hue(devices, nil), do: devices
+
+  defp prefer_requested_hue(devices, requested_id) do
+    case Enum.find(devices, &same_external_id?(&1.id, requested_id)) do
+      nil -> devices
+      selected -> [selected]
+    end
+  end
+
+  defp find_requested_caseta(devices, requested_id) do
+    devices
+    |> Enum.map(&Hueworks.BridgeOnboarding.Caseta.Device.normalize/1)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.find(&same_external_id?(&1.id, requested_id))
+  end
+
+  defp same_external_id?(left, right) when is_binary(left) and is_binary(right) do
+    String.downcase(left) == String.downcase(right)
+  end
+
+  defp same_external_id?(_left, _right), do: false
 
   defp find_pairable_hue(discoveries, host, external_id) do
     external_id = empty_to_nil(external_id)

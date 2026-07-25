@@ -3,8 +3,8 @@ defmodule HueworksWeb.SetupLiveTest do
 
   import Phoenix.LiveViewTest
 
-  alias Hueworks.{ExternalSpaces, Onboarding, Repo}
-  alias Hueworks.Schemas.{AppSetting, Area, Bridge, BridgeImport, Light}
+  alias Hueworks.{Onboarding, Repo}
+  alias Hueworks.Schemas.{AppSetting, Area, Bridge, BridgeImport, ExternalSpace, Light}
 
   setup do
     previous_pipeline = Application.get_env(:hueworks, :onboarding_import_pipeline)
@@ -39,6 +39,19 @@ defmodule HueworksWeb.SetupLiveTest do
 
     assert has_element?(view, "#setup-workspace[data-path='direct']")
     assert has_element?(view, "#setup-location[data-complete='false']", "Set location")
+
+    assert has_element?(
+             view,
+             "#setup-location a[href='/config/general?return_to=setup']",
+             "Open"
+           )
+
+    assert has_element?(
+             view,
+             "#setup-location-panel a[href='/config/general?return_to=setup']",
+             "Configure location"
+           )
+
     assert has_element?(view, "#setup-areas[data-complete='false']", "Create Areas")
     assert has_element?(view, "a[href='/config/bridges/new?type=hue']", "Add Hue")
 
@@ -50,7 +63,20 @@ defmodule HueworksWeb.SetupLiveTest do
     assert has_element?(resumed, "#setup-scene[data-complete='true']")
   end
 
-  test "HA inventory is visible without materializing entities and Floor choice maps its children",
+  test "HA-assisted setup leads with the Home Assistant connection", %{conn: conn} do
+    assert {:ok, _settings} = Onboarding.choose_path(:ha_assisted)
+
+    {:ok, view, _html} = live(conn, "/setup")
+    html = render(view)
+
+    {home_assistant_position, _length} = :binary.match(html, ~s(id="home-assistant-setup"))
+    {location_position, _length} = :binary.match(html, ~s(id="setup-location-panel"))
+
+    assert home_assistant_position < location_position
+    assert has_element?(view, "a[href='/config/bridges/new?type=ha']", "Add Home Assistant")
+  end
+
+  test "HA inventory is visible without materializing entities and links to focused Area design",
        %{
          conn: conn
        } do
@@ -61,49 +87,19 @@ defmodule HueworksWeb.SetupLiveTest do
 
     assert has_element?(view, "#setup-workspace[data-path='ha_assisted']")
     assert has_element?(view, "#ha-inventory-#{bridge.id}", "1 floor")
-    assert has_element?(view, "#ha-floor-floor-1", "First Floor")
+    assert has_element?(view, "#setup-area-design-summary", "4 remain")
+    assert has_element?(view, "a[href='/setup/areas']", "Review Area design")
+    assert has_element?(view, "a[href*='type=hue'][href*='external_id=001788fffe111111']")
+    assert has_element?(view, "a[href*='type=caseta'][href*='external_id=047a00fc']")
+    assert has_element?(view, "a[href*='type=z2m'][href*='host=192.168.1.41']")
 
-    assert view |> element("#ha-floor-floor-1 header .hw-meta") |> render() =~
-             "2 relevant entities"
+    refute has_element?(
+             view,
+             "#home-assistant-setup a[href='/config/bridges/new?type=ha']",
+             "Add Home Assistant"
+           )
 
     assert Repo.aggregate(Light, :count) == 0
-
-    html =
-      render_click(view, "use_floor_one", %{
-        "bridge_id" => Integer.to_string(bridge.id),
-        "external_id" => "floor-1",
-        "name" => "Main Floor"
-      })
-
-    assert html =~ "Mapped First Floor and its HA Areas to Main Floor."
-    destination = Repo.get_by!(Area, name: "Main Floor")
-
-    assert ExternalSpaces.mapped_area_id(bridge, "ha_floor", "floor-1") == destination.id
-    assert ExternalSpaces.mapped_area_id(bridge, "ha_area", "office") == destination.id
-    assert ExternalSpaces.mapped_area_id(bridge, "ha_area", "kitchen") == destination.id
-    assert Repo.aggregate(Light, :count) == 0
-  end
-
-  test "individual HA Areas can map to an existing destination and be skipped", %{conn: conn} do
-    assert {:ok, _settings} = Onboarding.choose_path(:ha_assisted)
-    bridge = insert_ha_inventory!()
-    destination = Repo.insert!(%Area{name: "Main Floor"})
-
-    {:ok, view, _html} = live(conn, "/setup")
-
-    view
-    |> form("#map-space-#{bridge.id}-office", %{
-      "target_area_id" => Integer.to_string(destination.id)
-    })
-    |> render_submit()
-
-    assert ExternalSpaces.mapped_area_id(bridge, "ha_area", "office") == destination.id
-
-    view
-    |> element("button[phx-click='skip_space'][phx-value-external_id='office']")
-    |> render_click()
-
-    assert ExternalSpaces.mapped_area_id(bridge, "ha_area", "office") == nil
   end
 
   test "inventory refresh runs asynchronously and explicitly remains non-materializing", %{
@@ -130,7 +126,31 @@ defmodule HueworksWeb.SetupLiveTest do
 
     html = render_async(view)
     assert html =~ "Home Assistant inventory refreshed. No entities were imported."
-    assert html =~ "Inventory Floor"
+    assert html =~ "Design HueWorks Areas"
+    assert html =~ "1 remain"
+    assert Repo.aggregate(Light, :count) == 0
+  end
+
+  test "new Home Assistant continuation refreshes inventory and advances to Area design", %{
+    conn: conn
+  } do
+    Application.put_env(:hueworks, :onboarding_import_pipeline, __MODULE__.InventoryPipeline)
+    assert {:ok, _settings} = Onboarding.choose_path(:ha_assisted)
+
+    bridge =
+      %Bridge{}
+      |> Bridge.changeset(%{
+        type: :ha,
+        name: "Home Assistant",
+        host: "ha.home:8123",
+        credentials: %{"token" => "token"}
+      })
+      |> Repo.insert!()
+
+    {:ok, view, _html} = live(conn, "/setup?refresh_ha_inventory=#{bridge.id}")
+    assert_redirect(view, "/setup/areas", 1_000)
+    assert Repo.aggregate(BridgeImport, :count) == 1
+    assert Repo.aggregate(ExternalSpace, :count) == 1
     assert Repo.aggregate(Light, :count) == 0
   end
 
@@ -163,7 +183,34 @@ defmodule HueworksWeb.SetupLiveTest do
 
     Repo.insert!(%BridgeImport{
       bridge_id: bridge.id,
-      raw_blob: %{"floors" => [], "areas" => [], "config_entries" => []},
+      raw_blob: %{
+        "floors" => [],
+        "areas" => [],
+        "config_entries" => [
+          %{
+            "entry_id" => "hue-entry",
+            "domain" => "hue",
+            "title" => "Hue Bridge 001788111111"
+          },
+          %{
+            "entry_id" => "caseta-entry",
+            "domain" => "lutron_caseta",
+            "title" => "047a00fc"
+          },
+          %{
+            "entry_id" => "mqtt-entry",
+            "domain" => "mqtt",
+            "title" => "192.168.1.41"
+          }
+        ],
+        "device_registry" => [
+          %{
+            "config_entries" => ["hue-entry"],
+            "model" => "Hue Bridge",
+            "identifiers" => [["hue", "001788fffe111111"]]
+          }
+        ]
+      },
       normalized_blob: %{
         external_spaces: [
           %{kind: "ha_floor", external_id: "floor-1", name: "First Floor"},
@@ -200,6 +247,8 @@ defmodule HueworksWeb.SetupLiveTest do
       status: :normalized,
       imported_at: DateTime.utc_now() |> DateTime.truncate(:second)
     })
+
+    {:ok, _design} = Hueworks.Onboarding.AreaDesign.refresh(bridge)
 
     bridge
   end

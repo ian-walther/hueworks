@@ -2,7 +2,7 @@
   class="hw-setup-page"
   eyebrow="First run"
   title="Set up HueWorks"
-  subtitle="Build a trustworthy lighting model one committed step at a time. You can leave and resume without losing completed work."
+  subtitle="Build a trustworthy lighting model one step at a time. You can leave this setup at any time and resume later"
   flash={@flash}
 >
   <:actions>
@@ -36,8 +36,8 @@
         <span class="hw-status-badge hw-status-badge-success">Recommended</span>
         <h3>Use Home Assistant to guide setup</h3>
         <p>
-          Read your existing integrations, Floors, Areas, and stable device identities. HueWorks
-          uses that inventory as guidance while remaining the durable owner of Areas, scenes, and control.
+          Read your existing integrations, Floors, Areas, Rooms, and Lights/Groups. HueWorks uses
+          that information to guide setup here
         </p>
         <button
           type="button"
@@ -53,8 +53,8 @@
         <span class="hw-status-badge">Direct setup</span>
         <h3>Set up HueWorks directly</h3>
         <p>
-          Create HueWorks Areas and connect each lighting source without using Home Assistant as
-          an inventory assistant. The resulting configuration has the same capabilities.
+          Create HueWorks Areas and sync bridges without syncing from Home Assistant. HueWorks has
+          all the same capabilities without Home Assistant, but initial setup may be more tedious
         </p>
         <button
           type="button"
@@ -94,32 +94,19 @@
     </aside>
 
     <div class="hw-setup-main">
-      <section class="hw-panel" id="setup-location-panel">
-        <div class="hw-panel-header">
-          <div>
-            <p class="hw-eyebrow">Foundation</p>
-            <h2>Location and Areas</h2>
-          </div>
-          <span class={["hw-status-badge", @status.location_configured? && "hw-status-badge-success"]}>
-            <%= if @status.location_configured?, do: "Location ready", else: "Location needed" %>
-          </span>
-        </div>
-        <p class="hw-muted">
-          Location drives solar and circadian behavior. HueWorks Areas are the boundaries whose lights and scenes should coordinate together.
-        </p>
-        <div class="hw-actions">
-          <a class="hw-button" href="/config/general">Configure location</a>
-          <a class="hw-button" href="/areas">Manage Areas</a>
-        </div>
-      </section>
-
       <section :if={@status.path == :ha_assisted} class="hw-panel" id="home-assistant-setup">
         <div class="hw-panel-header">
           <div>
             <p class="hw-eyebrow">Inventory first</p>
             <h2>Home Assistant guidance</h2>
           </div>
-          <a class="hw-button hw-button-primary" href="/config/bridges/new?type=ha">Add Home Assistant</a>
+          <a
+            :if={@ha_entries == []}
+            class="hw-button hw-button-primary"
+            href="/config/bridges/new?type=ha"
+          >
+            Add Home Assistant
+          </a>
         </div>
 
         <div :if={@ha_entries == []} class="hw-empty-state hw-empty-state-compact">
@@ -170,7 +157,7 @@
                   <strong><%= source.title %></strong>
                   <span class="hw-meta"><%= source_label(source.kind) %> · <%= count_label(source.entity_count, "entity") %></span>
                 </div>
-                <a class="hw-button hw-button-small" href={"/config/bridges/new?type=#{source.kind}"}>
+                <a class="hw-button hw-button-small" href={native_source_path(source)}>
                   Add natively
                 </a>
               </article>
@@ -179,90 +166,52 @@
         </article>
       </section>
 
-      <section :if={@status.path == :ha_assisted && Enum.any?(@ha_entries, & &1.design)} class="hw-panel" id="ha-area-design">
+      <section
+        :if={@status.path == :ha_assisted && Enum.any?(@ha_entries, & &1.design)}
+        class="hw-panel hw-panel-flow"
+        id="setup-area-design-summary"
+      >
         <div class="hw-panel-header">
           <div>
-            <p class="hw-eyebrow">Review before import</p>
+            <p class="hw-eyebrow">Organize before import</p>
             <h2>Design HueWorks Areas</h2>
           </div>
+          <span class={[
+            "hw-status-badge",
+            Enum.all?(@ha_entries, &area_design_complete?/1) && "hw-status-badge-success"
+          ]}>
+            <%= area_design_status(@ha_entries) %>
+          </span>
         </div>
         <p class="hw-muted">
-          Home Assistant spaces are evidence, not ownership. Merge several source spaces into one coordination Area or keep them separate.
+          Resolve how Home Assistant Floors and Areas should guide the placement of native bridge
+          lights and groups. Decisions are saved as you make them.
         </p>
-
-        <div :for={entry <- @ha_entries} :if={entry.design} class="hw-area-design-source">
-          <article
-            :for={floor <- entry.design.floors}
-            id={"ha-floor-#{floor.space.external_id}"}
-            class="hw-card hw-floor-design-card"
-          >
-            <header class="hw-floor-design-header">
-              <div>
-                <p class="hw-eyebrow">HA Floor</p>
-                <h3><%= floor.space.name %></h3>
-                <p class="hw-meta"><%= count_label(floor.entity_count, "relevant entity") %> across <%= count_label(length(floor.children), "HA area") %></p>
-              </div>
-              <span :if={area_name(floor.space)} class="hw-status-badge hw-status-badge-success">
-                Mapped to <%= area_name(floor.space) %>
-              </span>
-            </header>
-
-            <div class="hw-floor-choice-grid">
-              <form phx-submit="use_floor_one" class="hw-choice-card">
-                <input type="hidden" name="bridge_id" value={entry.bridge.id} />
-                <input type="hidden" name="external_id" value={floor.space.external_id} />
-                <strong>Use this Floor as one Area</strong>
-                <input class="hw-field-input" name="name" value={floor.space.name} aria-label="HueWorks Area name" />
-                <button class="hw-button hw-button-primary" type="submit">Use one Area</button>
-              </form>
-              <div class="hw-choice-card">
-                <strong>Use HA Areas separately</strong>
-                <p class="hw-meta">Create one HueWorks Area for each child below.</p>
-                <button
-                  class="hw-button"
-                  type="button"
-                  phx-click="use_floor_separate"
-                  phx-value-bridge_id={entry.bridge.id}
-                  phx-value-external_id={floor.space.external_id}
-                >
-                  Create separate Areas
-                </button>
-              </div>
-              <div class="hw-choice-card">
-                <strong>Skip this Floor</strong>
-                <p class="hw-meta">Leave the Floor and its child spaces unmapped.</p>
-                <button
-                  class="hw-button hw-button-quiet"
-                  type="button"
-                  phx-click="skip_floor"
-                  phx-value-bridge_id={entry.bridge.id}
-                  phx-value-external_id={floor.space.external_id}
-                >
-                  Skip
-                </button>
-              </div>
-            </div>
-
-            <div class="hw-source-space-list">
-              <.space_row :for={child <- floor.children} entry={entry} item={child} areas={@areas} />
-            </div>
-          </article>
-
-          <div :if={entry.design.unfloored_areas != []} class="hw-unfloored-spaces">
-            <div class="hw-section-header">
-              <div>
-                <p class="hw-eyebrow">Outside a Floor</p>
-                <h3>Unfloored HA Areas</h3>
-              </div>
-            </div>
-            <div class="hw-source-space-list">
-              <.space_row :for={item <- entry.design.unfloored_areas} entry={entry} item={item} areas={@areas} />
-            </div>
-          </div>
+        <div class="hw-actions">
+          <a class="hw-button hw-button-primary" href="/setup/areas">Review Area design</a>
         </div>
       </section>
 
-      <section class="hw-panel" id="native-bridge-sequence">
+      <section class="hw-panel hw-panel-flow" id="setup-location-panel">
+        <div class="hw-panel-header">
+          <div>
+            <p class="hw-eyebrow">Foundation</p>
+            <h2>Location and Areas</h2>
+          </div>
+          <span class={["hw-status-badge", @status.location_configured? && "hw-status-badge-success"]}>
+            <%= if @status.location_configured?, do: "Location ready", else: "Location needed" %>
+          </span>
+        </div>
+        <p class="hw-muted">
+          Location drives solar and circadian behavior. HueWorks Areas are the boundaries whose lights and scenes should coordinate together.
+        </p>
+        <div class="hw-actions">
+          <a class="hw-button" href="/config/general?return_to=setup">Configure location</a>
+          <a class="hw-button" href="/areas">Manage Areas</a>
+        </div>
+      </section>
+
+      <section class="hw-panel hw-panel-flow" id="native-bridge-sequence">
         <div class="hw-panel-header">
           <div>
             <p class="hw-eyebrow">Native sources first</p>
@@ -291,7 +240,7 @@
         </div>
       </section>
 
-      <section class="hw-panel" id="setup-finish">
+      <section class="hw-panel hw-panel-flow" id="setup-finish">
         <div class="hw-panel-header">
           <div>
             <p class="hw-eyebrow">Your call</p>

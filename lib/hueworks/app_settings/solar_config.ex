@@ -11,6 +11,14 @@ defmodule Hueworks.AppSettings.SolarConfig do
 
   alias Hueworks.Util
 
+  @default_transition_ms 500
+  @default_scale_transition_by_brightness true
+
+  def default_transition_ms, do: @default_transition_ms
+
+  def default_scale_transition_by_brightness?,
+    do: @default_scale_transition_by_brightness
+
   @doc """
   Normalizes a mixed-key attrs map to an atom-keyed map suitable for
   AppSetting.global_changeset. Missing fields are omitted, explicitly blank
@@ -32,10 +40,15 @@ defmodule Hueworks.AppSettings.SolarConfig do
       latitude: Util.to_number(config[:latitude] || config["latitude"]),
       longitude: Util.to_number(config[:longitude] || config["longitude"]),
       timezone: fallback_value(parse_string(config[:timezone] || config["timezone"])),
-      default_transition_ms: Application.get_env(:hueworks, :default_transition_ms, 750),
+      default_transition_ms:
+        Application.get_env(:hueworks, :default_transition_ms, default_transition_ms()),
       scale_transition_by_brightness:
         Util.parse_optional_bool(
-          Application.get_env(:hueworks, :scale_transition_by_brightness, false)
+          Application.get_env(
+            :hueworks,
+            :scale_transition_by_brightness,
+            default_scale_transition_by_brightness?()
+          )
         ) == true
     }
   end

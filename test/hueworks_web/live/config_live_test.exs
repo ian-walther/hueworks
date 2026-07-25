@@ -31,6 +31,7 @@ defmodule HueworksWeb.ConfigLiveTest do
     original_pairing_state_module = Application.get_env(:hueworks, :homekit_pairing_state_module)
     original_pairing_stub = Application.get_env(:hueworks, :homekit_config_test_pairing)
     original_runtime_io_disabled = Application.get_env(:hueworks, :runtime_io_disabled)
+    original_postal_lookup = Application.get_env(:hueworks, :postal_code_lookup_module)
 
     Application.put_env(:hueworks, :ha_export_tortoise_module, __MODULE__.TortoiseStub)
 
@@ -48,6 +49,12 @@ defmodule HueworksWeb.ConfigLiveTest do
 
     Application.put_env(:hueworks, :ha_export_tortoise_supervisor_name, __MODULE__.SupervisorStub)
     Application.put_env(:hueworks, :homekit_pairing_state_module, __MODULE__.PairingStateStub)
+
+    Application.put_env(
+      :hueworks,
+      :postal_code_lookup_module,
+      __MODULE__.PostalCodeLookupStub
+    )
 
     Application.put_env(:hueworks, :homekit_config_test_pairing, %{paired?: false, clear_count: 0})
 
@@ -75,6 +82,7 @@ defmodule HueworksWeb.ConfigLiveTest do
       restore_app_env(:hueworks, :homekit_pairing_state_module, original_pairing_state_module)
       restore_app_env(:hueworks, :homekit_config_test_pairing, original_pairing_stub)
       restore_app_env(:hueworks, :runtime_io_disabled, original_runtime_io_disabled)
+      restore_app_env(:hueworks, :postal_code_lookup_module, original_postal_lookup)
     end)
 
     :ok
@@ -160,26 +168,26 @@ defmodule HueworksWeb.ConfigLiveTest do
     assert has_element?(view, "nav[aria-label='Breadcrumb']", "Config")
   end
 
-  test "shows global solar settings form and saves values", %{conn: conn} do
+  test "shows global solar settings form, saves values, and exits to config", %{conn: conn} do
     {:ok, view, html} = live(conn, "/config/general")
 
     assert html =~ "Location and transitions"
-    assert html =~ "Save General Settings"
+    assert has_element?(view, "button[type='submit']", "Save And Exit")
     assert html =~ "Default Transition (ms)"
     assert html =~ "Scale Transition By Brightness Delta"
-    refute html =~ "Global solar settings saved."
+    assert has_element?(view, "#global_default_transition_ms[value='500']")
+    assert has_element?(view, "#global_scale_transition_by_brightness[checked]")
 
-    view
-    |> form("form[phx-submit='save_global_solar']", %{
-      "timezone" => "America/Chicago",
-      "latitude" => "41.8781",
-      "longitude" => "-87.6298",
-      "default_transition_ms" => "900",
-      "scale_transition_by_brightness" => "true"
-    })
-    |> render_submit()
-
-    assert render(view) =~ "Global solar settings saved."
+    assert {:error, {:live_redirect, %{to: "/config"}}} =
+             view
+             |> form("form[phx-submit='save_global_solar']", %{
+               "timezone" => "America/Chicago",
+               "latitude" => "41.8781",
+               "longitude" => "-87.6298",
+               "default_transition_ms" => "900",
+               "scale_transition_by_brightness" => "true"
+             })
+             |> render_submit()
 
     settings = AppSettings.get_global()
     assert settings.latitude == 41.8781
@@ -187,6 +195,23 @@ defmodule HueworksWeb.ConfigLiveTest do
     assert settings.timezone == "America/Chicago"
     assert settings.default_transition_ms == 900
     assert settings.scale_transition_by_brightness == true
+  end
+
+  test "saving General settings returns to setup when setup supplied the entry path", %{
+    conn: conn
+  } do
+    {:ok, view, _html} = live(conn, "/config/general?return_to=setup")
+
+    assert {:error, {:live_redirect, %{to: "/setup"}}} =
+             view
+             |> form("form[phx-submit='save_global_solar']", %{
+               "timezone" => "America/New_York",
+               "latitude" => "40.7128",
+               "longitude" => "-74.0060",
+               "default_transition_ms" => "500",
+               "scale_transition_by_brightness" => "true"
+             })
+             |> render_submit()
   end
 
   test "shows a validation error for invalid solar input", %{conn: conn} do
@@ -590,6 +615,55 @@ defmodule HueworksWeb.ConfigLiveTest do
     assert html =~ ~s(value="America/New_York" selected)
   end
 
+  test "postal code lookup prefills coordinates without saving settings", %{conn: conn} do
+    {:ok, view, _html} = live(conn, "/config/general")
+
+    view
+    |> form("#postal-code-lookup-form", %{
+      "country_code" => "US",
+      "postal_code" => "90210"
+    })
+    |> render_submit()
+
+    html = render_async(view)
+
+    assert html =~ "Coordinates found for Beverly Hills, California."
+    assert html =~ ~s(id="global_latitude")
+    assert html =~ ~s(value="34.090100")
+    assert html =~ ~s(value="-118.406500")
+    assert AppSettings.get_global().latitude == nil
+    assert AppSettings.get_global().longitude == nil
+  end
+
+  test "postal code lookup failure preserves manual coordinate entry", %{conn: conn} do
+    {:ok, view, _html} = live(conn, "/config/general")
+
+    view
+    |> form("form[phx-submit='save_global_solar']", %{
+      "timezone" => "America/New_York",
+      "latitude" => "40.1000",
+      "longitude" => "-75.2000",
+      "default_transition_ms" => "750",
+      "scale_transition_by_brightness" => "false"
+    })
+    |> render_change()
+
+    view
+    |> form("#postal-code-lookup-form", %{
+      "country_code" => "US",
+      "postal_code" => "00000"
+    })
+    |> render_submit()
+
+    html = render_async(view)
+
+    assert html =~ "That ZIP or postal code was not found."
+    assert html =~ ~s(value="40.1000")
+    assert html =~ ~s(value="-75.2000")
+    assert AppSettings.get_global().latitude == nil
+    assert AppSettings.get_global().longitude == nil
+  end
+
   test "shows the complete IANA timezone list and preserves the selected zone", %{
     conn: conn
   } do
@@ -632,6 +706,21 @@ defmodule HueworksWeb.ConfigLiveTest do
     assert integrations_html =~ ~s(value="1884")
     assert integrations_html =~ ~s(value="ha_user")
     assert integrations_html =~ ~s(value="custom_ha")
+  end
+
+  defmodule PostalCodeLookupStub do
+    def lookup("US", "90210") do
+      {:ok,
+       %{
+         latitude: 34.0901,
+         longitude: -118.4065,
+         place_name: "Beverly Hills",
+         region: "California",
+         country: "United States"
+       }}
+    end
+
+    def lookup("US", "00000"), do: {:error, :not_found}
   end
 
   test "shows Scene Import button for Home Assistant bridges", %{conn: conn} do
@@ -733,6 +822,75 @@ defmodule HueworksWeb.ConfigLiveTest do
 
     refute Repo.get(Bridge, bridge.id)
     refute render(view) =~ "Hue Bridge"
+  end
+
+  test "Home Assistant bridges expose authorization status and an in-place reconnect action", %{
+    conn: conn
+  } do
+    oauth_bridge =
+      %Bridge{}
+      |> Bridge.changeset(%{
+        type: :ha,
+        name: "OAuth Home",
+        host: "ha-oauth.local:8123",
+        credentials: %{
+          "auth_type" => "oauth",
+          "access_token" => "expired",
+          "refresh_token" => "revoked",
+          "expires_at" => 1,
+          "client_id" => "http://hueworks.home",
+          "auth_status" => "reauthorization_required"
+        },
+        enabled: true,
+        import_complete: true
+      })
+      |> Repo.insert!()
+
+    manual_bridge =
+      insert_bridge!(%{
+        type: :ha,
+        name: "Manual Home",
+        host: "ha-manual.local:8123",
+        credentials: %{"token" => "long-lived"},
+        enabled: true,
+        import_complete: true
+      })
+
+    assert Bridge.credentials_struct(oauth_bridge).auth_status == "reauthorization_required"
+
+    assert Bridge.credentials_struct(Repo.get!(Bridge, oauth_bridge.id)).auth_status ==
+             "reauthorization_required"
+
+    {:ok, view, _html} = live(conn, "/config/bridges")
+
+    assert has_element?(
+             view,
+             "#bridge-#{oauth_bridge.id} .hw-status-badge-warning",
+             "Authorization required"
+           )
+
+    assert has_element?(
+             view,
+             "#bridge-#{oauth_bridge.id} a[href='/config/bridges/home-assistant/authorize?bridge_id=#{oauth_bridge.id}']",
+             "Reconnect Home Assistant"
+           )
+
+    assert has_element?(
+             view,
+             "#bridge-#{manual_bridge.id} .hw-status-badge",
+             "Manual token"
+           )
+
+    assert has_element?(
+             view,
+             "#bridge-#{manual_bridge.id} a[href='/config/bridges/home-assistant/authorize?bridge_id=#{manual_bridge.id}']",
+             "Switch to Browser Authorization"
+           )
+
+    html = render(view)
+    refute html =~ "expired"
+    refute html =~ "revoked"
+    refute html =~ "http://hueworks.home"
   end
 
   defmodule TortoiseStub do

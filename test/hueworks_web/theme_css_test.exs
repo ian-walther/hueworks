@@ -30,6 +30,21 @@ defmodule HueworksWeb.ThemeCssTest do
              ~r/\.hw-button-off\s*\{[^}]*background:[^;]*var\(--hw-power-off\)/s
   end
 
+  test "initial import area markup has matching component styles" do
+    css = File.read!(@stylesheet)
+
+    for selector <- ~w(
+      .hw-import-area-list
+      .hw-import-area-card
+      .hw-import-area-header
+      .hw-import-area-actions
+    ) do
+      assert css =~ selector, "missing initial import style for #{selector}"
+    end
+
+    refute css =~ ".hw-import-room-"
+  end
+
   test "web templates and presentation modules do not construct literal CSS colors" do
     files =
       Path.wildcard(Path.join(@root, "lib/hueworks_web/**/*.{ex,heex}")) ++

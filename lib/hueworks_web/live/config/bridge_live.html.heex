@@ -74,6 +74,14 @@
                       >
                         Already configured
                       </span>
+                      <span
+                        :if={
+                          !discovery.configured? and @source_external_id == discovery.device.id
+                        }
+                        class="hw-status-badge hw-status-badge-success"
+                      >
+                        Selected from Home Assistant
+                      </span>
                     </div>
                     <p class="hw-mono"><%= discovery.device.host %></p>
                     <p :if={discovery.device.id} class="hw-muted">
@@ -189,9 +197,21 @@
 
           <p :if={@ha_discovery_status == :error} class="hw-error"><%= @ha_discovery_error %></p>
 
-          <div :if={@host != ""} class="hw-callout hw-callout-accent">
-            <strong>Instance selected.</strong>
-            Enter a long-lived access token below to validate this connection. Browser authorization will replace this recovery credential path before public release.
+          <div :if={@host != ""} class="hw-callout hw-callout-accent hw-callout-flow">
+            <div>
+              <strong>Instance selected.</strong>
+              Sign in to Home Assistant, approve HueWorks, and return here automatically.
+            </div>
+            <a
+              id="authorize-home-assistant"
+              class="hw-button hw-button-primary"
+              href={
+                "/config/bridges/home-assistant/authorize?" <>
+                  URI.encode_query(%{"host" => @host, "external_id" => @ha_external_id || ""})
+              }
+            >
+              Authorize with Home Assistant
+            </a>
           </div>
 
           <button type="button" class="hw-link-button" phx-click="show_manual_ha">
@@ -202,7 +222,7 @@
 
       <%= if (@type == "hue" and @hue_setup_mode == :manual) or
           @type in ["caseta", "z2m"] or
-          (@type == "ha" and (@ha_setup_mode == :manual or @host != "")) do %>
+          (@type == "ha" and @ha_setup_mode == :manual) do %>
         <label class="hw-field-label" for="bridge_host">IP Address</label>
         <input
           id="bridge_host"
@@ -213,6 +233,12 @@
           placeholder="192.168.1.100"
           autocomplete="off"
         />
+        <p :if={@type == "caseta" and @caseta_discovery_status == :searching} class="hw-muted">
+          Finding the selected Caseta bridge on this network...
+        </p>
+        <p :if={@type == "caseta" and @caseta_discovery_status == :error} class="hw-error">
+          <%= @caseta_discovery_error %>
+        </p>
       <% end %>
 
       <%= if @type == "hue" and @hue_setup_mode == :manual do %>
@@ -233,9 +259,9 @@
         </button>
       <% end %>
 
-      <%= if @type == "ha" and (@ha_setup_mode == :manual or @host != "") do %>
-        <div :if={@ha_setup_mode == :manual} class="hw-callout">
-          Manual setup is intended for segmented networks, reverse proxies, and discovery failures.
+      <%= if @type == "ha" and @ha_setup_mode == :manual do %>
+        <div class="hw-callout hw-callout-warning">
+          Manual setup is an advanced fallback for segmented networks, reverse proxies, and discovery failures. Long-lived tokens cannot be refreshed automatically.
         </div>
         <label class="hw-field-label" for="ha_token">Home Assistant Token</label>
         <input
@@ -246,12 +272,7 @@
           class="hw-field-input"
           autocomplete="off"
         />
-        <button
-          :if={@ha_setup_mode == :manual}
-          type="button"
-          class="hw-link-button"
-          phx-click="show_guided_ha"
-        >
+        <button type="button" class="hw-link-button" phx-click="show_guided_ha">
           Use discovery instead
         </button>
       <% end %>
@@ -339,7 +360,13 @@
         />
       <% end %>
 
-      <div :if={@type != "hue" or @hue_setup_mode == :manual} class="hw-modal-actions">
+      <div
+        :if={
+          (@type != "hue" or @hue_setup_mode == :manual) and
+            not (@type == "ha" and @ha_setup_mode == :guided)
+        }
+        class="hw-modal-actions"
+      >
         <%= if @test_status == :ok do %>
           <button type="button" class="hw-button hw-button-on" phx-click="proceed_bridge">
             Proceed

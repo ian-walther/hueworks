@@ -20,6 +20,11 @@ defmodule Hueworks.AppSettings do
     Cache.get_or_load(@cache_namespace, @cache_key, &load_global/0)
   end
 
+  def default_transition_ms, do: SolarConfig.default_transition_ms()
+
+  def default_scale_transition_by_brightness?,
+    do: SolarConfig.default_scale_transition_by_brightness?()
+
   def upsert_global(attrs) when is_map(attrs) do
     current = get_global()
     base_attrs = merged_attrs(current)
@@ -66,8 +71,9 @@ defmodule Hueworks.AppSettings do
       latitude: app_setting.latitude,
       longitude: app_setting.longitude,
       timezone: app_setting.timezone,
-      default_transition_ms: app_setting.default_transition_ms || 750,
-      scale_transition_by_brightness: app_setting.scale_transition_by_brightness == true,
+      default_transition_ms: app_setting.default_transition_ms || default_transition_ms(),
+      scale_transition_by_brightness:
+        transition_scaling_value(app_setting.scale_transition_by_brightness),
       ha_export_enabled: app_setting.ha_export_enabled == true,
       ha_export_scenes_enabled: app_setting.ha_export_scenes_enabled == true,
       ha_export_area_selects_enabled: app_setting.ha_export_area_selects_enabled == true,
@@ -213,8 +219,8 @@ defmodule Hueworks.AppSettings do
       latitude: s.latitude,
       longitude: s.longitude,
       timezone: s.timezone,
-      default_transition_ms: s.default_transition_ms || 750,
-      scale_transition_by_brightness: s.scale_transition_by_brightness == true
+      default_transition_ms: s.default_transition_ms || default_transition_ms(),
+      scale_transition_by_brightness: transition_scaling_value(s.scale_transition_by_brightness)
     }
   end
 
@@ -268,6 +274,9 @@ defmodule Hueworks.AppSettings do
        do: true
 
   defp api_enabled?(_app_setting), do: false
+
+  defp transition_scaling_value(value) when is_boolean(value), do: value
+  defp transition_scaling_value(_value), do: default_scale_transition_by_brightness?()
 
   defp generate_api_token do
     32
