@@ -13,6 +13,8 @@ defmodule Hueworks.HardwareSmoke do
   @temperature_mired_tolerance 1
 
   def run!(scenario_name, opts \\ []) when is_binary(scenario_name) and is_list(opts) do
+    ensure_runtime_io!()
+
     case scenario_name do
       "kitchen_accent_pico" -> run_kitchen_accent_pico!(opts)
       "kitchen_accent_lower_repeat" -> run_kitchen_accent_lower_repeat!(opts)
@@ -21,6 +23,7 @@ defmodule Hueworks.HardwareSmoke do
   end
 
   def run_kitchen_accent_lower_repeat!(opts \\ []) do
+    ensure_runtime_io!()
     scenario = resolve_kitchen_accent_pico!()
     cycles = Keyword.get(opts, :loops, 10)
     timeout_ms = Keyword.get(opts, :timeout_ms, 8_000)
@@ -77,6 +80,7 @@ defmodule Hueworks.HardwareSmoke do
   end
 
   def run_kitchen_accent_pico!(opts \\ []) do
+    ensure_runtime_io!()
     scenario = resolve_kitchen_accent_pico!()
     loops = Keyword.get(opts, :loops, 3)
     timeout_ms = Keyword.get(opts, :timeout_ms, 8_000)
@@ -104,6 +108,16 @@ defmodule Hueworks.HardwareSmoke do
 
       info("\\nHardware smoke passed for kitchen_accent_pico.")
       :ok
+    end
+  end
+
+  defp ensure_runtime_io! do
+    case Hueworks.RuntimeIO.ensure_enabled() do
+      :ok ->
+        :ok
+
+      {:error, :runtime_io_disabled} ->
+        raise "hardware smoke requires runtime I/O; unset HUEWORKS_RUNTIME_IO_DISABLED"
     end
   end
 

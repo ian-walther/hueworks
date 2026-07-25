@@ -11,9 +11,11 @@ defmodule HueworksWeb.ControlLiveTest do
 
   setup do
     original_modules = Application.get_env(:hueworks, :control_state_bootstrap_modules)
+    original_runtime_io = Application.get_env(:hueworks, :runtime_io_disabled)
 
     on_exit(fn ->
       restore_app_env(:hueworks, :control_state_bootstrap_modules, original_modules)
+      restore_app_env(:hueworks, :runtime_io_disabled, original_runtime_io)
     end)
 
     :ok
@@ -89,6 +91,15 @@ defmodule HueworksWeb.ControlLiveTest do
     assert html =~ "Nothing to control yet"
     assert html =~ ~s(href="/config/bridges/new")
     assert html =~ "Add Bridge"
+  end
+
+  test "control page explains verification mode when runtime I/O is disabled", %{conn: conn} do
+    Application.put_env(:hueworks, :runtime_io_disabled, true)
+
+    {:ok, _view, html} = live(conn, "/control")
+
+    assert html =~ "Verification mode"
+    assert html =~ "Physical lighting changes are disabled"
   end
 
   test "control page renders area cards with scenes and recursive collapsed controls", %{

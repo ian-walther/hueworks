@@ -291,7 +291,7 @@ defmodule Hueworks.ImportReimportApplyTest do
     assert :ok =
              ReimportApply.apply(
                bridge,
-               normalized(%{}),
+               normalized(%{}, :atom),
                %{lights: %{}, groups: %{}, areas: %{}}
              )
 
@@ -623,14 +623,20 @@ defmodule Hueworks.ImportReimportApplyTest do
     refute_receive {:cast, _label, _message}, 50
   end
 
-  defp normalized(overrides) do
-    %{
-      areas: [],
-      lights: [],
-      groups: [],
-      memberships: %{}
-    }
-    |> Map.merge(overrides)
+  defp normalized(overrides, shape \\ :blob) do
+    snapshot =
+      %{
+        areas: [],
+        lights: [],
+        groups: [],
+        memberships: %{}
+      }
+      |> Map.merge(overrides)
+
+    case shape do
+      :blob -> blob_shaped(snapshot)
+      :atom -> snapshot
+    end
   end
 
   defp insert_bridge(attrs \\ %{}) do

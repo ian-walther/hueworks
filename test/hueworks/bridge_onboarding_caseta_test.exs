@@ -75,11 +75,19 @@ defmodule Hueworks.BridgeOnboarding.CasetaTest do
     assert device.host == "192.168.1.123"
   end
 
+  test "mDNS discovery uses the shared transport contract" do
+    assert {:ok, []} = Mdns.discover(transport: __MODULE__.EmptyTransport)
+  end
+
   defmodule IdentityMdns do
     def resolve("047a00fc") do
       {:ok, %{id: "047a00fc", host: "192.168.1.123", name: "Lutron 047a00fc"}}
     end
 
     def discover, do: raise("broad discovery should not run for a resolvable bridge identity")
+  end
+
+  defmodule EmptyTransport do
+    def query(_query, 3_000), do: {:ok, %{answer: [], additional: []}}
   end
 end

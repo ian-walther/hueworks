@@ -4,21 +4,32 @@ defmodule Hueworks.Control.ExecutorTest do
 
   alias Hueworks.Control.Executor
 
+  setup do
+    previous_enabled = Application.get_env(:hueworks, :control_executor_enabled)
+    previous_runtime_io = Application.get_env(:hueworks, :runtime_io_disabled)
+
+    on_exit(fn ->
+      restore_app_env(:hueworks, :control_executor_enabled, previous_enabled)
+      restore_app_env(:hueworks, :runtime_io_disabled, previous_runtime_io)
+    end)
+
+    :ok
+  end
+
+  test "enqueue is a clean no-op when runtime I/O is disabled and no executor is running" do
+    Application.put_env(:hueworks, :control_executor_enabled, true)
+    Application.put_env(:hueworks, :runtime_io_disabled, true)
+
+    action = %{type: :light, id: 1, bridge_id: 10, desired: %{power: :on}}
+
+    assert {:ok, :disabled} = Executor.enqueue([action], server: :missing_executor)
+  end
+
   test "failed actions are retried only after exponential backoff elapses" do
     parent = self()
     name = :"executor_test_#{System.unique_integer([:positive])}"
     {:ok, clock} = Agent.start_link(fn -> 0 end)
-    previous_enabled = Application.get_env(:hueworks, :control_executor_enabled)
-
     Application.put_env(:hueworks, :control_executor_enabled, true)
-
-    on_exit(fn ->
-      if is_nil(previous_enabled) do
-        Application.delete_env(:hueworks, :control_executor_enabled)
-      else
-        Application.put_env(:hueworks, :control_executor_enabled, previous_enabled)
-      end
-    end)
 
     dispatch_fun = fn action ->
       send(parent, {:dispatch, action})
@@ -65,4 +76,7 @@ defmodule Hueworks.Control.ExecutorTest do
     GenServer.stop(pid)
     Agent.stop(clock)
   end
+
+  defp restore_app_env(app, key, nil), do: Application.delete_env(app, key)
+  defp restore_app_env(app, key, value), do: Application.put_env(app, key, value)
 end

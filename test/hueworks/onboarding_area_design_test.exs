@@ -21,33 +21,34 @@ defmodule Hueworks.Onboarding.AreaDesignTest do
         credentials: %{token: "token"}
       })
 
-    snapshot = %{
-      external_spaces: [
-        %{kind: "ha_floor", external_id: "floor-1", name: "First Floor"},
-        %{
-          kind: "ha_area",
-          external_id: "office",
-          name: "Office",
-          parent_kind: "ha_floor",
-          parent_external_id: "floor-1"
-        },
-        %{
-          kind: "ha_area",
-          external_id: "kitchen",
-          name: "Kitchen",
-          parent_kind: "ha_floor",
-          parent_external_id: "floor-1"
-        },
-        %{kind: "ha_area", external_id: "garage", name: "Garage"}
-      ],
-      areas: [],
-      lights: [
-        %{source_id: "light.office", space_refs: [%{kind: "ha_area", external_id: "office"}]},
-        %{source_id: "light.kitchen", space_refs: [%{kind: "ha_area", external_id: "kitchen"}]},
-        %{source_id: "light.garage", space_refs: [%{kind: "ha_area", external_id: "garage"}]}
-      ],
-      groups: []
-    }
+    snapshot =
+      blob_shaped(%{
+        external_spaces: [
+          %{kind: "ha_floor", external_id: "floor-1", name: "First Floor"},
+          %{
+            kind: "ha_area",
+            external_id: "office",
+            name: "Office",
+            parent_kind: "ha_floor",
+            parent_external_id: "floor-1"
+          },
+          %{
+            kind: "ha_area",
+            external_id: "kitchen",
+            name: "Kitchen",
+            parent_kind: "ha_floor",
+            parent_external_id: "floor-1"
+          },
+          %{kind: "ha_area", external_id: "garage", name: "Garage"}
+        ],
+        areas: [],
+        lights: [
+          %{source_id: "light.office", space_refs: [%{kind: "ha_area", external_id: "office"}]},
+          %{source_id: "light.kitchen", space_refs: [%{kind: "ha_area", external_id: "kitchen"}]},
+          %{source_id: "light.garage", space_refs: [%{kind: "ha_area", external_id: "garage"}]}
+        ],
+        groups: []
+      })
 
     Repo.insert!(%BridgeImport{
       bridge_id: bridge.id,

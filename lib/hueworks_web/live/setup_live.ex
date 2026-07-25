@@ -1,6 +1,7 @@
 defmodule HueworksWeb.SetupLive do
   use Phoenix.LiveView
 
+  import HueworksWeb.SetupHelpers
   import HueworksWeb.Notices
 
   alias Hueworks.{Bridges, Onboarding, Util}
@@ -61,35 +62,47 @@ defmodule HueworksWeb.SetupLive do
   end
 
   def handle_async({:refresh_ha_inventory, bridge_id}, {:ok, {:ok, _bridge_import}}, socket) do
-    bridge = Bridges.get_bridge(bridge_id)
-    _ = AreaDesign.refresh(bridge)
-    destination = socket.assigns.inventory_refresh_destination
+    if MapSet.member?(socket.assigns.inventory_refreshing_ids, bridge_id) do
+      bridge = Bridges.get_bridge(bridge_id)
+      _ = AreaDesign.refresh(bridge)
+      destination = Map.get(socket.assigns.inventory_refresh_destinations, bridge_id)
 
-    socket =
-      socket
-      |> assign(inventory_refreshing_id: nil, inventory_refresh_destination: nil)
-      |> load_setup()
-      |> put_notice(:info, "Home Assistant inventory refreshed. No entities were imported.")
+      socket =
+        socket
+        |> finish_inventory_refresh(bridge_id)
+        |> load_setup()
+        |> put_notice(:info, "Home Assistant inventory refreshed. No entities were imported.")
 
-    if destination == :area_design do
-      {:noreply, push_navigate(socket, to: "/setup/areas")}
+      if destination == :area_design do
+        {:noreply, push_navigate(socket, to: "/setup/areas")}
+      else
+        {:noreply, socket}
+      end
     else
       {:noreply, socket}
     end
   end
 
-  def handle_async({:refresh_ha_inventory, _bridge_id}, {:ok, {:error, reason}}, socket) do
-    {:noreply,
-     socket
-     |> assign(inventory_refreshing_id: nil, inventory_refresh_destination: nil)
-     |> put_notice(:error, "Home Assistant inventory failed: #{operation_error(reason)}")}
+  def handle_async({:refresh_ha_inventory, bridge_id}, {:ok, {:error, reason}}, socket) do
+    if MapSet.member?(socket.assigns.inventory_refreshing_ids, bridge_id) do
+      {:noreply,
+       socket
+       |> finish_inventory_refresh(bridge_id)
+       |> put_notice(:error, "Home Assistant inventory failed: #{operation_error(reason)}")}
+    else
+      {:noreply, socket}
+    end
   end
 
-  def handle_async({:refresh_ha_inventory, _bridge_id}, {:exit, reason}, socket) do
-    {:noreply,
-     socket
-     |> assign(inventory_refreshing_id: nil, inventory_refresh_destination: nil)
-     |> put_notice(:error, "Home Assistant inventory failed: #{operation_error(reason)}")}
+  def handle_async({:refresh_ha_inventory, bridge_id}, {:exit, reason}, socket) do
+    if MapSet.member?(socket.assigns.inventory_refreshing_ids, bridge_id) do
+      {:noreply,
+       socket
+       |> finish_inventory_refresh(bridge_id)
+       |> put_notice(:error, "Home Assistant inventory failed: #{operation_error(reason)}")}
+    else
+      {:noreply, socket}
+    end
   end
 
   defp load_setup(socket) do
@@ -101,8 +114,9 @@ defmodule HueworksWeb.SetupLive do
     assign(socket,
       status: status,
       path_choice_open?: Map.get(socket.assigns, :path_choice_open?, false),
-      inventory_refreshing_id: Map.get(socket.assigns, :inventory_refreshing_id),
-      inventory_refresh_destination: Map.get(socket.assigns, :inventory_refresh_destination),
+      inventory_refreshing_ids: Map.get(socket.assigns, :inventory_refreshing_ids, MapSet.new()),
+      inventory_refresh_destinations:
+        Map.get(socket.assigns, :inventory_refresh_destinations, %{}),
       bridges: bridges,
       ha_entries: ha_entries,
       native_bridges: native_bridges,
@@ -217,13 +231,20 @@ defmodule HueworksWeb.SetupLive do
 
   defp start_inventory_refresh(socket, bridge, destination) do
     socket
-    |> assign(
-      inventory_refreshing_id: bridge.id,
-      inventory_refresh_destination: destination
+    |> update(:inventory_refreshing_ids, &MapSet.put(&1, bridge.id))
+    |> update(
+      :inventory_refresh_destinations,
+      &Map.put(&1, bridge.id, destination)
     )
     |> start_async({:refresh_ha_inventory, bridge.id}, fn ->
       pipeline_module().create_import(bridge)
     end)
+  end
+
+  defp finish_inventory_refresh(socket, bridge_id) do
+    socket
+    |> update(:inventory_refreshing_ids, &MapSet.delete(&1, bridge_id))
+    |> update(:inventory_refresh_destinations, &Map.delete(&1, bridge_id))
   end
 
   defp operation_error(%Ecto.Changeset{}), do: "the requested values were not valid"
@@ -236,22 +257,6 @@ defmodule HueworksWeb.SetupLive do
 
   defp pipeline_module,
     do: Application.get_env(:hueworks, :onboarding_import_pipeline, Hueworks.Import.Pipeline)
-
-  def count_label(count, singular) when is_integer(count) do
-    label =
-      case {count, singular} do
-        {1, value} ->
-          value
-
-        {_, value} when value in ["entity", "relevant entity", "HA-only entity"] ->
-          String.replace_suffix(value, "entity", "entities")
-
-        {_, value} ->
-          value <> "s"
-      end
-
-    "#{count} #{label}"
-  end
 
   def source_label(:hue), do: "Hue"
   def source_label(:caseta), do: "Caseta"

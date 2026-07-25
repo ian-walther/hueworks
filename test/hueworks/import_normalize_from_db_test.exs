@@ -1,7 +1,7 @@
 defmodule Hueworks.Import.NormalizeFromDbTest do
   use Hueworks.DataCase, async: false
 
-  alias Hueworks.Import.NormalizeFromDb
+  alias Hueworks.Import.{Normalize, NormalizeFromDb}
   alias Hueworks.Repo
   alias Hueworks.Schemas.{Group, GroupLight, Light}
 
@@ -64,6 +64,7 @@ defmodule Hueworks.Import.NormalizeFromDbTest do
 
     normalized = NormalizeFromDb.normalize(bridge)
 
+    assert normalized.schema_version == Normalize.schema_version()
     assert Enum.any?(normalized.lights, &(&1["source_id"] == "light-1"))
     assert Enum.any?(normalized.groups, &(&1["source_id"] == "group-1"))
     assert normalized.areas == []

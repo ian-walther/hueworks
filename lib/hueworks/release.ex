@@ -119,12 +119,23 @@ defmodule Hueworks.Release do
       case maintenance.backup(db_path, backup_path: path) do
         {:ok, backup_path} ->
           Logger.info("Created pre-migration database backup at #{backup_path}")
-          :ok = maintenance.prune_backups(dir, @pre_migration_prefix, retention)
+
+          maybe_warn_prune_failure(
+            maintenance.prune_backups(dir, @pre_migration_prefix, retention)
+          )
 
         {:error, reason} ->
           raise "pre-migration backup failed; migrations were not run: #{inspect(reason)}"
       end
     end
+  end
+
+  defp maybe_warn_prune_failure(:ok), do: :ok
+
+  defp maybe_warn_prune_failure({:error, reason}) do
+    Logger.warning(
+      "Could not prune pre-migration database backups; continuing migration: #{inspect(reason)}"
+    )
   end
 
   defp database_path(repo) do

@@ -36,8 +36,8 @@
         <span class="hw-status-badge hw-status-badge-success">Recommended</span>
         <h3>Use Home Assistant to guide setup</h3>
         <p>
-          Read your existing integrations, Floors, Areas, Rooms, and Lights/Groups. HueWorks uses
-          that information to guide setup here
+          Read your existing integrations, Floors, Areas, and Lights/Groups. HueWorks uses that
+          information to guide setup here.
         </p>
         <button
           type="button"
@@ -54,7 +54,7 @@
         <h3>Set up HueWorks directly</h3>
         <p>
           Create HueWorks Areas and sync bridges without syncing from Home Assistant. HueWorks has
-          all the same capabilities without Home Assistant, but initial setup may be more tedious
+          all the same capabilities without Home Assistant, but initial setup may be more tedious.
         </p>
         <button
           type="button"
@@ -129,9 +129,11 @@
               class="hw-button"
               phx-click="refresh_ha_inventory"
               phx-value-bridge_id={entry.bridge.id}
-              disabled={@inventory_refreshing_id == entry.bridge.id}
+              disabled={MapSet.member?(@inventory_refreshing_ids, entry.bridge.id)}
             >
-              <%= if @inventory_refreshing_id == entry.bridge.id, do: "Refreshing...", else: "Refresh inventory" %>
+              <%= if MapSet.member?(@inventory_refreshing_ids, entry.bridge.id),
+                do: "Refreshing...",
+                else: "Refresh inventory" %>
             </button>
           </header>
 

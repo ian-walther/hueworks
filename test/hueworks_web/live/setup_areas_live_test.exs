@@ -6,6 +6,16 @@ defmodule HueworksWeb.SetupAreasLiveTest do
   alias Hueworks.{ExternalSpaces, Repo}
   alias Hueworks.Schemas.{Area, Bridge, BridgeImport, ExternalSpaceIgnore, Light}
 
+  setup do
+    previous_area_design = Application.get_env(:hueworks, :onboarding_area_design_module)
+
+    on_exit(fn ->
+      restore_app_env(:hueworks, :onboarding_area_design_module, previous_area_design)
+    end)
+
+    :ok
+  end
+
   test "requires Home Assistant inventory before presenting the work queue", %{conn: conn} do
     {:ok, view, _html} = live(conn, "/setup/areas")
 
@@ -107,7 +117,58 @@ defmodule HueworksWeb.SetupAreasLiveTest do
              "Combined into Main Floor"
            )
 
+    refute has_element?(
+             view,
+             "#area-design-completed-decisions #floor-area-name-#{bridge.id}-floor-1"
+           )
+
+    assert has_element?(
+             view,
+             "#area-design-completed-decisions #ha-floor-#{bridge.id}-floor-1 button",
+             "Keep as Main Floor"
+           )
+
     assert Repo.aggregate(Light, :count) == 0
+  end
+
+  test "decision events do not resync source space facts", %{conn: conn} do
+    bridge = insert_ha_inventory!()
+    destination = Repo.insert!(%Area{name: "Garage"})
+    {:ok, view, _html} = live(conn, "/setup/areas")
+
+    seen_before =
+      bridge
+      |> ExternalSpaces.list_for_bridge()
+      |> Map.new(&{&1.id, &1.last_seen_at})
+
+    view
+    |> form("#map-space-#{bridge.id}-garage", %{
+      "target_area_id" => Integer.to_string(destination.id)
+    })
+    |> render_submit()
+
+    seen_after =
+      bridge
+      |> ExternalSpaces.list_for_bridge()
+      |> Map.new(&{&1.id, &1.last_seen_at})
+
+    assert seen_after == seen_before
+  end
+
+  test "design refresh failures render their reason and a retry action", %{conn: conn} do
+    _bridge = insert_ha_inventory!()
+
+    Application.put_env(
+      :hueworks,
+      :onboarding_area_design_module,
+      __MODULE__.FailedAreaDesign
+    )
+
+    {:ok, view, _html} = live(conn, "/setup/areas")
+
+    assert has_element?(view, "[id^='area-design-error-']", "database busy")
+    assert has_element?(view, "button[phx-click='retry_design']", "Retry Area design")
+    refute has_element?(view, "#area-design-inventory-needed")
   end
 
   test "the completion action is laid out separately from its wrapping copy", %{conn: conn} do
@@ -185,5 +246,10 @@ defmodule HueworksWeb.SetupAreasLiveTest do
     })
 
     bridge
+  end
+
+  defmodule FailedAreaDesign do
+    def refresh(_bridge), do: {:error, :database_busy}
+    def design(_bridge), do: %{progress: %{resolved: 0, total: 0}}
   end
 end

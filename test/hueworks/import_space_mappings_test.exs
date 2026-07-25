@@ -2,7 +2,7 @@ defmodule Hueworks.Import.SpaceMappingsTest do
   use Hueworks.DataCase, async: false
 
   alias Hueworks.ExternalSpaces
-  alias Hueworks.Import.{Materialize, ReimportPlan, ReviewPlan}
+  alias Hueworks.Import.{Materialize, Plan, ReimportPlan, ReviewPlan, SpaceMappings}
   alias Hueworks.Repo
   alias Hueworks.Schemas.{Area, Light}
 
@@ -94,6 +94,85 @@ defmodule Hueworks.Import.SpaceMappingsTest do
 
     assert :ok = Materialize.materialize(bridge, normalized, plan)
     assert Repo.get_by!(Light, source_id: "light.desk").area_id == direct_area.id
+  end
+
+  test "a reviewed Floor mapping applies from a persisted string-keyed blob", %{bridge: bridge} do
+    target = Repo.insert!(%Area{name: "Main Floor"})
+
+    normalized =
+      normalized_snapshot(
+        "Office",
+        [light("light.desk", "ha_area", "office")],
+        [
+          %{kind: "ha_floor", external_id: "main", source_id: "main", name: "Main Floor"},
+          %{
+            kind: "ha_area",
+            external_id: "office",
+            source_id: "office",
+            name: "Office",
+            parent_kind: "ha_floor",
+            parent_external_id: "main"
+          }
+        ]
+      )
+      |> blob_shaped()
+
+    floor_key = SpaceMappings.key({"ha_floor", "main"})
+
+    plan =
+      normalized
+      |> Plan.build_default()
+      |> ReviewPlan.put_space_mapping(floor_key, %{
+        "kind" => "ha_floor",
+        "external_id" => "main",
+        "action" => "map",
+        "target_area_id" => Integer.to_string(target.id)
+      })
+
+    assert :ok = Materialize.materialize(bridge, normalized, plan)
+    assert ExternalSpaces.mapped_area_id(bridge, "ha_floor", "main") == target.id
+
+    assert Enum.map(ExternalSpaces.list_for_bridge(bridge), &{&1.kind, &1.external_id}) ==
+             [{"ha_area", "office"}, {"ha_floor", "main"}]
+  end
+
+  test "Area design refresh and import mapping sync preserve the same blob-shaped identities", %{
+    bridge: bridge
+  } do
+    normalized =
+      normalized_snapshot(
+        "Office",
+        [],
+        [
+          %{kind: "ha_floor", external_id: "main", source_id: "main", name: "Main Floor"},
+          %{
+            kind: "ha_area",
+            external_id: "office",
+            source_id: "office",
+            name: "Office",
+            parent_kind: "ha_floor",
+            parent_external_id: "main"
+          }
+        ]
+      )
+      |> blob_shaped()
+
+    Repo.insert!(%Hueworks.Schemas.BridgeImport{
+      bridge_id: bridge.id,
+      raw_blob: %{},
+      normalized_blob: normalized,
+      review_blob: %{},
+      status: :normalized,
+      imported_at: DateTime.utc_now() |> DateTime.truncate(:second)
+    })
+
+    assert {:ok, _design} = Hueworks.Onboarding.AreaDesign.refresh(bridge)
+    identities_after_design = persisted_identities(bridge)
+
+    assert {:ok, _mappings} =
+             SpaceMappings.sync_and_apply(bridge, normalized, Plan.build_default(normalized), %{})
+
+    assert persisted_identities(bridge) == identities_after_design
   end
 
   test "editing a mapping affects future imports without moving existing entities", %{
@@ -210,4 +289,10 @@ defmodule Hueworks.Import.SpaceMappingsTest do
   end
 
   defp default_plan(normalized), do: Hueworks.Import.Plan.build_default(normalized)
+
+  defp persisted_identities(bridge) do
+    bridge
+    |> ExternalSpaces.list_for_bridge()
+    |> Enum.map(&{&1.kind, &1.external_id})
+  end
 end

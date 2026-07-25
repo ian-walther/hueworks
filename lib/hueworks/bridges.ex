@@ -230,7 +230,21 @@ defmodule Hueworks.Bridges do
   end
 
   def delete_bridge(%Bridge{} = bridge) do
-    Repo.delete(bridge)
+    light_ids =
+      Repo.all(from(l in Light, where: l.bridge_id == ^bridge.id, select: l.id))
+
+    group_ids =
+      Repo.all(from(g in Group, where: g.bridge_id == ^bridge.id, select: g.id))
+
+    case Repo.delete(bridge) do
+      {:ok, _deleted_bridge} = result ->
+        Enum.each(light_ids, &HomeAssistantExport.remove_light/1)
+        Enum.each(group_ids, &HomeAssistantExport.remove_group/1)
+        result
+
+      {:error, _changeset} = error ->
+        error
+    end
   end
 
   defp imports_query(bridge_id, opts) do

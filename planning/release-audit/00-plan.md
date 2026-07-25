@@ -55,7 +55,28 @@ Commissioned after the original-range audit completed. Scope: `git diff HEAD` + 
 | # | Doc | Scope | Status |
 | --- | --- | --- | --- |
 | 9 | `09-ha-browser-auth.md` | HA browser authorization: `home_assistant/authorization.ex`, `connection_validator.ex`, `home_assistant_auth_controller.ex`, `hueworks_app/home_assistant/token_provider.ex`, `host.ex`/`credentials.ex` deltas, token-provider adoption across import/control/event-stream/connection-test, bridge_live + router integration. Audit against the blocker spec in `pre-release_refinement.md` §Home Assistant Browser Authorization. Prefix **HA**. | done |
-| 10 | `10-caseta-location-misc.md` | Caseta discovery groundwork (`bridge_onboarding/caseta/`, `hueworks_app/bridge_onboarding/caseta*`), location postal-code lookup (`hueworks_app/location/`), general/setup/config UI deltas, docs/config deltas, remaining diff sweep. Prefix **CL**. | done — BOTH PHASES COMPLETE. Implementation backlog: ES-1 (high) → HA-1, IV-1, OB-1, UI-1, RC-1, CL-1 (medium) → the rest. |
+| 10 | `10-caseta-location-misc.md` | Caseta discovery groundwork (`bridge_onboarding/caseta/`, `hueworks_app/bridge_onboarding/caseta*`), location postal-code lookup (`hueworks_app/location/`), general/setup/config UI deltas, docs/config deltas, remaining diff sweep. Prefix **CL**. | done |
+
+## Phase 3: Reconciliation + New Commits (started 2026-07-24, HEAD `5af7d22`)
+
+Phase-2 work landed as `daf87f5` (HA auth) + `d3afcee` (native discovery); new work: `7a0fd54` (persist area onboarding decisions), `c07d08f` (guided onboarding workflow), `f6ceb0f` (test stabilization), `5af7d22` (docs). Tree is clean.
+
+| Step | Scope | Status |
+| --- | --- | --- |
+| R | Reconcile all open findings (MG/AR/BO/ES/OB/IV/UI/RC/HA/CL) against HEAD; delete fixed ones from docs (forward-facing rule); verify committed `daf87f5`/`d3afcee` match the audited working tree. | done — OB-1 fixed and deleted; OB-2/OB-3 relocated to `SetupAreasLive`; committed phase-2 code matches the audit; ALL other findings remain open, including ES-1 (high) |
+| 11 | `11-onboarding-workflow.md` — audit `7a0fd54` + `c07d08f` + `f6ceb0f` with the same criteria. Prefix **OW**. | done — ALL PHASES COMPLETE at `5af7d22` |
+
+## Phase 4: Implementation Reconciliation (2026-07-26)
+
+Codex implemented the backlog (uncommitted working tree on `5af7d22`); receipts verified against actual diffs finding-by-finding and deleted. Full suite: **1077 tests, 0 failures**.
+
+- **Implemented and verified faithful (deleted from docs)**: MG-1, AR-2, AR-3, BO-1, BO-3, BO-4, BO-5, ES-1, ES-2, OB-2, OB-3, IV-1, IV-2, IV-3, UI-1, HA-1, HA-2, CL-1, CL-2, CL-3, CL-4, OW-1, OW-2, OW-3. Several were better than spec (shared `ApplyError` adopted in both import LiveViews; identity capture threaded through `apply_test_result`; per-bridge design retry).
+- **Correctly refuted by the implementer**: MG-2 (256 bare `%Area{}` test inserts rely on autogeneration; recorded in `01-` — the implementer was right).
+- **AR-1 resolved**: Ian confirmed (2026-07-26) that dropping `/rooms` routes without redirects is the intended product behavior; recorded as leave-alone in `02-`.
+- **RC-1 closed** (Sol, reconciled 2026-07-26): blob-shaped fixtures now default across all named import suites with atom smoke cases; the rollout exposed and fixed a real `ReimportPlan` mixed-key defect (see `08-`); suite green at 1077.
+
+**AUDIT CLOSED — zero open findings.** Remaining work is product/release scope only: chunk 8's gap table and rehearsal checklist.
+- Still-relevant non-finding work: chunk 8's gap table (open release blockers: Caseta LEAP pairing, Z2M discovery assistance, Docker discovery rehearsal, diagnostics surface, screenshots/favicon, circadian modes, status vocabulary) and the rehearsal checklist.
 
 ## Chunk Ordering Rationale
 

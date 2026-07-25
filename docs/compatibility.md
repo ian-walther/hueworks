@@ -6,6 +6,7 @@
 - Direct Mix setup is supported for development and contribution.
 - HueWorks is intended only for a trusted local network and has no browser authentication.
 - The application listens over HTTP. A private reverse proxy may provide browser-facing HTTPS when `PHX_HOST`, `PHX_SCHEME`, and `PHX_URL_PORT` describe that canonical URL.
+- User-initiated ZIP/postal-code lookup sends only the country and postal code to `api.zippopotam.us`; manual coordinates and browser geolocation remain available alternatives.
 
 ## Bridges
 

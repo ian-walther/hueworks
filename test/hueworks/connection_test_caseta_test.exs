@@ -24,8 +24,8 @@ defmodule Hueworks.ConnectionTest.CasetaTest do
     assert {:error, message} =
              Caseta.test("caseta.local", @credentials, __MODULE__.FailedReadSSL)
 
-    assert message =~ "Caseta test failed"
-    assert message =~ "LEAP"
+    assert message =~ "Caseta at caseta.local could not be reached"
+    assert message =~ ":closed"
   end
 
   test "requires all staged credentials" do

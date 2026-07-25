@@ -110,7 +110,7 @@ defmodule Hueworks.ExternalSpaces do
 
       Enum.each(identities, fn attrs ->
         space = Map.fetch!(by_identity, {attrs.kind, attrs.external_id})
-        parent_id = parent_id(attrs, by_identity)
+        parent_id = parent_id(bridge.id, attrs, by_identity)
 
         if space.parent_external_space_id != parent_id do
           space
@@ -216,15 +216,22 @@ defmodule Hueworks.ExternalSpaces do
 
   defp normalize_space(_space), do: nil
 
-  defp parent_id(%{parent_kind: kind, parent_external_id: external_id}, by_identity)
+  defp parent_id(bridge_id, %{parent_kind: kind, parent_external_id: external_id}, by_identity)
        when is_binary(kind) and is_binary(external_id) do
     case Map.get(by_identity, {kind, external_id}) do
+      %ExternalSpace{id: id} -> id
+      nil -> existing_parent_id(bridge_id, kind, external_id)
+    end
+  end
+
+  defp parent_id(_bridge_id, _attrs, _by_identity), do: nil
+
+  defp existing_parent_id(bridge_id, kind, external_id) do
+    case get_by_identity(bridge_id, kind, external_id) do
       %ExternalSpace{id: id} -> id
       nil -> nil
     end
   end
-
-  defp parent_id(_attrs, _by_identity), do: nil
 
   defp normalize_text(value) when is_binary(value) do
     case String.trim(value) do

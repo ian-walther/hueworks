@@ -1,13 +1,31 @@
 defmodule HueworksWeb.SetupAreasLive do
   use Phoenix.LiveView
 
+  import HueworksWeb.SetupHelpers
   import HueworksWeb.Notices
 
   alias Hueworks.{Areas, Bridges, ExternalSpaces, Util}
   alias Hueworks.Onboarding.AreaDesign
   alias Hueworks.Schemas.Bridge
 
-  def mount(_params, _session, socket), do: {:ok, load_design(socket)}
+  def mount(_params, _session, socket) do
+    socket = assign_new(socket, :design_refresh_errors, fn -> %{} end)
+
+    if connected?(socket) do
+      {:ok, socket |> refresh_designs() |> load_design()}
+    else
+      {:ok, load_design(socket)}
+    end
+  end
+
+  def handle_event("retry_design", %{"bridge_id" => bridge_id}, socket) do
+    with bridge_id when is_integer(bridge_id) <- Util.parse_id(bridge_id),
+         %Bridge{type: :ha} = bridge <- Bridges.get_bridge(bridge_id) do
+      {:noreply, socket |> refresh_design(bridge) |> load_design()}
+    else
+      _other -> {:noreply, put_notice(socket, :error, "Home Assistant bridge not found.")}
+    end
+  end
 
   def handle_event("use_floor_one", params, socket) do
     with {:ok, bridge, external_id} <- bridge_space(params, "ha_floor"),
@@ -98,7 +116,7 @@ defmodule HueworksWeb.SetupAreasLive do
       Bridges.list_bridges()
       |> Enum.filter(&(&1.type == :ha))
       |> Enum.sort_by(& &1.name)
-      |> Enum.map(&design_entry/1)
+      |> Enum.map(&design_entry(&1, socket.assigns.design_refresh_errors))
 
     progress =
       Enum.reduce(entries, %{resolved: 0, total: 0}, fn
@@ -120,11 +138,45 @@ defmodule HueworksWeb.SetupAreasLive do
     )
   end
 
-  defp design_entry(bridge) do
-    case AreaDesign.refresh(bridge) do
-      {:ok, design} -> %{bridge: bridge, design: design, error: nil}
-      {:error, reason} -> %{bridge: bridge, design: nil, error: reason}
+  defp design_entry(bridge, errors) do
+    case Map.fetch(errors, bridge.id) do
+      {:ok, reason} ->
+        %{bridge: bridge, design: nil, error: reason}
+
+      :error ->
+        if Bridges.latest_import(bridge) do
+          %{bridge: bridge, design: area_design_module().design(bridge), error: nil}
+        else
+          %{bridge: bridge, design: nil, error: nil}
+        end
     end
+  end
+
+  defp refresh_designs(socket) do
+    Bridges.list_bridges()
+    |> Enum.filter(&(&1.type == :ha))
+    |> Enum.reduce(socket, &refresh_design(&2, &1))
+  end
+
+  defp refresh_design(socket, bridge) do
+    case area_design_module().refresh(bridge) do
+      {:ok, _design} ->
+        update(socket, :design_refresh_errors, &Map.delete(&1, bridge.id))
+
+      {:error, :inventory_not_fetched} ->
+        update(socket, :design_refresh_errors, &Map.delete(&1, bridge.id))
+
+      {:error, reason} ->
+        update(socket, :design_refresh_errors, &Map.put(&1, bridge.id, reason))
+    end
+  end
+
+  defp area_design_module do
+    Application.get_env(
+      :hueworks,
+      :onboarding_area_design_module,
+      AreaDesign
+    )
   end
 
   defp bridge_space(params, expected_kind) do
@@ -169,10 +221,6 @@ defmodule HueworksWeb.SetupAreasLive do
     do: reason |> Atom.to_string() |> String.replace("_", " ")
 
   defp operation_error(_reason), do: "unexpected error"
-
-  def count_label(1, singular), do: "1 #{singular}"
-  def count_label(count, "relevant entity"), do: "#{count} relevant entities"
-  def count_label(count, singular), do: "#{count} #{singular}s"
 
   def progress_percent(%{total: 0}), do: 0
   def progress_percent(%{resolved: resolved, total: total}), do: round(resolved / total * 100)
@@ -252,16 +300,27 @@ defmodule HueworksWeb.SetupAreasLive do
             <h4>Combine into one HueWorks Area</h4>
             <p class="hw-meta">Every HA Area on this Floor will share scenes and controls in one HueWorks Area.</p>
           </div>
-          <label class="hw-field-label" for={"floor-area-name-#{@entry.bridge.id}-#{@floor.space.external_id}"}>
-            HueWorks Area name
-          </label>
-          <input
-            id={"floor-area-name-#{@entry.bridge.id}-#{@floor.space.external_id}"}
-            class="hw-field-input"
-            name="name"
-            value={@floor.space.name}
-          />
-          <button class="hw-button hw-button-primary" type="submit">Combine into one Area</button>
+          <%= if mapped_name = area_name(@floor.space) do %>
+            <div class="hw-callout hw-callout-accent">
+              <strong>Mapped HueWorks Area</strong>
+              <span><%= mapped_name %></span>
+            </div>
+            <input type="hidden" name="name" value={mapped_name} />
+            <button class="hw-button hw-button-primary" type="submit">
+              Keep as <%= mapped_name %>
+            </button>
+          <% else %>
+            <label class="hw-field-label" for={"floor-area-name-#{@entry.bridge.id}-#{@floor.space.external_id}"}>
+              HueWorks Area name
+            </label>
+            <input
+              id={"floor-area-name-#{@entry.bridge.id}-#{@floor.space.external_id}"}
+              class="hw-field-input"
+              name="name"
+              value={@floor.space.name}
+            />
+            <button class="hw-button hw-button-primary" type="submit">Combine into one Area</button>
+          <% end %>
         </form>
 
         <div class="hw-floor-path-card">

@@ -11,6 +11,7 @@ defmodule Hueworks.DataCase do
       import Ecto.Changeset
       import Ecto.Query
       import Hueworks.DataCase
+      import Hueworks.ImportTestHelpers
     end
   end
 

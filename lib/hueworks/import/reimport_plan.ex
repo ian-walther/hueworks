@@ -5,6 +5,8 @@ defmodule Hueworks.Import.ReimportPlan do
   alias Hueworks.Util
 
   def build(normalized_import, normalized_db, areas) do
+    normalized_import = NormalizeJson.to_map(normalized_import)
+    normalized_db = NormalizeJson.to_map(normalized_db)
     import_areas = Normalize.fetch(normalized_import, :areas) || []
 
     import_lights =
@@ -94,8 +96,8 @@ defmodule Hueworks.Import.ReimportPlan do
 
     merged_normalized =
       normalized_import
-      |> Map.put(:lights, import_lights ++ missing_lights)
-      |> Map.put(:groups, import_groups ++ missing_groups)
+      |> Map.put("lights", import_lights ++ missing_lights)
+      |> Map.put("groups", import_groups ++ missing_groups)
 
     %{plan: plan, normalized: NormalizeJson.to_map(merged_normalized), statuses: statuses}
   end

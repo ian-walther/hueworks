@@ -89,20 +89,23 @@
             <a :if={entry.bridge.type == :ha} class="hw-button" href={"/config/bridges/#{entry.bridge.id}/external-scenes"}>
               Scene Import
             </a>
-            <a
-              :if={entry.home_assistant_auth == :manual}
-              class="hw-button"
-              href={"/config/bridges/home-assistant/authorize?bridge_id=#{entry.bridge.id}"}
+            <form
+              :if={entry.home_assistant_auth in [:manual, :oauth, :reauthorization_required]}
+              method="post"
+              action="/config/bridges/home-assistant/authorize"
             >
-              Switch to Browser Authorization
-            </a>
-            <a
-              :if={entry.home_assistant_auth in [:oauth, :reauthorization_required]}
-              class="hw-button"
-              href={"/config/bridges/home-assistant/authorize?bridge_id=#{entry.bridge.id}"}
-            >
-              Reconnect Home Assistant
-            </a>
+              <input
+                type="hidden"
+                name="_csrf_token"
+                value={Plug.CSRFProtection.get_csrf_token()}
+              />
+              <input type="hidden" name="bridge_id" value={entry.bridge.id} />
+              <button type="submit" class="hw-button">
+                <%= if entry.home_assistant_auth == :manual,
+                  do: "Switch to Browser Authorization",
+                  else: "Reconnect Home Assistant" %>
+              </button>
+            </form>
           </div>
         </div>
 

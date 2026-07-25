@@ -62,25 +62,24 @@ defmodule Hueworks.Z2M.Snapshot do
     end
   end
 
-  defp await_topics(%MapSet{map: map}, _subscribed_topics, payloads, _deadline)
-       when map_size(map) == 0 do
-    {:ok, payloads}
-  end
-
   defp await_topics(pending, subscribed_topics, payloads, deadline) do
-    remaining = max(0, deadline - System.monotonic_time(:millisecond))
-
-    if remaining == 0 do
-      {:error, missing_topics_message(pending)}
+    if MapSet.size(pending) == 0 do
+      {:ok, payloads}
     else
-      receive do
-        {:z2m_connection, _status} ->
-          await_topics(pending, subscribed_topics, payloads, deadline)
+      remaining = max(0, deadline - System.monotonic_time(:millisecond))
 
-        {:z2m_message, topic, raw_payload} ->
-          handle_message(topic, raw_payload, pending, subscribed_topics, payloads, deadline)
-      after
-        remaining -> {:error, missing_topics_message(pending)}
+      if remaining == 0 do
+        {:error, missing_topics_message(pending)}
+      else
+        receive do
+          {:z2m_connection, _status} ->
+            await_topics(pending, subscribed_topics, payloads, deadline)
+
+          {:z2m_message, topic, raw_payload} ->
+            handle_message(topic, raw_payload, pending, subscribed_topics, payloads, deadline)
+        after
+          remaining -> {:error, missing_topics_message(pending)}
+        end
       end
     end
   end

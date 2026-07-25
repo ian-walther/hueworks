@@ -53,6 +53,24 @@ Before controlling a real light, verify:
 6. No light, group, scene, active scene, Pico device, Pico button, Presence Input, bridge, or bridge import was deleted or reassigned.
 7. `/health` reports normal runtime I/O and the container remains stable.
 
+## One-Time Retained MQTT Cleanup
+
+The Area rename moved scene-select state and attribute topics from `hueworks/rooms/<id>/scene/...` to `hueworks/areas/<id>/scene/...`. Home Assistant discovery uses the new topics, but an MQTT broker may retain obsolete room-era payloads.
+
+After the migration and HA export checks pass, enumerate the old retained topics:
+
+```bash
+mosquitto_sub -h <broker> -W 2 -t 'hueworks/rooms/#' -v
+```
+
+For each topic returned, publish an empty retained payload using the same broker authentication and transport options as HueWorks:
+
+```bash
+mosquitto_pub -h <broker> -r -n -t '<exact-topic>'
+```
+
+Repeat the subscription command and verify it returns no room-era retained topics. Do not clear `hueworks/areas/#` or Home Assistant discovery topics.
+
 ## UI And Runtime Smoke
 
 1. Open `/setup` and confirm Area design is summarized rather than expanded inline.

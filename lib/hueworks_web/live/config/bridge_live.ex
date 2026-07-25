@@ -3,6 +3,7 @@ defmodule HueworksWeb.BridgeLive do
 
   alias Hueworks.AppSettings
   alias Hueworks.Bridges
+  alias Hueworks.ConnectionTest.Message, as: ConnectionTestMessage
   alias Hueworks.Credentials
   alias Hueworks.Control.Z2MConfig
   alias Hueworks.Import.Source
@@ -526,7 +527,12 @@ defmodule HueworksWeb.BridgeLive do
       {:noreply,
        assign(socket,
          test_status: :error,
-         test_error: "Connection test crashed: #{inspect(reason)}",
+         test_error:
+           ConnectionTestMessage.unexpected(
+             Source.normalize(socket.assigns.type),
+             socket.assigns.host,
+             reason
+           ),
          test_request_id: nil
        )}
     else
@@ -726,6 +732,15 @@ defmodule HueworksWeb.BridgeLive do
 
   defp apply_test_result(socket, result) do
     case result do
+      {:ok, %{name: name, external_id: external_id}} ->
+        assign(socket,
+          test_status: :ok,
+          test_error: nil,
+          test_bridge_name: name,
+          source_external_id: external_id || socket.assigns.source_external_id,
+          test_request_id: nil
+        )
+
       {:ok, name} ->
         assign(socket,
           test_status: :ok,
@@ -812,11 +827,7 @@ defmodule HueworksWeb.BridgeLive do
   end
 
   defp discover_caseta(module, external_id) do
-    if Code.ensure_loaded?(module) and function_exported?(module, :discover, 1) do
-      module.discover(external_id: external_id)
-    else
-      module.discover()
-    end
+    module.discover(external_id: external_id)
   end
 
   defp caseta_onboarding_module do
@@ -950,6 +961,12 @@ defmodule HueworksWeb.BridgeLive do
 
   defp bridge_external_id(%{assigns: %{type: "ha", ha_external_id: external_id}}),
     do: external_id
+
+  defp bridge_external_id(%{
+         assigns: %{type: type, source_external_id: external_id}
+       })
+       when type in ["hue", "caseta"] and is_binary(external_id) and external_id != "",
+       do: external_id
 
   defp bridge_external_id(_socket), do: nil
 

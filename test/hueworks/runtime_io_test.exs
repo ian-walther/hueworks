@@ -67,6 +67,16 @@ defmodule Hueworks.RuntimeIOTest do
     refute_receive :bootstrap_ran, 30
   end
 
+  test "hardware smoke refuses to run while runtime I/O is disabled" do
+    Application.put_env(:hueworks, :runtime_io_disabled, true)
+
+    assert_raise RuntimeError,
+                 "hardware smoke requires runtime I/O; unset HUEWORKS_RUNTIME_IO_DISABLED",
+                 fn ->
+                   Hueworks.HardwareSmoke.run!("kitchen_accent_pico")
+                 end
+  end
+
   defmodule BootstrapProbe do
     def run do
       send(Application.fetch_env!(:hueworks, :runtime_io_test_pid), :bootstrap_ran)

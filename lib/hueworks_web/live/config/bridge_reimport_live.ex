@@ -8,6 +8,7 @@ defmodule HueworksWeb.BridgeReimportLive do
   alias Hueworks.Import
 
   alias Hueworks.Import.{
+    ApplyError,
     DestructiveReview,
     Normalize,
     NormalizeFromDb,
@@ -347,20 +348,18 @@ defmodule HueworksWeb.BridgeReimportLive do
   defp stale_review_reason?(_reason), do: false
 
   defp apply_error_message({:duplicate_classification_changed, type, source_id}) do
-    "Duplicate classification changed for #{entity_reference(type, source_id)}. The review was refreshed; check the choices again."
+    ApplyError.message({:duplicate_classification_changed, type, source_id})
   end
 
   defp apply_error_message({:invalid_duplicate, type, source_id}) do
-    "The duplicate choice for #{entity_reference(type, source_id)} is no longer valid. The review was refreshed."
+    ApplyError.message({:invalid_duplicate, type, source_id})
   end
 
   defp apply_error_message({:stale_resolution, type, source_id}) do
-    "The review is out of date for #{entity_reference(type, source_id)}. It was refreshed; check the choices again."
+    ApplyError.message({:stale_resolution, type, source_id})
   end
 
-  defp apply_error_message(reason), do: inspect(reason)
-
-  defp entity_reference(type, source_id), do: "#{type} #{source_id}"
+  defp apply_error_message(reason), do: ApplyError.message(reason)
 
   defp current_lights(bridge_id) do
     Repo.all(

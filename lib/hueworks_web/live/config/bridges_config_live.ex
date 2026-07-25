@@ -1,8 +1,11 @@
 defmodule HueworksWeb.BridgesConfigLive do
   use Phoenix.LiveView
 
+  import HueworksWeb.Notices
+
   alias Hueworks.Bridges
   alias Hueworks.Schemas.Bridge
+  alias Hueworks.Util
 
   def mount(_params, _session, socket) do
     {:ok, assign(socket, bridge_entries: list_bridge_entries())}
@@ -14,8 +17,18 @@ defmodule HueworksWeb.BridgesConfigLive do
         {:noreply, socket}
 
       bridge ->
-        {:ok, _} = Bridges.delete_entities(bridge)
-        {:noreply, assign(socket, bridge_entries: list_bridge_entries())}
+        case Bridges.delete_entities(bridge) do
+          {:ok, _result} ->
+            {:noreply, assign(socket, bridge_entries: list_bridge_entries())}
+
+          {:error, reason} ->
+            {:noreply,
+             put_notice(
+               socket,
+               :error,
+               "Could not delete entities: #{Util.format_reason(reason)}"
+             )}
+        end
     end
   end
 
@@ -25,8 +38,14 @@ defmodule HueworksWeb.BridgesConfigLive do
         {:noreply, socket}
 
       bridge ->
-        {:ok, _} = Bridges.delete_bridge(bridge)
-        {:noreply, assign(socket, bridge_entries: list_bridge_entries())}
+        case Bridges.delete_bridge(bridge) do
+          {:ok, _deleted_bridge} ->
+            {:noreply, assign(socket, bridge_entries: list_bridge_entries())}
+
+          {:error, reason} ->
+            {:noreply,
+             put_notice(socket, :error, "Could not delete bridge: #{Util.format_reason(reason)}")}
+        end
     end
   end
 

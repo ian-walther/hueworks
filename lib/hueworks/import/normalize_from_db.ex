@@ -25,7 +25,7 @@ defmodule Hueworks.Import.NormalizeFromDb do
     }
 
     %{
-      schema_version: 1,
+      schema_version: Normalize.schema_version(),
       bridge: %{
         id: bridge.id,
         type: bridge.type,

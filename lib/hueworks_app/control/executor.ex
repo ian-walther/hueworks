@@ -129,7 +129,8 @@ defmodule Hueworks.Control.Executor do
   end
 
   defp enabled? do
-    Application.get_env(:hueworks, :control_executor_enabled, true)
+    Application.get_env(:hueworks, :control_executor_enabled, true) and
+      not Hueworks.RuntimeIO.disabled?()
   end
 
   defp default_server do

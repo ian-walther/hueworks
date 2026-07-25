@@ -6,6 +6,8 @@ defmodule Hueworks.Import.Normalize do
 
   @schema_version 2
 
+  def schema_version, do: @schema_version
+
   def normalize(%Bridge{} = bridge, raw_blob) do
     normalize(bridge, raw_blob, %{})
   end

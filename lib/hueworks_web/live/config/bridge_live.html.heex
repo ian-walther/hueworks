@@ -202,16 +202,22 @@
               <strong>Instance selected.</strong>
               Sign in to Home Assistant, approve HueWorks, and return here automatically.
             </div>
-            <a
+            <form
               id="authorize-home-assistant"
-              class="hw-button hw-button-primary"
-              href={
-                "/config/bridges/home-assistant/authorize?" <>
-                  URI.encode_query(%{"host" => @host, "external_id" => @ha_external_id || ""})
-              }
+              method="post"
+              action="/config/bridges/home-assistant/authorize"
             >
-              Authorize with Home Assistant
-            </a>
+              <input
+                type="hidden"
+                name="_csrf_token"
+                value={Plug.CSRFProtection.get_csrf_token()}
+              />
+              <input type="hidden" name="host" value={@host} />
+              <input type="hidden" name="external_id" value={@ha_external_id || ""} />
+              <button type="submit" class="hw-button hw-button-primary">
+                Authorize with Home Assistant
+              </button>
+            </form>
           </div>
 
           <button type="button" class="hw-link-button" phx-click="show_manual_ha">

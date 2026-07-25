@@ -45,13 +45,30 @@
   </section>
 
   <section
-    :if={Enum.any?(@entries, &is_nil(&1.design))}
+    :if={Enum.any?(@entries, &(is_nil(&1.design) && is_nil(&1.error)))}
     class="hw-panel hw-empty-state"
     id="area-design-inventory-needed"
   >
     <h2>Refresh Home Assistant inventory</h2>
     <p>Return to setup and fetch inventory before making Area decisions.</p>
     <a class="hw-button" href="/setup">Return to setup</a>
+  </section>
+
+  <section
+    :for={entry <- Enum.filter(@entries, &(not is_nil(&1.error)))}
+    class="hw-panel hw-empty-state"
+    id={"area-design-error-#{entry.bridge.id}"}
+  >
+    <h2>Area design could not be loaded</h2>
+    <p><%= operation_error(entry.error) %></p>
+    <button
+      type="button"
+      class="hw-button"
+      phx-click="retry_design"
+      phx-value-bridge_id={entry.bridge.id}
+    >
+      Retry Area design
+    </button>
   </section>
 
   <section

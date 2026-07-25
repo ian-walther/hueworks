@@ -1,6 +1,7 @@
 defmodule Hueworks.ConnectionTest.Caseta do
   @moduledoc false
 
+  alias Hueworks.ConnectionTest.Message
   alias Hueworks.Control.CasetaLeap
   alias Hueworks.Schemas.Bridge
   alias Hueworks.Schemas.Bridge.Credentials
@@ -26,13 +27,13 @@ defmodule Hueworks.ConnectionTest.Caseta do
     case CasetaLeap.connect(bridge, ssl_module) do
       {:ok, socket} ->
         try do
-          validate_leap(socket, ssl_module)
+          validate_leap(host, socket, ssl_module)
         after
           ssl_module.close(socket)
         end
 
       {:error, reason} ->
-        {:error, "Caseta test failed: #{inspect(reason)}"}
+        {:error, Message.transport(:caseta, host, reason)}
     end
   end
 
@@ -40,7 +41,7 @@ defmodule Hueworks.ConnectionTest.Caseta do
     {:error, "Caseta test failed: missing required credential files."}
   end
 
-  defp validate_leap(socket, ssl_module) do
+  defp validate_leap(host, socket, ssl_module) do
     request = %{
       "CommuniqueType" => "ReadRequest",
       "Header" => %{"Url" => @test_url}
@@ -53,7 +54,7 @@ defmodule Hueworks.ConnectionTest.Caseta do
          :ok <- require_success(response) do
       {:ok, "Caseta Bridge"}
     else
-      {:error, reason} -> {:error, "Caseta test failed: LEAP read failed: #{inspect(reason)}"}
+      {:error, reason} -> {:error, Message.transport(:caseta, host, reason)}
     end
   end
 

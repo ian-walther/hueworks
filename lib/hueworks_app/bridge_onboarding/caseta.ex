@@ -24,13 +24,9 @@ defmodule Hueworks.BridgeOnboarding.Caseta do
   end
 
   defp discover_devices(module, external_id) when is_binary(external_id) do
-    if Code.ensure_loaded?(module) and function_exported?(module, :resolve, 1) do
-      case module.resolve(external_id) do
-        {:ok, device} -> {:ok, [device]}
-        _ -> module.discover()
-      end
-    else
-      module.discover()
+    case module.resolve(external_id) do
+      {:ok, device} -> {:ok, [device]}
+      _other -> module.discover()
     end
   end
 

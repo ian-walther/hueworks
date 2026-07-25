@@ -7,7 +7,7 @@ defmodule Hueworks.Import.SpaceSuggestions do
   """
 
   alias Hueworks.{Bridges, ExternalSpaces}
-  alias Hueworks.Import.Normalize
+  alias Hueworks.Import.{Normalize, SpaceIdentity}
   alias Hueworks.Schemas.Bridge
 
   def build_from_available_ha(%Bridge{type: type} = native_bridge, native_normalized)
@@ -125,7 +125,7 @@ defmodule Hueworks.Import.SpaceSuggestions do
          native_mappings,
          bridge_type
        ) do
-    identity = space_identity(space, bridge_type)
+    identity = SpaceIdentity.identity(space, bridge_type)
     members = member_source_ids(space, native_normalized, bridge_type)
     member_matches = Enum.map(members, &Map.get(matches, &1, %{status: :unmatched}))
     ambiguous? = Enum.any?(member_matches, &(&1.status == :ambiguous_identity))
@@ -278,17 +278,6 @@ defmodule Hueworks.Import.SpaceSuggestions do
       _ -> nil
     end
   end
-
-  defp space_identity(space, bridge_type) do
-    kind = Normalize.fetch(space, :kind) || default_kind(bridge_type)
-    external_id = Normalize.fetch(space, :external_id) || Normalize.fetch(space, :source_id)
-    {Normalize.normalize_space_kind(kind), Normalize.normalize_source_id(external_id)}
-  end
-
-  defp default_kind(:hue), do: "hue_area"
-  defp default_kind(:caseta), do: "caseta_area"
-  defp default_kind(:z2m), do: "z2m_group"
-  defp default_kind(_type), do: "external_space"
 
   defp source_id(entity) do
     entity

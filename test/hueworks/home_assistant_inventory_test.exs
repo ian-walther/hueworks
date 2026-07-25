@@ -1,41 +1,49 @@
 defmodule Hueworks.HomeAssistant.InventoryTest do
   use ExUnit.Case, async: true
 
+  import Hueworks.ImportTestHelpers
+
   alias Hueworks.HomeAssistant.Inventory
+  alias Hueworks.Import.Normalize
 
   test "separates native wrappers from HA-only entities and summarizes supported sources" do
-    raw = %{
-      config_entries: [
-        %{entry_id: "hue-entry", domain: "hue", title: "Hue Bridge"},
-        %{entry_id: "caseta-entry", domain: "lutron_caseta", title: "047a00fc"},
-        %{entry_id: "zha-entry", domain: "zha", title: "ZHA"},
-        %{entry_id: "mqtt-entry", domain: "mqtt", title: "192.168.1.41"}
-      ],
-      device_registry: [
-        %{
-          config_entries: ["hue-entry"],
-          model: "Hue Bridge",
-          identifiers: [["hue", "001788fffe111111"]]
-        }
-      ],
-      floors: [],
-      areas: []
-    }
+    raw =
+      blob_shaped(%{
+        config_entries: [
+          %{entry_id: "hue-entry", domain: "hue", title: "Hue Bridge"},
+          %{entry_id: "caseta-entry", domain: "lutron_caseta", title: "047a00fc"},
+          %{entry_id: "zha-entry", domain: "zha", title: "ZHA"},
+          %{entry_id: "mqtt-entry", domain: "mqtt", title: "192.168.1.41"}
+        ],
+        device_registry: [
+          %{
+            config_entries: ["hue-entry"],
+            model: "Hue Bridge",
+            identifiers: [["hue", "001788fffe111111"]]
+          }
+        ],
+        floors: [],
+        areas: []
+      })
 
-    normalized = %{
-      external_spaces: [],
-      lights: [
-        light("light.hue", "hue", "hue", "hue-entry"),
-        light("light.template", "template", "unknown", "template-entry"),
-        light("light.mqtt", "mqtt", "unknown", "mqtt-entry")
-      ],
-      groups: []
-    }
+    normalized =
+      blob_shaped(%{
+        external_spaces: [],
+        lights: [
+          light("light.hue", "hue", "hue", "hue-entry"),
+          light("light.template", "template", "unknown", "template-entry"),
+          light("light.mqtt", "mqtt", "unknown", "mqtt-entry")
+        ],
+        groups: []
+      })
 
     inventory = Inventory.from_snapshot(raw, normalized)
 
-    assert Enum.map(inventory.native_wrappers, & &1.source_id) == ["light.hue", "light.mqtt"]
-    assert Enum.map(inventory.ha_only_entities, & &1.source_id) == ["light.template"]
+    assert Enum.map(inventory.native_wrappers, &Normalize.fetch(&1, :source_id)) ==
+             ["light.hue", "light.mqtt"]
+
+    assert Enum.map(inventory.ha_only_entities, &Normalize.fetch(&1, :source_id)) ==
+             ["light.template"]
 
     assert Enum.any?(inventory.native_sources, fn source ->
              source.kind == :hue and source.external_id == "001788fffe111111" and

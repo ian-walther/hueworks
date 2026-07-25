@@ -2,15 +2,16 @@ defmodule Hueworks.Import.SpaceMappings do
   @moduledoc false
 
   alias Hueworks.ExternalSpaces
-  alias Hueworks.Import.{Normalize, ReviewPlan}
+  alias Hueworks.Import.{Normalize, ReviewPlan, SpaceIdentity}
   alias Hueworks.Schemas.{Bridge, ExternalSpace}
 
   def sync_and_apply(%Bridge{} = bridge, normalized, plan, destination_by_source_id) do
-    spaces = Enum.map(Normalize.external_spaces(normalized), &ensure_identity(&1, bridge.type))
+    source_spaces = Normalize.external_spaces(normalized)
+    spaces = Enum.map(source_spaces, &SpaceIdentity.attrs(&1, bridge.type))
 
     identity_by_source_id =
-      Map.new(spaces, fn space ->
-        {source_id(space), normalized_space_identity(space)}
+      Map.new(source_spaces, fn space ->
+        {source_id(space), SpaceIdentity.identity(space, bridge.type)}
       end)
 
     with {:ok, persisted_spaces} <- ExternalSpaces.sync_bridge_spaces(bridge, spaces),
@@ -30,9 +31,7 @@ defmodule Hueworks.Import.SpaceMappings do
   def identity(space, fallback_type \\ nil)
 
   def identity(space, fallback_type) when is_map(space) do
-    space
-    |> ensure_identity(fallback_type)
-    |> normalized_space_identity()
+    SpaceIdentity.identity(space, fallback_type)
   end
 
   def key({kind, external_id}) when is_binary(kind) and is_binary(external_id) do
@@ -71,7 +70,7 @@ defmodule Hueworks.Import.SpaceMappings do
         |> Kernel.||([])
         |> Enum.reduce(plan, fn source_space, acc ->
           source_id = source_id(source_space)
-          identity = source_space |> ensure_identity(bridge_type) |> normalized_space_identity()
+          identity = SpaceIdentity.identity(source_space, bridge_type)
 
           case Map.get(mappings, identity) do
             area_id when is_integer(area_id) ->
@@ -233,27 +232,6 @@ defmodule Hueworks.Import.SpaceMappings do
       Map.get(mapped_space_ids, {kind, external_id})
     end)
   end
-
-  defp normalized_space_identity(space) do
-    kind = Normalize.fetch(space, :kind) |> Normalize.normalize_space_kind()
-
-    external_id =
-      Normalize.fetch(space, :external_id) || Normalize.fetch(space, :source_id)
-
-    {kind, Normalize.normalize_source_id(external_id)}
-  end
-
-  defp ensure_identity(space, bridge_type) when is_map(space) do
-    space
-    |> Map.put_new(:kind, default_kind(bridge_type))
-    |> Map.put_new(:external_id, Normalize.fetch(space, :source_id))
-  end
-
-  defp default_kind(:hue), do: "hue_area"
-  defp default_kind(:caseta), do: "caseta_area"
-  defp default_kind(:ha), do: "ha_area"
-  defp default_kind(:z2m), do: "z2m_group"
-  defp default_kind(_type), do: "external_space"
 
   defp maybe_put_placement_area(plan, %{kind: kind, external_id: source_id}, target_area_id)
        when kind in ["hue_area", "caseta_area", "ha_area"] do

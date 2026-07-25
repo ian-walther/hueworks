@@ -618,6 +618,9 @@ defmodule HueworksWeb.ConfigLiveTest do
   test "postal code lookup prefills coordinates without saving settings", %{conn: conn} do
     {:ok, view, _html} = live(conn, "/config/general")
 
+    assert render(view) =~
+             "Looks up coordinates via zippopotam.us; only the country and postal code are sent."
+
     view
     |> form("#postal-code-lookup-form", %{
       "country_code" => "US",
@@ -871,8 +874,13 @@ defmodule HueworksWeb.ConfigLiveTest do
 
     assert has_element?(
              view,
-             "#bridge-#{oauth_bridge.id} a[href='/config/bridges/home-assistant/authorize?bridge_id=#{oauth_bridge.id}']",
+             "#bridge-#{oauth_bridge.id} form[action='/config/bridges/home-assistant/authorize'] button",
              "Reconnect Home Assistant"
+           )
+
+    assert has_element?(
+             view,
+             "#bridge-#{oauth_bridge.id} input[name='bridge_id'][value='#{oauth_bridge.id}']"
            )
 
     assert has_element?(
@@ -883,7 +891,7 @@ defmodule HueworksWeb.ConfigLiveTest do
 
     assert has_element?(
              view,
-             "#bridge-#{manual_bridge.id} a[href='/config/bridges/home-assistant/authorize?bridge_id=#{manual_bridge.id}']",
+             "#bridge-#{manual_bridge.id} form[action='/config/bridges/home-assistant/authorize'] button",
              "Switch to Browser Authorization"
            )
 

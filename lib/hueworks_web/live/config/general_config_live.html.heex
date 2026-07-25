@@ -64,6 +64,9 @@
           <%= if @postal_lookup_status == :loading, do: "Looking up...", else: "Look Up" %>
         </button>
       </form>
+      <p class="hw-field-help">
+        Looks up coordinates via zippopotam.us; only the country and postal code are sent.
+      </p>
 
       <div class="hw-location-browser-action">
         <span class="hw-muted">or</span>

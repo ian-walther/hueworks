@@ -171,6 +171,36 @@ defmodule Hueworks.SchemasTest do
     assert credentials.auth_status == "ready"
   end
 
+  test "bridge credential inspection redacts every stored secret" do
+    secrets = %{
+      "api_key" => "hue-secret",
+      "token" => "manual-secret",
+      "password" => "mqtt-secret",
+      "access_token" => "access-secret",
+      "refresh_token" => "refresh-secret"
+    }
+
+    credentials =
+      struct(
+        Hueworks.Schemas.Bridge.Credentials,
+        Map.new(secrets, fn {k, v} ->
+          {String.to_existing_atom(k), v}
+        end)
+      )
+
+    changeset =
+      Hueworks.Schemas.Bridge.Credentials.changeset(
+        credentials,
+        Map.put(secrets, "auth_type", "invalid"),
+        :ha
+      )
+
+    for secret <- Map.values(secrets) do
+      refute inspect(credentials) =~ secret
+      refute inspect(changeset) =~ secret
+    end
+  end
+
   test "bridge import requires bridge_id, raw_blob, status, imported_at" do
     changeset = BridgeImport.changeset(%BridgeImport{}, %{})
     errors = errors_on(changeset)

@@ -14,6 +14,15 @@ defmodule HueworksWeb.BridgeLiveTest do
     previous_ha_onboarding = Application.get_env(:hueworks, :ha_onboarding_module)
     previous_test_pid = Application.get_env(:hueworks, :bridge_live_test_pid)
     previous_runtime_io_disabled = Application.get_env(:hueworks, :runtime_io_disabled)
+    previous_credentials_root = Application.get_env(:hueworks, :credentials_root)
+
+    credentials_root =
+      Path.join(
+        System.tmp_dir!(),
+        "hueworks_bridge_live_#{System.unique_integer([:positive])}"
+      )
+
+    Application.put_env(:hueworks, :credentials_root, credentials_root)
 
     Application.put_env(
       :hueworks,
@@ -34,6 +43,8 @@ defmodule HueworksWeb.BridgeLiveTest do
       restore_app_env(:hueworks, :ha_onboarding_module, previous_ha_onboarding)
       restore_app_env(:hueworks, :bridge_live_test_pid, previous_test_pid)
       restore_app_env(:hueworks, :runtime_io_disabled, previous_runtime_io_disabled)
+      restore_app_env(:hueworks, :credentials_root, previous_credentials_root)
+      File.rm_rf(credentials_root)
     end)
 
     :ok
@@ -124,6 +135,65 @@ defmodule HueworksWeb.BridgeLiveTest do
     assert html =~ "Use discovery instead"
   end
 
+  test "manual Hue setup persists the identity returned by the connection test", %{conn: conn} do
+    Application.put_env(
+      :hueworks,
+      :hue_onboarding_module,
+      HueworksWeb.BridgeLiveTest.FailedHueOnboarding
+    )
+
+    Application.put_env(:hueworks, :connection_test_modules, %{
+      hue: HueworksWeb.BridgeLiveTest.SuccessfulHue
+    })
+
+    {:ok, view, _html} = live(conn, "/config/bridges/new")
+    render_async(view)
+    render_click(view, "show_manual_hue", %{})
+
+    render_change(view, "update_bridge", %{
+      "type" => "hue",
+      "host" => "192.168.1.10",
+      "hue_api_key" => "api-key"
+    })
+
+    render_click(view, "test_bridge", %{})
+    assert render_async(view) =~ "Connection verified."
+
+    assert {:error, {:live_redirect, %{to: _to}}} =
+             render_click(view, "proceed_bridge", %{})
+
+    bridge = Repo.get_by!(Bridge, type: :hue, host: "192.168.1.10")
+    assert bridge.external_id == "001788fffe111111"
+  end
+
+  test "manual Hue setup shows an actionable refused-connection message", %{conn: conn} do
+    Application.put_env(
+      :hueworks,
+      :hue_onboarding_module,
+      HueworksWeb.BridgeLiveTest.FailedHueOnboarding
+    )
+
+    Application.put_env(:hueworks, :connection_test_modules, %{
+      hue: HueworksWeb.BridgeLiveTest.RefusedHue
+    })
+
+    {:ok, view, _html} = live(conn, "/config/bridges/new")
+    render_async(view)
+    render_click(view, "show_manual_hue", %{})
+
+    render_change(view, "update_bridge", %{
+      "type" => "hue",
+      "host" => "192.168.1.10",
+      "hue_api_key" => "api-key"
+    })
+
+    render_click(view, "test_bridge", %{})
+    html = render_async(view)
+
+    assert html =~ "Hue connection was refused"
+    refute html =~ "econnrefused"
+  end
+
   test "warns before adding a native bridge after unlinked Home Assistant entities", %{conn: conn} do
     ha_bridge =
       %Bridge{}
@@ -179,7 +249,17 @@ defmodule HueworksWeb.BridgeLiveTest do
 
     assert has_element?(
              view,
-             ".hw-callout-flow #authorize-home-assistant[href*='host=192.168.1.41%3A8123'][href*='external_id=1234567890abcdef']",
+             ".hw-callout-flow #authorize-home-assistant[action='/config/bridges/home-assistant/authorize'] input[name='host'][value='192.168.1.41:8123']"
+           )
+
+    assert has_element?(
+             view,
+             "#authorize-home-assistant input[name='external_id'][value='1234567890abcdef']"
+           )
+
+    assert has_element?(
+             view,
+             "#authorize-home-assistant button[type='submit']",
              "Authorize with Home Assistant"
            )
 
@@ -235,6 +315,52 @@ defmodule HueworksWeb.BridgeLiveTest do
     render_async(view)
 
     assert has_element?(view, "#bridge_host[value='192.168.1.123']")
+  end
+
+  test "Home Assistant Caseta identity is retained when the bridge is saved", %{conn: conn} do
+    Application.put_env(
+      :hueworks,
+      :caseta_onboarding_module,
+      HueworksWeb.BridgeLiveTest.CasetaOnboarding
+    )
+
+    Application.put_env(:hueworks, :connection_test_modules, %{
+      caseta: HueworksWeb.BridgeLiveTest.SuccessfulCaseta
+    })
+
+    {:ok, view, _html} =
+      live(conn, "/config/bridges/new?type=caseta&external_id=047a00fc")
+
+    render_async(view)
+
+    uploads = [
+      {:caseta_cert, "bridge.crt"},
+      {:caseta_key, "bridge.key"},
+      {:caseta_cacert, "bridge-ca.crt"}
+    ]
+
+    Enum.each(uploads, fn {upload_name, filename} ->
+      upload =
+        file_input(view, "form[phx-change='update_bridge']", upload_name, [
+          %{
+            last_modified: 1_700_000_000_000,
+            name: filename,
+            content: "test credential",
+            type: "application/octet-stream"
+          }
+        ])
+
+      render_upload(upload, filename)
+    end)
+
+    render_click(view, "test_bridge", %{})
+    assert render_async(view) =~ "Connection verified."
+
+    assert {:error, {:live_redirect, %{to: _to}}} =
+             render_click(view, "proceed_bridge", %{})
+
+    bridge = Repo.get_by!(Bridge, type: :caseta, host: "192.168.1.123")
+    assert bridge.external_id == "047a00fc"
   end
 
   test "marks a discovered Home Assistant instance that is already configured", %{conn: conn} do
@@ -446,8 +572,24 @@ defmodule HueworksWeb.BridgeLiveTest.SuccessfulZ2M do
   def test(_host, _opts), do: {:ok, "Zigbee2MQTT (1 device, 1 group)"}
 end
 
+defmodule HueworksWeb.BridgeLiveTest.SuccessfulHue do
+  def test(_host, _api_key) do
+    {:ok, %{name: "Office Hue", external_id: "001788fffe111111"}}
+  end
+end
+
+defmodule HueworksWeb.BridgeLiveTest.RefusedHue do
+  alias Hueworks.ConnectionTest.Message
+
+  def test(host, _api_key), do: {:error, Message.transport(:hue, host, :econnrefused)}
+end
+
 defmodule HueworksWeb.BridgeLiveTest.SuccessfulHomeAssistant do
   def test(_host, _token), do: {:ok, "Home Assistant"}
+end
+
+defmodule HueworksWeb.BridgeLiveTest.SuccessfulCaseta do
+  def test(_host, _staged), do: {:ok, "Caseta Bridge"}
 end
 
 defmodule HueworksWeb.BridgeLiveTest.BlockingHomeAssistant do
@@ -511,7 +653,7 @@ defmodule HueworksWeb.BridgeLiveTest.MultipleHueOnboarding do
 end
 
 defmodule HueworksWeb.BridgeLiveTest.CasetaOnboarding do
-  def discover do
+  def discover(external_id: "047a00fc") do
     {:ok,
      [
        %{id: "047a00fc", host: "192.168.1.123", name: "Lutron 047a00fc"},

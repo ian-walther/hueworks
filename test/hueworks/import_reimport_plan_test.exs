@@ -42,7 +42,7 @@ defmodule Hueworks.Import.ReimportPlanTest do
     areas = [%{id: 1, name: "Office"}]
 
     %{plan: plan, statuses: statuses} =
-      ReimportPlan.build(normalized_import, normalized_db, areas)
+      build_plan(normalized_import, normalized_db, areas)
 
     assert plan.lights["light-1"] == true
 
@@ -92,7 +92,7 @@ defmodule Hueworks.Import.ReimportPlanTest do
     }
 
     %{plan: plan, statuses: statuses, normalized: normalized} =
-      ReimportPlan.build(normalized_import, %{lights: [], groups: []}, [])
+      build_plan(normalized_import, %{lights: [], groups: []}, [])
 
     assert plan.lights["light.hue_lamp"] == %{
              "selected" => true,
@@ -146,7 +146,7 @@ defmodule Hueworks.Import.ReimportPlanTest do
     }
 
     %{plan: plan, statuses: statuses} =
-      ReimportPlan.build(normalized_import, %{lights: [], groups: []}, [])
+      build_plan(normalized_import, %{lights: [], groups: []}, [])
 
     assert plan.groups["light.hue_group"] == %{
              "selected" => true,
@@ -210,7 +210,7 @@ defmodule Hueworks.Import.ReimportPlanTest do
     }
 
     %{plan: plan, statuses: statuses} =
-      ReimportPlan.build(normalized_import, NormalizeFromDb.normalize(ha_bridge), [])
+      build_plan(normalized_import, NormalizeFromDb.normalize(ha_bridge), [])
 
     assert plan.groups["light.hue_group"] == %{
              "selected" => true,
@@ -273,7 +273,7 @@ defmodule Hueworks.Import.ReimportPlanTest do
     }
 
     %{plan: plan, statuses: statuses} =
-      ReimportPlan.build(normalized_import, NormalizeFromDb.normalize(ha_bridge), [])
+      build_plan(normalized_import, NormalizeFromDb.normalize(ha_bridge), [])
 
     assert plan.groups["light.hue_group"] == %{
              "selected" => true,
@@ -318,7 +318,7 @@ defmodule Hueworks.Import.ReimportPlanTest do
     }
 
     %{plan: plan, statuses: statuses} =
-      ReimportPlan.build(normalized_import, normalized_db, [])
+      build_plan(normalized_import, normalized_db, [])
 
     assert statuses.lights["zone-2"] == :ambiguous_identity
     assert plan.lights["zone-2"] == %{"selected" => false, "resolution" => "keep_separate"}
@@ -353,7 +353,7 @@ defmodule Hueworks.Import.ReimportPlanTest do
     }
 
     %{plan: plan, statuses: statuses} =
-      ReimportPlan.build(normalized_import, normalized_db, [])
+      build_plan(normalized_import, normalized_db, [], :atom)
 
     assert plan.lights["light.kitchen"] == true
     assert statuses.lights["light.kitchen"] == :existing
@@ -388,7 +388,7 @@ defmodule Hueworks.Import.ReimportPlanTest do
     }
 
     %{plan: plan, statuses: statuses} =
-      ReimportPlan.build(normalized_import, normalized_db, [])
+      build_plan(normalized_import, normalized_db, [])
 
     assert plan.lights["zone-1"] == true
     assert statuses.lights["zone-1"] == :existing
@@ -410,7 +410,7 @@ defmodule Hueworks.Import.ReimportPlanTest do
       memberships: %{}
     }
 
-    %{plan: plan} = ReimportPlan.build(normalized_import, %{lights: [], groups: []}, [])
+    %{plan: plan} = build_plan(normalized_import, %{lights: [], groups: []}, [])
 
     assert plan.areas["bridge-office"]["action"] == "skip"
 
@@ -438,12 +438,26 @@ defmodule Hueworks.Import.ReimportPlanTest do
     }
 
     %{plan: plan} =
-      ReimportPlan.build(normalized_import, %{lights: [], groups: []}, [
+      build_plan(normalized_import, %{lights: [], groups: []}, [
         %{id: 42, name: "OFFICE"}
       ])
 
     assert plan.areas["bridge-office"]["action"] == "merge"
     assert plan.lights["light-new"]["target_area_id"] == "42"
+  end
+
+  defp build_plan(normalized_import, normalized_db, areas, shape \\ :blob) do
+    case shape do
+      :blob ->
+        ReimportPlan.build(
+          blob_shaped(normalized_import),
+          blob_shaped(normalized_db),
+          areas
+        )
+
+      :atom ->
+        ReimportPlan.build(normalized_import, normalized_db, areas)
+    end
   end
 
   defp insert_bridge(type) do

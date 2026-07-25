@@ -8,11 +8,13 @@ defmodule HueworksWeb.SetupLiveTest do
 
   setup do
     previous_pipeline = Application.get_env(:hueworks, :onboarding_import_pipeline)
+    previous_test_pid = Application.get_env(:hueworks, :setup_live_test_pid)
     Repo.delete_all(AppSetting)
     HueworksApp.Cache.flush_namespace(:app_settings)
 
     on_exit(fn ->
       restore_app_env(:hueworks, :onboarding_import_pipeline, previous_pipeline)
+      restore_app_env(:hueworks, :setup_live_test_pid, previous_test_pid)
     end)
 
     :ok
@@ -28,6 +30,8 @@ defmodule HueworksWeb.SetupLiveTest do
     assert has_element?(view, "button[phx-value-path='ha_assisted']", "Start with Home Assistant")
     assert has_element?(view, "button[phx-value-path='direct']", "Set up HueWorks directly")
     assert has_element?(view, "a[href='/config']", "Leave for Config")
+    assert render(view) =~ "Floors, Areas, and Lights/Groups"
+    refute render(view) =~ "Floors, Areas, Rooms"
   end
 
   test "direct setup is a resumable checklist derived from committed data", %{conn: conn} do
@@ -154,6 +158,42 @@ defmodule HueworksWeb.SetupLiveTest do
     assert Repo.aggregate(Light, :count) == 0
   end
 
+  test "concurrent inventory refreshes keep independent progress state", %{conn: conn} do
+    Application.put_env(:hueworks, :onboarding_import_pipeline, __MODULE__.BlockingPipeline)
+    Application.put_env(:hueworks, :setup_live_test_pid, self())
+    assert {:ok, _settings} = Onboarding.choose_path(:ha_assisted)
+
+    first = insert_ha_bridge!("First Home", "first.home:8123")
+    second = insert_ha_bridge!("Second Home", "second.home:8123")
+    first_id = first.id
+    second_id = second.id
+
+    {:ok, view, _html} = live(conn, "/setup")
+
+    render_click(view, "refresh_ha_inventory", %{"bridge_id" => Integer.to_string(first.id)})
+    render_click(view, "refresh_ha_inventory", %{"bridge_id" => Integer.to_string(second.id)})
+
+    assert_receive {:inventory_refresh_started, ^first_id, first_pid}
+    assert_receive {:inventory_refresh_started, ^second_id, second_pid}
+
+    html = render(view)
+    assert refreshing_button?(html, first.id)
+    assert refreshing_button?(html, second.id)
+
+    send(first_pid, :finish_inventory_refresh)
+
+    html =
+      eventually_render(view, fn html ->
+        not refreshing_button?(html, first.id) and refreshing_button?(html, second.id)
+      end)
+
+    refute refreshing_button?(html, first.id)
+    assert refreshing_button?(html, second.id)
+
+    send(second_pid, :finish_inventory_refresh)
+    render_async(view)
+  end
+
   test "finish and dismiss are explicit and survive a new request", %{conn: conn} do
     assert {:ok, _settings} = Onboarding.choose_path(:direct)
     {:ok, view, _html} = live(conn, "/setup")
@@ -253,6 +293,41 @@ defmodule HueworksWeb.SetupLiveTest do
     bridge
   end
 
+  defp insert_ha_bridge!(name, host) do
+    %Bridge{}
+    |> Bridge.changeset(%{
+      type: :ha,
+      name: name,
+      host: host,
+      credentials: %{"token" => "token"}
+    })
+    |> Repo.insert!()
+  end
+
+  defp refreshing_button?(html, bridge_id) do
+    html
+    |> Floki.parse_fragment!()
+    |> Floki.find("button[phx-value-bridge_id='#{bridge_id}']")
+    |> Enum.any?(fn {_tag, attrs, children} ->
+      {"disabled", "disabled"} in attrs and Floki.text(children) =~ "Refreshing..."
+    end)
+  end
+
+  defp eventually_render(view, predicate, attempts \\ 20)
+
+  defp eventually_render(view, predicate, attempts) when attempts > 0 do
+    html = render(view)
+
+    if predicate.(html) do
+      html
+    else
+      Process.sleep(10)
+      eventually_render(view, predicate, attempts - 1)
+    end
+  end
+
+  defp eventually_render(view, _predicate, 0), do: render(view)
+
   defmodule InventoryPipeline do
     alias Hueworks.Repo
     alias Hueworks.Schemas.BridgeImport
@@ -281,6 +356,23 @@ defmodule HueworksWeb.SetupLiveTest do
         })
 
       {:ok, bridge_import}
+    end
+  end
+
+  defmodule BlockingPipeline do
+    def create_import(bridge) do
+      send(
+        Application.fetch_env!(:hueworks, :setup_live_test_pid),
+        {:inventory_refresh_started, bridge.id, self()}
+      )
+
+      receive do
+        :finish_inventory_refresh ->
+          {:ok, %BridgeImport{bridge_id: bridge.id}}
+      after
+        2_000 ->
+          {:error, :timeout}
+      end
     end
   end
 end

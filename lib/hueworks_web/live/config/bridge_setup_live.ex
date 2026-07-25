@@ -6,7 +6,16 @@ defmodule HueworksWeb.BridgeSetupLive do
 
   alias Hueworks.Bridges
   alias Hueworks.Import
-  alias Hueworks.Import.{Normalize, Plan, ReviewPlan, SpaceMappings, SpaceSuggestions}
+
+  alias Hueworks.Import.{
+    ApplyError,
+    Normalize,
+    Plan,
+    ReviewPlan,
+    SpaceMappings,
+    SpaceSuggestions
+  }
+
   alias Hueworks.Repo
   alias Hueworks.Schemas.{Bridge, Area}
 
@@ -155,7 +164,7 @@ defmodule HueworksWeb.BridgeSetupLive do
          |> put_notice(:info, "Bridge import applied successfully.")}
 
       {:error, reason} ->
-        message = inspect(reason)
+        message = ApplyError.message(reason)
 
         {:noreply,
          socket

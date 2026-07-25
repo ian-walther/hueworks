@@ -226,6 +226,14 @@ defmodule HueworksWeb.ControlLive do
           <button class="hw-button" phx-click="refresh">Reload</button>
       </:actions>
 
+      <div :if={@verification_mode?} class="hw-callout hw-callout-warning">
+        <strong>Verification mode</strong>
+        <p>
+          Physical lighting changes are disabled. Control actions update HueWorks data without
+          dispatching commands to bridges.
+        </p>
+      </div>
+
       <div :if={@area_models == []} class="hw-empty-state hw-empty-state-guided">
         <p class="hw-eyebrow">First step</p>
         <h2>Nothing to control yet</h2>
@@ -551,7 +559,8 @@ defmodule HueworksWeb.ControlLive do
       lights: lights,
       active_scene_by_area: active_scene_by_area(),
       group_state: DisplayState.build_group_state(groups),
-      light_state: DisplayState.build_light_state(lights)
+      light_state: DisplayState.build_light_state(lights),
+      verification_mode?: Hueworks.RuntimeIO.disabled?()
     }
   end
 

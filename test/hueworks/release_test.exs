@@ -1,6 +1,8 @@
 defmodule Hueworks.ReleaseTest do
   use ExUnit.Case, async: false
 
+  import ExUnit.CaptureLog
+
   alias Hueworks.Release
 
   setup do
@@ -66,6 +68,24 @@ defmodule Hueworks.ReleaseTest do
     refute_receive :migrate
   end
 
+  test "continues migration when pruning old backups fails" do
+    log =
+      capture_log(fn ->
+        assert :ok =
+                 Release.migrate_with_backup(
+                   repos: [__MODULE__.RepoStub],
+                   migrator: __MODULE__.PendingMigrator,
+                   maintenance: __MODULE__.FailedPruneMaintenance,
+                   timestamp: "20260717T120000",
+                   retention: 5
+                 )
+      end)
+
+    assert_receive :migrate
+    assert log =~ "Could not prune pre-migration database backups"
+    assert log =~ ":permission_denied"
+  end
+
   defmodule RepoStub do
     def config do
       [database: Application.fetch_env!(:hueworks, :release_test_db_path)]
@@ -111,5 +131,10 @@ defmodule Hueworks.ReleaseTest do
   defmodule FailedMaintenance do
     def backup(_db_path, backup_path: _backup_path), do: {:error, :read_only}
     def prune_backups(_dir, _prefix, _retention), do: :ok
+  end
+
+  defmodule FailedPruneMaintenance do
+    def backup(_db_path, backup_path: backup_path), do: {:ok, backup_path}
+    def prune_backups(_dir, _prefix, _retention), do: {:error, :permission_denied}
   end
 end

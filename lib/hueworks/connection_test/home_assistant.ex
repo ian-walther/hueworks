@@ -1,6 +1,7 @@
 defmodule Hueworks.ConnectionTest.HomeAssistant do
   @moduledoc false
 
+  alias Hueworks.ConnectionTest.Message
   alias Hueworks.HomeAssistant.Host
 
   def test(host, token) do
@@ -15,10 +16,10 @@ defmodule Hueworks.ConnectionTest.HomeAssistant do
         end
 
       {:ok, %HTTPoison.Response{status_code: status, body: body}} ->
-        {:error, "Home Assistant test failed: #{status} #{body}"}
+        {:error, Message.http(:ha, host, status, body)}
 
       {:error, %HTTPoison.Error{reason: reason}} ->
-        {:error, "Home Assistant test failed: #{inspect(reason)}"}
+        {:error, Message.transport(:ha, host, reason)}
     end
   end
 end

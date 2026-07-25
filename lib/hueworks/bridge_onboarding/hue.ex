@@ -7,7 +7,16 @@ defmodule Hueworks.BridgeOnboarding.Hue do
     local = Keyword.get(opts, :local, Mdns)
     fallback = Keyword.get(opts, :fallback, VendorDiscovery)
 
-    results = [safe_discover(local), safe_discover(fallback)]
+    local_result = safe_discover(local)
+
+    results =
+      case local_result do
+        {:ok, devices} when is_list(devices) and devices != [] ->
+          [local_result]
+
+        _ ->
+          [local_result, safe_discover(fallback)]
+      end
 
     devices =
       results

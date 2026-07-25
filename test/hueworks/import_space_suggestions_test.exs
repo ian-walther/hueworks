@@ -57,9 +57,9 @@ defmodule Hueworks.Import.SpaceSuggestionsTest do
     result =
       SpaceSuggestions.build(
         context.hue_bridge,
-        native_snapshot([native_light("1", "aa"), native_light("2", "unmatched")]),
+        native_snapshot([native_light("1", "aa"), native_light("2", "unmatched")], :atom),
         context.ha_bridge,
-        ha_snapshot([ha_light("light.one", "aa", "office")])
+        ha_snapshot([ha_light("light.one", "aa", "office")], :atom)
       )
 
     suggestion = result.spaces[{"hue_area", "1"}]
@@ -142,8 +142,8 @@ defmodule Hueworks.Import.SpaceSuggestionsTest do
     {:ok, _mapping} = ExternalSpaces.put_mapping(space, area)
   end
 
-  defp native_snapshot(lights) do
-    %{
+  defp native_snapshot(lights, shape \\ :blob) do
+    snapshot = %{
       external_spaces: [
         %{kind: "hue_area", external_id: "1", source_id: "1", name: "Office"}
       ],
@@ -151,6 +151,8 @@ defmodule Hueworks.Import.SpaceSuggestionsTest do
       lights: lights,
       groups: []
     }
+
+    shape_snapshot(snapshot, shape)
   end
 
   defp native_light(source_id, mac) do
@@ -161,7 +163,9 @@ defmodule Hueworks.Import.SpaceSuggestionsTest do
     }
   end
 
-  defp ha_snapshot(lights), do: %{external_spaces: [], areas: [], lights: lights, groups: []}
+  defp ha_snapshot(lights, shape \\ :blob) do
+    shape_snapshot(%{external_spaces: [], areas: [], lights: lights, groups: []}, shape)
+  end
 
   defp ha_light(source_id, mac, area_id) do
     %{
@@ -172,4 +176,7 @@ defmodule Hueworks.Import.SpaceSuggestionsTest do
       ]
     }
   end
+
+  defp shape_snapshot(snapshot, :blob), do: blob_shaped(snapshot)
+  defp shape_snapshot(snapshot, :atom), do: snapshot
 end

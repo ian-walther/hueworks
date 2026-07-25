@@ -69,6 +69,36 @@ defmodule Hueworks.ExternalSpacesTest do
     assert ExternalSpaces.mapped_area_id(bridge, "ha_area", "stable-1") == area.id
   end
 
+  test "a partial child-space refresh preserves its existing parent edge", %{bridge: bridge} do
+    {:ok, _spaces} =
+      ExternalSpaces.sync_bridge_spaces(bridge, [
+        %{kind: "ha_floor", external_id: "floor-1", name: "First Floor"},
+        %{
+          kind: "ha_area",
+          external_id: "office",
+          name: "Office",
+          parent_kind: "ha_floor",
+          parent_external_id: "floor-1"
+        }
+      ])
+
+    assert {:ok, _spaces} =
+             ExternalSpaces.sync_bridge_spaces(bridge, [
+               %{
+                 kind: "ha_area",
+                 external_id: "office",
+                 name: "Renamed Office",
+                 parent_kind: "ha_floor",
+                 parent_external_id: "floor-1"
+               }
+             ])
+
+    office = ExternalSpaces.get_by_identity(bridge, "ha_area", "office")
+    floor = ExternalSpaces.get_by_identity(bridge, "ha_floor", "floor-1")
+
+    assert office.parent_external_space_id == floor.id
+  end
+
   test "an ignored source space remains resolved across inventory refreshes", %{bridge: bridge} do
     {:ok, [space]} =
       ExternalSpaces.sync_bridge_spaces(bridge, [

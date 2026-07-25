@@ -4,13 +4,9 @@ Status: complete. Scope: README/`docs/compatibility.md`/`docs/troubleshooting.md
 
 ## Findings
 
-### RC-1: Import-plane tests systematically use atom-keyed fixtures, masking blob-shape bugs
+### RC-1 — closed 2026-07-26, and it earned its keep
 
-- Severity: medium. Type: test strategy.
-- Location: fixtures/builders across `test/hueworks/import_*`, `space_*`, setup/reimport LiveView tests.
-- Problem: production import data crosses a JSON boundary twice (`bridge_imports.normalized_blob`, `NormalizeJson.to_map`) and arrives **string-keyed**; tests feed atom-keyed maps. This is exactly how ES-1 (the one high-severity bug in the whole range — floor-mapping apply crash) shipped with green tests. The dual-key `Normalize.fetch` convention makes both shapes *usually* work, which is precisely why only a systematic check catches the asymmetric cases (`Map.put_new` with atom keys, atom-first fetch precedence).
-- Decision: add one fixture helper (`blob_shaped/1` ≈ `Jason.decode!(Jason.encode!(value))`) and run the import-plane suites that consume persisted blobs (space mappings, suggestions, review/reimport plan+apply, inventory, area design) against both shapes — either via a shared test macro or by converting the canonical fixtures to string keys and keeping a few atom-shape smoke cases. Implement together with ES-1's guardrail tests.
-- Effort: M (mostly mechanical).
+Fully implemented: every suite named by the finding (space mappings, suggestions, inventory, area design, reimport plan, reimport apply) now defaults its normalized fixtures to `blob_shaped/1` (JSON round-trip) with explicit atom-key smoke cases retained via `:blob`/`:atom` shape parameters. **The very first blob-shaped run exposed a real production defect** (red evidence: 2 of 35 failures): `ReimportPlan.build/3` did `Map.put(:lights, filtered)` on a possibly string-keyed snapshot, creating a mixed-key map whose stringification could resurrect the *unfiltered* entity list — silently restoring HueWorks-exported wrappers that `Duplicates.reject_hueworks_exported/1` had removed. Fixed by canonicalizing both normalized inputs through `NormalizeJson.to_map/1` at the function boundary and writing string keys only (verified line-by-line; public output shape unchanged; suite green at 1077). This was the same bug class as ES-1, in a module the original audit had read — the finding's premise (atom-keyed fixtures mask this class) is now empirically proven twice. The boundary-rule record in `04-` covers the durable lesson.
 
 ## Release-Blocker Gap Analysis (committed range vs `pre-release_refinement.md`)
 
@@ -18,12 +14,12 @@ Status of each blocker/refinement as of `ff525f8`. "Open" = not a defect in this
 
 | Requirement | Status at `ff525f8` |
 | --- | --- |
-| HA browser authorization replaces long-lived token | Open ⏳ — docs honestly state the token limitation (README + compatibility). |
-| Guided Caseta pairing | Open ⏳ — compatibility doc states the certificate-upload limitation plainly. |
+| HA browser authorization replaces long-lived token | **Landed** (`daf87f5`, audited in chunk 9; HA-1/HA-2 implemented 2026-07-26). README/compatibility now describe OAuth as the normal path with token fallback — verified current. |
+| Guided Caseta pairing | Open — serial-driven *discovery* landed (`d3afcee`), but LEAP certificate acquisition (the actual blocker) is still unimplemented; compatibility doc states the limitation plainly. |
 | Guided Z2M assistance (`_mqtt._tcp` discovery, base-topic candidates, multi-instance) | Open — HA-export-reuse + retained-snapshot validation landed; discovery honestly documented as "not guaranteed". |
 | Discovery in production Docker topology | Open — rehearsal item; chunk 3 noted the `.local` fallback host risk to verify there. |
 | Import ordering & duplicate transparency | **Landed** — inventory-first journey, `ha_import_order_risk` warning, wrapper-linking disclosure in completion summary. |
-| ExternalSpaceMappings guide new placement only | Landed with one high-severity defect (ES-1) and its test-strategy root cause (RC-1). |
+| ExternalSpaceMappings guide new placement only | **Landed** — the ES-1 identity defect is fixed and verified (2026-07-26); only the RC-1 fixture-breadth residual remains. |
 | Scene onboarding explanations | **Landed** — scene-builder guidance callout + power-policy disclosure. |
 | Circadian Basic/Advanced modes | Open — untouched in this range; still an Open Product Decision. |
 | Common bridge status vocabulary on cards/panels | Partial — health readiness, three-state HomeKit runtime status, imported?/latest-import on bridge cards. The full configured/worker/last-event/retrying vocabulary is not built. |
@@ -47,7 +43,7 @@ Run during the clean-setup rehearsal, not before:
 2. Interactive accessibility/responsive matrix: keyboard order, focus-visible, reimport-modal focus trap/restore, touch targets, narrow-width overflow for long identifiers (chunk 7 skipped these statically; `app.css` was also skipped as dirty).
 3. Retained-topic hygiene on the production broker after migration (AR-3 cleanup step in the rollout runbook).
 4. Clean-build dependency deprecation noise (docs refinement item).
-5. Verification-mode rehearsal after IV-1 lands (scene activation must no-op cleanly, not crash).
+5. Verification-mode rehearsal (scene activation now no-ops with the Control banner — confirm end-to-end on a real isolated instance).
 
 ## Explicitly Fine / Leave-Alone
 

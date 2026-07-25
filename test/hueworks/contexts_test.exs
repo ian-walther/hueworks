@@ -20,6 +20,23 @@ defmodule Hueworks.ContextsTest do
     Area
   }
 
+  defmodule CastReceiver do
+    use GenServer
+
+    def start_link(opts) do
+      GenServer.start_link(__MODULE__, opts, name: Keyword.fetch!(opts, :name))
+    end
+
+    @impl true
+    def init(opts), do: {:ok, Keyword.fetch!(opts, :sink)}
+
+    @impl true
+    def handle_cast(message, sink) do
+      send(sink, {:export_cast, message})
+      {:noreply, sink}
+    end
+  end
+
   defp insert_bridge(attrs) do
     defaults = %{
       type: :hue,
@@ -476,6 +493,25 @@ defmodule Hueworks.ContextsTest do
     assert Repo.aggregate(Hueworks.Schemas.SceneComponentLight, :count) == 0
 
     Process.sleep(50)
+  end
+
+  test "Bridges.delete_bridge removes exported lights and groups after the database delete" do
+    start_supervised!(
+      {CastReceiver, name: Hueworks.HomeAssistant.Export, sink: self()},
+      id: {CastReceiver, :bridge_delete_export}
+    )
+
+    bridge = insert_bridge(%{host: "10.0.0.159", import_complete: true})
+    light = insert_light(bridge, %{source_id: "delete-bridge-light"})
+    group = insert_group(bridge, %{source_id: "delete-bridge-group"})
+
+    assert {:ok, deleted_bridge} = Bridges.delete_bridge(bridge)
+    assert deleted_bridge.id == bridge.id
+    refute Repo.get(Hueworks.Schemas.Bridge, bridge.id)
+    assert_receive {:export_cast, {:remove_light, light_id}}
+    assert light_id == light.id
+    assert_receive {:export_cast, {:remove_group, group_id}}
+    assert group_id == group.id
   end
 
   test "Bridges.delete_unchecked_entities only removes matching external ids and clears Caseta picos" do

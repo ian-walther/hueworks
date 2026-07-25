@@ -4,20 +4,22 @@ defmodule Hueworks.Schemas.Bridge.Credentials do
 
   alias Hueworks.Util
 
+  @secret_fields [:api_key, :token, :password, :access_token, :refresh_token]
+  @derive {Inspect, except: @secret_fields}
   @primary_key false
   embedded_schema do
-    field(:api_key, :string)
-    field(:token, :string)
+    field(:api_key, :string, redact: true)
+    field(:token, :string, redact: true)
     field(:cert_path, :string)
     field(:key_path, :string)
     field(:cacert_path, :string)
     field(:broker_port, :integer)
     field(:username, :string)
-    field(:password, :string)
+    field(:password, :string, redact: true)
     field(:base_topic, :string)
     field(:auth_type, :string)
-    field(:access_token, :string)
-    field(:refresh_token, :string)
+    field(:access_token, :string, redact: true)
+    field(:refresh_token, :string, redact: true)
     field(:expires_at, :integer)
     field(:client_id, :string)
     field(:auth_status, :string)

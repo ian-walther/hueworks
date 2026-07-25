@@ -74,6 +74,13 @@ defmodule HueworksWeb.HomeAssistantAuthControllerTest do
     assert is_nil(credentials.token)
   end
 
+  test "authorization cannot be initiated with a cross-origin-safe GET", %{conn: conn} do
+    conn = get(conn, "#{@authorize_path}?host=attacker.example")
+
+    assert conn.status == 404
+    assert Repo.aggregate(Bridge, :count) == 0
+  end
+
   test "authorization state is single use and a replay cannot create another bridge", %{
     conn: conn
   } do
@@ -159,8 +166,7 @@ defmodule HueworksWeb.HomeAssistantAuthControllerTest do
         credentials: %{"token" => "old-manual-token"}
       })
 
-    authorize_conn =
-      get(conn, "#{@authorize_path}?#{URI.encode_query(%{"bridge_id" => bridge.id})}")
+    authorize_conn = post(conn, @authorize_path, %{"bridge_id" => bridge.id})
 
     state = authorization_state(authorize_conn)
     callback_conn = callback(authorize_conn, state, "accepted-code")
@@ -192,8 +198,11 @@ defmodule HueworksWeb.HomeAssistantAuthControllerTest do
   end
 
   defp begin_authorization(conn) do
-    query = URI.encode_query(%{"host" => "ha.local:8123", "external_id" => "stable-ha-id"})
-    conn = conn |> recycle() |> get("#{@authorize_path}?#{query}")
+    conn =
+      conn
+      |> recycle()
+      |> post(@authorize_path, %{"host" => "ha.local:8123", "external_id" => "stable-ha-id"})
+
     url = redirected_to(conn)
     {conn, URI.decode_query(URI.parse(url).query)["state"], url}
   end

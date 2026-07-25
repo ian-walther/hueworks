@@ -7,27 +7,37 @@ defmodule Hueworks.BridgeOnboarding.HueTest do
 
   import MdnsLite.DNS
 
-  test "discovery combines local and vendor results by stable bridge identity" do
+  test "discovery does not contact the vendor fallback when local discovery succeeds" do
+    Application.put_env(:hueworks, :hue_discovery_test_pid, self())
+    on_exit(fn -> Application.delete_env(:hueworks, :hue_discovery_test_pid) end)
+
     assert {:ok, devices} =
              Hue.discover(
                local: __MODULE__.LocalDiscovery,
+               fallback: __MODULE__.UnexpectedDiscovery
+             )
+
+    assert [
+             %Device{
+               id: "001788fffe111111",
+               host: "192.168.1.10",
+               name: "Office Hue",
+               sources: [:mdns]
+             }
+           ] = devices
+
+    refute_receive :vendor_discovery_ran
+  end
+
+  test "discovery uses vendor discovery only when local discovery finds no bridges" do
+    assert {:ok, devices} =
+             Hue.discover(
+               local: __MODULE__.EmptyDiscovery,
                fallback: __MODULE__.CloudDiscovery
              )
 
-    assert [first, second] = devices
-
-    assert %Device{
-             id: "001788fffe111111",
-             host: "192.168.1.10",
-             name: "Office Hue",
-             sources: [:mdns, :vendor]
-           } = first
-
-    assert %Device{
-             id: "001788fffe222222",
-             host: "192.168.1.11",
-             sources: [:vendor]
-           } = second
+    assert Enum.map(devices, & &1.id) == ["001788fffe111111", "001788fffe222222"]
+    assert Enum.all?(devices, &(&1.sources == [:vendor]))
   end
 
   test "discovery still returns local results when the vendor fallback is unavailable" do
@@ -103,6 +113,10 @@ defmodule Hueworks.BridgeOnboarding.HueTest do
            ] = Mdns.parse(response)
   end
 
+  test "mDNS discovery uses the shared transport contract" do
+    assert {:ok, []} = Mdns.discover(transport: __MODULE__.EmptyTransport)
+  end
+
   test "pairing registers an application and validates the resulting credential" do
     assert {:ok, result} =
              Hue.pair("192.168.1.10", "001788FFFE111111", http: __MODULE__.PairingHttp)
@@ -126,6 +140,10 @@ defmodule Hueworks.BridgeOnboarding.HueTest do
 
     assert message =~ "identity changed"
   end
+end
+
+defmodule Hueworks.BridgeOnboarding.HueTest.EmptyTransport do
+  def query(_query, 1_000), do: {:ok, %{answer: [], additional: []}}
 end
 
 defmodule Hueworks.BridgeOnboarding.HueTest.LocalDiscovery do
@@ -161,6 +179,17 @@ defmodule Hueworks.BridgeOnboarding.HueTest.CloudDiscovery do
          sources: [:vendor]
        }
      ]}
+  end
+end
+
+defmodule Hueworks.BridgeOnboarding.HueTest.EmptyDiscovery do
+  def discover, do: {:ok, []}
+end
+
+defmodule Hueworks.BridgeOnboarding.HueTest.UnexpectedDiscovery do
+  def discover do
+    send(Application.fetch_env!(:hueworks, :hue_discovery_test_pid), :vendor_discovery_ran)
+    {:ok, []}
   end
 end
 
