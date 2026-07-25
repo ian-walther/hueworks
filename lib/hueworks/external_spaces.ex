@@ -10,7 +10,7 @@ defmodule Hueworks.ExternalSpaces do
 
   alias Hueworks.Import.Normalize
   alias Hueworks.Repo
-  alias Hueworks.Schemas.{Area, Bridge, ExternalSpace, ExternalSpaceMapping}
+  alias Hueworks.Schemas.{Area, Bridge, ExternalSpace, ExternalSpaceIgnore, ExternalSpaceMapping}
 
   def list_for_bridge(%Bridge{id: bridge_id}), do: list_for_bridge(bridge_id)
 
@@ -19,7 +19,7 @@ defmodule Hueworks.ExternalSpaces do
       from(es in ExternalSpace,
         where: es.bridge_id == ^bridge_id,
         order_by: [asc: es.kind, asc: es.name, asc: es.external_id],
-        preload: [:parent_external_space, mapping: :area]
+        preload: [:parent_external_space, :ignore, mapping: :area]
       )
     )
   end
@@ -51,12 +51,31 @@ defmodule Hueworks.ExternalSpaces do
       from(es in ExternalSpace,
         join: mapping in ExternalSpaceMapping,
         on: mapping.external_space_id == es.id,
-        where:
-          es.bridge_id == ^bridge_id and es.kind == ^kind and
-            es.external_id == ^external_id,
+        where: es.bridge_id == ^bridge_id and es.kind == ^kind and es.external_id == ^external_id,
         select: mapping.area_id
       )
     )
+  end
+
+  def resolution(%ExternalSpace{mapping: %ExternalSpaceMapping{}}), do: :mapped
+  def resolution(%ExternalSpace{mapping: nil, ignore: %ExternalSpaceIgnore{}}), do: :ignored
+  def resolution(%ExternalSpace{mapping: nil, ignore: nil}), do: :pending
+
+  def resolution(%ExternalSpace{id: external_space_id}) do
+    cond do
+      Repo.exists?(
+        from(m in ExternalSpaceMapping, where: m.external_space_id == ^external_space_id)
+      ) ->
+        :mapped
+
+      Repo.exists?(
+        from(i in ExternalSpaceIgnore, where: i.external_space_id == ^external_space_id)
+      ) ->
+        :ignored
+
+      true ->
+        :pending
+    end
   end
 
   def mapping_ids_for_bridge(%Bridge{id: bridge_id}), do: mapping_ids_for_bridge(bridge_id)
@@ -109,27 +128,43 @@ defmodule Hueworks.ExternalSpaces do
   end
 
   def put_mapping(%ExternalSpace{id: external_space_id}, area_id) when is_integer(area_id) do
-    case Repo.get_by(ExternalSpaceMapping, external_space_id: external_space_id) do
-      nil ->
-        %ExternalSpaceMapping{}
-        |> ExternalSpaceMapping.changeset(%{
-          external_space_id: external_space_id,
-          area_id: area_id
-        })
-        |> Repo.insert()
+    Repo.transaction(fn ->
+      Repo.delete_all(
+        from(i in ExternalSpaceIgnore, where: i.external_space_id == ^external_space_id)
+      )
 
-      mapping ->
-        mapping
-        |> ExternalSpaceMapping.changeset(%{area_id: area_id})
-        |> Repo.update()
-    end
+      changeset =
+        case Repo.get_by(ExternalSpaceMapping, external_space_id: external_space_id) do
+          nil ->
+            ExternalSpaceMapping.changeset(%ExternalSpaceMapping{}, %{
+              external_space_id: external_space_id,
+              area_id: area_id
+            })
+
+          mapping ->
+            ExternalSpaceMapping.changeset(mapping, %{area_id: area_id})
+        end
+
+      write_or_rollback(changeset)
+    end)
   end
 
-  def remove_mapping(%ExternalSpace{id: external_space_id}) do
-    case Repo.get_by(ExternalSpaceMapping, external_space_id: external_space_id) do
-      nil -> :ok
-      mapping -> mapping |> Repo.delete() |> normalize_delete_result()
-    end
+  def ignore(%ExternalSpace{id: external_space_id}) do
+    Repo.transaction(fn ->
+      Repo.delete_all(
+        from(m in ExternalSpaceMapping, where: m.external_space_id == ^external_space_id)
+      )
+
+      case Repo.get_by(ExternalSpaceIgnore, external_space_id: external_space_id) do
+        nil ->
+          %ExternalSpaceIgnore{}
+          |> ExternalSpaceIgnore.changeset(%{external_space_id: external_space_id})
+          |> write_or_rollback()
+
+        ignore ->
+          ignore
+      end
+    end)
   end
 
   def stale?(%ExternalSpace{last_seen_at: last_seen_at}, %DateTime{} = latest_sync_at) do
@@ -201,6 +236,10 @@ defmodule Hueworks.ExternalSpaces do
   defp normalize_text(value) when is_atom(value), do: Atom.to_string(value)
   defp normalize_text(_value), do: nil
 
-  defp normalize_delete_result({:ok, _mapping}), do: :ok
-  defp normalize_delete_result({:error, changeset}), do: {:error, changeset}
+  defp write_or_rollback(changeset) do
+    case Repo.insert_or_update(changeset) do
+      {:ok, record} -> record
+      {:error, changeset} -> Repo.rollback(changeset)
+    end
+  end
 end

@@ -13,6 +13,7 @@ defmodule Hueworks.Schemas.ExternalSpace do
     belongs_to(:parent_external_space, __MODULE__)
     has_many(:child_external_spaces, __MODULE__, foreign_key: :parent_external_space_id)
     has_one(:mapping, Hueworks.Schemas.ExternalSpaceMapping)
+    has_one(:ignore, Hueworks.Schemas.ExternalSpaceIgnore)
 
     timestamps()
   end

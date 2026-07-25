@@ -1,5 +1,5 @@
 defmodule Hueworks.Import.SpaceSuggestionsTest do
-  use Hueworks.DataCase, async: true
+  use Hueworks.DataCase, async: false
 
   alias Hueworks.ExternalSpaces
   alias Hueworks.Import.SpaceSuggestions
@@ -66,6 +66,28 @@ defmodule Hueworks.Import.SpaceSuggestionsTest do
     assert suggestion.status == :partial
     assert suggestion.matched_count == 1
     refute suggestion.preselect?
+  end
+
+  test "an intentionally ignored HA space does not become placement evidence", context do
+    {:ok, spaces} =
+      ExternalSpaces.sync_bridge_spaces(context.ha_bridge, [
+        %{kind: "ha_area", external_id: "office", name: "Office"}
+      ])
+
+    office = Enum.find(spaces, &(&1.external_id == "office"))
+    assert {:ok, _resolution} = ExternalSpaces.ignore(office)
+
+    result =
+      SpaceSuggestions.build(
+        context.hue_bridge,
+        native_snapshot([native_light("1", "aa")]),
+        context.ha_bridge,
+        ha_snapshot([ha_light("light.one", "aa", "office")])
+      )
+
+    assert result.entities["1"].status == :unmapped
+    assert result.spaces[{"hue_area", "1"}].status == :no_evidence
+    refute result.spaces[{"hue_area", "1"}].preselect?
   end
 
   test "members mapped to different Areas produce a conflict", context do

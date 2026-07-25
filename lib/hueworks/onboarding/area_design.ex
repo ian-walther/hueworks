@@ -2,13 +2,13 @@ defmodule Hueworks.Onboarding.AreaDesign do
   @moduledoc """
   Builds and applies the reviewed HueWorks Area design from Home Assistant inventory.
 
-  These operations only create Areas and manage ExternalSpaceMappings. Existing entity placement
-  remains authored HueWorks configuration and is never changed here.
+  These operations only create Areas and manage durable external-space resolutions. Existing
+  entity placement remains authored HueWorks configuration and is never changed here.
   """
 
   alias Hueworks.{Areas, Bridges, ExternalSpaces, Repo}
   alias Hueworks.Import.Normalize
-  alias Hueworks.Schemas.{Area, Bridge, BridgeImport, ExternalSpace}
+  alias Hueworks.Schemas.{Bridge, BridgeImport, ExternalSpace}
 
   def refresh(%Bridge{type: :ha} = bridge) do
     with %BridgeImport{} = bridge_import <- Bridges.latest_import(bridge),
@@ -38,7 +38,8 @@ defmodule Hueworks.Onboarding.AreaDesign do
         %{
           space: floor,
           children: children,
-          entity_count: Enum.sum(Enum.map(children, & &1.entity_count))
+          entity_count: Enum.sum(Enum.map(children, & &1.entity_count)),
+          resolution: ExternalSpaces.resolution(floor)
         }
       end)
 
@@ -49,9 +50,18 @@ defmodule Hueworks.Onboarding.AreaDesign do
       |> Enum.reject(&MapSet.member?(parent_ids, &1.parent_external_space_id))
       |> Enum.map(&space_entry(&1, counts))
 
+    all_entries = floor_entries ++ unfloored_areas
+    resolved = count_resolved_spaces(all_entries)
+    total = count_spaces(all_entries)
+
     %{
       floors: floor_entries,
       unfloored_areas: unfloored_areas,
+      pending_floors: Enum.filter(floor_entries, &(&1.resolution == :pending)),
+      resolved_floors: Enum.reject(floor_entries, &(&1.resolution == :pending)),
+      pending_unfloored_areas: Enum.filter(unfloored_areas, &(&1.resolution == :pending)),
+      resolved_unfloored_areas: Enum.reject(unfloored_areas, &(&1.resolution == :pending)),
+      progress: %{resolved: resolved, total: total},
       areas: Areas.list_areas()
     }
   end
@@ -73,7 +83,7 @@ defmodule Hueworks.Onboarding.AreaDesign do
       when is_binary(floor_external_id) do
     Repo.transaction(fn ->
       floor = require_space!(bridge, "ha_floor", floor_external_id)
-      :ok = ExternalSpaces.remove_mapping(floor)
+      ignore!(floor)
 
       bridge
       |> child_spaces(floor)
@@ -87,12 +97,13 @@ defmodule Hueworks.Onboarding.AreaDesign do
 
   def map_space(%Bridge{} = bridge, kind, external_id, area_id)
       when is_binary(kind) and is_binary(external_id) and is_integer(area_id) do
-    with %ExternalSpace{} = space <- ExternalSpaces.get_by_identity(bridge, kind, external_id),
-         %Area{} <- Areas.get_area(area_id) do
-      ExternalSpaces.put_mapping(space, area_id)
-    else
-      nil -> {:error, :not_found}
-    end
+    Repo.transaction(fn ->
+      space = require_space!(bridge, kind, external_id)
+      _area = Areas.get_area(area_id) || Repo.rollback(:area_not_found)
+      mapping = put_mapping!(space, area_id)
+      resolve_parent_if_complete!(bridge, space)
+      mapping
+    end)
   end
 
   def create_and_map_space(%Bridge{} = bridge, kind, external_id, attrs)
@@ -101,6 +112,7 @@ defmodule Hueworks.Onboarding.AreaDesign do
       space = require_space!(bridge, kind, external_id)
       area = mapped_area(space) || create_area!(attrs)
       put_mapping!(space, area.id)
+      resolve_parent_if_complete!(bridge, space)
       area
     end)
   end
@@ -111,7 +123,7 @@ defmodule Hueworks.Onboarding.AreaDesign do
       floor = require_space!(bridge, "ha_floor", floor_external_id)
 
       [floor | child_spaces(bridge, floor)]
-      |> Enum.each(&remove_mapping!/1)
+      |> Enum.each(&ignore!/1)
 
       :ok
     end)
@@ -120,10 +132,13 @@ defmodule Hueworks.Onboarding.AreaDesign do
 
   def skip_space(%Bridge{} = bridge, kind, external_id)
       when is_binary(kind) and is_binary(external_id) do
-    case ExternalSpaces.get_by_identity(bridge, kind, external_id) do
-      %ExternalSpace{} = space -> ExternalSpaces.remove_mapping(space)
-      nil -> {:error, :not_found}
-    end
+    Repo.transaction(fn ->
+      space = require_space!(bridge, kind, external_id)
+      ignore!(space)
+      resolve_parent_if_complete!(bridge, space)
+      :ok
+    end)
+    |> unwrap_ok()
   end
 
   defp destination_area!(%{area_id: area_id}) when is_integer(area_id) do
@@ -163,12 +178,31 @@ defmodule Hueworks.Onboarding.AreaDesign do
     end
   end
 
-  defp remove_mapping!(space) do
-    case ExternalSpaces.remove_mapping(space) do
-      :ok -> :ok
+  defp ignore!(space) do
+    case ExternalSpaces.ignore(space) do
+      {:ok, resolution} -> resolution
       {:error, changeset} -> Repo.rollback(changeset)
     end
   end
+
+  defp resolve_parent_if_complete!(
+         bridge,
+         %ExternalSpace{parent_external_space_id: parent_id}
+       )
+       when is_integer(parent_id) do
+    spaces = ExternalSpaces.list_for_bridge(bridge)
+    parent = Enum.find(spaces, &(&1.id == parent_id))
+    children = Enum.filter(spaces, &(&1.parent_external_space_id == parent_id))
+
+    if parent && ExternalSpaces.resolution(parent) == :pending && children != [] &&
+         Enum.all?(children, &(ExternalSpaces.resolution(&1) != :pending)) do
+      ignore!(parent)
+    end
+
+    :ok
+  end
+
+  defp resolve_parent_if_complete!(_bridge, _space), do: :ok
 
   defp entity_counts(%BridgeImport{} = bridge_import) do
     normalized = bridge_import.normalized_blob || %{}
@@ -194,9 +228,31 @@ defmodule Hueworks.Onboarding.AreaDesign do
   defp space_entry(space, counts) do
     %{
       space: space,
-      entity_count: Map.get(counts, {space.kind, space.external_id}, 0)
+      entity_count: Map.get(counts, {space.kind, space.external_id}, 0),
+      resolution: ExternalSpaces.resolution(space)
     }
   end
+
+  defp count_spaces(entries) do
+    Enum.reduce(entries, 0, fn
+      %{children: children}, count -> count + 1 + length(children)
+      _entry, count -> count + 1
+    end)
+  end
+
+  defp count_resolved_spaces(entries) do
+    Enum.reduce(entries, 0, fn
+      %{children: children, resolution: resolution}, count ->
+        count + resolved_value(resolution) + Enum.count(children, &resolved?/1)
+
+      entry, count ->
+        count + resolved_value(entry.resolution)
+    end)
+  end
+
+  defp resolved?(%{resolution: resolution}), do: resolution != :pending
+  defp resolved_value(:pending), do: 0
+  defp resolved_value(_resolution), do: 1
 
   defp unwrap_ok({:ok, :ok}), do: :ok
   defp unwrap_ok(other), do: other

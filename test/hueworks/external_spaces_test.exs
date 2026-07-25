@@ -1,9 +1,9 @@
 defmodule Hueworks.ExternalSpacesTest do
-  use Hueworks.DataCase, async: true
+  use Hueworks.DataCase, async: false
 
   alias Hueworks.ExternalSpaces
   alias Hueworks.Repo
-  alias Hueworks.Schemas.{Area, ExternalSpace, ExternalSpaceMapping}
+  alias Hueworks.Schemas.{Area, ExternalSpace, ExternalSpaceIgnore, ExternalSpaceMapping}
 
   setup do
     bridge =
@@ -67,6 +67,41 @@ defmodule Hueworks.ExternalSpacesTest do
     assert renamed.id == space.id
     assert renamed.name == "Kitchen and Dining"
     assert ExternalSpaces.mapped_area_id(bridge, "ha_area", "stable-1") == area.id
+  end
+
+  test "an ignored source space remains resolved across inventory refreshes", %{bridge: bridge} do
+    {:ok, [space]} =
+      ExternalSpaces.sync_bridge_spaces(bridge, [
+        %{kind: "ha_area", external_id: "stable-1", name: "Office"}
+      ])
+
+    assert {:ok, ignored} = ExternalSpaces.ignore(space)
+    assert ignored.external_space_id == space.id
+    assert ExternalSpaces.mapped_area_id(bridge, "ha_area", "stable-1") == nil
+
+    assert {:ok, [refreshed]} =
+             ExternalSpaces.sync_bridge_spaces(bridge, [
+               %{kind: "ha_area", external_id: "stable-1", name: "Studio"}
+             ])
+
+    assert ExternalSpaces.resolution(refreshed) == :ignored
+    assert ExternalSpaces.mapping_ids_for_bridge(bridge) == %{}
+  end
+
+  test "mapping an ignored source space replaces the ignored resolution", %{
+    bridge: bridge,
+    area: area
+  } do
+    {:ok, [space]} =
+      ExternalSpaces.sync_bridge_spaces(bridge, [
+        %{kind: "ha_area", external_id: "office", name: "Office"}
+      ])
+
+    assert {:ok, _ignored} = ExternalSpaces.ignore(space)
+    assert {:ok, mapping} = ExternalSpaces.put_mapping(space, area)
+    assert mapping.area_id == area.id
+    refute Repo.get_by(ExternalSpaceIgnore, external_space_id: space.id)
+    assert ExternalSpaces.mapped_area_id(bridge, "ha_area", "office") == area.id
   end
 
   test "many source spaces may map to one Area while each source space has one destination", %{

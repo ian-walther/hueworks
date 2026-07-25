@@ -1,5 +1,5 @@
 defmodule Hueworks.Onboarding.AreaDesignTest do
-  use Hueworks.DataCase, async: true
+  use Hueworks.DataCase, async: false
 
   alias Hueworks.Onboarding.AreaDesign
   alias Hueworks.Repo
@@ -7,6 +7,7 @@ defmodule Hueworks.Onboarding.AreaDesignTest do
   alias Hueworks.Schemas.{
     Area,
     BridgeImport,
+    ExternalSpaceIgnore,
     ExternalSpaceMapping,
     Light
   }
@@ -111,8 +112,10 @@ defmodule Hueworks.Onboarding.AreaDesignTest do
     assert {:ok, areas} = AreaDesign.use_floor_areas_separately(bridge, "floor-1")
     assert Enum.map(areas, & &1.name) |> Enum.sort() == ["Kitchen", "Office"]
     assert Repo.aggregate(ExternalSpaceMapping, :count) == 2
+    assert Repo.aggregate(ExternalSpaceIgnore, :count) == 1
 
     refute mapped?(bridge.id, "ha_floor", "floor-1")
+    assert resolution(bridge.id, "ha_floor", "floor-1") == :ignored
     assert mapped?(bridge.id, "ha_area", "office")
     assert mapped?(bridge.id, "ha_area", "kitchen")
 
@@ -121,7 +124,7 @@ defmodule Hueworks.Onboarding.AreaDesignTest do
     assert Repo.aggregate(Area, :count) == 2
   end
 
-  test "individual spaces can converge on an existing Area or be explicitly skipped", %{
+  test "individual spaces can converge on an existing Area or be durably ignored", %{
     bridge: bridge
   } do
     destination = Repo.insert!(%Area{name: "Main Floor"})
@@ -133,7 +136,26 @@ defmodule Hueworks.Onboarding.AreaDesignTest do
 
     assert :ok = AreaDesign.skip_space(bridge, "ha_area", "office")
     refute mapped?(bridge.id, "ha_area", "office")
+    assert resolution(bridge.id, "ha_area", "office") == :ignored
     assert mapped?(bridge.id, "ha_area", "kitchen")
+  end
+
+  test "resolving every child completes its Floor and moves it out of the work queue", %{
+    bridge: bridge
+  } do
+    destination = Repo.insert!(%Area{name: "Main Floor"})
+    {:ok, design} = AreaDesign.refresh(bridge)
+    assert design.progress == %{resolved: 0, total: 4}
+    assert length(design.pending_floors) == 1
+
+    assert {:ok, _mapping} = AreaDesign.map_space(bridge, "ha_area", "office", destination.id)
+    assert :ok = AreaDesign.skip_space(bridge, "ha_area", "kitchen")
+
+    design = AreaDesign.design(bridge)
+    assert design.progress == %{resolved: 3, total: 4}
+    assert design.pending_floors == []
+    assert length(design.resolved_floors) == 1
+    assert resolution(bridge.id, "ha_floor", "floor-1") == :ignored
   end
 
   defp mapping_count(area_id) do
@@ -152,5 +174,11 @@ defmodule Hueworks.Onboarding.AreaDesignTest do
             space.external_id == ^external_id
       )
     )
+  end
+
+  defp resolution(bridge_id, kind, external_id) do
+    bridge_id
+    |> Hueworks.ExternalSpaces.get_by_identity(kind, external_id)
+    |> Hueworks.ExternalSpaces.resolution()
   end
 end
