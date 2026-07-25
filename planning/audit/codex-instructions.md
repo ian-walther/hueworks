@@ -93,7 +93,7 @@ Delete this file after the audit doc has been updated to remove or revise the co
 - Any nuance where implementation differs slightly from the original audit wording.
 ```
 
-Receipts are disposable evidence, not durable planning docs. Once Fable verifies the code and updates the findings docs, the receipt should be deleted.
+Receipts are disposable evidence, not durable planning docs. Once the Auditor verifies the code and updates the findings docs, the receipt should be deleted.
 
 ## Reconciliation Expectations
 
@@ -113,7 +113,7 @@ Pause and ask the user before continuing if:
 - The intended behavior is ambiguous.
 - The smallest correct fix requires a product decision.
 - A migration, deployment, server change, or production-data action becomes necessary.
-- Implementation would require rewriting Fable-owned audit docs instead of adding a receipt.
+- Implementation would require rewriting Auditor-owned findings instead of adding a receipt.
 - Tests reveal a larger architectural problem than the finding described.
 
 ## Final Response Checklist

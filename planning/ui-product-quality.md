@@ -3,7 +3,7 @@
 ## Goal
 Make HueWorks feel like an intentional, trustworthy product rather than a collection of individually tolerable configuration pages.
 
-HueWorks is moving from a personal side project toward a source-available application that other people can successfully operate. The UI is currently one of the largest barriers to that goal. This work should improve both the user experience and the internal vocabulary available for future UI development.
+HueWorks is moving from a personal side project toward a source-available application that other people can successfully operate. The first whole-application visual pass established a coherent language; future work should deepen workflow quality, accessibility, and reusable implementation rather than restart the design.
 
 Source availability does not change the security posture in `planned_architecture.md`. HueWorks remains a private trusted-LAN appliance and must not become publicly network-accessible without a separate system-wide security design.
 
@@ -128,35 +128,16 @@ This section translates the cross-application principles above into concrete pag
 
 Page-level plans do not replace domain planning documents. The page plan owns presentation and interaction; the relevant domain plan remains authoritative for data ownership, safety rules, and backend behavior.
 
-Create a focused page-level plan here before implementing each future vertical slice. The plan should define the workflow, state model, information hierarchy, reusable vocabulary, verification matrix, and explicit non-goals while leaving domain ownership and safety rules in the relevant domain document.
+Create a focused page-level plan before implementing a substantial future vertical slice. The plan should define the workflow, state model, information hierarchy, reusable vocabulary, verification matrix, and explicit non-goals while leaving domain ownership and safety rules in the relevant domain document.
 
-## Ongoing Application Audit
-Continue the combined static and rendered audit as each workflow approaches implementation. The Config and bridge-import slice was selected from the initial rendered evidence; completing an exhaustive whole-application audit is not a prerequisite for starting it.
+## Future Slice Discovery
+Start future UI work from a concrete workflow problem or release-gate failure. For the affected workflow:
 
-### Static Audit
-
-- Inventory stylesheets, CSS variables, reusable classes, inline styles, JavaScript hooks, and Phoenix components.
-- Find repeated declarations and repeated HEEX structures.
-- Identify classes whose names or contracts are too page-specific for their actual reuse.
-- Identify broad classes whose consumers have incompatible needs.
-- Find ad hoc spacing, color, typography, button, form, card, modal, and responsive treatments.
-- Map shared browser hooks and make sure visual changes preserve their behavioral contracts.
-
-### Rendered Audit
-Exercise the major workflows with representative data:
-
-- Daily control and area drill-down.
-- Scene creation, editing, preview, activation, and power policy editing.
-- Light and group configuration.
-- Pico configuration and button assignment.
-- Bridge setup, initial import, and reimport review.
-- Application and integration settings.
-- HomeKit pairing and maintenance surfaces.
-
-For each workflow, inspect desktop and mobile layouts plus relevant empty, populated, editing, disabled, loading, error, and destructive states. Record repeated interaction patterns and places where visually similar controls behave differently.
-
-### Classification
-Classify each discovered pattern as:
+- Inspect the rendered desktop and mobile experience with representative and empty data.
+- Inspect neighboring surfaces that present the same concept.
+- Check existing tokens, shared classes, hooks, and components before introducing another implementation.
+- Identify missing empty, loading, editing, disabled, error, and destructive states.
+- Classify each relevant pattern as:
 
 - **Keep:** effective and suitable for broader reuse.
 - **Improve:** directionally correct but incomplete.
@@ -164,7 +145,7 @@ Classify each discovered pattern as:
 - **Replace:** the existing pattern encodes poor interaction or visual decisions.
 - **Page-specific:** legitimately unique and not a design-system candidate.
 
-The audit should maintain a workflow inventory, a reusable-pattern inventory, and evidence for future slices and reusable primitives. It should not produce a page-by-page cosmetic punch list detached from user workflows.
+The result should be a bounded vertical slice, not a page-by-page cosmetic punch list detached from user workflows.
 
 ## Browser And Data Workflow
 
@@ -202,8 +183,8 @@ Do not build the gallery as the first task. Add it when maintaining primitives a
 ## Remaining Cross-Application Decisions
 Ongoing rendered audits should provide enough evidence to decide:
 
-- Which proven Config and bridge-review patterns should become reference components for unrelated workflows.
-- Which workflow should become the next vertical slice.
+- Which repeated page patterns should become shared Phoenix components rather than CSS conventions.
+- Which release-gate workflow has enough user pain to justify the next vertical slice.
 - Which additional tokens and layout primitives will eliminate the most duplication.
 - When a component gallery becomes worth maintaining.
 

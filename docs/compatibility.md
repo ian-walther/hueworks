@@ -10,6 +10,8 @@
 
 ## Bridges
 
+- HueWorks currently supports multiple Hue bridges, but only one enabled Caseta, Home Assistant, and Zigbee2MQTT bridge of each type.
+
 ### Philips Hue
 
 - Local mDNS and the bounded official Hue discovery service are supported.

@@ -158,6 +158,7 @@ Rules:
 - Member lights are the source of truth for observation.
 - Group UI state should be a projection from member-light state unless a bridge-reported group state is explicitly being shown as bridge metadata.
 - Do not let group records become a second independent light-state model.
+- Do not model trigger-only bridge resources, such as Caseta programmed buttons, as controllable groups. Represent external scene triggers through their integration mapping instead.
 
 ### Keep Device Profiles Below Product Semantics
 
@@ -202,8 +203,9 @@ Rules:
 
 ## Relationship To Other Docs
 
-- `/Users/ianwalther/code/hueworks/planning/audit/` contains the completed audit's durable scope conclusions and leave-alone decisions.
 - `/Users/ianwalther/code/hueworks/planning/import-resync.md` contains the reimport ownership, safety, and future-extension rules.
+- `/Users/ianwalther/code/hueworks/planning/ui-product-quality.md` contains the reusable UI design and verification method.
+- `/Users/ianwalther/code/hueworks/planning/audit/` contains the reusable auditor/implementer workflow for future bounded audits.
 - `/Users/ianwalther/code/hueworks/hueworks_todo.md` contains prioritized future work.
 
 If those docs drift from these principles, update the more specific doc first unless the principle itself is intentionally changing.

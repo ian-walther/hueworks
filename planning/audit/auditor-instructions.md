@@ -1,6 +1,6 @@
 # Auditor Instructions
 
-This document defines the Auditor's role in the audit-driven refactoring process under `planning/audit/`. The role was held by Claude (Fable) through chunks 1–6b; any capable model (e.g. GPT Sol) can assume it from here. `codex-instructions.md` defines the implementer counterpart — read both.
+This document defines the Auditor's role in a bounded audit-driven refactoring process under `planning/audit/`. `codex-instructions.md` defines the implementer counterpart; read both.
 
 ## Role Split
 
@@ -12,7 +12,7 @@ This document defines the Auditor's role in the audit-driven refactoring process
 
 Every Auditor session runs the same loop:
 
-1. **Reconcile first.** If any `*-implementation.md` receipts exist, verify their claims against actual `git diff`s before doing anything else (receipts have been stale once — SI-3 landed unlisted with a wrong test count); run the FULL suite yourself; if 1–2 tests fail, rerun before suspecting the change (known intermittent SQLite "Database busy" flake, see `07-cross-cutting.md`).
+1. **Reconcile first.** If any `*-implementation.md` receipts exist, verify their claims against actual diffs before doing anything else; run the full suite yourself before accepting code changes.
 2. **Then audit** the explicitly requested scope. Read code line-by-line for domain/control code; transport/parser code at external boundaries may get lighter structural scrutiny (say so in the doc's Status line when you do).
 3. **Flush atomically.** Ian is usage-constrained: write findings to the chunk doc after each FILE or small file-group, not at chunk end, so the implementer always has actionable work if the session dies. Keep a sub-area tracker table in in-progress chunk docs.
 4. **End every session** by leaving the relevant findings doc forward-facing and resumable.
@@ -22,8 +22,8 @@ Every Auditor session runs the same loop:
 - Findings record an ID/title, severity, type, location, concrete problem, architectural reason, implementation decision, guardrails/tests, and effort. IDs are per-chunk prefixes (CP/SI/SC/IM/IN/SB/WB/CC…) and are STABLE — never renumber; gaps mean implemented-and-removed.
 - **Decisions, not options.** Every finding says exactly what to do. If two designs are genuinely tied, pick one and note the alternative in one sentence. Only use `DECISION-NEEDED` for product judgment that belongs to Ian.
 - **Forward-facing docs** (Ian's explicit rule): completed work is DELETED from docs — no tombstones, no "done" markers. Partially-done findings are rewritten to only the residual. Refuted findings revert to open with a note on what went wrong. After deletions, sweep other docs for dangling references to the removed IDs.
-- Record honest verdicts both ways: keep "Explicitly Fine / Leave-Alone" sections so future passes don't re-litigate deliberate quirks, and record refutations permanently (see the IM-2 display_name correction in `04-import.md` — the implementer was right and the audit was wrong; that is a healthy outcome, credit it).
-- Park out-of-scope observations in the target chunk's doc (or `07-cross-cutting.md`), never in prose only.
+- Record honest verdicts both ways. Keep "Explicitly Fine / Leave-Alone" sections while an audit is active so deliberate quirks are not re-litigated, and preserve any genuinely durable correction in the relevant architecture or product document before retiring the audit ledger.
+- Park out-of-scope observations in the relevant planned chunk or audit-plan document, never in prose only.
 
 ## Judgment Calibration (learned on this codebase)
 
@@ -31,13 +31,9 @@ Every Auditor session runs the same loop:
 - Severity: high = data corruption, silent state divergence, or violations of the manual-control/observation semantics; medium = blocking UI, missing safety affordances on destructive actions, systemic duplication with drift; low = dead code, single-copy duplication, robustness nits.
 - Reference patterns to hold new code against: `Circadian.Config` and `BridgeSeeds` (boundary modules), the Hue event stream (deferred connect, staleness refresh, guarded fan-out), `LightsLive` (thin LiveView over focused submodules), `LightStateSemantics.normalize_keys` (the atom-key write funnel).
 - Boundary rules with teeth: internal control-plane state maps are atom-keyed by invariant (only `StateParser` accepts loose payloads); do NOT extend that invariant into the import plane — `Normalize.fetch`'s dual-key access is CORRECT there because blobs round-trip through JSON.
-- Recurring finding classes worth actively hunting in remaining chunks: synchronous network/bootstrap calls inside LiveView handlers (WB-1/WB-12 class), destructive actions without confirmation (WB-10/WB-15 class), `String.to_atom` on external strings (IM-3/WB-14 class — reuse `Import.Source.normalize/1`), re-implementations of `Z2MConfig`/`CasetaLeap`/`PowerPolicy`/`LightStateSemantics` vocabulary.
+- Recurring finding classes worth actively hunting in a new scope: synchronous network/bootstrap calls inside LiveView handlers, destructive actions without confirmation, `String.to_atom` on external strings, and re-implementations of `Z2MConfig`, `CasetaLeap`, `PowerPolicy`, or `LightStateSemantics` vocabulary.
 - Every characterization-refactor guardrail names the exact test files; bug fixes are test-first per `AGENTS.md` (red evidence in receipts).
-- Codex's track record across 9 passes: consistently faithful, occasionally better than spec (pure helpers, request-id guards); its one real deviation was CORRECT (IM-2 refutation). Trust it with M-effort extractions; verify semantics-bearing changes (state merges, group projection, event ordering) line-by-line.
-
-## Audit Status (as of 2026-07-11)
-
-Chunks 1–12 and their audit-directed implementation backlog are complete. The durable conclusions live in the chunk documents and `08-distillation.md`; there is no active session ledger. Future audit work should begin from a concrete production symptom, feature, or newly identified invariant instead of reopening completed areas generically. If a new multi-session whole-code audit is explicitly commissioned, create a new bounded plan rather than reviving the retired ledger.
+- Verify semantics-bearing changes such as state merges, group projection, and event ordering line-by-line.
 
 ## Handoff Notes
 

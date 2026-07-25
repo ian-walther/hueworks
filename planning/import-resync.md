@@ -1,9 +1,9 @@
-# Reimport Review UI
+# Reimport Safety And Future Work
 
 ## Goal
 Make repeated manual bridge imports safe, predictable, and easy to scan.
 
-The backend contract is now a bridge-refresh and diff-resolution model. Future work should focus on making that model obvious in the UI so an operator can reimport a bridge, understand what changed upstream, and apply only the intended resolutions without risking HueWorks-authored configuration.
+Manual reimport uses a bridge-refresh and diff-resolution model. The current UI separates removed, existing, and new entities; discloses automatic bridge-fact refreshes; and requires explicit resolutions for user-facing or destructive changes. Future work may extend that model without weakening its ownership and safety rules.
 
 ## Contract To Preserve
 Initial import and manual reimport have different jobs:
@@ -58,7 +58,7 @@ Light and group `metadata` is bridge-owned. Do not store HueWorks-authored user 
 ## Labels
 `name` is the bridge-owned name cache. `display_name` is the HueWorks-owned user label.
 
-Future reimport UI should keep bridge renames inspectable without automatically changing HueWorks UI labels, Home Assistant entity names, or HomeKit accessory names. This feature intentionally does not need an "adopt bridge name" review action; if a user wants a bridge-side rename to become the HueWorks label, they should rename the entity in HueWorks.
+Reimport keeps bridge renames inspectable without automatically changing HueWorks UI labels, Home Assistant entity names, or HomeKit accessory names. This feature intentionally does not need an "adopt bridge name" review action; if a user wants a bridge-side rename to become the HueWorks label, they should rename the entity in HueWorks.
 
 ## Stable Identity Keys
 Identity matching must run before new/missing classification.
@@ -76,14 +76,14 @@ If exactly one existing HueWorks entity and one upstream entity share a stable i
 Home Assistant group import must preserve entity registry `unique_id` in normalized group metadata when HA provides one. When a HA group has no `unique_id`, the fallback identity is `entity_id`; rename protection for that group is not available until HA provides a stable identity.
 
 ## Review Item Types
-The review builder should produce composable review items, not a single status enum:
+The review builder produces composable review items, not a single status enum:
 - `new_entity`: upstream entity has no matching HueWorks entity.
 - `duplicate`: upstream Home Assistant wrapper entity is new to this bridge import but uniquely matches an existing native HueWorks entity strongly enough to be treated as the same physical control target.
 - `missing_entity`: existing HueWorks entity from this bridge has no matching upstream entity.
 - `ambiguous_identity`: stable matching found multiple plausible matches, conflicting identifiers, or a source ID collision.
 - `membership_warning`: imported bridge group membership cannot be safely refreshed because one or more members are missing, unimported, or ambiguous.
 
-Auto-refresh records should be visible as collapsed details or audit information, but they are not review items unless they require operator judgment.
+Auto-refresh records are visible as collapsed details or audit information, but they are not review items unless they require operator judgment.
 
 Manual reimport should not produce `returned_entity`, `area_drift`, `label_drift`, or `link_suggested` review items.
 

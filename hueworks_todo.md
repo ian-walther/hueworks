@@ -6,6 +6,12 @@ This file should stay short. If a future idea is not likely to be acted on soon,
 
 ## Now
 
+### Public Release Readiness
+Reference: `planning/pre-release_refinement.md`
+
+- [ ] Complete the remaining source-specific setup paths for Caseta and Zigbee2MQTT.
+- [ ] Run the clean-install, Docker discovery, hardware, accessibility, and recovery rehearsal.
+
 ### Transition Hardware Validation
 
 - [ ] Smoke-test a multi-minute scene activation on both Hue and Zigbee2MQTT, verifying that neither convergence nor circadian adaptation interrupts the fade.

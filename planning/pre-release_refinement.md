@@ -58,19 +58,6 @@ Native-development mDNS success is not sufficient. Verify Hue and Home Assistant
 
 ## Workflow Refinements
 
-### Import Ordering And Duplicate Transparency
-
-Canonical duplicate recognition is directional: a Home Assistant wrapper can be recognized after its native source exists, while importing the native source after its HA wrapper can leave visible twins.
-
-- Distinguish HA inventory from HA entity import throughout the UI: inventory happens first, entity materialization happens last.
-- Explain that HA mirrors may remain as hidden topology bookkeeping when linked after native import.
-- Keep automatic linking disclosed rather than invisible.
-- Use mapped external-space decisions to preselect destinations for new entities. Ignored and unresolved spaces provide no placement evidence, and existing entity placement remains authored HueWorks intent.
-
-### Scene Onboarding
-
-- Keep live preview available without making activation destructive or surprising.
-
 ### Circadian Basic And Advanced Modes
 
 - Add concise plain-language explanations for brightness timing, temperature timing, solar-relative versus fixed windows, offsets, and fallback behavior.
@@ -113,7 +100,6 @@ The app needs one truthful operator-facing status model without creating a secon
 - Verify keyboard order, focus-visible treatment, modal focus trapping/restoration, disabled states, and touch targets.
 - Verify setup, import, scene building, Integrations, Control, and Lights at narrow mobile, tablet, and desktop widths.
 - Keep long identifiers, tokens, source IDs, errors, and environment snippets wrapped or horizontally scrollable without page overflow.
-- Correct any remaining Pico copy that implies one control group or all groups rather than an arbitrary selected list.
 - Keep destructive operations separated and confirmed, including bridge/entity deletion, HomeKit pairing reset, token rotation, and database restore.
 
 ## State Coverage Matrix
@@ -137,8 +123,6 @@ Public errors should identify what failed, what was preserved, and the next safe
 
 After the remaining source-specific setup blockers are implemented, repeat the complete first-run journey from an empty database and credential directory without bridge seeds or copied production credentials. The owner should be able to use HA-assisted or direct setup, pair every advertised source through supported UI paths, import native sources before selected HA-only entities, create and activate a useful scene, restart cleanly, and understand any failure without source inspection or database edits.
 
-The pending Area/onboarding production rollout has its exact preflight, backup, validation, smoke-test, and rollback procedure in [`area-onboarding-rollout.md`](area-onboarding-rollout.md). Do not deploy that migration until the runbook's target and fresh backup are explicitly approved.
-
 ### Hardware Smoke
 
 - Exercise representative Hue, Caseta, Home Assistant, and Zigbee2MQTT control/event paths.
@@ -147,6 +131,8 @@ The pending Area/onboarding production rollout has its exact preflight, backup, 
 - Verify Home Assistant MQTT discovery, scene selection, light/group opt-in, and Presence Input writes.
 - Verify HomeKit on/off and document brightness/color results without overstating support.
 - Force bridge outages and verify status, retry, recovery, and unknown physical state.
+- Start an isolated copied database with `HUEWORKS_RUNTIME_IO_DISABLED=true` and verify scene activation no-ops cleanly without bridge I/O.
+- Confirm the production MQTT broker has no obsolete retained `hueworks/rooms/#` state or attribute topics from the Area rename.
 
 ## Release Readiness Criteria
 

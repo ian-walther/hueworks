@@ -43,8 +43,10 @@ It imports devices from Hue, Caseta, Home Assistant, and Zigbee2MQTT, links them
   - Home Assistant scene mapping
 - `/config/integrations`
   - Home Assistant MQTT export, HomeKit, and local AI API
+- `/control`
+  - area-centered daily control, active scenes, and recursive light/group controls
 - `/lights`
-  - live control for lights and groups
+  - light and group configuration plus direct control
   - display name edits
   - link management
   - manual overrides
