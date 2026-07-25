@@ -24,7 +24,7 @@
 ### Home Assistant Import
 
 - Official local mDNS instance discovery is supported.
-- A long-lived access token is still required until browser OAuth and refresh-token management are implemented.
+- Browser authorization stores refreshable credentials and is the normal setup path. A manually supplied long-lived access token remains a non-refreshable fallback.
 - Import supports light entities, supported groups, areas, ZHA group metadata, and external scene mapping.
 - Import native Hue, Caseta, and Zigbee2MQTT bridges before Home Assistant. Reverse ordering can leave visible wrapper/native twins that require later cleanup.
 

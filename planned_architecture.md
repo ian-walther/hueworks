@@ -94,8 +94,8 @@ HueWorks Areas are authored lighting coordination boundaries. An Area may repres
 Rules:
 - Keep Areas flat unless recursive composition is separately designed; do not infer hierarchy from names or source topology.
 - Treat source-reported rooms, zones, Floors, and Areas as `ExternalSpace` evidence rather than HueWorks ownership.
-- Persist user-reviewed `ExternalSpaceMapping` records separately from source facts. Many external spaces may map to one Area, while one external space maps to at most one Area.
-- Use mappings only as placement defaults for newly imported entities. A source rename, hierarchy change, mapping edit, import, or reimport must not silently move existing lights or groups.
+- Persist each user-reviewed source-space decision separately from source facts: an `ExternalSpaceMapping` selects one HueWorks Area, while an `ExternalSpaceIgnore` records an intentional non-mapping. Many external spaces may map to one Area, while one external space has at most one active decision.
+- Use mapped decisions only as placement defaults for newly imported entities. Ignored and unresolved source spaces provide no placement evidence. A source rename, hierarchy change, decision edit, import, or reimport must not silently move existing lights or groups.
 - Keep bridge group membership as bridge-owned topology even when it diverges from HueWorks Area placement.
 
 ### Persist Published Identity

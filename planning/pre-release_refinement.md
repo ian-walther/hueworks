@@ -13,7 +13,7 @@ The core planner, executor, scene semantics, import ownership model, and reimpor
 - Every advertised bridge has a source-appropriate setup journey with validation before persistence.
 - The recommended first-run journey uses Home Assistant as an inventory and migration assistant while HueWorks remains the durable lighting owner.
 - The UI connects to Home Assistant for inventory before native setup, but imports native bridge entities before Home Assistant-only entities.
-- A successful initial setup leads through HueWorks Area review, source-space mapping, and first-scene creation.
+- A successful initial setup leads through HueWorks Area review, durable source-space decisions, and first-scene creation.
 - Runtime status distinguishes saved configuration from live availability without claiming precision a transport cannot provide.
 - Optional integrations remain outside the minimum successful setup path.
 - Installation, upgrades, rollback, troubleshooting, compatibility, and limitations are documented for an owner who did not build the app.
@@ -21,23 +21,6 @@ The core planner, executor, scene semantics, import ownership model, and reimpor
 - The trusted-LAN security boundary is prominent and never confused with public-Internet readiness.
 
 ## Remaining Release Blockers
-
-### Home Assistant Browser Authorization
-
-Local `_home-assistant._tcp.local` discovery and stable instance selection are available, but the normal path still requires a manually supplied long-lived token. Browser authorization must replace token handling in the primary journey.
-
-Required direction:
-
-- Redirect through Home Assistant's authorization-code flow using client and callback URLs derived from HueWorks' configured canonical browser URL.
-- Detect a missing or unusable LAN callback URL before redirecting.
-- Validate callback state, reject replay, handle denial/cancellation, and avoid partial bridge rows.
-- Persist refresh-token credentials and short-lived access-token metadata without displaying them.
-- Add one shared token provider used by import, control, connection validation, and event streams. No caller should continue reading a permanent token directly from `Bridge.Credentials`.
-- Refresh before expiry, retry once after authentication failure, and surface reauthorization when refresh is revoked or permanently rejected.
-- Extend Home Assistant host handling to preserve explicit `http`/`https` and produce matching REST and WebSocket URLs instead of assuming plain HTTP.
-- Keep manual URL and long-lived-token entry as an advanced recovery path with an explicit non-refreshable warning.
-- Validate the authorized connection with the APIs required by import before persisting.
-- Test multiple instances, duplicate identity, callback mismatch, invalid/replayed state, denial, exchange failure, refresh, concurrent refresh, revoked refresh token, reauthorization, and credential redaction.
 
 ### Guided Caseta Pairing
 
@@ -82,7 +65,7 @@ Canonical duplicate recognition is directional: a Home Assistant wrapper can be 
 - Distinguish HA inventory from HA entity import throughout the UI: inventory happens first, entity materialization happens last.
 - Explain that HA mirrors may remain as hidden topology bookkeeping when linked after native import.
 - Keep automatic linking disclosed rather than invisible.
-- Use ExternalSpaceMappings to preselect destinations for new entities without changing the reimport rule that existing entity placement is authored HueWorks intent.
+- Use mapped external-space decisions to preselect destinations for new entities. Ignored and unresolved spaces provide no placement evidence, and existing entity placement remains authored HueWorks intent.
 
 ### Scene Onboarding
 
@@ -142,7 +125,7 @@ Every primary workflow must intentionally handle:
 - Reimport no changes, bridge-owned-only refresh, new/missing entities, duplicates, warnings, destructive resolutions, stale review, and success.
 - No Areas, empty Areas, unassigned entities, Areas without scenes, and Areas without controllable lights.
 - HA inventory with no Floors/Areas, one broad Area, nested Floor/Area candidates, unassigned entities, multiple HA instances, and unavailable registry commands.
-- External-space mapping with many-to-one mappings, source renames, partial identifier coverage, conflicting evidence, intentionally unmapped source spaces, and stale mappings.
+- External-space review with many-to-one mappings, source renames, partial identifier coverage, conflicting evidence, durable ignored decisions, unresolved spaces, and stale mappings.
 - Scene builder with no available lights, unassigned lights, duplicate assignments, embedded custom state, saved state, preview, and activation failure.
 - Runtime bridge disconnection, recovery, stale physical state, and unknown physical state.
 - Integration disabled, configured but unavailable, running, and error states.
@@ -174,7 +157,7 @@ HueWorks is a public release candidate when:
 - HA-assisted setup can inventory first, map Areas, import native sources, and import HA-only entities last without undocumented intervention.
 - Native-before-Home-Assistant materialization and reverse-order risk are visible before import.
 - Direct setup without Home Assistant remains complete and tested.
-- ExternalSpaceMappings guide future new-entity placement without changing existing Area assignments.
+- Mapped external-space decisions guide future new-entity placement without changing existing Area assignments; ignored decisions remain durable and suppress placement suggestions.
 - Runtime/configuration state is truthful and ordinary failures are diagnosable in the UI.
 - Database upgrades and restore have passed production-shaped recovery testing.
 - Supported/tested configurations and known limitations are explicit.

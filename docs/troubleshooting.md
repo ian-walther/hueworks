@@ -35,6 +35,19 @@ Migration startup stops before changing schema when the pre-migration backup can
 - Ensure the MQTT account can subscribe to those topics.
 - TLS MQTT brokers are not currently supported.
 
+## Home Assistant Authorization Fails
+
+- Confirm `PHX_HOST`, `PHX_SCHEME`, and `PHX_URL_PORT` describe the trusted-LAN URL open in your browser. Home Assistant must be able to return the browser to that same HueWorks origin.
+- Retry from Config > Bridges. An expired, cancelled, or already-used callback cannot be replayed.
+- If Home Assistant revokes the refresh token, the bridge card shows Authorization required and offers a reconnect action without deleting imported entities.
+- Use a manual long-lived token only when discovery or browser authorization cannot work across the network boundary; HueWorks cannot refresh that fallback credential.
+
+## Postal Code Lookup Fails
+
+- Postal-code lookup requires outbound internet access from the HueWorks server.
+- Confirm the two-letter country code and ZIP or postal code are valid. Coverage and precision vary by country.
+- Use browser geolocation or enter latitude and longitude manually when the lookup service is unavailable. Lookup only prefills the form; settings are not changed until saved.
+
 ## Reimport Safety
 
 Reimport is a review of upstream differences, not a replacement initial import. Automatic bridge-owned refreshes are disclosed, while user-facing changes require explicit resolutions. If a review becomes stale, refresh it rather than retrying an old apply request.

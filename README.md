@@ -83,13 +83,15 @@ At runtime, `Hueworks.Application` supervises the Repo, PubSub, caches, control 
 
 After startup, open HueWorks at the configured `PHX_HOST` and port. An empty installation routes to the resumable setup workspace. Choose either the recommended Home Assistant-assisted path or the fully supported direct path:
 
-1. Set location and timezone under General.
+1. Set location and timezone under General. ZIP/postal-code lookup and browser geolocation can prefill approximate coordinates; manual latitude and longitude entry remains available.
 2. With Home Assistant assistance, inspect HA Floors, Areas, integrations, and HA-only entities without importing any lights yet.
 3. Design HueWorks Areas by mapping several external spaces into one coordination boundary, keeping spaces separate, or skipping them.
 4. Add and import native bridges before selected Home Assistant-only entities so mirrored HA entities can be recognized as wrappers instead of visible duplicates.
 5. Review final Area placement, create and activate a first scene, then use Control for everyday operation.
 
-Hue bridges can be discovered and paired through their physical link button without handling an API key. Home Assistant can be discovered locally but still uses a manually supplied long-lived token until browser OAuth is implemented. Zigbee2MQTT can reuse the configured Home Assistant-export MQTT connection and validates its retained snapshot before saving. Caseta currently requires certificate files; guided physical-button certificate acquisition remains pre-release work.
+Hue bridges can be discovered and paired through their physical link button without handling an API key. Home Assistant can be discovered and authorized through its browser approval flow; manual long-lived tokens remain an advanced, non-refreshable fallback. Zigbee2MQTT can reuse the configured Home Assistant-export MQTT connection and validates its retained snapshot before saving. Caseta currently requires certificate files; guided physical-button certificate acquisition remains pre-release work.
+
+Home Assistant browser authorization derives its callback from HueWorks' canonical browser URL. Set `PHX_HOST`, `PHX_SCHEME`, and, when needed, `PHX_URL_PORT` to the trusted-LAN URL that the browser can actually reach. Direct local development uses `http://localhost:4000` automatically.
 
 ### Local Development
 
