@@ -1,5 +1,5 @@
 defmodule HueworksWeb.Plugs.SessionIdTest do
-  use HueworksWeb.ConnCase, async: true
+  use HueworksWeb.ConnCase, async: false
 
   test "sets filter session id in session and response cookie", %{conn: conn} do
     conn = get(conn, "/lights")

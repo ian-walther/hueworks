@@ -9,4 +9,8 @@ defmodule Hueworks.TestEnvironmentConfigTest do
     assert Application.fetch_env!(:tzdata, :autoupdate) == :disabled
     refute Process.whereis(Tzdata.ReleaseUpdater)
   end
+
+  test "tests do not open mDNS sockets on the developer network" do
+    assert Application.fetch_env!(:mdns_lite, :skip_udp) == true
+  end
 end

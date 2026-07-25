@@ -1,5 +1,5 @@
 defmodule HueworksWeb.RouterTest do
-  use HueworksWeb.ConnCase, async: true
+  use ExUnit.Case, async: true
 
   test "router exposes the current primary browser routes and not stale exploration" do
     paths =

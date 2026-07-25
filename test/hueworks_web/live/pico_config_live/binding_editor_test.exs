@@ -1,5 +1,5 @@
 defmodule HueworksWeb.PicoConfigLive.BindingEditorTest do
-  use Hueworks.DataCase, async: true
+  use ExUnit.Case, async: true
 
   alias HueworksWeb.PicoConfigLive.BindingEditor
 

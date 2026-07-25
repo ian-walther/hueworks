@@ -1,5 +1,5 @@
 defmodule Hueworks.SceneBuilderComponentTest do
-  use HueworksWeb.ConnCase, async: true
+  use HueworksWeb.ConnCase, async: false
 
   import Phoenix.LiveViewTest
 

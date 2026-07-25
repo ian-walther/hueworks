@@ -19,8 +19,13 @@ defmodule Hueworks.DataCase do
     :ok
   end
 
-  def setup_sandbox(tags) do
-    pid = Ecto.Adapters.SQL.Sandbox.start_owner!(Hueworks.Repo, shared: not tags[:async])
+  def setup_sandbox(%{async: true}) do
+    raise ArgumentError,
+          "Hueworks database-backed tests must run synchronously because SQLite permits only one writer"
+  end
+
+  def setup_sandbox(_tags) do
+    pid = Ecto.Adapters.SQL.Sandbox.start_owner!(Hueworks.Repo, shared: true)
     :ok = HueworksApp.Cache.flush_all()
     clear_ets(:hueworks_desired_state)
     clear_ets(:hueworks_desired_state_revisions)
