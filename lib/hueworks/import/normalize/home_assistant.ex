@@ -104,7 +104,9 @@ defmodule Hueworks.Import.Normalize.HomeAssistant do
           identifiers: %{
             "mac" => Normalize.extract_device_connection(light, "mac"),
             "serial" => Normalize.extract_device_identifier(light, ["serial", "lutron_caseta"]),
-            "ieee" => Normalize.extract_device_identifier(light, ["ieee", "zha"])
+            "ieee" =>
+              Normalize.extract_device_identifier(light, ["ieee", "zha"]) ||
+                z2m_ieee_identifier(light)
           },
           metadata: %{
             "entity_id" => Normalize.fetch(light, :entity_id),
@@ -249,6 +251,27 @@ defmodule Hueworks.Import.Normalize.HomeAssistant do
       reported_kelvin_max: max_kelvin
     }
   end
+
+  defp z2m_ieee_identifier(light) do
+    [
+      Normalize.extract_device_identifier(light, "mqtt"),
+      Normalize.fetch(light, :unique_id)
+    ]
+    |> Enum.find_value(&extract_z2m_ieee/1)
+  end
+
+  defp extract_z2m_ieee(value) when is_binary(value) do
+    normalized = String.downcase(value)
+
+    if String.contains?(normalized, "zigbee2mqtt") do
+      case Regex.run(~r/0x[0-9a-f]{16}/, normalized) do
+        [ieee] -> ieee
+        _ -> nil
+      end
+    end
+  end
+
+  defp extract_z2m_ieee(_value), do: nil
 
   defp maybe_group_from_light(light, members) do
     metadata = Normalize.fetch(light, :metadata) || %{}

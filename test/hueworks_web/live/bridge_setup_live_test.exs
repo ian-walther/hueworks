@@ -391,6 +391,234 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
            ).area_id == destination.id
   end
 
+  test "confident Z2M placement assigns matching lights and groups", %{conn: conn} do
+    destination = Repo.insert!(%Area{name: "Main Floor"})
+
+    ha_bridge =
+      %Bridge{}
+      |> Bridge.changeset(%{
+        type: :ha,
+        name: "Home Assistant",
+        host: "10.0.0.253",
+        credentials: %{"token" => "token"},
+        enabled: true
+      })
+      |> Repo.insert!()
+
+    {:ok, [ha_space]} =
+      Hueworks.ExternalSpaces.sync_bridge_spaces(ha_bridge, [
+        %{kind: "ha_area", external_id: "kitchen", name: "Kitchen"}
+      ])
+
+    {:ok, _mapping} = Hueworks.ExternalSpaces.put_mapping(ha_space, destination)
+
+    z2m_bridge =
+      %Bridge{}
+      |> Bridge.changeset(%{
+        type: :z2m,
+        name: "Zigbee2MQTT",
+        host: "10.0.0.254",
+        credentials: %{"broker_port" => 1883, "base_topic" => "zigbee2mqtt"},
+        enabled: true
+      })
+      |> Repo.insert!()
+
+    normalized =
+      z2m_snapshot(
+        [
+          z2m_light("Kitchen Strip", "0xaabb"),
+          z2m_light("Kitchen Accent", "0xbbcc")
+        ],
+        [
+          z2m_group("Kitchen Group", ["Kitchen Strip", "Kitchen Accent"])
+        ]
+      )
+
+    insert_ha_inventory!(ha_bridge, [
+      ha_inventory_light("light.kitchen_strip", "0xaabb", "kitchen"),
+      ha_inventory_light("light.kitchen_accent", "0xbbcc", "kitchen")
+    ])
+
+    Application.put_env(:hueworks, :import_pipeline_payload, normalized)
+
+    {:ok, view, _html} = live(conn, "/config/bridges/#{z2m_bridge.id}/import")
+    html = render(view)
+
+    refute has_element?(view, "#supplemental-space-mappings")
+    assert html =~ "Matched through Home Assistant"
+
+    assert has_element?(
+             view,
+             ".hw-import-unassigned-row[data-type='groups'][data-source-id='Kitchen Group'] .hw-import-placement-evidence",
+             "2 of 2 members agree on Main Floor"
+           )
+
+    assert has_element?(
+             view,
+             "form[phx-change='set_entity_area'][data-source-id='Kitchen Group'] option[value='#{destination.id}'][selected]"
+           )
+
+    for source_id <- ["Kitchen Strip", "Kitchen Accent"] do
+      assert has_element?(
+               view,
+               "form[phx-change='set_entity_area'][data-type='lights'][data-source-id='#{source_id}'] option[value='#{destination.id}'][selected]"
+             )
+    end
+
+    view
+    |> element("button[phx-click='apply_materialization']")
+    |> render_click()
+
+    assert Repo.get_by!(Group, bridge_id: z2m_bridge.id, source_id: "Kitchen Group").area_id ==
+             destination.id
+
+    assert Repo.get_by!(Light, bridge_id: z2m_bridge.id, source_id: "Kitchen Strip").area_id ==
+             destination.id
+
+    assert Repo.get_by!(Light, bridge_id: z2m_bridge.id, source_id: "Kitchen Accent").area_id ==
+             destination.id
+
+    assert Hueworks.ExternalSpaces.mapped_area_id(
+             z2m_bridge,
+             "z2m_group",
+             "Kitchen Group"
+           ) == destination.id
+  end
+
+  test "group rows show actionable HA placement evidence without no-evidence noise", %{conn: conn} do
+    destination = Repo.insert!(%Area{name: "Main Floor"})
+    upstairs = Repo.insert!(%Area{name: "Upstairs"})
+
+    ha_bridge =
+      %Bridge{}
+      |> Bridge.changeset(%{
+        type: :ha,
+        name: "Home Assistant",
+        host: "10.0.0.255",
+        credentials: %{"token" => "token"},
+        enabled: true
+      })
+      |> Repo.insert!()
+
+    {:ok, ha_spaces} =
+      Hueworks.ExternalSpaces.sync_bridge_spaces(ha_bridge, [
+        %{kind: "ha_area", external_id: "office", name: "Office"},
+        %{kind: "ha_area", external_id: "bedroom", name: "Bedroom"}
+      ])
+
+    {:ok, _mapping} =
+      ha_spaces
+      |> Enum.find(&(&1.external_id == "office"))
+      |> Hueworks.ExternalSpaces.put_mapping(destination)
+
+    {:ok, _mapping} =
+      ha_spaces
+      |> Enum.find(&(&1.external_id == "bedroom"))
+      |> Hueworks.ExternalSpaces.put_mapping(upstairs)
+
+    insert_ha_inventory!(ha_bridge, [
+      ha_inventory_light("light.office_one", "0x1111", "office"),
+      ha_inventory_light("light.mixed_main", "0x4444", "office"),
+      ha_inventory_light("light.mixed_upstairs", "0x5555", "bedroom")
+    ])
+
+    z2m_bridge =
+      %Bridge{}
+      |> Bridge.changeset(%{
+        type: :z2m,
+        name: "Zigbee2MQTT",
+        host: "10.0.0.256",
+        credentials: %{"broker_port" => 1883, "base_topic" => "zigbee2mqtt"},
+        enabled: true
+      })
+      |> Repo.insert!()
+
+    normalized =
+      z2m_snapshot(
+        [
+          z2m_light("Office One", "0x1111"),
+          z2m_light("Office Two", "0x2222"),
+          z2m_light("Garage One", "0x3333"),
+          z2m_light("Mixed Main", "0x4444"),
+          z2m_light("Mixed Upstairs", "0x5555")
+        ],
+        [
+          z2m_group("Office Group", ["Office One", "Office Two"]),
+          z2m_group("Garage Group", ["Garage One"]),
+          z2m_group("Mixed Group", ["Mixed Main", "Mixed Upstairs"])
+        ]
+      )
+
+    Application.put_env(:hueworks, :import_pipeline_payload, normalized)
+
+    {:ok, view, _html} = live(conn, "/config/bridges/#{z2m_bridge.id}/import")
+    html = render(view)
+
+    refute has_element?(view, "#supplemental-space-mappings")
+    refute html =~ "No Home Assistant match"
+
+    assert has_element?(
+             view,
+             ".hw-import-unassigned-row[data-source-id='Office Group'] .hw-import-placement-evidence",
+             "1 of 2 members point to Main Floor"
+           )
+
+    refute has_element?(
+             view,
+             ".hw-import-unassigned-row[data-source-id='Garage Group'] .hw-import-placement-evidence"
+           )
+
+    assert has_element?(
+             view,
+             ".hw-import-unassigned-row[data-source-id='Mixed Group'] .hw-import-placement-evidence",
+             "Placement evidence conflicts"
+           )
+
+    assert has_element?(
+             view,
+             "form[phx-change='set_entity_area'][data-type='lights'][data-source-id='Office One'] option[value='#{destination.id}'][selected]"
+           )
+
+    refute has_element?(
+             view,
+             "form[phx-change='set_entity_area'][data-type='lights'][data-source-id='Office Two'] option[selected]"
+           )
+
+    assert has_element?(
+             view,
+             "form[phx-change='set_entity_area'][data-type='lights'][data-source-id='Mixed Main'] option[value='#{destination.id}'][selected]"
+           )
+
+    assert has_element?(
+             view,
+             "form[phx-change='set_entity_area'][data-type='lights'][data-source-id='Mixed Upstairs'] option[value='#{upstairs.id}'][selected]"
+           )
+
+    view
+    |> form(
+      "form[phx-change='set_entity_area'][data-type='groups'][data-source-id='Office Group']",
+      %{
+        "type" => "groups",
+        "source_id" => "Office Group",
+        "target_area_id" => Integer.to_string(destination.id),
+        "space_key" => Hueworks.Import.SpaceMappings.key({"z2m_group", "Office Group"}),
+        "space_kind" => "z2m_group",
+        "space_external_id" => "Office Group"
+      }
+    )
+    |> render_change()
+
+    plan = get_assign(view, :plan)
+
+    assert get_in(plan, [:groups, "Office Group", "target_area_id"]) ==
+             Integer.to_string(destination.id)
+
+    assert Hueworks.Import.ReviewPlan.space_mapping_target(
+             plan,
+             Hueworks.Import.SpaceMappings.key({"z2m_group", "Office Group"})
+           ) == Integer.to_string(destination.id)
+  end
+
   test "check all preserves merge selection for matching areas", %{conn: conn} do
     existing_area =
       Repo.insert!(%Hueworks.Schemas.Area{
@@ -1802,6 +2030,79 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
       type: "zone",
       capabilities: %{},
       metadata: %{}
+    }
+  end
+
+  defp insert_ha_inventory!(bridge, lights) do
+    %BridgeImport{}
+    |> BridgeImport.changeset(%{
+      bridge_id: bridge.id,
+      raw_blob: %{},
+      normalized_blob: %{external_spaces: [], areas: [], lights: lights, groups: []},
+      review_blob: %{},
+      status: :normalized,
+      imported_at: DateTime.utc_now() |> DateTime.truncate(:second)
+    })
+    |> Repo.insert!()
+  end
+
+  defp ha_inventory_light(source_id, ieee, area_id) do
+    %{
+      source_id: source_id,
+      identifiers: %{"ieee" => ieee},
+      space_refs: [%{kind: "ha_area", external_id: area_id, relationship: "direct"}]
+    }
+  end
+
+  defp z2m_snapshot(lights, groups) do
+    %{
+      external_spaces:
+        Enum.map(groups, fn group ->
+          %{
+            source: :z2m,
+            source_id: group.source_id,
+            kind: "z2m_group",
+            external_id: group.source_id,
+            name: group.name
+          }
+        end),
+      areas: [],
+      lights: lights,
+      groups: groups,
+      memberships: %{
+        group_lights:
+          Enum.flat_map(groups, fn group ->
+            Enum.map(group.metadata["members"], fn light_source_id ->
+              %{group_source_id: group.source_id, light_source_id: light_source_id}
+            end)
+          end)
+      }
+    }
+  end
+
+  defp z2m_light(source_id, ieee) do
+    %{
+      source: :z2m,
+      source_id: source_id,
+      name: source_id,
+      area_source_id: nil,
+      space_refs: [],
+      capabilities: %{},
+      identifiers: %{"ieee" => ieee},
+      metadata: %{}
+    }
+  end
+
+  defp z2m_group(source_id, members) do
+    %{
+      source: :z2m,
+      source_id: source_id,
+      name: source_id,
+      area_source_id: nil,
+      space_refs: [%{kind: "z2m_group", external_id: source_id, relationship: "direct"}],
+      type: "group",
+      capabilities: %{},
+      metadata: %{"members" => members}
     }
   end
 

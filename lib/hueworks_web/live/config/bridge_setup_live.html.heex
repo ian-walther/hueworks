@@ -159,7 +159,7 @@
         </header>
 
         <div
-          :if={suggestion}
+          :if={actionable_suggestion?(suggestion)}
           id={"space-suggestion-#{area_key}"}
           class={[
             "hw-callout",
@@ -218,6 +218,7 @@
             entries={unassigned_lights}
             plan={@plan}
             areas={@areas}
+            space_suggestions={@space_suggestions}
           />
           <.unassigned_entity_section
             title="Groups"
@@ -225,54 +226,10 @@
             entries={unassigned_groups}
             plan={@plan}
             areas={@areas}
+            space_suggestions={@space_suggestions}
           />
         </div>
       </article>
-    </section>
-
-    <% supplemental = supplemental_spaces(@normalized) %>
-    <section :if={supplemental != []} id="supplemental-space-mappings" class="hw-panel">
-      <div class="hw-panel-header">
-        <div>
-          <p class="hw-eyebrow">Placement shortcuts</p>
-          <h2>Map other bridge spaces</h2>
-          <p class="hw-muted">
-            These source spaces can guide placement for new entities without becoming HueWorks Areas.
-          </p>
-        </div>
-      </div>
-
-      <div class="hw-stack">
-        <article :for={space <- supplemental} class="hw-import-unassigned-row">
-          <% key = space_key(space) %>
-          <% suggestion = space_suggestion(@space_suggestions, space) %>
-          <div>
-            <strong><%= fetch(space, :name) %></strong>
-            <small class="hw-muted"><%= space_kind_label(fetch(space, :kind)) %></small>
-            <p :if={suggestion} class="hw-muted">
-              <%= suggestion_label(suggestion.status) %>:
-              <%= suggestion_message(suggestion, @areas) %>
-            </p>
-          </div>
-          <form phx-change="set_space_mapping" class="hw-inline-form">
-            <input type="hidden" name="key" value={key} />
-            <input type="hidden" name="kind" value={fetch(space, :kind)} />
-            <input type="hidden" name="external_id" value={fetch(space, :external_id)} />
-            <label class="hw-sr-only" for={"space-target-#{key}"}>HueWorks area</label>
-            <select id={"space-target-#{key}"} class="hw-select" name="target_area_id">
-              <option value="">No saved mapping</option>
-              <%= for area <- @areas do %>
-                <option
-                  value={area.id}
-                  selected={ReviewPlan.space_mapping_target(@plan, key) == to_string(area.id)}
-                >
-                  <%= Hueworks.Util.display_name(area) %>
-                </option>
-              <% end %>
-            </select>
-          </form>
-        </article>
-      </div>
     </section>
 
     <aside class="hw-review-action-bar" aria-label="Apply initial bridge import">

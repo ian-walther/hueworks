@@ -250,6 +250,36 @@ defmodule Hueworks.Import.SpaceMappingsTest do
     assert ReviewPlan.area_merge_target(reimport, "office") == to_string(mapped_area.id)
   end
 
+  test "light suggestions fill unassigned matches without replacing reviewed destinations" do
+    suggested = Repo.insert!(%Area{name: "Suggested"})
+    reviewed = Repo.insert!(%Area{name: "Reviewed"})
+
+    plan =
+      %{lights: %{}, groups: %{}, areas: %{}}
+      |> ReviewPlan.put_entity_area(:lights, "matched", nil)
+      |> ReviewPlan.put_entity_area(:lights, "reviewed", Integer.to_string(reviewed.id))
+      |> ReviewPlan.put_entity_area(:lights, "ambiguous", nil)
+
+    suggestions = %{
+      spaces: %{},
+      entities: %{
+        "matched" => %{status: :matched, target_area_id: suggested.id},
+        "reviewed" => %{status: :matched, target_area_id: suggested.id},
+        "ambiguous" => %{status: :ambiguous_identity, target_area_id: nil}
+      }
+    }
+
+    updated = SpaceMappings.apply_suggestions(plan, suggestions)
+
+    assert ReviewPlan.entity_target_area(updated, :lights, "matched") ==
+             Integer.to_string(suggested.id)
+
+    assert ReviewPlan.entity_target_area(updated, :lights, "reviewed") ==
+             Integer.to_string(reviewed.id)
+
+    assert ReviewPlan.entity_target_area(updated, :lights, "ambiguous") == nil
+  end
+
   defp normalized_snapshot(name, lights, external_spaces \\ nil) do
     placement_space = %{
       source: :ha,

@@ -107,7 +107,15 @@ defmodule Hueworks.Import.SpaceMappings do
     end
   end
 
-  def apply_suggestions(plan, %{spaces: suggestions}) when is_map(suggestions) do
+  def apply_suggestions(plan, suggestions) when is_map(suggestions) do
+    plan
+    |> apply_space_suggestions(Normalize.fetch(suggestions, :spaces) || %{})
+    |> apply_light_suggestions(Normalize.fetch(suggestions, :entities) || %{})
+  end
+
+  def apply_suggestions(plan, _suggestions), do: plan
+
+  defp apply_space_suggestions(plan, suggestions) do
     Enum.reduce(suggestions, plan, fn {_identity, suggestion}, acc ->
       if suggestion.preselect? and is_integer(suggestion.suggested_area_id) do
         target_area_id = Integer.to_string(suggestion.suggested_area_id)
@@ -127,7 +135,21 @@ defmodule Hueworks.Import.SpaceMappings do
     end)
   end
 
-  def apply_suggestions(plan, _suggestions), do: plan
+  defp apply_light_suggestions(plan, suggestions) do
+    Enum.reduce(suggestions, plan, fn {source_id, suggestion}, acc ->
+      if suggestion.status == :matched and is_integer(suggestion.target_area_id) and
+           is_nil(ReviewPlan.entity_target_area(acc, :lights, source_id)) do
+        ReviewPlan.put_entity_area(
+          acc,
+          :lights,
+          source_id,
+          Integer.to_string(suggestion.target_area_id)
+        )
+      else
+        acc
+      end
+    end)
+  end
 
   defp apply_reviewed_mappings(
          persisted_spaces,

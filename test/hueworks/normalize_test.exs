@@ -164,6 +164,43 @@ defmodule Hueworks.Import.NormalizeTest do
     assert Enum.map(normalized.lights, & &1.source_id) == ["light.real_kitchen_light"]
   end
 
+  test "normalizes Zigbee2MQTT MQTT device identities from Home Assistant as IEEE identifiers" do
+    raw = %{
+      "areas" => [],
+      "device_registry" => [],
+      "light_entities" => [
+        %{
+          "entity_id" => "light.kitchen_cabinet",
+          "platform" => "mqtt",
+          "unique_id" => "0xA4C138559E3A1AA8_light_zigbee2mqtt",
+          "supported_color_modes" => ["brightness"],
+          "device" => %{
+            "identifiers" => [["mqtt", "zigbee2mqtt_0xA4C138559E3A1AA8"]],
+            "connections" => []
+          }
+        },
+        %{
+          "entity_id" => "light.office_cove",
+          "platform" => "mqtt",
+          "unique_id" => "0xA4C13804FAF3CD0E_light_zigbee2mqtt",
+          "supported_color_modes" => ["brightness"],
+          "device" => %{"identifiers" => [], "connections" => []}
+        }
+      ],
+      "group_entities" => [],
+      "light_states" => %{},
+      "zha_groups" => []
+    }
+
+    bridge = %Bridge{id: 6, type: :ha, name: "HA", host: "10.0.0.6"}
+    normalized = Normalize.normalize(bridge, raw)
+
+    assert Enum.map(normalized.lights, & &1.identifiers["ieee"]) == [
+             "0xa4c138559e3a1aa8",
+             "0xa4c13804faf3cd0e"
+           ]
+  end
+
   test "normalizes Home Assistant blank names to stable fallbacks" do
     raw = %{
       "areas" => [],
