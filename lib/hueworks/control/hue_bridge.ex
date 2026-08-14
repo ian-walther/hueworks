@@ -1,23 +1,14 @@
 defmodule Hueworks.Control.HueBridge do
   @moduledoc false
 
+  alias Hueworks.Control.BridgeCredentialsCache
   alias Hueworks.Repo
   alias Hueworks.Schemas.Bridge
-  alias HueworksApp.Cache
 
-  @cache_namespace :bridge_credentials
-  @default_ttl_ms 10_000
-
-  def credentials_for(%{bridge_id: bridge_id}) when is_integer(bridge_id) do
-    Cache.get_or_load(
-      @cache_namespace,
-      {:hue, bridge_id},
-      fn -> load_credentials(bridge_id) end,
-      ttl_ms: credentials_cache_ttl_ms()
-    )
+  def credentials_for(entity) do
+    bridge_id = if is_map(entity), do: Map.get(entity, :bridge_id)
+    BridgeCredentialsCache.fetch(:hue, bridge_id, fn -> load_credentials(bridge_id) end)
   end
-
-  def credentials_for(_entity), do: {:error, :missing_bridge_id}
 
   defp load_credentials(bridge_id) do
     case Repo.get(Bridge, bridge_id) do
@@ -33,9 +24,5 @@ defmodule Hueworks.Control.HueBridge do
           {:error, :missing_api_key}
         end
     end
-  end
-
-  defp credentials_cache_ttl_ms do
-    Application.get_env(:hueworks, :cache_bridge_credentials_ttl_ms, @default_ttl_ms)
   end
 end

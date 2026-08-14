@@ -151,22 +151,24 @@ defmodule Hueworks.HomeKit.Bridge do
   end
 
   defp start_hap(state, accessory_server, topology_hash, pairing_shell?) do
-    case hap_module().start_link(accessory_server) do
+    start_result =
+      case hap_module().start_link(accessory_server) do
+        {:ok, pid} ->
+          Logger.info(
+            "Started HomeKit bridge with #{length(accessory_server.accessories)} accessories"
+          )
+
+          {:ok, pid}
+
+        {:error, {:already_started, pid}} ->
+          {:ok, pid}
+
+        other ->
+          other
+      end
+
+    case start_result do
       {:ok, pid} ->
-        Logger.info(
-          "Started HomeKit bridge with #{length(accessory_server.accessories)} accessories"
-        )
-
-        %{
-          state
-          | hap_pid: pid,
-            topology_hash: topology_hash,
-            change_tokens: %{},
-            pairing_busy_since_ms: nil,
-            pairing_shell?: pairing_shell?
-        }
-
-      {:error, {:already_started, pid}} ->
         %{
           state
           | hap_pid: pid,

@@ -7,6 +7,7 @@ defmodule HueworksWeb.SceneEditorLive do
   alias Hueworks.Areas
   alias Hueworks.Scenes
   alias Hueworks.Scenes.Builder
+  alias Hueworks.Util
   alias HueworksWeb.SceneBuilderComponent.Component
 
   def mount(_params, _session, socket) do
@@ -36,8 +37,8 @@ defmodule HueworksWeb.SceneEditorLive do
   end
 
   def handle_params(params, _uri, socket) do
-    area_id = parse_id(params["area_id"])
-    clone_scene_id = parse_id(params["clone_scene_id"])
+    area_id = Util.parse_id(params["area_id"])
+    clone_scene_id = Util.parse_id(params["clone_scene_id"])
 
     cond do
       is_nil(area_id) ->
@@ -47,7 +48,7 @@ defmodule HueworksWeb.SceneEditorLive do
         {:noreply, load_new_scene(socket, area_id, clone_scene_id)}
 
       socket.assigns.live_action == :edit ->
-        scene_id = parse_id(params["id"])
+        scene_id = Util.parse_id(params["id"])
         {:noreply, load_existing_scene(socket, area_id, scene_id)}
 
       true ->
@@ -441,6 +442,4 @@ defmodule HueworksWeb.SceneEditorLive do
   defp transition_unit_multiplier("seconds"), do: 1_000
   defp transition_unit_multiplier("minutes"), do: 60_000
   defp transition_unit_multiplier(_unit), do: nil
-
-  defp parse_id(value), do: Hueworks.Util.parse_id(value)
 end

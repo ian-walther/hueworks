@@ -5,18 +5,14 @@ defmodule Hueworks.HomeAssistant.Export do
 
   alias Hueworks.ActiveScenes
   alias Hueworks.DomainEvents
+  alias Hueworks.HomeAssistant.Export.Config
   alias Hueworks.HomeAssistant.Export.Connection
   alias Hueworks.HomeAssistant.Export.ServerState
   alias Hueworks.HomeAssistant.Export.Lifecycle
-  alias Hueworks.HomeAssistant.Export.Messages
   alias Hueworks.HomeAssistant.Export.Router
-  alias Hueworks.HomeAssistant.Export.Runtime
   alias Hueworks.Instance
   alias Hueworks.Schemas.{Area, Group, Light, PresenceInput, Scene}
   alias Phoenix.PubSub
-
-  @default_discovery_prefix "homeassistant"
-  @default_topic_prefix "hueworks/ha_export"
 
   def start_link(_opts \\ []) do
     GenServer.start_link(__MODULE__, %{}, name: __MODULE__)
@@ -99,67 +95,8 @@ defmodule Hueworks.HomeAssistant.Export do
     "hwhaexp-#{Instance.slug()}"
   end
 
-  defdelegate availability_topic(), to: Messages
-  defdelegate command_topic(scene_id), to: Messages
-  defdelegate attributes_topic(scene_id), to: Messages
-  defdelegate area_select_command_topic(area_id), to: Messages
-  defdelegate area_select_state_topic(area_id), to: Messages
-  defdelegate area_select_attributes_topic(area_id), to: Messages
-  defdelegate entity_attributes_topic(kind, id), to: Messages
-  defdelegate presence_input_attributes_topic(id), to: Messages
-  defdelegate switch_command_topic(kind, id), to: Messages
-  defdelegate presence_input_command_topic(id), to: Messages
-  defdelegate switch_state_topic(kind, id), to: Messages
-  defdelegate presence_input_state_topic(id), to: Messages
-  defdelegate light_command_topic(kind, id), to: Messages
-  defdelegate light_state_topic(kind, id), to: Messages
-
-  def discovery_topic(scene_id, discovery_prefix \\ @default_discovery_prefix),
-    do: Messages.discovery_topic(scene_id, discovery_prefix)
-
-  def area_select_discovery_topic(identifier, discovery_prefix \\ @default_discovery_prefix),
-    do: Messages.area_select_discovery_topic(identifier, discovery_prefix)
-
-  def switch_discovery_topic(kind, id, discovery_prefix \\ @default_discovery_prefix),
-    do: Messages.switch_discovery_topic(kind, id, discovery_prefix)
-
-  def presence_input_discovery_topic(id, discovery_prefix \\ @default_discovery_prefix),
-    do: Messages.presence_input_discovery_topic(id, discovery_prefix)
-
-  def light_discovery_topic(kind, id, discovery_prefix \\ @default_discovery_prefix),
-    do: Messages.light_discovery_topic(kind, id, discovery_prefix)
-
-  def command_scene_id(topic_levels, topic_prefix \\ @default_topic_prefix),
-    do: Messages.command_scene_id(topic_levels, topic_prefix)
-
-  def command_area_id(topic_levels, topic_prefix \\ @default_topic_prefix),
-    do: Messages.command_area_id(topic_levels, topic_prefix)
-
-  def discovery_payload(scene, config \\ export_config()),
-    do: Messages.discovery_payload(scene, config)
-
-  defdelegate scene_attributes_payload(scene), to: Messages
-
-  def area_select_discovery_payload(area, scenes, config \\ export_config()),
-    do: Messages.area_select_discovery_payload(area, scenes, config)
-
-  defdelegate area_select_attributes_payload(area, scenes), to: Messages
-
-  def switch_discovery_payload(kind, entity, config \\ export_config()),
-    do: Messages.switch_discovery_payload(kind, entity, config)
-
-  def light_discovery_payload(kind, entity, config \\ export_config()),
-    do: Messages.light_discovery_payload(kind, entity, config)
-
-  defdelegate entity_attributes_payload(kind, entity), to: Messages
-
-  def presence_input_discovery_payload(input, config \\ export_config()),
-    do: Messages.presence_input_discovery_payload(input, config)
-
-  defdelegate presence_input_attributes_payload(input), to: Messages
-
   def export_config do
-    Runtime.export_config()
+    Config.export_config()
   end
 
   @impl true
@@ -190,7 +127,7 @@ defmodule Hueworks.HomeAssistant.Export do
   end
 
   def handle_info({:mqtt_message, topic_levels, payload}, %ServerState{config: config} = state) do
-    if Runtime.export_enabled?(config) do
+    if Config.export_enabled?(config) do
       Router.dispatch(topic_levels, payload, config, &publish/3)
     end
 

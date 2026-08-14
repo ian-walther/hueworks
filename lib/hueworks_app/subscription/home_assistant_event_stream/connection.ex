@@ -109,14 +109,14 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.Connection do
               state
 
             group ->
-              state_update = build_ha_state(new_state, group)
+              state_update = StateParser.home_assistant_state(new_state, group)
               State.put(:group, group.id, state_update)
               update_group_members_from_group_state(state, entity_id, group.id, state_update)
               state
           end
 
         light ->
-          State.put(:light, light.id, build_ha_state(new_state, light))
+          State.put(:light, light.id, StateParser.home_assistant_state(new_state, light))
           state
       end
     else
@@ -204,10 +204,6 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.Connection do
   defp normalize_entity_ids(value) when is_binary(value), do: [value]
   defp normalize_entity_ids(values) when is_list(values), do: Enum.filter(values, &is_binary/1)
   defp normalize_entity_ids(_value), do: []
-
-  defp build_ha_state(state, entity) do
-    StateParser.home_assistant_state(state, entity)
-  end
 
   defp load_lights(bridge_id) do
     Repo.all(

@@ -9,7 +9,7 @@ defmodule Hueworks.Import.EntityAttrs do
     %{
       name: Normalize.fetch(light, :name) || "Light",
       source: Source.normalize(Normalize.fetch(light, :source)),
-      source_id: source_id(light),
+      source_id: Normalize.entity_source_id(light),
       bridge_id: bridge.id,
       supports_color: capabilities |> Normalize.fetch(:color) |> Normalize.truthy?(),
       supports_temp: capabilities |> Normalize.fetch(:color_temp) |> Normalize.truthy?(),
@@ -27,7 +27,7 @@ defmodule Hueworks.Import.EntityAttrs do
     %{
       name: Normalize.fetch(group, :name) || "Group",
       source: Source.normalize(Normalize.fetch(group, :source)),
-      source_id: source_id(group),
+      source_id: Normalize.entity_source_id(group),
       bridge_id: bridge.id,
       supports_color: capabilities |> Normalize.fetch(:color) |> Normalize.truthy?(),
       supports_temp: capabilities |> Normalize.fetch(:color_temp) |> Normalize.truthy?(),
@@ -58,9 +58,6 @@ defmodule Hueworks.Import.EntityAttrs do
       canonical_group_id: canonical_id
     })
   end
-
-  def source_id(entity),
-    do: entity |> Normalize.fetch(:source_id) |> Normalize.normalize_source_id()
 
   defp light_metadata(light) do
     base = Normalize.fetch(light, :metadata) || %{}

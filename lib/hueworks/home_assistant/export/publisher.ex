@@ -184,7 +184,7 @@ defmodule Hueworks.HomeAssistant.Export.Publisher do
   end
 
   defp publish_switch_payloads(publish_fun, kind, entity, config)
-       when is_function(publish_fun, 3) and kind in [:light, :group] and is_map(entity) do
+       when kind in [:light, :group] and is_map(entity) do
     discovery = Messages.switch_discovery_topic(kind, entity.id, config.discovery_prefix)
     attributes = Messages.entity_attributes_topic(kind, entity.id)
     state_topic = Messages.switch_state_topic(kind, entity.id)
@@ -207,7 +207,7 @@ defmodule Hueworks.HomeAssistant.Export.Publisher do
   end
 
   defp publish_light_payloads(publish_fun, kind, entity, config)
-       when is_function(publish_fun, 3) and kind in [:light, :group] and is_map(entity) do
+       when kind in [:light, :group] and is_map(entity) do
     discovery = Messages.light_discovery_topic(kind, entity.id, config.discovery_prefix)
     attributes = Messages.entity_attributes_topic(kind, entity.id)
     state_topic = Messages.light_state_topic(kind, entity.id)
@@ -232,7 +232,7 @@ defmodule Hueworks.HomeAssistant.Export.Publisher do
   end
 
   defp unpublish_switch_payloads(publish_fun, kind, id, config)
-       when is_function(publish_fun, 3) and kind in [:light, :group] and is_integer(id) do
+       when kind in [:light, :group] and is_integer(id) do
     :ok =
       publish_fun.(
         Messages.switch_discovery_topic(kind, id, config.discovery_prefix),
@@ -244,7 +244,7 @@ defmodule Hueworks.HomeAssistant.Export.Publisher do
   end
 
   defp unpublish_light_payloads(publish_fun, kind, id, config)
-       when is_function(publish_fun, 3) and kind in [:light, :group] and is_integer(id) do
+       when kind in [:light, :group] and is_integer(id) do
     :ok =
       publish_fun.(
         Messages.light_discovery_topic(kind, id, config.discovery_prefix),

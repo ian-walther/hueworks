@@ -37,4 +37,32 @@ defmodule Hueworks.UtilTest do
   test "default bridge name supports z2m" do
     assert Util.default_bridge_name("z2m") == "Zigbee2MQTT"
   end
+
+  test "existing_atom converts only atoms already present in the VM" do
+    assert Util.existing_atom(:brightness) == :brightness
+    assert Util.existing_atom("brightness") == :brightness
+
+    assert Util.existing_atom("hueworks_missing_atom_#{System.unique_integer([:positive])}") ==
+             nil
+
+    assert Util.existing_atom(42) == nil
+  end
+
+  test "to_float coerces supported numeric inputs" do
+    assert Util.to_float(2) == 2.0
+    assert Util.to_float(2.5) == 2.5
+    assert Util.to_float(" 2.5 ") == 2.5
+    assert Util.to_float("nope") == nil
+  end
+
+  test "blank_to_nil trims strings and rejects non-strings" do
+    assert Util.blank_to_nil(" value ") == "value"
+    assert Util.blank_to_nil("  ") == nil
+    assert Util.blank_to_nil(nil) == nil
+  end
+
+  test "put_unless_nil preserves false values" do
+    assert Util.put_unless_nil(%{}, :enabled, false) == %{enabled: false}
+    assert Util.put_unless_nil(%{}, :enabled, nil) == %{}
+  end
 end

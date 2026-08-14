@@ -214,14 +214,6 @@ defmodule HueworksWeb.SetupAreasLive do
 
   defp keep_parent_floor_open(socket, _bridge, _kind, _external_id), do: socket
 
-  defp operation_error(%Ecto.Changeset{}), do: "the requested values were not valid"
-  defp operation_error(reason) when is_binary(reason), do: reason
-
-  defp operation_error(reason) when is_atom(reason),
-    do: reason |> Atom.to_string() |> String.replace("_", " ")
-
-  defp operation_error(_reason), do: "unexpected error"
-
   def progress_percent(%{total: 0}), do: 0
   def progress_percent(%{resolved: resolved, total: total}), do: round(resolved / total * 100)
 

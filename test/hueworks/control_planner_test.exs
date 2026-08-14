@@ -23,8 +23,8 @@ defmodule Hueworks.Control.PlannerTest do
     :ok
   end
 
-  test "planner action drops empty apply_opts when converted to a map" do
-    assert Action.light(1, 10, %{power: :on}) |> Action.to_map() == %{
+  test "planner action omits empty optional values" do
+    assert Action.light(1, 10, %{power: :on}, %{}, nil, nil) == %{
              type: :light,
              id: 1,
              bridge_id: 10,

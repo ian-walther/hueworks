@@ -33,7 +33,7 @@ defmodule Hueworks.Import.Duplicates do
       if Source.normalize(Normalize.fetch(light, :source)) == :ha do
         case unique_native_light_match(light, indexes) do
           nil -> acc
-          id -> Map.put(acc, source_id(light), id)
+          id -> Map.put(acc, Normalize.entity_source_id(light), id)
         end
       else
         acc
@@ -44,7 +44,7 @@ defmodule Hueworks.Import.Duplicates do
   def existing_light_canonical_targets(bridge_id, lights) when is_integer(bridge_id) do
     source_ids =
       lights
-      |> Enum.map(&source_id/1)
+      |> Enum.map(&Normalize.entity_source_id/1)
       |> Enum.filter(&is_binary/1)
 
     external_ids =
@@ -62,7 +62,7 @@ defmodule Hueworks.Import.Duplicates do
       )
 
     Enum.reduce(lights, %{}, fn light, acc ->
-      source_id = source_id(light)
+      source_id = Normalize.entity_source_id(light)
 
       case EntityMatch.match_existing(existing_lights, light, :light) do
         %Light{} = record when is_binary(source_id) ->
@@ -146,7 +146,4 @@ defmodule Hueworks.Import.Duplicates do
   end
 
   defp light_external_id(light), do: Identifiers.light_external_id(light)
-
-  defp source_id(entity),
-    do: entity |> Normalize.fetch(:source_id) |> Normalize.normalize_source_id()
 end

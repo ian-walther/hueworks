@@ -88,7 +88,7 @@ defmodule Hueworks.Control.Executor.Convergence do
 
   def stale_recovery_actions(action, state) do
     now = state.now_fn.(:millisecond)
-    dispatched_revisions = Map.get(state, :dispatched_revisions, %{})
+    dispatched_revisions = state.dispatched_revisions
 
     recovery_actions_for(
       action,
@@ -176,7 +176,7 @@ defmodule Hueworks.Control.Executor.Convergence do
 
   defp put_entries(state, entries) do
     settlements =
-      Enum.reduce(entries, Map.get(state, :settlements, %{}), fn entry, acc ->
+      Enum.reduce(entries, state.settlements, fn entry, acc ->
         Map.put(acc, {:light, entry.light_id}, entry)
       end)
 
@@ -184,8 +184,7 @@ defmodule Hueworks.Control.Executor.Convergence do
   end
 
   defp entries_for_dispatch(state, dispatch_id) do
-    state
-    |> Map.get(:settlements, %{})
+    state.settlements
     |> Map.values()
     |> Enum.filter(&(&1.dispatch_id == dispatch_id))
   end
@@ -201,13 +200,12 @@ defmodule Hueworks.Control.Executor.Convergence do
 
   defp remove_entries(state, entries) do
     keys = MapSet.new(Enum.map(entries, &{:light, &1.light_id}))
-    settlements = Map.drop(Map.get(state, :settlements, %{}), MapSet.to_list(keys))
+    settlements = Map.drop(state.settlements, MapSet.to_list(keys))
     %{state | settlements: settlements}
   end
 
   defp protected_light_ids(state) do
-    state
-    |> Map.get(:settlements, %{})
+    state.settlements
     |> Map.values()
     |> Enum.filter(&Settlement.current?/1)
     |> Enum.map(& &1.light_id)

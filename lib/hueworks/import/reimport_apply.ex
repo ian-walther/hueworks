@@ -124,7 +124,7 @@ defmodule Hueworks.Import.ReimportApply do
     light_ids =
       lights
       |> Enum.filter(fn light ->
-        source_id = source_id(light)
+        source_id = Normalize.entity_source_id(light)
 
         selected?(plan_lights, source_id) and
           not hidden_duplicate_resolution?(plan_lights, source_id) and
@@ -135,7 +135,7 @@ defmodule Hueworks.Import.ReimportApply do
     group_ids =
       groups
       |> Enum.filter(fn group ->
-        source_id = source_id(group)
+        source_id = Normalize.entity_source_id(group)
 
         selected?(plan_groups, source_id) and
           not hidden_duplicate_resolution?(plan_groups, source_id) and
@@ -150,7 +150,7 @@ defmodule Hueworks.Import.ReimportApply do
 
   defp upsert_needed_areas(areas, plan_areas, needed_area_source_ids) do
     Enum.reduce(areas, %{}, fn area, acc ->
-      source_id = source_id(area)
+      source_id = Normalize.entity_source_id(area)
 
       if is_binary(source_id) and MapSet.member?(needed_area_source_ids, source_id) do
         case Areas.upsert(area, Normalize.fetch(plan_areas, source_id) || %{}) do
@@ -179,7 +179,7 @@ defmodule Hueworks.Import.ReimportApply do
     }
 
     Enum.reduce(lights, initial, fn light, acc ->
-      source_id = source_id(light)
+      source_id = Normalize.entity_source_id(light)
 
       cond do
         not is_binary(source_id) ->
@@ -283,7 +283,7 @@ defmodule Hueworks.Import.ReimportApply do
     initial = %{source_id_to_db_id: %{}, seen_existing_ids: MapSet.new()}
 
     Enum.reduce(groups, initial, fn group, acc ->
-      source_id = source_id(group)
+      source_id = Normalize.entity_source_id(group)
 
       cond do
         not is_binary(source_id) ->
@@ -377,7 +377,7 @@ defmodule Hueworks.Import.ReimportApply do
 
     groups_by_source_id =
       Enum.reduce(groups, %{}, fn group, acc ->
-        case source_id(group) do
+        case Normalize.entity_source_id(group) do
           nil -> acc
           group_source_id -> Map.put(acc, group_source_id, group)
         end
@@ -550,7 +550,7 @@ defmodule Hueworks.Import.ReimportApply do
     external_id = record.external_id
 
     Enum.any?(incoming, fn entry ->
-      source_id(entry) == record.source_id or
+      Normalize.entity_source_id(entry) == record.source_id or
         (is_binary(external_id) and incoming_external_id(entry, type) == external_id)
     end)
   end
@@ -688,9 +688,7 @@ defmodule Hueworks.Import.ReimportApply do
   defp resolution_entries(plan, resolution) do
     plan
     |> Enum.reduce([], fn {source_id, entry}, acc ->
-      if match?(%{}, entry) and
-           (Normalize.fetch(entry, :resolution) == resolution or
-              Normalize.fetch(entry, :action) == resolution) do
+      if match?(%{}, entry) and Normalize.resolution_of(entry) == resolution do
         normalized_source_id = Normalize.normalize_source_id(source_id)
 
         if is_binary(normalized_source_id) do
@@ -752,8 +750,7 @@ defmodule Hueworks.Import.ReimportApply do
     if is_binary(source_id) do
       case Normalize.fetch(plan, source_id) do
         %{} = entry ->
-          Normalize.fetch(entry, :resolution) == "import_hidden_duplicate" or
-            Normalize.fetch(entry, :action) == "import_hidden_duplicate"
+          Normalize.resolution_of(entry) == "import_hidden_duplicate"
 
         _ ->
           false
@@ -767,8 +764,7 @@ defmodule Hueworks.Import.ReimportApply do
     if is_binary(source_id) do
       case Normalize.fetch(plan, source_id) do
         %{} = entry ->
-          Normalize.fetch(entry, :resolution) == "import_real" or
-            Normalize.fetch(entry, :action) == "import_real"
+          Normalize.resolution_of(entry) == "import_real"
 
         _ ->
           false
@@ -779,7 +775,7 @@ defmodule Hueworks.Import.ReimportApply do
   end
 
   defp selected_entry?(entry) do
-    resolution = Normalize.fetch(entry, :resolution) || Normalize.fetch(entry, :action)
+    resolution = Normalize.resolution_of(entry)
 
     cond do
       resolution in ["delete", "skip", "do_not_import"] -> false
@@ -789,9 +785,6 @@ defmodule Hueworks.Import.ReimportApply do
       true -> true
     end
   end
-
-  defp source_id(entity),
-    do: entity |> Normalize.fetch(:source_id) |> Normalize.normalize_source_id()
 
   defp area_source_id(entity),
     do: entity |> Normalize.fetch(:area_source_id) |> Normalize.normalize_source_id()

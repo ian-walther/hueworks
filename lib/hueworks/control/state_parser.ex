@@ -122,7 +122,7 @@ defmodule Hueworks.Control.StateParser do
   @spec color_from_ha_attrs(state_map()) :: state_map()
   def color_from_ha_attrs(attrs) when is_map(attrs) do
     xy = xy_from_attrs(attrs)
-    color_mode = ha_color_mode(attrs)
+    color_mode = color_mode(attrs)
 
     cond do
       is_tuple(xy) and color_mode in ["xy", "hs", "rgb", "rgbw", "rgbww"] ->
@@ -236,7 +236,7 @@ defmodule Hueworks.Control.StateParser do
     extended_xy_kelvin = raw_extended_xy_kelvin(attrs, entity)
     crossover_xy? = prefer_z2m_extended_xy_crossover?(attrs, entity, extended_xy_kelvin)
 
-    case z2m_color_mode(attrs) do
+    case color_mode(attrs) do
       "xy" ->
         parse_xy_preferred_z2m(attrs, entity)
 
@@ -313,7 +313,7 @@ defmodule Hueworks.Control.StateParser do
   end
 
   defp parse_ha_color_temp(kelvin, attrs, entity) when is_number(kelvin) do
-    if ha_color_mode(attrs) == "color_temp" do
+    if color_mode(attrs) == "color_temp" do
       %{kelvin: Kelvin.map_from_event(entity, kelvin)}
     else
       parse_low_extended_kelvin(kelvin, entity)
@@ -321,7 +321,7 @@ defmodule Hueworks.Control.StateParser do
   end
 
   defp parse_z2m_mired_color_temp(kelvin, attrs, entity) when is_number(kelvin) do
-    if z2m_color_mode(attrs) == "color_temp" do
+    if color_mode(attrs) == "color_temp" do
       %{kelvin: Kelvin.map_from_event(entity, kelvin)}
     else
       parse_low_extended_kelvin(kelvin, entity)
@@ -331,13 +331,13 @@ defmodule Hueworks.Control.StateParser do
   defp explicit_z2m_reported_floor?(attrs, entity, kelvin) do
     reported_min = entity_field(entity, :reported_min_kelvin)
 
-    z2m_color_mode(attrs) == "color_temp" and is_number(reported_min) and
+    color_mode(attrs) == "color_temp" and is_number(reported_min) and
       abs(kelvin - reported_min) <= 25
   end
 
   defp preserve_z2m_direct_low_kelvin?(attrs, entity, kelvin) when is_number(kelvin) do
     Kelvin.extended_low_kelvin?(entity, kelvin) and
-      (z2m_color_mode(attrs) == "color_temp" or is_tuple(xy_from_attrs(attrs)))
+      (color_mode(attrs) == "color_temp" or is_tuple(xy_from_attrs(attrs)))
   end
 
   defp prefer_z2m_extended_xy_crossover?(attrs, entity, extended_xy_kelvin)
@@ -454,12 +454,7 @@ defmodule Hueworks.Control.StateParser do
 
   defp extended_kelvin_range_enabled?(_entity), do: false
 
-  defp z2m_color_mode(attrs) when is_map(attrs) do
-    mode = attrs["color_mode"] || attrs[:color_mode]
-    if is_binary(mode), do: mode, else: nil
-  end
-
-  defp ha_color_mode(attrs) when is_map(attrs) do
+  defp color_mode(attrs) when is_map(attrs) do
     mode = attrs["color_mode"] || attrs[:color_mode]
     if is_binary(mode), do: mode, else: nil
   end

@@ -20,11 +20,13 @@ defmodule Hueworks.Scenes.Intent do
       :power_overrides,
       :preserve_power_latches
     ]
-    defstruct now: nil,
-              target_light_ids: MapSet.new(),
-              circadian_only: false,
-              power_overrides: %{},
-              preserve_power_latches: true
+    defstruct [
+      :now,
+      :target_light_ids,
+      :circadian_only,
+      :power_overrides,
+      :preserve_power_latches
+    ]
 
     def from_opts(opts) when is_list(opts) do
       target_light_ids =
@@ -215,8 +217,6 @@ defmodule Hueworks.Scenes.Intent do
     end
   end
 
-  defp target_component_lights(lights, _target_light_ids), do: lights
-
   defp maybe_preserve_manual_power_latch(desired, current_desired, true) do
     cond do
       explicit_off_intent?(current_desired) and not explicit_off_intent?(desired) ->
@@ -254,9 +254,6 @@ defmodule Hueworks.Scenes.Intent do
   defp explicit_off_intent?(state), do: power_value(state) == :off
 
   defp put_attr(%DesiredAttrs{} = desired, key, value), do: Map.put(desired, key, value)
-  defp put_attr(desired, key, value) when is_map(desired), do: Map.put(desired, key, value)
 
-  defp power_value(%DesiredAttrs{power: power}), do: power
   defp power_value(state) when is_map(state), do: Map.get(state, :power)
-  defp power_value(_state), do: nil
 end

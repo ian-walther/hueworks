@@ -51,6 +51,28 @@ defmodule Hueworks.Util do
 
   def parse_id(value), do: parse_optional_integer(value)
 
+  def existing_atom(value) when is_atom(value), do: value
+
+  def existing_atom(value) when is_binary(value) do
+    String.to_existing_atom(value)
+  rescue
+    ArgumentError -> nil
+  end
+
+  def existing_atom(_value), do: nil
+
+  def blank_to_nil(value) when is_binary(value) do
+    case String.trim(value) do
+      "" -> nil
+      trimmed -> trimmed
+    end
+  end
+
+  def blank_to_nil(_value), do: nil
+
+  def put_unless_nil(map, _key, nil), do: map
+  def put_unless_nil(map, key, value), do: Map.put(map, key, value)
+
   def parse_optional_bool(nil), do: nil
   def parse_optional_bool(value) when is_boolean(value), do: value
 
@@ -189,6 +211,17 @@ defmodule Hueworks.Util do
     end
   end
 
+  def changeset_errors(changeset) do
+    Ecto.Changeset.traverse_errors(changeset, fn {message, opts} ->
+      Enum.reduce(opts, message, fn {key, value}, acc ->
+        String.replace(acc, "%{#{key}}", to_string(value))
+      end)
+    end)
+    |> Enum.flat_map(fn {field, messages} ->
+      Enum.map(List.wrap(messages), fn message -> {Atom.to_string(field), message} end)
+    end)
+  end
+
   defp duplicate_bridge_error?(errors) do
     errors
     |> error_messages()
@@ -236,4 +269,17 @@ defmodule Hueworks.Util do
   end
 
   def to_number(_value), do: nil
+
+  def to_float(value) when is_binary(value) do
+    value
+    |> String.trim()
+    |> to_number()
+  end
+
+  def to_float(value) do
+    case to_number(value) do
+      number when is_number(number) -> number * 1.0
+      nil -> nil
+    end
+  end
 end

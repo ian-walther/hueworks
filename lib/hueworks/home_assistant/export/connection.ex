@@ -52,31 +52,15 @@ defmodule Hueworks.HomeAssistant.Export.Connection do
   def alive?(pid) when is_pid(pid), do: Process.alive?(pid)
   def alive?(_pid), do: false
 
-  defp tortoise_module do
-    case Application.get_env(:hueworks, :ha_export_tortoise_module) do
-      nil -> Tortoise
-      module -> module
-    end
-  end
+  defp tortoise_module,
+    do: Application.get_env(:hueworks, :ha_export_tortoise_module, Tortoise)
 
-  defp supervisor_module do
-    case Application.get_env(:hueworks, :ha_export_tortoise_supervisor_module) do
-      nil -> Tortoise.Supervisor
-      module -> module
-    end
-  end
+  defp supervisor_module,
+    do: Application.get_env(:hueworks, :ha_export_tortoise_supervisor_module, Tortoise.Supervisor)
 
-  defp dynamic_supervisor_module do
-    case Application.get_env(:hueworks, :ha_export_dynamic_supervisor_module) do
-      nil -> DynamicSupervisor
-      module -> module
-    end
-  end
+  defp dynamic_supervisor_module,
+    do: Application.get_env(:hueworks, :ha_export_dynamic_supervisor_module, DynamicSupervisor)
 
-  defp tortoise_supervisor_name do
-    case Application.get_env(:hueworks, :ha_export_tortoise_supervisor_name) do
-      nil -> Tortoise.Supervisor
-      name -> name
-    end
-  end
+  defp tortoise_supervisor_name,
+    do: Application.get_env(:hueworks, :ha_export_tortoise_supervisor_name, Tortoise.Supervisor)
 end

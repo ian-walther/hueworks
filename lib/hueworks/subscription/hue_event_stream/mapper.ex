@@ -18,7 +18,7 @@ defmodule Hueworks.Subscription.HueEventStream.Mapper do
   def handle_resource(%{"type" => "light"} = resource, state) do
     with {:ok, v1_id} <- v1_id_from_event(resource, "/lights/"),
          %{id: db_id} <- Map.get(state.lights_by_id, v1_id) do
-      attrs = event_state_from_light(resource)
+      attrs = StateParser.hue_event_state(resource)
       State.put(:light, db_id, attrs)
       refresh_groups_for_light(state, db_id, attrs)
     else
@@ -29,7 +29,7 @@ defmodule Hueworks.Subscription.HueEventStream.Mapper do
   def handle_resource(%{"type" => "grouped_light"} = resource, state) do
     with {:ok, v1_id} <- v1_group_id(resource),
          %{id: db_id} <- Map.get(state.groups_by_id, v1_id) do
-      attrs = event_state_from_group(resource)
+      attrs = StateParser.hue_event_state(resource)
       State.put(:group, db_id, attrs)
     else
       _ -> :ok
@@ -57,8 +57,6 @@ defmodule Hueworks.Subscription.HueEventStream.Mapper do
     end)
   end
 
-  def needs_refresh?(_resources, _state), do: false
-
   defp v1_id_from_event(event, prefix) do
     v1_id_from_id_v1(event["id_v1"], prefix)
   end
@@ -82,12 +80,6 @@ defmodule Hueworks.Subscription.HueEventStream.Mapper do
         v1_id_from_id_v1(owner_id_v1, "/groups/")
     end
   end
-
-  defp event_state_from_light(event) do
-    StateParser.hue_event_state(event)
-  end
-
-  defp event_state_from_group(event), do: event_state_from_light(event)
 
   defp load_group_lights(bridge_id) do
     Repo.all(
@@ -114,12 +106,8 @@ defmodule Hueworks.Subscription.HueEventStream.Mapper do
   defp refresh_groups_for_light(_state, _light_id, attrs) when attrs == %{}, do: :ok
 
   defp refresh_groups_for_light(state, light_id, _attrs) do
-    refresh_groups_for_lights(state, [light_id])
-  end
-
-  defp refresh_groups_for_lights(state, light_ids) when is_list(light_ids) do
-    light_ids
-    |> Enum.flat_map(&Map.get(state.group_light_ids, &1, []))
+    state.group_light_ids
+    |> Map.get(light_id, [])
     |> Enum.uniq()
     |> Enum.each(&refresh_group_from_members(state, &1))
   end

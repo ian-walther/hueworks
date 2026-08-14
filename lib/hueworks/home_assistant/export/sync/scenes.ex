@@ -3,11 +3,11 @@ defmodule Hueworks.HomeAssistant.Export.Sync.Scenes do
 
   alias Hueworks.HomeAssistant.Export.Entities
   alias Hueworks.HomeAssistant.Export.Publisher
-  alias Hueworks.HomeAssistant.Export.Runtime
+  alias Hueworks.HomeAssistant.Export.Config
   alias Hueworks.Schemas.Scene
 
   def publish_all(publish_fun, config) when is_function(publish_fun, 3) do
-    if Runtime.export_enabled?(config) and Runtime.scenes_enabled?(config) do
+    if Config.export_enabled?(config) and Config.scenes_enabled?(config) do
       Entities.list_exportable_scenes()
       |> Enum.each(fn scene ->
         :ok = Publisher.publish_scene_payloads(publish_fun, scene, config)
@@ -19,7 +19,7 @@ defmodule Hueworks.HomeAssistant.Export.Sync.Scenes do
 
   def publish_area(publish_fun, area_id, config)
       when is_function(publish_fun, 3) and is_integer(area_id) do
-    if Runtime.export_enabled?(config) and Runtime.scenes_enabled?(config) do
+    if Config.export_enabled?(config) and Config.scenes_enabled?(config) do
       Entities.list_exportable_scenes_for_area(area_id)
       |> Enum.each(fn scene ->
         :ok = Publisher.publish_scene_payloads(publish_fun, scene, config)
@@ -31,10 +31,10 @@ defmodule Hueworks.HomeAssistant.Export.Sync.Scenes do
 
   def publish_one(publish_fun, scene_id, config)
       when is_function(publish_fun, 3) and is_integer(scene_id) do
-    if Runtime.export_enabled?(config) do
+    if Config.export_enabled?(config) do
       case Entities.exportable_scene(scene_id) do
         %Scene{} = scene ->
-          if Runtime.scenes_enabled?(config) do
+          if Config.scenes_enabled?(config) do
             :ok = Publisher.publish_scene_payloads(publish_fun, scene, config)
           end
 
@@ -50,7 +50,7 @@ defmodule Hueworks.HomeAssistant.Export.Sync.Scenes do
 
   def unpublish_one(publish_fun, scene_id, config)
       when is_function(publish_fun, 3) and is_integer(scene_id) do
-    if Runtime.export_enabled?(config) and Runtime.scenes_enabled?(config) do
+    if Config.export_enabled?(config) and Config.scenes_enabled?(config) do
       :ok = Publisher.unpublish_scene_payloads(publish_fun, scene_id, config)
     end
 

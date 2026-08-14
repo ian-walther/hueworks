@@ -102,7 +102,7 @@ defmodule Hueworks.Import.ReimportReview do
          normalized_import,
          areas
        ) do
-    incoming_by_source = Map.new(incoming, &{source_id(&1), &1})
+    incoming_by_source = Map.new(incoming, &{Normalize.entity_source_id(&1), &1})
     bridge_areas = bridge_area_names(normalized_import)
 
     status_items =
@@ -302,7 +302,9 @@ defmodule Hueworks.Import.ReimportReview do
   defp bridge_area_names(normalized) do
     normalized
     |> normalized_entries(:areas)
-    |> Map.new(fn area -> {source_id(area), Normalize.fetch(area, :name) || "Unassigned"} end)
+    |> Map.new(fn area ->
+      {Normalize.entity_source_id(area), Normalize.fetch(area, :name) || "Unassigned"}
+    end)
   end
 
   defp bridge_area_name(nil, _area_names), do: "Unassigned"
@@ -340,9 +342,6 @@ defmodule Hueworks.Import.ReimportReview do
   defp comparable_value(value), do: value
 
   defp normalized_entries(normalized, key), do: Normalize.fetch(normalized, key) || []
-
-  defp source_id(entry),
-    do: entry |> Normalize.fetch(:source_id) |> Normalize.normalize_source_id()
 
   defp source_id_for(entry, key),
     do: entry |> Normalize.fetch(key) |> Normalize.normalize_source_id()

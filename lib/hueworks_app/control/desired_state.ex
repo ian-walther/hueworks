@@ -98,7 +98,11 @@ defmodule Hueworks.Control.DesiredState do
     end
   end
 
-  @spec snapshot([entity_key()]) :: %{states: diff_map(), revisions: map()}
+  @spec snapshot([entity_key()]) :: %{
+          states: diff_map(),
+          revisions: map(),
+          updated_at: map()
+        }
   def snapshot(keys) when is_list(keys) do
     GenServer.call(__MODULE__, {:snapshot, keys})
   end
@@ -150,13 +154,13 @@ defmodule Hueworks.Control.DesiredState do
           physical = PhysicalState.get(type, id) || %{}
 
           intent_delta =
-            diff_state(previous_desired, committed_desired,
+            LightStateSemantics.diff_state(previous_desired, committed_desired,
               brightness_tolerance: 0,
               temperature_mired_tolerance: 0
             )
 
           reconcile_delta =
-            diff_state(physical, committed_desired,
+            LightStateSemantics.diff_state(physical, committed_desired,
               brightness_tolerance: @brightness_tolerance,
               temperature_mired_tolerance: @temperature_reconcile_mired_tolerance
             )
@@ -226,8 +230,4 @@ defmodule Hueworks.Control.DesiredState do
 
   defp maybe_put_diff(acc, _key, delta) when delta == %{}, do: acc
   defp maybe_put_diff(acc, key, delta), do: Map.put(acc, key, delta)
-
-  defp diff_state(physical, desired, opts) do
-    LightStateSemantics.diff_state(physical, desired, opts)
-  end
 end

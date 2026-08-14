@@ -22,8 +22,7 @@ defmodule Hueworks.Control.Z2MPayload do
 
       power == :on or not is_nil(brightness) or not is_nil(kelvin) or
           (not is_nil(x) and not is_nil(y)) ->
-        %{}
-        |> maybe_put_state(power, brightness, kelvin, x, y)
+        %{"state" => "ON"}
         |> maybe_put_brightness(brightness)
         |> maybe_put_xy_color(x, y)
         |> maybe_put_color_temp(kelvin, entity)
@@ -54,14 +53,6 @@ defmodule Hueworks.Control.Z2MPayload do
     |> then(&Kelvin.map_for_control(entity, &1))
     |> Util.normalize_kelvin_value()
     |> then(fn value -> round(1_000_000 / value) end)
-  end
-
-  defp maybe_put_state(payload, power, brightness, kelvin, x, y) do
-    needs_on =
-      power == :on or not is_nil(brightness) or not is_nil(kelvin) or
-        (not is_nil(x) and not is_nil(y))
-
-    if needs_on, do: Map.put(payload, "state", "ON"), else: payload
   end
 
   defp maybe_put_brightness(payload, nil), do: payload

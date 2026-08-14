@@ -51,8 +51,7 @@ defmodule Hueworks.Subscription.CasetaEventStream.ConnectionTest do
 
     state = %{
       bridge: bridge,
-      lights: %{light.source_id => light.id},
-      buffer: ""
+      lights: %{light.source_id => light.id}
     }
 
     payload = %{
@@ -243,7 +242,7 @@ defmodule Hueworks.Subscription.CasetaEventStream.ConnectionTest do
         action_config: %{"light_ids" => [light.id]}
       })
 
-    state = %{bridge: bridge, lights: %{}, pico_button_ids: ["1"], buffer: ""}
+    state = %{bridge: bridge, lights: %{}, pico_button_ids: ["1"]}
 
     button_payload = %{
       "Body" => %{
@@ -303,7 +302,7 @@ defmodule Hueworks.Subscription.CasetaEventStream.ConnectionTest do
       action_config: %{"light_ids" => [light.id]}
     })
 
-    state = %{bridge: bridge, lights: %{}, pico_button_ids: ["101"], buffer: ""}
+    state = %{bridge: bridge, lights: %{}, pico_button_ids: ["101"]}
 
     button_payload = %{
       "Header" => %{
@@ -453,7 +452,6 @@ defmodule Hueworks.Subscription.CasetaEventStream.ConnectionTest do
       bridge: bridge,
       lights: %{},
       pico_button_ids: [],
-      buffer: "",
       last_refresh_at: 0
     }
     |> Map.merge(attrs)

@@ -43,10 +43,10 @@ defmodule Hueworks.Schemas.LightState.ManualConfig do
 
     %{}
     |> Map.put(:mode, config.mode || :temperature)
-    |> maybe_put(:brightness, config.brightness)
-    |> maybe_put(:kelvin, config.temperature)
-    |> maybe_put(:hue, config.hue)
-    |> maybe_put(:saturation, config.saturation)
+    |> Util.put_unless_nil(:brightness, config.brightness)
+    |> Util.put_unless_nil(:kelvin, config.temperature)
+    |> Util.put_unless_nil(:hue, config.hue)
+    |> Util.put_unless_nil(:saturation, config.saturation)
   end
 
   def normalize(attrs) when is_map(attrs) do
@@ -60,7 +60,7 @@ defmodule Hueworks.Schemas.LightState.ManualConfig do
         {:ok, Map.merge(passthrough, dump(config))}
 
       {:error, changeset} ->
-        {:error, changeset_errors(changeset)}
+        {:error, Util.changeset_errors(changeset)}
     end
   end
 
@@ -85,10 +85,10 @@ defmodule Hueworks.Schemas.LightState.ManualConfig do
   defp dump_map(%__MODULE__{} = config) do
     %{}
     |> Map.put("mode", Atom.to_string(config.mode || :temperature))
-    |> maybe_put_dump("brightness", config.brightness)
-    |> maybe_put_dump("temperature", config.temperature)
-    |> maybe_put_dump("hue", config.hue)
-    |> maybe_put_dump("saturation", config.saturation)
+    |> Util.put_unless_nil("brightness", config.brightness)
+    |> Util.put_unless_nil("temperature", config.temperature)
+    |> Util.put_unless_nil("hue", config.hue)
+    |> Util.put_unless_nil("saturation", config.saturation)
   end
 
   defp passthrough_keys(attrs) do
@@ -122,21 +122,4 @@ defmodule Hueworks.Schemas.LightState.ManualConfig do
   defp clamp_numeric(changeset, field, normalizer) do
     update_change(changeset, field, fn value -> normalizer.(value) end)
   end
-
-  defp changeset_errors(changeset) do
-    traverse_errors(changeset, fn {message, opts} ->
-      Enum.reduce(opts, message, fn {key, value}, acc ->
-        String.replace(acc, "%{#{key}}", to_string(value))
-      end)
-    end)
-    |> Enum.flat_map(fn {field, messages} ->
-      Enum.map(List.wrap(messages), fn message -> {Atom.to_string(field), message} end)
-    end)
-  end
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
-
-  defp maybe_put_dump(map, _key, nil), do: map
-  defp maybe_put_dump(map, key, value), do: Map.put(map, key, value)
 end

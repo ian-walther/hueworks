@@ -26,14 +26,14 @@ defmodule Hueworks.Control.CasetaPayload do
   def action_payload(_action, _light), do: :ignore
 
   defp power_payload(light, :on),
-    do: build_command(light.source_id, "GoToLevel", %{"Level" => 100})
+    do: go_to_level_command(light.source_id, 100)
 
   defp power_payload(light, :off),
-    do: build_command(light.source_id, "GoToLevel", %{"Level" => 0})
+    do: go_to_level_command(light.source_id, 0)
 
   defp brightness_payload(light, level) do
     if supports_level?(light) do
-      build_command(light.source_id, "GoToLevel", %{"Level" => Util.clamp(round(level), 0, 100)})
+      go_to_level_command(light.source_id, Util.clamp(round(level), 0, 100))
     else
       if level <= 0 do
         power_payload(light, :off)
@@ -43,7 +43,7 @@ defmodule Hueworks.Control.CasetaPayload do
     end
   end
 
-  defp build_command(zone_id, command_type, params) do
+  defp go_to_level_command(zone_id, level) do
     %{
       "CommuniqueType" => "CreateRequest",
       "Header" => %{
@@ -52,8 +52,8 @@ defmodule Hueworks.Control.CasetaPayload do
       },
       "Body" => %{
         "Command" => %{
-          "CommandType" => command_type,
-          "Parameter" => [%{"Type" => "Level", "Value" => params["Level"]}]
+          "CommandType" => "GoToLevel",
+          "Parameter" => [%{"Type" => "Level", "Value" => level}]
         }
       }
     }

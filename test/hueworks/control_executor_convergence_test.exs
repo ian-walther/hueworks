@@ -15,13 +15,10 @@ defmodule Hueworks.Control.ExecutorConvergenceTest do
 
   setup do
     original_enabled = Application.get_env(:hueworks, :control_executor_enabled)
-    original_delay = Application.get_env(:hueworks, :control_executor_convergence_delay_ms)
     Application.put_env(:hueworks, :control_executor_enabled, true)
-    Application.put_env(:hueworks, :control_executor_convergence_delay_ms, 10)
 
     on_exit(fn ->
       restore_app_env(:hueworks, :control_executor_enabled, original_enabled)
-      restore_app_env(:hueworks, :control_executor_convergence_delay_ms, original_delay)
     end)
 
     :ok
@@ -249,7 +246,6 @@ defmodule Hueworks.Control.ExecutorConvergenceTest do
     {{:light, ^light_id}, settlement} =
       :executor_receipt_settlement |> :sys.get_state() |> Map.fetch!(:settlements) |> Enum.at(0)
 
-    assert settlement.effective_transition_ms == 1_300
     assert settlement.settle_at == 1_300
 
     Agent.update(clock, fn _ -> 100 end)
@@ -301,7 +297,6 @@ defmodule Hueworks.Control.ExecutorConvergenceTest do
     assert light_id == light.id
 
     settlement = current_settlement(:executor_unsupported_transition, light.id)
-    assert settlement.effective_transition_ms == 0
     assert settlement.settle_at == 750
   end
 

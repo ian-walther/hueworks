@@ -4,7 +4,7 @@ defmodule Hueworks.Import.EntityMatch do
   alias Hueworks.Import.{Identifiers, Normalize}
 
   def match_existing(existing, incoming, type) when type in [:light, :group] do
-    source_id = source_id(incoming)
+    source_id = Normalize.entity_source_id(incoming)
     by_source_id = Enum.find(existing, &(&1.source_id == source_id))
     external_id = external_id(incoming, type)
 
@@ -36,7 +36,4 @@ defmodule Hueworks.Import.EntityMatch do
 
   defp external_id(incoming, :light), do: Identifiers.light_external_id(incoming)
   defp external_id(incoming, :group), do: Identifiers.group_external_id(incoming)
-
-  defp source_id(entity),
-    do: entity |> Normalize.fetch(:source_id) |> Normalize.normalize_source_id()
 end

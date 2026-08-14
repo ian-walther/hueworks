@@ -16,4 +16,12 @@ defmodule HueworksWeb.SetupHelpers do
 
     "#{count} #{label}"
   end
+
+  def operation_error(%Ecto.Changeset{}), do: "the requested values were not valid"
+  def operation_error(reason) when is_binary(reason), do: reason
+
+  def operation_error(reason) when is_atom(reason),
+    do: reason |> Atom.to_string() |> String.replace("_", " ")
+
+  def operation_error(_reason), do: "unexpected error"
 end

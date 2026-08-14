@@ -41,4 +41,8 @@ defmodule Hueworks.Control.HuePayloadTest do
     assert payload["xy"] == [0.4112, 0.321]
     refute Map.has_key?(payload, "ct")
   end
+
+  test "set_state returns ignore for empty desired" do
+    assert HuePayload.action_payload({:set_state, %{}}, %{}) == :ignore
+  end
 end

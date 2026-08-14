@@ -5,6 +5,7 @@ defmodule Hueworks.CircadianPreview do
 
   alias Hueworks.Circadian
   alias Hueworks.Circadian.Config
+  alias Hueworks.Util
   alias __MODULE__.{Marker, Point, Result}
 
   @default_interval_minutes 10
@@ -109,13 +110,14 @@ defmodule Hueworks.CircadianPreview do
   end
 
   defp normalize_solar_config(solar_config) do
-    latitude = parse_float(Map.get(solar_config, :latitude) || Map.get(solar_config, "latitude"))
+    latitude =
+      Util.to_float(Map.get(solar_config, :latitude) || Map.get(solar_config, "latitude"))
 
     longitude =
-      parse_float(Map.get(solar_config, :longitude) || Map.get(solar_config, "longitude"))
+      Util.to_float(Map.get(solar_config, :longitude) || Map.get(solar_config, "longitude"))
 
     timezone =
-      parse_timezone(Map.get(solar_config, :timezone) || Map.get(solar_config, "timezone"))
+      Util.blank_to_nil(Map.get(solar_config, :timezone) || Map.get(solar_config, "timezone"))
 
     cond do
       is_nil(latitude) -> {:error, :missing_latitude}
@@ -218,25 +220,6 @@ defmodule Hueworks.CircadianPreview do
     |> Time.to_iso8601()
     |> String.slice(0, 5)
   end
-
-  defp parse_float(value) when is_integer(value), do: value * 1.0
-  defp parse_float(value) when is_float(value), do: value
-
-  defp parse_float(value) when is_binary(value) do
-    case Float.parse(String.trim(value)) do
-      {number, ""} -> number
-      _ -> nil
-    end
-  end
-
-  defp parse_float(_value), do: nil
-
-  defp parse_timezone(value) when is_binary(value) do
-    trimmed = String.trim(value)
-    if trimmed == "", do: nil, else: trimmed
-  end
-
-  defp parse_timezone(_value), do: nil
 
   defp effective_max_kelvin(config) do
     config[:temperature_ceiling_kelvin] || config[:max_color_temp]

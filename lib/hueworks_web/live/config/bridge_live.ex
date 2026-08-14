@@ -78,7 +78,7 @@ defmodule HueworksWeb.BridgeLive do
     external_id
     |> String.trim()
     |> String.downcase()
-    |> empty_to_nil()
+    |> Util.blank_to_nil()
   end
 
   defp initial_external_id(_params), do: nil
@@ -912,7 +912,7 @@ defmodule HueworksWeb.BridgeLive do
   defp same_external_id?(_left, _right), do: false
 
   defp find_pairable_hue(discoveries, host, external_id) do
-    external_id = empty_to_nil(external_id)
+    external_id = Util.blank_to_nil(external_id)
 
     Enum.find(discoveries, fn discovery ->
       discovery.configured? == false and discovery.device.host == host and
@@ -937,7 +937,7 @@ defmodule HueworksWeb.BridgeLive do
   end
 
   defp find_selectable_ha(discoveries, host, external_id) do
-    external_id = empty_to_nil(external_id)
+    external_id = Util.blank_to_nil(external_id)
 
     Enum.find(discoveries, fn discovery ->
       discovery.configured? == false and
@@ -955,9 +955,6 @@ defmodule HueworksWeb.BridgeLive do
       errors
     end
   end
-
-  defp empty_to_nil(""), do: nil
-  defp empty_to_nil(value), do: value
 
   defp bridge_external_id(%{assigns: %{type: "ha", ha_external_id: external_id}}),
     do: external_id

@@ -27,7 +27,7 @@ defmodule Hueworks.Control.Bootstrap.Hue do
               :ok
 
             db_light ->
-              state = build_hue_light_state(light)
+              state = StateParser.hue_v1_state(light, "state")
               State.put(:light, db_light.id, state)
           end
         end)
@@ -38,7 +38,7 @@ defmodule Hueworks.Control.Bootstrap.Hue do
               :ok
 
             db_group ->
-              state = build_hue_group_state(group)
+              state = StateParser.hue_v1_state(group, "action")
               State.put(:group, db_group.id, state)
           end
         end)
@@ -60,16 +60,4 @@ defmodule Hueworks.Control.Bootstrap.Hue do
         %{}
     end
   end
-
-  defp build_hue_light_state(light) when is_map(light) do
-    StateParser.hue_v1_state(light, "state")
-  end
-
-  defp build_hue_light_state(_light), do: %{}
-
-  defp build_hue_group_state(group) when is_map(group) do
-    StateParser.hue_v1_state(group, "action")
-  end
-
-  defp build_hue_group_state(_group), do: %{}
 end

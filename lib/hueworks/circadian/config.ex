@@ -10,6 +10,8 @@ defmodule Hueworks.Circadian.Config do
 
   import Ecto.Changeset
 
+  alias Hueworks.Util
+
   @brightness_modes [:quadratic, :linear, :tanh]
 
   @supported_key_atoms [
@@ -267,7 +269,7 @@ defmodule Hueworks.Circadian.Config do
     mode =
       case value do
         atom when atom in @brightness_modes -> atom
-        string when is_binary(string) -> string |> String.trim() |> existing_atom_or(nil)
+        string when is_binary(string) -> string |> String.trim() |> Util.existing_atom()
         _ -> nil
       end
 
@@ -299,13 +301,8 @@ defmodule Hueworks.Circadian.Config do
   defp dump_value(_field, value), do: value
 
   defp key_atom(key) when is_binary(key) do
-    case existing_atom_or(key) do
-      atom when is_atom(atom) ->
-        if MapSet.member?(@supported_key_atom_set, atom), do: atom, else: nil
-
-      _ ->
-        nil
-    end
+    atom = Util.existing_atom(key)
+    if MapSet.member?(@supported_key_atom_set, atom), do: atom, else: nil
   end
 
   defp key_atom(key) when is_atom(key) do
@@ -505,18 +502,4 @@ defmodule Hueworks.Circadian.Config do
       |> to_string()
     end)
   end
-
-  defp existing_atom_or(key, default \\ nil)
-
-  defp existing_atom_or(key, _default) when is_atom(key), do: key
-
-  defp existing_atom_or(key, default) when is_binary(key) do
-    try do
-      String.to_existing_atom(key)
-    rescue
-      ArgumentError -> default
-    end
-  end
-
-  defp existing_atom_or(_key, default), do: default
 end

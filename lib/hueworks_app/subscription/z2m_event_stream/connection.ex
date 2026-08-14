@@ -85,21 +85,9 @@ defmodule Hueworks.Subscription.Z2MEventStream.Connection do
     def terminate(_reason, _state), do: :ok
 
     defp handle_entity_state(entity_source_id, payload, state) do
-      case Map.get(state.lights_by_source_id, entity_source_id) do
-        %Light{} = light ->
-          maybe_put_light(light, payload, state)
-          state
-
-        nil ->
-          case Map.get(state.groups_by_source_id, entity_source_id) do
-            %Group{} = group ->
-              maybe_put_group(group, payload, state)
-
-              state
-
-            nil ->
-              maybe_refresh_and_retry(entity_source_id, payload, state)
-          end
+      case lookup_and_put(entity_source_id, payload, state) do
+        {:hit, state} -> state
+        :miss -> maybe_refresh_and_retry(entity_source_id, payload, state)
       end
     end
 
@@ -110,33 +98,37 @@ defmodule Hueworks.Subscription.Z2MEventStream.Connection do
         state
       else
         refreshed =
-          Z2MTopology.load_indexes(state.bridge_id)
-          |> Map.put(:bridge_id, state.bridge_id)
-          |> Map.put(:base_topic, state.base_topic)
-          |> Map.put(:base_levels, state.base_levels)
+          state
+          |> Map.merge(Z2MTopology.load_indexes(state.bridge_id))
           |> Map.put(:last_refresh_at, now)
 
-        case Map.get(refreshed.lights_by_source_id, entity_source_id) do
-          %Light{} = light ->
-            maybe_put_light(light, payload, refreshed)
-            refreshed
-
-          nil ->
-            case Map.get(refreshed.groups_by_source_id, entity_source_id) do
-              %Group{} = group ->
-                maybe_put_group(group, payload, refreshed)
-
-                refreshed
-
-              nil ->
-                refreshed
-            end
+        case lookup_and_put(entity_source_id, payload, refreshed) do
+          {:hit, refreshed} -> refreshed
+          :miss -> refreshed
         end
       end
     end
 
+    defp lookup_and_put(entity_source_id, payload, state) do
+      case Map.get(state.lights_by_source_id, entity_source_id) do
+        %Light{} = light ->
+          maybe_put_light(light, payload, state)
+          {:hit, state}
+
+        nil ->
+          case Map.get(state.groups_by_source_id, entity_source_id) do
+            %Group{} = group ->
+              maybe_put_group(group, payload, state)
+              {:hit, state}
+
+            nil ->
+              :miss
+          end
+      end
+    end
+
     defp maybe_put_light(light, payload, state) do
-      update = build_state(payload, light)
+      update = StateParser.z2m_state(payload, light)
 
       if update != %{} do
         State.put(:light, light.id, update)
@@ -145,16 +137,12 @@ defmodule Hueworks.Subscription.Z2MEventStream.Connection do
     end
 
     defp maybe_put_group(group, payload, state) do
-      update = build_state(payload, group)
+      update = StateParser.z2m_state(payload, group)
 
       if update != %{} do
         State.put(:group, group.id, update)
         refresh_group_from_members(group.source_id, state)
       end
-    end
-
-    defp build_state(payload, entity) do
-      StateParser.z2m_state(payload, entity)
     end
 
     defp refresh_groups_for_light(light_source_id, state) do
@@ -166,20 +154,12 @@ defmodule Hueworks.Subscription.Z2MEventStream.Connection do
     defp refresh_group_from_members(group_source_id, state) when is_binary(group_source_id) do
       with %Group{id: group_id} <- Map.get(state.groups_by_source_id, group_source_id),
            lights when is_list(lights) <- Map.get(state.group_member_lights, group_source_id),
-           derived when derived != %{} <- derive_group_state_from_members(lights) do
+           derived when derived != %{} <-
+             lights |> Enum.map(& &1.id) |> GroupState.derive_from_light_ids() do
         State.put(:group, group_id, derived)
       else
         _ -> :ok
       end
-    end
-
-    defp derive_group_state_from_members(lights) when is_list(lights) do
-      states =
-        lights
-        |> Enum.map(&State.get(:light, &1.id))
-        |> Enum.reject(&is_nil/1)
-
-      GroupState.derive_from_states(states, length(lights))
     end
   end
 end

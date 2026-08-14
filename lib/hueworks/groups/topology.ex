@@ -89,10 +89,6 @@ defmodule Hueworks.Groups.Topology do
     |> List.delete(group_id)
   end
 
-  def all_subgroups(subgroups_map, group_id) when is_integer(group_id) do
-    all_subgroups(group_id, subgroups_map)
-  end
-
   @spec presentation_tree(list(map()), list(integer())) :: presentation_tree()
   def presentation_tree(groups, selected_light_ids) when is_list(groups) do
     selected_light_ids =

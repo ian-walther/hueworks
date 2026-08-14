@@ -195,7 +195,7 @@ defmodule HueworksWeb.LightStateEditorLive.FormState do
       "Australia/Sydney"
     ]
 
-    case normalize_timezone(current_timezone) do
+    case Util.blank_to_nil(current_timezone) do
       nil -> base_timezones
       timezone -> Enum.uniq([timezone | base_timezones])
     end
@@ -244,11 +244,4 @@ defmodule HueworksWeb.LightStateEditorLive.FormState do
   defp normalize_config_entries(%_{} = config), do: Map.from_struct(config)
   defp normalize_config_entries(config) when is_map(config), do: config
   defp normalize_config_entries(_config), do: %{}
-
-  defp normalize_timezone(value) when is_binary(value) do
-    trimmed = String.trim(value)
-    if trimmed == "", do: nil, else: trimmed
-  end
-
-  defp normalize_timezone(_value), do: nil
 end

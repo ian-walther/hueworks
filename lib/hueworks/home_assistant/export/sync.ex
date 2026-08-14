@@ -2,7 +2,7 @@ defmodule Hueworks.HomeAssistant.Export.Sync do
   @moduledoc false
 
   alias Hueworks.HomeAssistant.Export.Entities
-  alias Hueworks.HomeAssistant.Export.Runtime
+  alias Hueworks.HomeAssistant.Export.Config
   alias Hueworks.HomeAssistant.Export.Sync.Entities, as: EntitySync
   alias Hueworks.HomeAssistant.Export.Sync.PresenceInputs, as: PresenceInputSync
   alias Hueworks.HomeAssistant.Export.Sync.Areas, as: AreaSync
@@ -32,7 +32,7 @@ defmodule Hueworks.HomeAssistant.Export.Sync do
       when is_function(publish_fun, 3) and is_integer(scene_id) do
     case SceneSync.publish_one(publish_fun, scene_id, config) do
       {:ok, %Scene{} = scene} ->
-        if Runtime.area_selects_enabled?(config) do
+        if Config.area_selects_enabled?(config) do
           :ok = AreaSync.publish_select(publish_fun, scene.area_id, config)
         end
 
@@ -45,7 +45,7 @@ defmodule Hueworks.HomeAssistant.Export.Sync do
 
   def unpublish_scene(publish_fun, scene_id, config)
       when is_function(publish_fun, 3) and is_integer(scene_id) do
-    if Runtime.export_enabled?(config) do
+    if Config.export_enabled?(config) do
       area_id =
         case Entities.exportable_scene(scene_id) do
           %Scene{} = scene -> scene.area_id
@@ -54,7 +54,7 @@ defmodule Hueworks.HomeAssistant.Export.Sync do
 
       :ok = SceneSync.unpublish_one(publish_fun, scene_id, config)
 
-      if is_integer(area_id) and Runtime.area_selects_enabled?(config) do
+      if is_integer(area_id) and Config.area_selects_enabled?(config) do
         :ok = AreaSync.publish_select(publish_fun, area_id, config)
       end
     end

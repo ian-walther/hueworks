@@ -3,6 +3,7 @@ defmodule Hueworks.Control.Apply do
 
   alias Hueworks.DebugLogging
   alias Hueworks.Control.{DesiredState, Executor, Operation, Planner, TraceBuffer}
+  alias Hueworks.Util
 
   @type plan_diff :: map()
   @type commit_result :: %{
@@ -137,10 +138,10 @@ defmodule Hueworks.Control.Apply do
       action
       |> Map.put(:trace_id, trace_id)
       |> Map.put(:trace_source, trace_source)
-      |> maybe_put(:trace_area_id, trace_area_id)
-      |> maybe_put(:trace_scene_id, trace_scene_id)
-      |> maybe_put(:trace_target_occupied, trace_target_occupied)
-      |> maybe_put(:trace_started_at_ms, trace_started_at_ms)
+      |> Util.put_unless_nil(:trace_area_id, trace_area_id)
+      |> Util.put_unless_nil(:trace_scene_id, trace_scene_id)
+      |> Util.put_unless_nil(:trace_target_occupied, trace_target_occupied)
+      |> Util.put_unless_nil(:trace_started_at_ms, trace_started_at_ms)
       |> Map.put(:enqueued_at_ms, enqueued_at_ms)
     end)
   end
@@ -257,7 +258,4 @@ defmodule Hueworks.Control.Apply do
       _ -> Keyword.get(opts, :trace)
     end
   end
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end

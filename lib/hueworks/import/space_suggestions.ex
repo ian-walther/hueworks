@@ -75,7 +75,7 @@ defmodule Hueworks.Import.SpaceSuggestions do
     |> Normalize.fetch(:lights)
     |> Kernel.||([])
     |> Map.new(fn native_light ->
-      source_id = source_id(native_light)
+      source_id = Normalize.entity_source_id(native_light)
       {source_id, match_light(native_light, ha_lights, ha_index, ha_mappings)}
     end)
   end
@@ -96,7 +96,7 @@ defmodule Hueworks.Import.SpaceSuggestions do
         %{status: :unmatched, target_area_id: nil, ha_source_id: nil, identifiers: []}
 
       [ha_source_id] ->
-        ha_light = Enum.find(ha_lights, &(source_id(&1) == ha_source_id))
+        ha_light = Enum.find(ha_lights, &(Normalize.entity_source_id(&1) == ha_source_id))
         mapped_evidence = mapped_evidence(ha_light, ha_mappings)
 
         %{
@@ -223,7 +223,7 @@ defmodule Hueworks.Import.SpaceSuggestions do
     normalized
     |> Normalize.fetch(:groups)
     |> Kernel.||([])
-    |> Enum.find(&(source_id(&1) == Normalize.normalize_source_id(external_id)))
+    |> Enum.find(&(Normalize.entity_source_id(&1) == Normalize.normalize_source_id(external_id)))
     |> case do
       nil ->
         []
@@ -247,15 +247,19 @@ defmodule Hueworks.Import.SpaceSuggestions do
       Normalize.normalize_source_id(Normalize.fetch(light, :area_source_id)) ==
         Normalize.normalize_source_id(source_space_id)
     end)
-    |> Enum.map(&source_id/1)
+    |> Enum.map(&Normalize.entity_source_id/1)
   end
 
   defp build_identifier_index(ha_lights) do
     Enum.reduce(ha_lights, %{}, fn light, acc ->
       Enum.reduce(@identifier_keys, acc, fn key, inner ->
         case normalized_identifier(light, key) do
-          nil -> inner
-          value -> Map.update(inner, {key, value}, [source_id(light)], &[source_id(light) | &1])
+          nil ->
+            inner
+
+          value ->
+            source_id = Normalize.entity_source_id(light)
+            Map.update(inner, {key, value}, [source_id], &[source_id | &1])
         end
       end)
     end)
@@ -277,11 +281,5 @@ defmodule Hueworks.Import.SpaceSuggestions do
       value when is_binary(value) and value != "" -> String.downcase(value)
       _ -> nil
     end
-  end
-
-  defp source_id(entity) do
-    entity
-    |> Normalize.fetch(:source_id)
-    |> Normalize.normalize_source_id()
   end
 end

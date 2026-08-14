@@ -166,22 +166,15 @@ defmodule Hueworks.Control.State do
     )
   end
 
-  defp run_bootstrap_module(module) when is_atom(module) do
-    module.run()
+  defp run_bootstrap_module(spec) do
+    case spec do
+      module when is_atom(module) -> module.run()
+      {module, arg} when is_atom(module) -> module.run(arg)
+    end
   rescue
     error ->
       Logger.error("""
-      Control state bootstrap failed in #{inspect(module)}: #{Exception.message(error)}
-      #{Exception.format_stacktrace(__STACKTRACE__)}
-      """)
-  end
-
-  defp run_bootstrap_module({module, arg}) when is_atom(module) do
-    module.run(arg)
-  rescue
-    error ->
-      Logger.error("""
-      Control state bootstrap failed in #{inspect({module, arg})}: #{Exception.message(error)}
+      Control state bootstrap failed in #{inspect(spec)}: #{Exception.message(error)}
       #{Exception.format_stacktrace(__STACKTRACE__)}
       """)
   end

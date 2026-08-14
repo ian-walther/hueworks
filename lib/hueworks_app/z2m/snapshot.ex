@@ -130,8 +130,6 @@ defmodule Hueworks.Z2M.Snapshot.Handler do
   use Tortoise.Handler
 
   def init([owner]) when is_pid(owner), do: {:ok, owner}
-  def init(owner) when is_pid(owner), do: {:ok, owner}
-  def init(_), do: {:ok, self()}
 
   def connection(status, owner) do
     send(owner, {:z2m_connection, status})

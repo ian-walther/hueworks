@@ -37,24 +37,14 @@ defmodule Hueworks.HomeKitTest do
     original_enabled = Application.get_env(:hueworks, :control_executor_enabled)
     original_server = Application.get_env(:hueworks, :control_executor_server)
 
-    original_convergence_delay =
-      Application.get_env(:hueworks, :control_executor_convergence_delay_ms)
-
     original_homekit_data_path = Application.get_env(:hueworks, :homekit_data_path)
 
     Application.put_env(:hueworks, :control_executor_enabled, true)
     Application.put_env(:hueworks, :control_executor_server, server)
-    Application.put_env(:hueworks, :control_executor_convergence_delay_ms, 10_000)
 
     on_exit(fn ->
       restore_app_env(:hueworks, :control_executor_enabled, original_enabled)
       restore_app_env(:hueworks, :control_executor_server, original_server)
-
-      restore_app_env(
-        :hueworks,
-        :control_executor_convergence_delay_ms,
-        original_convergence_delay
-      )
 
       restore_app_env(:hueworks, :homekit_data_path, original_homekit_data_path)
     end)

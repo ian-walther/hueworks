@@ -170,7 +170,7 @@ defmodule Hueworks.Kelvin do
     end
   end
 
-  def mired_step(value) do
+  defp mired_step(value) do
     case Util.to_number(value) do
       kelvin when is_number(kelvin) and kelvin > 0 ->
         kelvin
@@ -229,12 +229,7 @@ defmodule Hueworks.Kelvin do
   defp mired_range(_entity), do: nil
 
   defp get_nested(map, key) when is_map(map) and is_binary(key) do
-    Map.get(map, key) ||
-      try do
-        Map.get(map, String.to_existing_atom(key))
-      rescue
-        ArgumentError -> nil
-      end
+    Map.get(map, key) || Map.get(map, Util.existing_atom(key))
   end
 
   defp get_nested(_map, _key), do: nil

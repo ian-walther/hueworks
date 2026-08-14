@@ -226,7 +226,7 @@ defmodule HueworksWeb.LightStateEditorLive do
   end
 
   defp assign_existing_state(socket, id) do
-    case Scenes.get_editable_light_state(parse_id(id)) do
+    case Scenes.get_editable_light_state(Util.parse_id(id)) do
       nil ->
         push_navigate(socket, to: "/config")
 
@@ -437,6 +437,4 @@ defmodule HueworksWeb.LightStateEditorLive do
   defp help_text(:temperature_curve_offsets),
     do:
       "Shifts only the temperature curve relative to the shared solar timing above. Sunrise moves warming earlier or later; sunset moves cooling earlier or later."
-
-  defp parse_id(value), do: Util.parse_id(value)
 end

@@ -43,12 +43,7 @@ defmodule Hueworks.Control.Z2MConfig do
 
   def valid_port?(value), do: is_integer(parse_port(value))
 
-  def normalize_optional(value) when is_binary(value) do
-    value = String.trim(value)
-    if value == "", do: nil, else: value
-  end
-
-  def normalize_optional(_value), do: nil
+  def normalize_optional(value), do: Util.blank_to_nil(value)
 
   defp parse_port(value) do
     case Util.parse_optional_integer(value) do

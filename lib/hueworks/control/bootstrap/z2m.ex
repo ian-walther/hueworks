@@ -118,30 +118,36 @@ defmodule Hueworks.Control.Bootstrap.Z2M do
     do_collect(indexes, base_levels, pending, deadline)
   end
 
-  defp do_collect(_indexes, _base_levels, %MapSet{map: map}, _deadline) when map_size(map) == 0 do
-    :ok
-  end
-
   defp do_collect(indexes, base_levels, pending, deadline) do
-    remaining = max(0, deadline - System.monotonic_time(:millisecond))
-
-    if remaining == 0 do
+    if MapSet.size(pending) == 0 do
       :ok
     else
-      receive do
-        {:z2m_bootstrap_msg, topic_levels, payload} ->
-          with entity_source_id when is_binary(entity_source_id) <-
-                 Z2MTopology.entity_from_topic(topic_levels, base_levels),
-               {:ok, decoded} <- Jason.decode(IO.iodata_to_binary(payload)),
-               true <- is_map(decoded) do
-            apply_entity_state(entity_source_id, decoded, indexes)
-            do_collect(indexes, base_levels, MapSet.delete(pending, entity_source_id), deadline)
-          else
-            _ -> do_collect(indexes, base_levels, pending, deadline)
-          end
-      after
-        remaining ->
-          :ok
+      remaining = max(0, deadline - System.monotonic_time(:millisecond))
+
+      if remaining == 0 do
+        :ok
+      else
+        receive do
+          {:z2m_bootstrap_msg, topic_levels, payload} ->
+            with entity_source_id when is_binary(entity_source_id) <-
+                   Z2MTopology.entity_from_topic(topic_levels, base_levels),
+                 {:ok, decoded} <- Jason.decode(IO.iodata_to_binary(payload)),
+                 true <- is_map(decoded) do
+              apply_entity_state(entity_source_id, decoded, indexes)
+
+              do_collect(
+                indexes,
+                base_levels,
+                MapSet.delete(pending, entity_source_id),
+                deadline
+              )
+            else
+              _ -> do_collect(indexes, base_levels, pending, deadline)
+            end
+        after
+          remaining ->
+            :ok
+        end
       end
     end
   end
@@ -149,13 +155,13 @@ defmodule Hueworks.Control.Bootstrap.Z2M do
   defp apply_entity_state(entity_source_id, payload, indexes) do
     case Map.get(indexes.lights_by_source_id, entity_source_id) do
       %Light{} = light ->
-        update = build_state(payload, light)
+        update = StateParser.z2m_state(payload, light)
         if update != %{}, do: State.put(:light, light.id, update)
 
       nil ->
         case Map.get(indexes.groups_by_source_id, entity_source_id) do
           %Group{} = group ->
-            update = build_state(payload, group)
+            update = StateParser.z2m_state(payload, group)
             if update != %{}, do: State.put(:group, group.id, update)
 
           nil ->
@@ -164,29 +170,17 @@ defmodule Hueworks.Control.Bootstrap.Z2M do
     end
   end
 
-  defp build_state(payload, entity) do
-    StateParser.z2m_state(payload, entity)
-  end
-
   defp recompute_group_states(indexes) do
     Enum.each(Map.keys(indexes.group_member_lights), fn group_source_id ->
       with %{id: group_id} <- Map.get(indexes.groups_by_source_id, group_source_id),
            lights when is_list(lights) <- Map.get(indexes.group_member_lights, group_source_id),
-           derived when derived != %{} <- derive_group_state_from_members(lights) do
+           derived when derived != %{} <-
+             lights |> Enum.map(& &1.id) |> GroupState.derive_from_light_ids() do
         State.put(:group, group_id, derived)
       else
         _ -> :ok
       end
     end)
-  end
-
-  defp derive_group_state_from_members(lights) when is_list(lights) do
-    states =
-      lights
-      |> Enum.map(&State.get(:light, &1.id))
-      |> Enum.reject(&is_nil/1)
-
-    GroupState.derive_from_states(states, length(lights))
   end
 
   defp client_id(bridge_id), do: "hwz2mb#{bridge_id}_#{System.unique_integer([:positive])}"
@@ -209,8 +203,6 @@ defmodule Hueworks.Control.Bootstrap.Z2M do
     use Tortoise.Handler
 
     def init([owner]) when is_pid(owner), do: {:ok, owner}
-    def init(owner) when is_pid(owner), do: {:ok, owner}
-    def init(_), do: {:ok, self()}
 
     def connection(_status, owner), do: {:ok, owner}
 

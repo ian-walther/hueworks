@@ -47,15 +47,14 @@ defmodule Hueworks.Control.Planner do
       actionable_diff_light_ids
       |> Enum.group_by(fn id ->
         desired = Context.desired_for_light(context, id)
-        {desired_key(desired), desired, Context.bridge_for_light(context, id)}
+        {desired, Context.bridge_for_light(context, id)}
       end)
-      |> Enum.flat_map(fn {{_key, desired, bridge_id}, ids} ->
+      |> Enum.flat_map(fn {{desired, bridge_id}, ids} ->
         candidate_ids =
           context.area_lights
           |> Enum.filter(fn light ->
             light.bridge_id == bridge_id and
-              desired_key(Context.desired_for_light(context, light.id)) ==
-                desired_key(desired)
+              Context.desired_for_light(context, light.id) == desired
           end)
           |> Enum.map(& &1.id)
           |> then(&Context.group_candidate_light_ids(context, &1))
@@ -75,11 +74,7 @@ defmodule Hueworks.Control.Planner do
             candidate_ids,
             MapSet.new(ids),
             desired,
-            context.transition_policy,
-            context.physical_by_light,
-            trace,
-            context.operation,
-            context.group_candidate_light_ids
+            context
           )
 
         log_trace(trace, "planner_partition_result",
@@ -94,13 +89,9 @@ defmodule Hueworks.Control.Planner do
             remaining,
             bridge_id,
             desired,
-            context.transition_policy,
-            context.physical_by_light,
-            context.operation,
-            context.group_candidate_light_ids
+            context
           )
       end)
-      |> Enum.map(&Action.to_map/1)
       |> Enum.map(&Action.attach_revisions(&1, context.desired_revisions_by_light))
 
     log_trace(trace, "planner_output",
@@ -118,18 +109,14 @@ defmodule Hueworks.Control.Planner do
          candidate_set,
          remaining_diff,
          desired,
-         transition_policy,
-         physical_by_light,
-         trace,
-         operation,
-         group_candidate_light_ids
+         context
        ) do
     case pick_group(groups, candidate_set, remaining_diff) do
       nil ->
         {[], remaining_diff}
 
       group ->
-        log_trace(trace, "planner_group_pick",
+        log_trace(context.trace, "planner_group_pick",
           group_id: group.id,
           bridge_id: group.bridge_id,
           group_light_ids: group.lights |> MapSet.to_list() |> Enum.sort(),
@@ -146,19 +133,15 @@ defmodule Hueworks.Control.Planner do
             candidate_set,
             updated_remaining,
             desired,
-            transition_policy,
-            physical_by_light,
-            trace,
-            operation,
-            group_candidate_light_ids
+            context
           )
 
         apply_opts =
           action_apply_opts(
-            transition_policy,
+            context.transition_policy,
             desired,
             group.lights,
-            physical_by_light
+            context.physical_by_light
           )
 
         {[
@@ -168,8 +151,8 @@ defmodule Hueworks.Control.Planner do
              desired,
              group.lights,
              apply_opts,
-             operation,
-             group_candidate_light_ids
+             context.operation,
+             context.group_candidate_light_ids
            )
            | rest
          ], final_remaining}
@@ -186,24 +169,16 @@ defmodule Hueworks.Control.Planner do
     |> List.first()
   end
 
-  defp plan_lights(
-         remaining_diff,
-         bridge_id,
-         desired,
-         transition_policy,
-         physical_by_light,
-         operation,
-         group_candidate_light_ids
-       ) do
+  defp plan_lights(remaining_diff, bridge_id, desired, context) do
     remaining_diff
     |> MapSet.to_list()
     |> Enum.map(fn id ->
       apply_opts =
         action_apply_opts(
-          transition_policy,
+          context.transition_policy,
           desired,
           [id],
-          physical_by_light
+          context.physical_by_light
         )
 
       Action.light(
@@ -211,16 +186,10 @@ defmodule Hueworks.Control.Planner do
         bridge_id,
         desired,
         apply_opts,
-        operation,
-        group_candidate_light_ids
+        context.operation,
+        context.group_candidate_light_ids
       )
     end)
-  end
-
-  defp desired_key(desired) when is_map(desired) do
-    desired
-    |> Map.to_list()
-    |> Enum.sort()
   end
 
   defp desired_differs_from_physical?(desired, _physical) when map_size(desired) == 0, do: false
@@ -282,8 +251,6 @@ defmodule Hueworks.Control.Planner do
 
   defp normalize_light_ids(%MapSet{} = light_ids), do: MapSet.to_list(light_ids)
   defp normalize_light_ids(light_ids) when is_list(light_ids), do: light_ids
-  defp normalize_light_ids(light_id) when is_integer(light_id), do: [light_id]
-  defp normalize_light_ids(_light_ids), do: []
 
   defp explicit_off_intent?(desired) when is_map(desired) do
     Map.get(desired, :power) == :off

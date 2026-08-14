@@ -1,7 +1,7 @@
 defmodule Hueworks.Control.Z2MDispatchTest do
   use Hueworks.DataCase, async: false
 
-  alias Hueworks.Control.{DesiredState, Executor, Group, Light, Planner}
+  alias Hueworks.Control.{DesiredState, DispatchReceipt, Executor, Group, Light, Planner}
   alias Hueworks.Repo
   alias Hueworks.Schemas.Group, as: GroupSchema
   alias Hueworks.Schemas.Light, as: LightSchema
@@ -28,7 +28,7 @@ defmodule Hueworks.Control.Z2MDispatchTest do
     :ok
   end
 
-  test "Light.set_state publishes z2m set topic" do
+  test "Light.dispatch_state publishes z2m set topic" do
     area = Repo.insert!(%Area{name: "Kitchen"})
 
     bridge =
@@ -52,7 +52,8 @@ defmodule Hueworks.Control.Z2MDispatchTest do
         reported_max_kelvin: 6500
       })
 
-    assert :ok == Light.set_state(light, %{power: :on, brightness: 50, kelvin: 4000})
+    assert {:ok, %DispatchReceipt{}} =
+             Light.dispatch_state(light, %{power: :on, brightness: 50, kelvin: 4000})
 
     assert_receive {:published, client_id, "zigbee2mqtt/kitchen_strip/set", payload, [qos: 0]}
     assert client_id == "hwz2mc#{bridge.id}-test"
@@ -63,7 +64,7 @@ defmodule Hueworks.Control.Z2MDispatchTest do
     assert decoded["color_temp"] == 250
   end
 
-  test "Group.set_state publishes z2m set topic" do
+  test "Group.dispatch_state publishes z2m set topic" do
     area = Repo.insert!(%Area{name: "Main"})
 
     bridge =
@@ -87,13 +88,38 @@ defmodule Hueworks.Control.Z2MDispatchTest do
         reported_max_kelvin: 6500
       })
 
-    assert :ok == Group.set_state(group, %{power: :on, brightness: 30})
+    assert {:ok, %DispatchReceipt{}} = Group.dispatch_state(group, %{power: :on, brightness: 30})
 
     assert_receive {:published, _client_id, "zigbee2mqtt/main_group/set", payload, [qos: 0]}
 
     decoded = Jason.decode!(payload)
     assert decoded["state"] == "ON"
     assert decoded["brightness"] == 76
+  end
+
+  test "empty desired state does not publish a z2m command" do
+    area = Repo.insert!(%Area{name: "No-op"})
+
+    bridge =
+      insert_bridge!(%{
+        type: :z2m,
+        name: "Z2M",
+        host: "10.0.0.63",
+        credentials: %{"base_topic" => "zigbee2mqtt", "broker_port" => 1883},
+        enabled: true
+      })
+
+    light =
+      Repo.insert!(%LightSchema{
+        name: "No-op Strip",
+        source: :z2m,
+        source_id: "noop_strip",
+        bridge_id: bridge.id,
+        area_id: area.id
+      })
+
+    assert :ok = Light.dispatch_state(light, %{})
+    refute_receive {:published, _client_id, _topic, _payload, _opts}
   end
 
   test "planner/executor publishes color-mode payload for extended low kelvin on z2m light" do

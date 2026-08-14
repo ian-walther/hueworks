@@ -5,6 +5,7 @@ defmodule Hueworks.Schemas.LightState.Config do
 
   alias Hueworks.Circadian.Config, as: CircadianConfig
   alias Hueworks.Schemas.LightState.ManualConfig
+  alias Hueworks.Util
 
   @circadian_fields [
     :min_brightness,
@@ -85,7 +86,7 @@ defmodule Hueworks.Schemas.LightState.Config do
 
       {:error, errors} ->
         Enum.reduce(errors, change(%__MODULE__{}), fn {field, message}, acc ->
-          add_error(acc, existing_atom_or(field), message)
+          add_error(acc, Util.existing_atom(field), message)
         end)
     end
   end
@@ -147,18 +148,6 @@ defmodule Hueworks.Schemas.LightState.Config do
       {normalized_key, value}
     end)
   end
-
-  defp existing_atom_or(value) when is_atom(value), do: value
-
-  defp existing_atom_or(value) when is_binary(value) do
-    try do
-      String.to_existing_atom(value)
-    rescue
-      ArgumentError -> nil
-    end
-  end
-
-  defp existing_atom_or(_value), do: nil
 
   defp apply_embedded_result(changeset, converter) do
     case apply_action(changeset, :validate) do

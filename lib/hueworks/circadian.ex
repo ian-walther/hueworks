@@ -7,6 +7,7 @@ defmodule Hueworks.Circadian do
   require Logger
 
   alias Hueworks.Circadian.Config
+  alias Hueworks.Util
 
   @sun_event_order [:sunrise, :noon, :sunset, :midnight]
   @allowed_orders Enum.map(0..3, fn index ->
@@ -127,35 +128,34 @@ defmodule Hueworks.Circadian do
     end
   end
 
-  defp sunrise(config, solar_config, timezone, date) do
+  defp sunrise(config, solar_config, timezone, date),
+    do: sun_event(config, solar_config, timezone, date, :sunrise)
+
+  defp sunset(config, solar_config, timezone, date),
+    do: sun_event(config, solar_config, timezone, date, :sunset)
+
+  defp sun_event(config, solar_config, timezone, date, event) do
+    {time_key, offset_key, min_key, max_key} = sun_event_keys(event)
+
     base =
-      case config[:sunrise_time] do
-        nil -> solar_event(date, solar_config, :sunrise)
+      case config[time_key] do
+        nil -> solar_event(date, solar_config, event)
         time -> combine_local_time(date, time, timezone)
       end
 
-    with {:ok, sunrise} <- base do
-      sunrise
-      |> DateTime.add(config[:sunrise_offset], :second)
-      |> clamp_time(date, config[:min_sunrise_time], config[:max_sunrise_time], timezone)
+    with {:ok, datetime} <- base do
+      datetime
+      |> DateTime.add(config[offset_key], :second)
+      |> clamp_time(date, config[min_key], config[max_key], timezone)
       |> then(&{:ok, &1})
     end
   end
 
-  defp sunset(config, solar_config, timezone, date) do
-    base =
-      case config[:sunset_time] do
-        nil -> solar_event(date, solar_config, :sunset)
-        time -> combine_local_time(date, time, timezone)
-      end
+  defp sun_event_keys(:sunrise),
+    do: {:sunrise_time, :sunrise_offset, :min_sunrise_time, :max_sunrise_time}
 
-    with {:ok, sunset} <- base do
-      sunset
-      |> DateTime.add(config[:sunset_offset], :second)
-      |> clamp_time(date, config[:min_sunset_time], config[:max_sunset_time], timezone)
-      |> then(&{:ok, &1})
-    end
-  end
+  defp sun_event_keys(:sunset),
+    do: {:sunset_time, :sunset_offset, :min_sunset_time, :max_sunset_time}
 
   defp noon_and_midnight(config, solar_config, _timezone, date, sunrise, sunset) do
     if solar_times_constrained?(config) do
@@ -321,7 +321,7 @@ defmodule Hueworks.Circadian do
               )
           end
 
-        clamp(brightness, config[:min_brightness], config[:max_brightness])
+        Util.clamp(brightness, config[:min_brightness], config[:max_brightness])
 
       other ->
         Logger.warning("Unsupported circadian brightness mode: #{inspect(other)}")
@@ -365,23 +365,14 @@ defmodule Hueworks.Circadian do
 
   defp round_to_5(value), do: 5 * round(value / 5)
 
-  defp solar_event(date, solar_config, :sunrise) do
+  defp solar_event(date, solar_config, event) when event in [:sunrise, :sunset] do
     with {:ok, latitude, longitude} <- coordinates(solar_config),
          {:ok, solar_noon_ms} <- solar_noon_timestamp_ms(date, latitude, longitude),
          {:ok, rise_hour_angle} <- Solarex.Sun.rise_hour_angle(solar_noon_ms, latitude) do
-      solar_noon_ms
-      |> Kernel.+(round(rise_hour_angle * 4 * 1000 * 60))
-      |> DateTime.from_unix!(:millisecond)
-      |> then(&{:ok, &1})
-    end
-  end
+      direction = if event == :sunrise, do: 1, else: -1
 
-  defp solar_event(date, solar_config, :sunset) do
-    with {:ok, latitude, longitude} <- coordinates(solar_config),
-         {:ok, solar_noon_ms} <- solar_noon_timestamp_ms(date, latitude, longitude),
-         {:ok, rise_hour_angle} <- Solarex.Sun.rise_hour_angle(solar_noon_ms, latitude) do
       solar_noon_ms
-      |> Kernel.-(round(rise_hour_angle * 4 * 1000 * 60))
+      |> Kernel.+(direction * round(rise_hour_angle * 4 * 1000 * 60))
       |> DateTime.from_unix!(:millisecond)
       |> then(&{:ok, &1})
     end
@@ -402,10 +393,10 @@ defmodule Hueworks.Circadian do
 
   defp coordinates(solar_config) do
     latitude =
-      normalize_number(Map.get(solar_config, :latitude) || Map.get(solar_config, "latitude"))
+      Util.to_float(Map.get(solar_config, :latitude) || Map.get(solar_config, "latitude"))
 
     longitude =
-      normalize_number(Map.get(solar_config, :longitude) || Map.get(solar_config, "longitude"))
+      Util.to_float(Map.get(solar_config, :longitude) || Map.get(solar_config, "longitude"))
 
     if is_number(latitude) and is_number(longitude) do
       {:ok, latitude * 1.0, longitude * 1.0}
@@ -413,18 +404,6 @@ defmodule Hueworks.Circadian do
       {:error, :missing_coordinates}
     end
   end
-
-  defp normalize_number(value) when is_integer(value), do: value * 1.0
-  defp normalize_number(value) when is_float(value), do: value
-
-  defp normalize_number(value) when is_binary(value) do
-    case Float.parse(String.trim(value)) do
-      {number, ""} -> number
-      _ -> nil
-    end
-  end
-
-  defp normalize_number(_value), do: nil
 
   defp timezone_name(solar_config) do
     timezone =
@@ -506,8 +485,6 @@ defmodule Hueworks.Circadian do
   end
 
   defp lerp(x, x1, x2, y1, y2), do: y1 + (x - x1) * (y2 - y1) / (x2 - x1)
-  defp clamp(value, minimum, maximum), do: max(minimum, min(value, maximum))
-
   defp curve_offset_key(:brightness, :sunrise), do: :brightness_sunrise_offset
   defp curve_offset_key(:brightness, :sunset), do: :brightness_sunset_offset
   defp curve_offset_key(:temperature, :sunrise), do: :temperature_sunrise_offset

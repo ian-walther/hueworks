@@ -139,7 +139,7 @@ defmodule Hueworks.Import.ReviewPlan do
       _ ->
         map
         |> Map.get(source_id, %{})
-        |> Normalize.fetch(:resolution)
+        |> Normalize.resolution_of()
     end
   end
 
@@ -253,7 +253,7 @@ defmodule Hueworks.Import.ReviewPlan do
   end
 
   defp destructive_resolution(source_id, entry, type) when is_map(entry) do
-    action = Normalize.fetch(entry, :resolution) || Normalize.fetch(entry, :action)
+    action = Normalize.resolution_of(entry)
     source_id = Normalize.normalize_source_id(source_id)
 
     if action in ["delete", "disable"] and is_binary(source_id) do

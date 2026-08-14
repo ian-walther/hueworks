@@ -22,30 +22,25 @@ defmodule Hueworks.Control.Light do
     Z2MClient
   }
 
-  def set_state(light, desired, opts \\ %{}) when is_map(desired) do
-    light
-    |> dispatch_state(desired, opts)
-    |> legacy_result()
-  end
-
   def dispatch_state(light, desired, opts \\ %{}) when is_map(desired) do
     dispatch(light, {:set_state, desired}, normalize_apply_opts(opts))
   end
 
   defp dispatch(%{source: :hue} = light, action, apply_opts) do
     with {:ok, host, api_key} <- HueBridge.credentials_for(light),
-         payload <- HuePayload.action_payload(action, apply_opts),
+         payload when is_map(payload) <- HuePayload.action_payload(action, apply_opts),
          {:ok, _resp} <-
            HueClient.request(host, api_key, "/lights/#{light.source_id}/state", payload) do
       {:ok, DispatchReceipt.new(HuePayload.effective_transition_ms(apply_opts))}
     else
       {:error, _} = error -> error
+      :ignore -> :ok
     end
   end
 
   defp dispatch(%{source: :caseta} = light, action, _apply_opts) do
     with {:ok, host, ssl_opts} <- CasetaBridge.connection_for(light),
-         payload <- CasetaPayload.action_payload(action, light),
+         payload when is_map(payload) <- CasetaPayload.action_payload(action, light),
          :ok <- CasetaClient.request(host, ssl_opts, payload) do
       {:ok, DispatchReceipt.new(0)}
     else
@@ -69,7 +64,7 @@ defmodule Hueworks.Control.Light do
 
   defp dispatch(%{source: :z2m} = light, action, apply_opts) do
     with {:ok, config} <- Z2MBridge.connection_for(light),
-         payload <- Z2MPayload.action_payload(action, light, apply_opts),
+         payload when is_map(payload) <- Z2MPayload.action_payload(action, light, apply_opts),
          :ok <- Z2MClient.request(config, light, payload) do
       {:ok, DispatchReceipt.new(Z2MPayload.effective_transition_ms(apply_opts))}
     else
@@ -79,9 +74,6 @@ defmodule Hueworks.Control.Light do
   end
 
   defp dispatch(_light, _action, _apply_opts), do: {:error, :unsupported}
-
-  defp legacy_result({:ok, _receipt}), do: :ok
-  defp legacy_result(other), do: other
 
   defp normalize_apply_opts(opts) when is_map(opts), do: opts
   defp normalize_apply_opts(opts) when is_list(opts), do: Map.new(opts)

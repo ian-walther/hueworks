@@ -33,15 +33,12 @@ defmodule Hueworks.Subscription.CasetaEventStream.Connection do
       socket: nil,
       lights: %{},
       pico_button_ids: [],
-      buffer: "",
       last_refresh_at: 0,
       connect_fun: connect_fun
     }
 
     {:ok, state, {:continue, :connect}}
   end
-
-  def init(bridge), do: init({bridge, []})
 
   @impl true
   def handle_continue(:connect, state) do
@@ -53,8 +50,7 @@ defmodule Hueworks.Subscription.CasetaEventStream.Connection do
           state
           | socket: socket,
             lights: load_lights(state.bridge.id),
-            pico_button_ids: load_pico_button_ids(state.bridge.id),
-            buffer: ""
+            pico_button_ids: load_pico_button_ids(state.bridge.id)
         }
 
         read_initial_zone_status(socket, state)
@@ -127,7 +123,7 @@ defmodule Hueworks.Subscription.CasetaEventStream.Connection do
           |> Map.merge(StateParser.brightness_from_0_100(level))
           |> Map.merge(StateParser.power_from_level(level))
 
-        state_put(state, :light, light_id, update)
+        State.put(:light, light_id, update)
         state
     end
   end
@@ -342,10 +338,5 @@ defmodule Hueworks.Subscription.CasetaEventStream.Connection do
       [credentials.cert_path, credentials.key_path, credentials.cacert_path],
       &CasetaLeap.invalid_credential?/1
     )
-  end
-
-  defp state_put(state, type, id, update) do
-    putter = Map.get(state, :state_put, &State.put/3)
-    putter.(type, id, update)
   end
 end

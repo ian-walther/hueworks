@@ -81,7 +81,7 @@ defmodule Hueworks.HomeAssistant.Export.Router.EntityCommands do
   end
 
   defp apply_power_command(kind, id, power, _config, publish_fun)
-       when kind in [:light, :group] and power in [:on, :off] and is_function(publish_fun, 3) do
+       when kind in [:light, :group] and power in [:on, :off] do
     kind
     |> Entities.control_target(id)
     |> case do
@@ -104,7 +104,7 @@ defmodule Hueworks.HomeAssistant.Export.Router.EntityCommands do
   end
 
   defp apply_power_command(:presence_input, id, power, config, publish_fun)
-       when power in [:on, :off] and is_function(publish_fun, 3) do
+       when power in [:on, :off] do
     occupied = power == :on
 
     case PresenceInputs.set_occupied(id, occupied, refresh_home_assistant: false) do
@@ -119,15 +119,14 @@ defmodule Hueworks.HomeAssistant.Export.Router.EntityCommands do
   end
 
   defp publish_optimistic_power_state(kind, entity, power, publish_fun)
-       when kind in [:light, :group] and is_map(entity) and is_function(publish_fun, 3) do
+       when kind in [:light, :group] and is_map(entity) do
     kind
     |> Commands.optimistic_power_state(entity, power)
     |> then(&Publisher.publish_optimistic_entity_state(publish_fun, kind, entity, &1))
   end
 
   defp publish_optimistic_light_state(kind, entity, attrs, publish_fun)
-       when kind in [:light, :group] and is_map(entity) and is_map(attrs) and
-              is_function(publish_fun, 3) do
+       when kind in [:light, :group] and is_map(entity) and is_map(attrs) do
     kind
     |> Commands.optimistic_light_state(entity, attrs)
     |> then(&Publisher.publish_optimistic_entity_state(publish_fun, kind, entity, &1))

@@ -41,7 +41,7 @@ defmodule Hueworks.HomeAssistant.Export.Messages.State do
       |> normalize_xy_value()
 
     %{"state" => power_to_mqtt_json(power)}
-    |> maybe_put("brightness", brightness)
+    |> Util.put_unless_nil("brightness", brightness)
     |> maybe_put_color_state(entity, kelvin, x, y)
   end
 
@@ -197,9 +197,6 @@ defmodule Hueworks.HomeAssistant.Export.Messages.State do
   end
 
   defp scene_name(%Scene{} = scene), do: scene.display_name || scene.name
-
-  defp maybe_put(payload, _key, nil), do: payload
-  defp maybe_put(payload, key, value), do: Map.put(payload, key, value)
 
   defp group_state_for_export(entity) do
     case group_member_light_ids(entity) do

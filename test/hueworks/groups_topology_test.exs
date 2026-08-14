@@ -35,7 +35,6 @@ defmodule Hueworks.Groups.TopologyTest do
     }
 
     assert Enum.sort(Topology.all_subgroups(1, subgroups_map)) == [2, 3, 4, 5]
-    assert Enum.sort(Topology.all_subgroups(subgroups_map, 2)) == [1, 3, 4, 5]
   end
 
   test "presentation_tree recursively decomposes scopes into maximal groups and leftover lights" do

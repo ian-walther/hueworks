@@ -2,7 +2,8 @@ defmodule Hueworks.HomeAssistant.Export.Lifecycle.ConfigTransition do
   @moduledoc false
 
   alias Hueworks.HomeAssistant.Export.Connection
-  alias Hueworks.HomeAssistant.Export.Runtime
+  alias Hueworks.HomeAssistant.Export.Config
+  alias Hueworks.HomeAssistant.Export.Messages
   alias Hueworks.HomeAssistant.Export.ServerState
   alias Hueworks.HomeAssistant.Export.Sync
 
@@ -11,13 +12,13 @@ defmodule Hueworks.HomeAssistant.Export.Lifecycle.ConfigTransition do
     state = maybe_unpublish_removed_entities(state, config, publish_fun)
 
     cond do
-      not Runtime.export_enabled?(config) ->
+      not Config.export_enabled?(config) ->
         state
         |> publish_availability_if_connected("offline", publish_fun)
         |> stop_connection()
         |> Map.put(:config, config)
 
-      Runtime.same_config?(state.config, config) and Connection.alive?(state.connection_pid) ->
+      Config.same_config?(state.config, config) and Connection.alive?(state.connection_pid) ->
         %{state | config: config}
 
       true ->
@@ -41,16 +42,16 @@ defmodule Hueworks.HomeAssistant.Export.Lifecycle.ConfigTransition do
         state
 
       true ->
-        if Runtime.scenes_enabled?(previous) and not Runtime.scenes_enabled?(config) do
+        if Config.scenes_enabled?(previous) and not Config.scenes_enabled?(config) do
           Sync.unpublish_all_scenes(publish_fun, previous)
         end
 
-        if Runtime.area_selects_enabled?(previous) and
-             not Runtime.area_selects_enabled?(config) do
+        if Config.area_selects_enabled?(previous) and
+             not Config.area_selects_enabled?(config) do
           Sync.unpublish_all_area_selects(publish_fun, previous)
         end
 
-        if Runtime.lights_enabled?(previous) and not Runtime.lights_enabled?(config) do
+        if Config.lights_enabled?(previous) and not Config.lights_enabled?(config) do
           Sync.unpublish_all_light_entities(publish_fun, previous)
         end
 
@@ -59,7 +60,7 @@ defmodule Hueworks.HomeAssistant.Export.Lifecycle.ConfigTransition do
   end
 
   defp start_connection(state, config, client_id) do
-    case Connection.start(client_id, self(), config, Runtime.command_topic_filters()) do
+    case Connection.start(client_id, self(), config, Config.command_topic_filters()) do
       {:ok, pid} ->
         %{state | config: config, connection_pid: pid}
 
@@ -79,7 +80,7 @@ defmodule Hueworks.HomeAssistant.Export.Lifecycle.ConfigTransition do
 
   defp publish_availability_if_connected(state, value, publish_fun) do
     if Connection.alive?(state.connection_pid) do
-      :ok = publish_fun.(Hueworks.HomeAssistant.Export.availability_topic(), value, retain: true)
+      :ok = publish_fun.(Messages.availability_topic(), value, retain: true)
     end
 
     state

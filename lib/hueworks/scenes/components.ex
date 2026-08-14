@@ -19,8 +19,7 @@ defmodule Hueworks.Scenes.Components do
     Repo.transaction(fn ->
       Repo.delete_all(from(sc in SceneComponent, where: sc.scene_id == ^scene.id))
 
-      components
-      |> Enum.reduce_while(:ok, fn component, _acc ->
+      Enum.each(components, fn component ->
         component
         |> resolve_component_light_state()
         |> case do
@@ -35,8 +34,6 @@ defmodule Hueworks.Scenes.Components do
                 component
                 |> insert_scene_component(scene, resolved_light_state)
                 |> insert_scene_component_lights(component)
-
-                {:cont, :ok}
 
               {:error, reason} ->
                 Repo.rollback(reason)
@@ -132,33 +129,19 @@ defmodule Hueworks.Scenes.Components do
          }}
 
       _ ->
-        component
-        |> Map.get(:light_state_id)
-        |> case do
-          state_id when state_id in [nil, "new", "new_manual", "new_circadian"] ->
-            {:error, :invalid_light_state}
-
-          state_id ->
-            state_id
-            |> Hueworks.Util.parse_id()
-            |> case do
-              nil ->
-                {:error, :invalid_light_state}
-
-              id ->
-                case Repo.get(LightState, id) do
-                  %LightState{type: type} = state when type in [:manual, :circadian] ->
-                    {:ok,
-                     %{
-                       light_state_id: state.id,
-                       embedded_manual_config: nil,
-                       light_state: state
-                     }}
-
-                  _ ->
-                    {:error, :invalid_light_state}
-                end
-            end
+        with state_id when state_id not in [nil, "new", "new_manual", "new_circadian"] <-
+               Map.get(component, :light_state_id),
+             id when is_integer(id) <- Hueworks.Util.parse_id(state_id),
+             %LightState{type: type} = state when type in [:manual, :circadian] <-
+               Repo.get(LightState, id) do
+          {:ok,
+           %{
+             light_state_id: state.id,
+             embedded_manual_config: nil,
+             light_state: state
+           }}
+        else
+          _ -> {:error, :invalid_light_state}
         end
     end
   end
@@ -186,9 +169,7 @@ defmodule Hueworks.Scenes.Components do
   end
 
   defp manual_color_mode?(config) when is_map(config) do
-    config
-    |> LightState.manual_mode()
-    |> Kernel.==(:color)
+    LightState.manual_mode(config) == :color
   end
 
   defp manual_color_mode?(_config), do: false

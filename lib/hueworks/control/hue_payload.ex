@@ -45,11 +45,11 @@ defmodule Hueworks.Control.HuePayload do
               maybe_put(payload, "ct", kelvin_to_mired(kelvin))
           end
 
-        with_transition(payload, opts)
+        if map_size(payload) == 0, do: :ignore, else: with_transition(payload, opts)
     end
   end
 
-  def action_payload(_action, _opts), do: %{}
+  def action_payload(_action, _opts), do: :ignore
 
   def effective_transition_ms(opts) do
     case Transition.hue_transitiontime(opts) do

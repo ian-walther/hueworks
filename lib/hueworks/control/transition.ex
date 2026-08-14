@@ -33,8 +33,8 @@ defmodule Hueworks.Control.Transition do
 
   def brightness_delta_percent(desired, physical)
       when is_map(desired) and is_map(physical) do
-    with target when is_integer(target) <- target_brightness_percent(desired),
-         current when is_integer(current) <- current_brightness_percent(physical) do
+    with target when is_integer(target) <- brightness_percent(desired),
+         current when is_integer(current) <- brightness_percent(physical) do
       abs(target - current)
     else
       _ -> nil
@@ -57,31 +57,15 @@ defmodule Hueworks.Control.Transition do
     end
   end
 
-  defp target_brightness_percent(desired) do
+  defp brightness_percent(state) do
     cond do
-      has_brightness_key?(desired) ->
-        desired
+      has_brightness_key?(state) ->
+        state
         |> brightness_value()
         |> Util.normalize_percent()
         |> round()
 
-      off_target?(desired) ->
-        0
-
-      true ->
-        nil
-    end
-  end
-
-  defp current_brightness_percent(physical) do
-    cond do
-      has_brightness_key?(physical) ->
-        physical
-        |> brightness_value()
-        |> Util.normalize_percent()
-        |> round()
-
-      off_target?(physical) ->
+      off_target?(state) ->
         0
 
       true ->

@@ -10,6 +10,7 @@ defmodule Hueworks.AppSettings do
   alias Hueworks.AppSettings.SolarConfig
   alias Hueworks.Repo
   alias Hueworks.Schemas.AppSetting
+  alias Hueworks.Util
   alias HueworksApp.Cache
 
   @global_scope "global"
@@ -188,25 +189,13 @@ defmodule Hueworks.AppSettings do
     |> Map.put(:action, :validate)
     |> then(fn changeset ->
       Enum.reduce(errors, changeset, fn {field, message}, acc ->
-        case existing_field(field) do
+        case Util.existing_atom(field) do
           nil -> add_error(acc, :scope, "#{field} #{message}")
           atom_field -> add_error(acc, atom_field, message)
         end
       end)
     end)
   end
-
-  defp existing_field(field) when is_atom(field), do: field
-
-  defp existing_field(field) when is_binary(field) do
-    try do
-      String.to_existing_atom(field)
-    rescue
-      ArgumentError -> nil
-    end
-  end
-
-  defp existing_field(_field), do: nil
 
   defp merged_attrs(%AppSetting{} = current) do
     current

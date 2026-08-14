@@ -23,7 +23,7 @@ defmodule Hueworks.Control.HomeAssistantPayload do
           (not is_nil(x) and not is_nil(y)) ->
         payload =
           %{"entity_id" => entity.source_id}
-          |> maybe_put("brightness", brightness && percent_to_brightness(brightness))
+          |> Util.put_unless_nil("brightness", brightness && percent_to_brightness(brightness))
 
         payload =
           cond do
@@ -76,7 +76,4 @@ defmodule Hueworks.Control.HomeAssistantPayload do
       _ -> payload
     end
   end
-
-  defp maybe_put(payload, _key, nil), do: payload
-  defp maybe_put(payload, key, value), do: Map.put(payload, key, value)
 end

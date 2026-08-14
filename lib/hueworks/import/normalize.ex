@@ -244,6 +244,19 @@ defmodule Hueworks.Import.Normalize do
   def normalize_source_id(id) when is_float(id), do: Float.to_string(id)
   def normalize_source_id(_id), do: nil
 
+  def entity_source_id(entity) when is_map(entity) do
+    entity
+    |> fetch(:source_id)
+    |> normalize_source_id()
+  end
+
+  def entity_source_id(_entity), do: nil
+
+  def resolution_of(entry) when is_map(entry),
+    do: fetch(entry, :resolution) || fetch(entry, :action)
+
+  def resolution_of(_entry), do: nil
+
   def extract_device_connection(light, type_or_types) do
     device = fetch(light, :device) || %{}
     connections = fetch(device, :connections) || []

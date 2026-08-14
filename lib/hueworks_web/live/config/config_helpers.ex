@@ -3,6 +3,7 @@ defmodule HueworksWeb.ConfigHelpers do
 
   alias Hueworks.HomeKit.Config, as: HomeKitBridgeConfig
   alias Hueworks.Scenes.LightStates
+  alias Hueworks.Util
 
   def homekit_pairing_code(app_setting) do
     app_setting
@@ -39,18 +40,11 @@ defmodule HueworksWeb.ConfigHelpers do
   def timezone_options(current_timezone) do
     base_timezones = Tzdata.zone_list() |> Enum.sort()
 
-    case normalize_timezone(current_timezone) do
+    case Util.blank_to_nil(current_timezone) do
       nil -> base_timezones
       timezone -> Enum.sort(Enum.uniq([timezone | base_timezones]))
     end
   end
 
   def state_label(state), do: LightStates.editor_label(state)
-
-  defp normalize_timezone(value) when is_binary(value) do
-    trimmed = String.trim(value)
-    if trimmed == "", do: nil, else: trimmed
-  end
-
-  defp normalize_timezone(_value), do: nil
 end

@@ -67,25 +67,16 @@ defmodule Hueworks.Control.LightStateSemantics do
 
   def normalize_keys(_state), do: %{}
 
-  def key_aliases(:kelvin), do: [:kelvin, "kelvin", :temperature, "temperature"]
-  def key_aliases("kelvin"), do: [:kelvin, "kelvin", :temperature, "temperature"]
-  def key_aliases(:temperature), do: [:temperature, "temperature", :kelvin, "kelvin"]
-  def key_aliases("temperature"), do: [:temperature, "temperature", :kelvin, "kelvin"]
-  def key_aliases(:brightness), do: [:brightness, "brightness"]
-  def key_aliases("brightness"), do: [:brightness, "brightness"]
-  def key_aliases(:power), do: [:power, "power"]
-  def key_aliases("power"), do: [:power, "power"]
-  def key_aliases(:x), do: [:x, "x"]
-  def key_aliases("x"), do: [:x, "x"]
-  def key_aliases(:y), do: [:y, "y"]
-  def key_aliases("y"), do: [:y, "y"]
-  def key_aliases(key), do: [key]
+  defp key_aliases(:kelvin), do: [:kelvin, "kelvin", :temperature, "temperature"]
+  defp key_aliases(:temperature), do: [:temperature, "temperature", :kelvin, "kelvin"]
+  defp key_aliases(:brightness), do: [:brightness, "brightness"]
+  defp key_aliases(:power), do: [:power, "power"]
+  defp key_aliases(:x), do: [:x, "x"]
+  defp key_aliases(:y), do: [:y, "y"]
 
-  def values_equal?(key, desired, actual, opts \\ [])
+  defp values_equal?(_key, desired, actual, _opts) when desired == actual, do: true
 
-  def values_equal?(_key, desired, actual, _opts) when desired == actual, do: true
-
-  def values_equal?(:brightness, desired, actual, opts) do
+  defp values_equal?(:brightness, desired, actual, opts) do
     tolerance = Keyword.get(opts, :brightness_tolerance, 0)
 
     case {Util.to_number(desired), Util.to_number(actual)} do
@@ -95,12 +86,12 @@ defmodule Hueworks.Control.LightStateSemantics do
     end
   end
 
-  def values_equal?(:kelvin, desired, actual, opts) do
+  defp values_equal?(:kelvin, desired, actual, opts) do
     tolerance = Keyword.get(opts, :temperature_mired_tolerance, 0)
     Kelvin.equivalent_temperature?(desired, actual, mired_tolerance: tolerance)
   end
 
-  def values_equal?(key, desired, actual, opts) when key in [:x, :y] do
+  defp values_equal?(key, desired, actual, opts) when key in [:x, :y] do
     tolerance = Keyword.get(opts, :xy_tolerance, 0.005)
 
     case {Util.to_number(desired), Util.to_number(actual)} do
@@ -110,7 +101,7 @@ defmodule Hueworks.Control.LightStateSemantics do
     end
   end
 
-  def values_equal?(_key, desired, actual, _opts), do: desired == actual
+  defp values_equal?(_key, desired, actual, _opts), do: desired == actual
 
   @spec effective_desired_for_light(state_map(), state_map()) :: state_map()
   def effective_desired_for_light(desired, light) when is_map(desired) do
@@ -153,19 +144,13 @@ defmodule Hueworks.Control.LightStateSemantics do
   def power_value(desired) when is_map(desired), do: Map.get(desired, :power)
   def power_value(_desired), do: nil
 
-  @spec supports_temp?(state_map()) :: boolean()
-  def supports_temp?(light) when is_map(light) do
+  defp supports_temp?(light) when is_map(light) do
     Map.get(light, :supports_temp) == true
   end
 
-  def supports_temp?(_light), do: false
-
-  @spec supports_color?(state_map()) :: boolean()
-  def supports_color?(light) when is_map(light) do
+  defp supports_color?(light) when is_map(light) do
     Map.get(light, :supports_color) == true
   end
-
-  def supports_color?(_light), do: false
 
   @spec merge_state(state_map(), state_map()) :: state_map()
   def merge_state(current, incoming) when is_map(current) and is_map(incoming) do
@@ -193,32 +178,23 @@ defmodule Hueworks.Control.LightStateSemantics do
 
   def normalize_power_off(state), do: state
 
-  @spec drop_kelvin(state_map()) :: state_map()
-  def drop_kelvin(desired) when is_map(desired) do
+  defp drop_kelvin(desired) when is_map(desired) do
     desired
     |> Map.delete(:kelvin)
   end
 
-  def drop_kelvin(desired), do: desired
-
-  @spec drop_xy(state_map()) :: state_map()
-  def drop_xy(desired) when is_map(desired) do
+  defp drop_xy(desired) when is_map(desired) do
     desired
     |> Map.delete(:x)
     |> Map.delete(:y)
   end
 
-  def drop_xy(desired), do: desired
-
-  @spec drop_light_levels(state_map()) :: state_map()
-  def drop_light_levels(desired) when is_map(desired) do
+  defp drop_light_levels(desired) when is_map(desired) do
     desired
     |> Map.delete(:brightness)
     |> drop_kelvin()
     |> drop_xy()
   end
-
-  def drop_light_levels(desired), do: desired
 
   defp harmonize_color_and_temperature(attrs, incoming_attrs)
        when is_map(attrs) and is_map(incoming_attrs) do
@@ -280,24 +256,18 @@ defmodule Hueworks.Control.LightStateSemantics do
   defp normalize_power_value(false), do: :off
   defp normalize_power_value(value), do: value
 
-  @spec put_kelvin(state_map(), integer()) :: state_map()
-  def put_kelvin(desired, clamped_kelvin) when is_map(desired) do
+  defp put_kelvin(desired, clamped_kelvin) when is_map(desired) do
     desired
     |> drop_kelvin()
     |> Map.put(:kelvin, clamped_kelvin)
   end
 
-  def put_kelvin(desired, _clamped_kelvin), do: desired
-
-  @spec put_xy(state_map(), number(), number()) :: state_map()
-  def put_xy(desired, x, y) when is_map(desired) do
+  defp put_xy(desired, x, y) when is_map(desired) do
     desired
     |> drop_xy()
     |> Map.put(:x, x)
     |> Map.put(:y, y)
   end
-
-  def put_xy(desired, _x, _y), do: desired
 
   defp maybe_clamp_kelvin(desired, light) do
     case kelvin_value(desired) do

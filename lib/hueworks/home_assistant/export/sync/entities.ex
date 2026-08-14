@@ -3,10 +3,10 @@ defmodule Hueworks.HomeAssistant.Export.Sync.Entities do
 
   alias Hueworks.HomeAssistant.Export.Entities
   alias Hueworks.HomeAssistant.Export.Publisher
-  alias Hueworks.HomeAssistant.Export.Runtime
+  alias Hueworks.HomeAssistant.Export.Config
 
   def publish_all(publish_fun, config) when is_function(publish_fun, 3) do
-    if Runtime.export_enabled?(config) and Runtime.lights_enabled?(config) do
+    if Config.export_enabled?(config) and Config.lights_enabled?(config) do
       publish_each(publish_fun, :light, Entities.list_exportable_lights(), config)
       publish_each(publish_fun, :group, Entities.list_exportable_groups(), config)
     end
@@ -16,7 +16,7 @@ defmodule Hueworks.HomeAssistant.Export.Sync.Entities do
 
   def publish_area(publish_fun, area_id, config)
       when is_function(publish_fun, 3) and is_integer(area_id) do
-    if Runtime.export_enabled?(config) and Runtime.lights_enabled?(config) do
+    if Config.export_enabled?(config) and Config.lights_enabled?(config) do
       publish_each(publish_fun, :light, Entities.list_exportable_lights_for_area(area_id), config)
       publish_each(publish_fun, :group, Entities.list_exportable_groups_for_area(area_id), config)
     end
@@ -26,7 +26,7 @@ defmodule Hueworks.HomeAssistant.Export.Sync.Entities do
 
   def publish_one(publish_fun, kind, id, config)
       when is_function(publish_fun, 3) and kind in [:light, :group] and is_integer(id) do
-    if Runtime.export_enabled?(config) and Runtime.lights_enabled?(config) do
+    if Config.export_enabled?(config) and Config.lights_enabled?(config) do
       Publisher.sync_entity_payloads(publish_fun, kind, Entities.fetch_entity(kind, id), config)
     else
       :ok
@@ -35,7 +35,7 @@ defmodule Hueworks.HomeAssistant.Export.Sync.Entities do
 
   def publish_groups_for_light(publish_fun, light_id, config)
       when is_function(publish_fun, 3) and is_integer(light_id) do
-    if Runtime.export_enabled?(config) and Runtime.lights_enabled?(config) do
+    if Config.export_enabled?(config) and Config.lights_enabled?(config) do
       publish_each(
         publish_fun,
         :group,
@@ -49,7 +49,7 @@ defmodule Hueworks.HomeAssistant.Export.Sync.Entities do
 
   def unpublish_one(publish_fun, kind, id, config)
       when is_function(publish_fun, 3) and kind in [:light, :group] and is_integer(id) do
-    if Runtime.export_enabled?(config) and Runtime.lights_enabled?(config) do
+    if Config.export_enabled?(config) and Config.lights_enabled?(config) do
       Publisher.unpublish_entity_payloads(publish_fun, kind, id, config)
     else
       :ok

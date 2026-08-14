@@ -247,14 +247,6 @@ defmodule HueworksWeb.SetupLive do
     |> update(:inventory_refresh_destinations, &Map.delete(&1, bridge_id))
   end
 
-  defp operation_error(%Ecto.Changeset{}), do: "the requested values were not valid"
-  defp operation_error(reason) when is_binary(reason), do: reason
-
-  defp operation_error(reason) when is_atom(reason),
-    do: reason |> Atom.to_string() |> String.replace("_", " ")
-
-  defp operation_error(_reason), do: "unexpected error"
-
   defp pipeline_module,
     do: Application.get_env(:hueworks, :onboarding_import_pipeline, Hueworks.Import.Pipeline)
 

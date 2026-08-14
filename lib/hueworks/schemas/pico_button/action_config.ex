@@ -65,11 +65,11 @@ defmodule Hueworks.Schemas.PicoButton.ActionConfig do
 
   def dump(%__MODULE__{} = config) do
     %{}
-    |> maybe_put("target_kind", dump_target_kind(config.target_kind))
-    |> maybe_put("target_id", target_id(config))
+    |> Util.put_unless_nil("target_kind", dump_target_kind(config.target_kind))
+    |> Util.put_unless_nil("target_id", target_id(config))
     |> maybe_put_if("target_ids", target_ids(config), fn ids -> ids != [] end)
     |> maybe_put_if("light_ids", config.light_ids, fn ids -> ids != [] end)
-    |> maybe_put("area_id", config.area_id)
+    |> Util.put_unless_nil("area_id", config.area_id)
   end
 
   defp normalize_input(attrs) do
@@ -80,7 +80,7 @@ defmodule Hueworks.Schemas.PicoButton.ActionConfig do
     target_ids = Map.get(attrs, :target_ids) || Map.get(attrs, "target_ids")
 
     %{}
-    |> maybe_put("target_kind", target_kind)
+    |> Util.put_unless_nil("target_kind", target_kind)
     |> maybe_put_target_id(target_kind, target_id, target_ids)
     |> maybe_put_if(
       "light_ids",
@@ -89,7 +89,7 @@ defmodule Hueworks.Schemas.PicoButton.ActionConfig do
       ),
       fn ids -> ids != [] end
     )
-    |> maybe_put(
+    |> Util.put_unless_nil(
       "area_id",
       Util.parse_optional_integer(Map.get(attrs, :area_id) || Map.get(attrs, "area_id"))
     )
@@ -101,7 +101,7 @@ defmodule Hueworks.Schemas.PicoButton.ActionConfig do
   defp normalized_target_kind(_kind), do: nil
 
   defp maybe_put_target_id(attrs, :scene, target_id, _target_ids) do
-    maybe_put(attrs, "scene_id", Util.parse_optional_integer(target_id))
+    Util.put_unless_nil(attrs, "scene_id", Util.parse_optional_integer(target_id))
   end
 
   defp maybe_put_target_id(attrs, :control_groups, target_id, target_ids) do
@@ -174,9 +174,6 @@ defmodule Hueworks.Schemas.PicoButton.ActionConfig do
 
   defp format_opt_value(value) when is_binary(value), do: value
   defp format_opt_value(value), do: inspect(value)
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 
   defp maybe_put_if(map, key, value, predicate) when is_function(predicate, 1) do
     if predicate.(value), do: Map.put(map, key, value), else: map

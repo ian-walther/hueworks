@@ -19,7 +19,7 @@ defmodule Hueworks.Picos.Actions do
     @moduledoc false
 
     @enforce_keys [:target_kind]
-    defstruct target_kind: :none, target_id: nil, target_ids: [], light_ids: [], area_id: nil
+    defstruct [:target_kind, target_id: nil, target_ids: [], light_ids: [], area_id: nil]
 
     def from_map(config) when is_map(config) do
       stored = StoredActionConfig.load(config)
@@ -100,38 +100,23 @@ defmodule Hueworks.Picos.Actions do
   end
 
   defp execute_button_action(%PicoButton{
-         action_type: "turn_on",
+         action_type: action_type,
          pico_device: device,
          action_config: config
-       }) do
+       })
+       when action_type in ["turn_on", "turn_off"] do
     light_ids =
       config
       |> ActionConfig.from_map()
       |> action_light_ids(device)
 
-    Logger.info(
-      "[pico-trace] execute_button_action area_id=#{device.area_id} action=:on light_ids=#{inspect(light_ids)}"
-    )
-
-    _ = ManualControl.apply_power_action(device.area_id, light_ids, :on)
-    :handled
-  end
-
-  defp execute_button_action(%PicoButton{
-         action_type: "turn_off",
-         pico_device: device,
-         action_config: config
-       }) do
-    light_ids =
-      config
-      |> ActionConfig.from_map()
-      |> action_light_ids(device)
+    action = if action_type == "turn_on", do: :on, else: :off
 
     Logger.info(
-      "[pico-trace] execute_button_action area_id=#{device.area_id} action=:off light_ids=#{inspect(light_ids)}"
+      "[pico-trace] execute_button_action area_id=#{device.area_id} action=#{inspect(action)} light_ids=#{inspect(light_ids)}"
     )
 
-    _ = ManualControl.apply_power_action(device.area_id, light_ids, :off)
+    _ = ManualControl.apply_power_action(device.area_id, light_ids, action)
     :handled
   end
 

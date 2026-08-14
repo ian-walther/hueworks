@@ -4,6 +4,7 @@ defmodule Hueworks.HomeAssistant.Export.Commands do
   alias Hueworks.Control.LightStateSemantics
   alias Hueworks.Control.State
   alias Hueworks.HomeAssistant.Export.Messages
+  alias Hueworks.Util
 
   def normalize_light_command(%{} = payload, entity) when is_map(entity) do
     state = Messages.normalize_power_payload(Map.get(payload, "state"))
@@ -23,14 +24,14 @@ defmodule Hueworks.HomeAssistant.Export.Commands do
 
     base_attrs =
       %{}
-      |> maybe_put(:brightness, brightness)
-      |> maybe_put(:kelvin, kelvin)
-      |> maybe_put(:x, x)
-      |> maybe_put(:y, y)
+      |> Util.put_unless_nil(:brightness, brightness)
+      |> Util.put_unless_nil(:kelvin, kelvin)
+      |> Util.put_unless_nil(:x, x)
+      |> Util.put_unless_nil(:y, y)
 
     attrs =
       base_attrs
-      |> maybe_put(:power, if(map_size(base_attrs) > 0, do: :on))
+      |> Util.put_unless_nil(:power, if(map_size(base_attrs) > 0, do: :on))
 
     cond do
       state == :off ->
@@ -66,19 +67,12 @@ defmodule Hueworks.HomeAssistant.Export.Commands do
       when kind in [:light, :group] and is_map(entity) and power in [:on, :off] do
     case power do
       :off -> %{power: :off}
-      :on -> merge_export_state(State.get(kind, entity.id) || %{}, %{power: :on})
+      :on -> LightStateSemantics.merge_state(State.get(kind, entity.id) || %{}, %{power: :on})
     end
   end
 
   def optimistic_light_state(kind, entity, attrs)
       when kind in [:light, :group] and is_map(entity) and is_map(attrs) do
-    merge_export_state(State.get(kind, entity.id) || %{}, attrs)
+    LightStateSemantics.merge_state(State.get(kind, entity.id) || %{}, attrs)
   end
-
-  def merge_export_state(current, incoming) when is_map(current) and is_map(incoming) do
-    LightStateSemantics.merge_state(current, incoming)
-  end
-
-  defp maybe_put(payload, _key, nil), do: payload
-  defp maybe_put(payload, key, value), do: Map.put(payload, key, value)
 end

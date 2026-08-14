@@ -488,9 +488,7 @@ defmodule Hueworks.Api do
         State.get(:light, light_id)
         |> case do
           %{power: :on} -> :on
-          %{power: "on"} -> :on
           %{power: :off} -> :off
-          %{power: "off"} -> :off
           _ -> :unknown
         end
       end)

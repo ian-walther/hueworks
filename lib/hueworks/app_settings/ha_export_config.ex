@@ -9,6 +9,7 @@ defmodule Hueworks.AppSettings.HaExportConfig do
   Does not change the persisted shape — these remain flat columns on AppSetting.
   """
 
+  alias Hueworks.AppSettings.FieldParser
   alias Hueworks.Util
 
   @toggle_fields [
@@ -58,14 +59,17 @@ defmodule Hueworks.AppSettings.HaExportConfig do
       ha_export_scenes_enabled: enabled,
       ha_export_area_selects_enabled: enabled,
       ha_export_lights_enabled: false,
-      ha_export_mqtt_host: fallback_value(parse_string(config[:host] || config["host"])),
+      ha_export_mqtt_host:
+        fallback_value(FieldParser.parse_string(config[:host] || config["host"])),
       ha_export_mqtt_port: fallback_value(parse_port(config[:port] || config["port"])) || 1883,
       ha_export_mqtt_username:
-        fallback_value(parse_string(config[:username] || config["username"])),
+        fallback_value(FieldParser.parse_string(config[:username] || config["username"])),
       ha_export_mqtt_password:
-        fallback_value(parse_string(config[:password] || config["password"])),
+        fallback_value(FieldParser.parse_string(config[:password] || config["password"])),
       ha_export_discovery_prefix:
-        fallback_value(parse_string(config[:discovery_prefix] || config["discovery_prefix"])) ||
+        fallback_value(
+          FieldParser.parse_string(config[:discovery_prefix] || config["discovery_prefix"])
+        ) ||
           "homeassistant"
     }
   end
@@ -74,17 +78,29 @@ defmodule Hueworks.AppSettings.HaExportConfig do
     {attrs, errors} =
       Enum.reduce(@bool_fields, {%{}, []}, fn field, acc ->
         key = Atom.to_string(field)
-        parse_present_field(acc, field, get_field_value(attrs, field, key), &parse_bool/1)
+
+        FieldParser.parse_present_field(
+          acc,
+          field,
+          FieldParser.get_field_value(attrs, field, key),
+          &FieldParser.parse_bool/1
+        )
       end)
       |> then(fn {parsed_attrs, parse_errors} ->
         Enum.reduce(@string_fields, {parsed_attrs, parse_errors}, fn field, acc ->
           key = Atom.to_string(field)
-          parse_present_field(acc, field, get_field_value(attrs, field, key), &parse_string/1)
+
+          FieldParser.parse_present_field(
+            acc,
+            field,
+            FieldParser.get_field_value(attrs, field, key),
+            &FieldParser.parse_string/1
+          )
         end)
       end)
-      |> parse_present_field(
+      |> FieldParser.parse_present_field(
         :ha_export_mqtt_port,
-        get_field_value(attrs, :ha_export_mqtt_port, "ha_export_mqtt_port"),
+        FieldParser.get_field_value(attrs, :ha_export_mqtt_port, "ha_export_mqtt_port"),
         &parse_port/1
       )
 
@@ -121,39 +137,6 @@ defmodule Hueworks.AppSettings.HaExportConfig do
     end)
   end
 
-  defp get_field_value(attrs, atom_key, string_key) do
-    cond do
-      Map.has_key?(attrs, atom_key) -> Map.get(attrs, atom_key)
-      Map.has_key?(attrs, string_key) -> Map.get(attrs, string_key)
-      true -> :missing
-    end
-  end
-
-  defp parse_present_field({attrs, errors}, _key, :missing, _parse_fn), do: {attrs, errors}
-
-  defp parse_present_field({attrs, errors}, key, value, parse_fn) do
-    case parse_fn.(value) do
-      {:ok, parsed} ->
-        {Map.put(attrs, key, parsed), errors}
-
-      {:error, message} ->
-        {attrs, [{Atom.to_string(key), message} | errors]}
-    end
-  end
-
-  defp parse_string(value) when is_binary(value) do
-    trimmed = String.trim(value)
-
-    if trimmed == "" do
-      {:ok, nil}
-    else
-      {:ok, trimmed}
-    end
-  end
-
-  defp parse_string(nil), do: {:ok, nil}
-  defp parse_string(_), do: {:error, "must be a string"}
-
   defp parse_port(nil), do: {:ok, nil}
 
   defp parse_port(value) when is_integer(value) and value >= 1 and value <= 65_535,
@@ -176,24 +159,6 @@ defmodule Hueworks.AppSettings.HaExportConfig do
   end
 
   defp parse_port(_), do: {:error, "must be an integer"}
-
-  defp parse_bool(nil), do: {:ok, nil}
-
-  defp parse_bool(value) when is_binary(value) do
-    value = String.trim(value)
-
-    if value == "" do
-      {:ok, nil}
-    else
-      case Util.parse_optional_bool(value) do
-        nil -> {:error, "must be true or false"}
-        parsed -> {:ok, parsed}
-      end
-    end
-  end
-
-  defp parse_bool(value) when is_boolean(value), do: {:ok, value}
-  defp parse_bool(_), do: {:error, "must be true or false"}
 
   defp fallback_value({:ok, value}), do: value
 end

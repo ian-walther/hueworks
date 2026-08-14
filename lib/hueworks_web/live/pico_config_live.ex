@@ -378,58 +378,6 @@ defmodule HueworksWeb.PicoConfigLive do
      end}
   end
 
-  def handle_event("save_control_group", _params, socket) do
-    case {socket.assigns.selected_pico, socket.assigns.selected_control_group_id} do
-      {nil, _} ->
-        socket
-        |> assign(save_status: nil, save_error: "Select a Pico first.")
-        |> reply_with_save_notice()
-
-      {_, nil} ->
-        socket
-        |> assign(save_status: nil, save_error: "Select or create a control group first.")
-        |> reply_with_save_notice()
-
-      {device, group_id} ->
-        attrs = %{
-          "id" => group_id,
-          "name" => socket.assigns.control_group_name,
-          "group_ids" => socket.assigns.control_group_group_ids,
-          "light_ids" => socket.assigns.control_group_light_ids
-        }
-
-        case Picos.save_control_group(device, attrs) do
-          {:ok, updated} ->
-            socket
-            |> assign(save_status: "Control group saved.", save_error: nil)
-            |> reload_from_devices(
-              Picos.list_devices_for_bridge(socket.assigns.bridge.id),
-              updated.id
-            )
-            |> ControlGroupEditor.select(group_id)
-            |> reply_with_save_notice()
-
-          {:error, :invalid_targets} ->
-            socket
-            |> assign(
-              save_status: nil,
-              save_error: "Control group targets must stay in the Pico area."
-            )
-            |> reply_with_save_notice()
-
-          {:error, :invalid_name} ->
-            socket
-            |> assign(save_status: nil, save_error: "Control groups need a name.")
-            |> reply_with_save_notice()
-
-          {:error, reason} ->
-            socket
-            |> assign(save_status: nil, save_error: inspect(reason))
-            |> reply_with_save_notice()
-        end
-    end
-  end
-
   def handle_event("delete_control_group", %{"id" => id}, socket) do
     group_id = to_string(id)
 

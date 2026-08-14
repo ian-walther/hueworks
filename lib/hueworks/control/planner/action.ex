@@ -1,35 +1,32 @@
 defmodule Hueworks.Control.Planner.Action do
   @moduledoc false
 
-  defstruct [
-    :type,
-    :id,
-    :bridge_id,
-    :desired,
-    :light_ids,
-    :apply_opts,
-    :operation,
-    :group_candidate_light_ids
-  ]
-
   def light(
         id,
         bridge_id,
         desired,
-        apply_opts \\ %{},
-        operation \\ nil,
-        group_candidate_light_ids \\ nil
+        apply_opts,
+        operation,
+        group_candidate_light_ids
       ) do
-    %__MODULE__{
+    action = %{
       type: :light,
       id: id,
       bridge_id: bridge_id,
       desired: desired,
-      light_ids: [id],
-      apply_opts: apply_opts,
-      operation: operation,
-      group_candidate_light_ids: normalize_optional_light_ids(group_candidate_light_ids)
+      light_ids: [id]
     }
+
+    action =
+      if apply_opts in [%{}, nil], do: action, else: Map.put(action, :apply_opts, apply_opts)
+
+    action = if is_nil(operation), do: action, else: Map.put(action, :operation, operation)
+
+    if is_nil(group_candidate_light_ids) do
+      action
+    else
+      Map.put(action, :group_candidate_light_ids, normalize_light_ids(group_candidate_light_ids))
+    end
   end
 
   def group(
@@ -37,37 +34,28 @@ defmodule Hueworks.Control.Planner.Action do
         bridge_id,
         desired,
         light_ids,
-        apply_opts \\ %{},
-        operation \\ nil,
-        group_candidate_light_ids \\ nil
+        apply_opts,
+        operation,
+        group_candidate_light_ids
       ) do
-    %__MODULE__{
+    action = %{
       type: :group,
       id: id,
       bridge_id: bridge_id,
       desired: desired,
-      light_ids: normalize_light_ids(light_ids),
-      apply_opts: apply_opts,
-      operation: operation,
-      group_candidate_light_ids: normalize_optional_light_ids(group_candidate_light_ids)
+      light_ids: normalize_light_ids(light_ids)
     }
-  end
 
-  def to_map(%__MODULE__{} = action) do
-    action
-    |> Map.take([
-      :type,
-      :id,
-      :bridge_id,
-      :desired,
-      :light_ids,
-      :apply_opts,
-      :operation,
-      :group_candidate_light_ids
-    ])
-    |> maybe_drop(:apply_opts, [%{}, nil])
-    |> maybe_drop(:operation, [nil])
-    |> maybe_drop(:group_candidate_light_ids, [nil])
+    action =
+      if apply_opts in [%{}, nil], do: action, else: Map.put(action, :apply_opts, apply_opts)
+
+    action = if is_nil(operation), do: action, else: Map.put(action, :operation, operation)
+
+    if is_nil(group_candidate_light_ids) do
+      action
+    else
+      Map.put(action, :group_candidate_light_ids, normalize_light_ids(group_candidate_light_ids))
+    end
   end
 
   def attach_revisions(action, revisions_by_light)
@@ -91,11 +79,4 @@ defmodule Hueworks.Control.Planner.Action do
 
   defp normalize_light_ids(%MapSet{} = light_ids), do: MapSet.to_list(light_ids)
   defp normalize_light_ids(light_ids) when is_list(light_ids), do: light_ids
-
-  defp normalize_optional_light_ids(nil), do: nil
-  defp normalize_optional_light_ids(light_ids), do: normalize_light_ids(light_ids)
-
-  defp maybe_drop(map, key, values) do
-    if Map.get(map, key) in values, do: Map.delete(map, key), else: map
-  end
 end

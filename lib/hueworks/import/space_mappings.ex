@@ -11,7 +11,7 @@ defmodule Hueworks.Import.SpaceMappings do
 
     identity_by_source_id =
       Map.new(source_spaces, fn space ->
-        {source_id(space), SpaceIdentity.identity(space, bridge.type)}
+        {Normalize.entity_source_id(space), SpaceIdentity.identity(space, bridge.type)}
       end)
 
     with {:ok, persisted_spaces} <- ExternalSpaces.sync_bridge_spaces(bridge, spaces),
@@ -69,7 +69,7 @@ defmodule Hueworks.Import.SpaceMappings do
         |> Normalize.fetch(:areas)
         |> Kernel.||([])
         |> Enum.reduce(plan, fn source_space, acc ->
-          source_id = source_id(source_space)
+          source_id = Normalize.entity_source_id(source_space)
           identity = SpaceIdentity.identity(source_space, bridge_type)
 
           case Map.get(mappings, identity) do
@@ -165,7 +165,7 @@ defmodule Hueworks.Import.SpaceMappings do
     |> Normalize.fetch(:areas)
     |> Kernel.||([])
     |> Enum.each(fn source_space ->
-      source_id = source_id(source_space)
+      source_id = Normalize.entity_source_id(source_space)
       target_area_id = Map.get(destination_by_source_id, source_id)
 
       if is_integer(target_area_id) and reviewed_mapping?(plan, source_id) do
@@ -229,7 +229,7 @@ defmodule Hueworks.Import.SpaceMappings do
   end
 
   defp explicit_target(entity_plan, entry) do
-    source_id = source_id(entry)
+    source_id = Normalize.entity_source_id(entry)
     plan_entry = if is_binary(source_id), do: Normalize.fetch(entity_plan, source_id), else: nil
 
     case Normalize.fetch(plan_entry, :target_area_id) do
@@ -264,12 +264,6 @@ defmodule Hueworks.Import.SpaceMappings do
   end
 
   defp maybe_put_placement_area(plan, _suggestion, _target_area_id), do: plan
-
-  defp source_id(entry) do
-    entry
-    |> Normalize.fetch(:source_id)
-    |> Normalize.normalize_source_id()
-  end
 
   defp parse_integer(value) when is_integer(value), do: value
 

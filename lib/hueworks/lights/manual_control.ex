@@ -40,21 +40,20 @@ defmodule Hueworks.Lights.ManualControl do
 
   def apply_power_action(area_id, light_ids, action, opts \\ [])
 
-  def apply_power_action(area_id, light_ids, :on, opts)
-      when is_integer(area_id) and is_list(light_ids) and is_list(opts) do
-    trace = Keyword.get(opts, :trace) || power_trace(area_id, :on)
+  def apply_power_action(area_id, light_ids, power, opts)
+      when is_integer(area_id) and is_list(light_ids) and power in [:on, :off] and is_list(opts) do
+    trace = Keyword.get(opts, :trace) || power_trace(area_id, power)
+    baseline = if power == :on, do: ManualBaseline.power_on_state(), else: %{power: :off}
 
     case ActiveScenes.get_for_area(area_id) do
       nil ->
-        baseline = ManualBaseline.power_on_state()
-
         with {:ok, _diff} <- apply_updates(area_id, light_ids, baseline, trace: trace) do
           {:ok, baseline}
         end
 
       _active_scene ->
         case Scenes.recompute_active_scene_lights(area_id, light_ids,
-               power_override: :on,
+               power_override: power,
                origin: :manual,
                trace: trace
              ) do
@@ -62,36 +61,7 @@ defmodule Hueworks.Lights.ManualControl do
             {:ok, merged_updated_light_attrs(updated, light_ids)}
 
           {:ok, _diff, _updated} ->
-            {:ok, %{power: :on}}
-
-          other ->
-            other
-        end
-    end
-  end
-
-  def apply_power_action(area_id, light_ids, action, opts)
-      when is_integer(area_id) and is_list(light_ids) and action in [:off, "off"] and
-             is_list(opts) do
-    trace = Keyword.get(opts, :trace) || power_trace(area_id, :off)
-
-    case ActiveScenes.get_for_area(area_id) do
-      nil ->
-        with {:ok, _diff} <- apply_updates(area_id, light_ids, %{power: :off}, trace: trace) do
-          {:ok, %{power: :off}}
-        end
-
-      _active_scene ->
-        case Scenes.recompute_active_scene_lights(area_id, light_ids,
-               power_override: :off,
-               origin: :manual,
-               trace: trace
-             ) do
-          {:ok, _diff, updated} when map_size(updated) > 0 ->
-            {:ok, merged_updated_light_attrs(updated, light_ids)}
-
-          {:ok, _diff, _updated} ->
-            {:ok, %{power: :off}}
+            {:ok, %{power: power}}
 
           other ->
             other

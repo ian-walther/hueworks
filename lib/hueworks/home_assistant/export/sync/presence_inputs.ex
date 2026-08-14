@@ -3,10 +3,10 @@ defmodule Hueworks.HomeAssistant.Export.Sync.PresenceInputs do
 
   alias Hueworks.HomeAssistant.Export.Entities
   alias Hueworks.HomeAssistant.Export.Publisher
-  alias Hueworks.HomeAssistant.Export.Runtime
+  alias Hueworks.HomeAssistant.Export.Config
 
   def publish_all(publish_fun, config) when is_function(publish_fun, 3) do
-    if Runtime.export_enabled?(config) do
+    if Config.export_enabled?(config) do
       Entities.list_presence_inputs()
       |> Enum.each(fn input ->
         :ok = Publisher.publish_presence_input_payloads(publish_fun, input, config)
@@ -18,7 +18,7 @@ defmodule Hueworks.HomeAssistant.Export.Sync.PresenceInputs do
 
   def publish_area(publish_fun, area_id, config)
       when is_function(publish_fun, 3) and is_integer(area_id) do
-    if Runtime.export_enabled?(config) do
+    if Config.export_enabled?(config) do
       Entities.list_presence_inputs_for_area(area_id)
       |> Enum.each(fn input ->
         :ok = Publisher.publish_presence_input_payloads(publish_fun, input, config)
@@ -30,7 +30,7 @@ defmodule Hueworks.HomeAssistant.Export.Sync.PresenceInputs do
 
   def publish_one(publish_fun, input_id, config)
       when is_function(publish_fun, 3) and is_integer(input_id) do
-    if Runtime.export_enabled?(config) do
+    if Config.export_enabled?(config) do
       Publisher.publish_presence_input_payloads(
         publish_fun,
         Entities.fetch_presence_input(input_id),
@@ -43,7 +43,7 @@ defmodule Hueworks.HomeAssistant.Export.Sync.PresenceInputs do
 
   def unpublish_one(publish_fun, input_id, config)
       when is_function(publish_fun, 3) and is_integer(input_id) do
-    if Runtime.export_enabled?(config) do
+    if Config.export_enabled?(config) do
       Publisher.unpublish_presence_input_payloads(publish_fun, input_id, config)
     else
       :ok

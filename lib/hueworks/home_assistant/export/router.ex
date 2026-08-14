@@ -2,13 +2,14 @@ defmodule Hueworks.HomeAssistant.Export.Router do
   @moduledoc false
 
   alias Hueworks.HomeAssistant.Export.Messages
+  alias Hueworks.HomeAssistant.Export.Config
   alias Hueworks.HomeAssistant.Export.Messages.CommandTarget
   alias Hueworks.HomeAssistant.Export.Router.EntityCommands
   alias Hueworks.HomeAssistant.Export.Router.SceneCommands
 
   def dispatch(topic_levels, payload, config, publish_fun)
       when is_list(topic_levels) and is_function(publish_fun, 3) do
-    normalized_payload = Hueworks.HomeAssistant.Export.Runtime.normalize_payload(payload)
+    normalized_payload = Config.normalize_payload(payload)
 
     case {Messages.command_scene_id(topic_levels), Messages.command_area_id(topic_levels),
           Messages.command_export_target(topic_levels), normalized_payload} do

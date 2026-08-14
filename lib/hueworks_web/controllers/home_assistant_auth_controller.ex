@@ -5,6 +5,7 @@ defmodule HueworksWeb.HomeAssistantAuthController do
 
   alias Hueworks.Repo
   alias Hueworks.Schemas.Bridge
+  alias Hueworks.Util
   alias HueworksApp.Cache
 
   @pending_session_key "home_assistant_authorizations"
@@ -19,7 +20,7 @@ defmodule HueworksWeb.HomeAssistantAuthController do
   end
 
   def authorize(conn, %{"host" => host} = params) do
-    begin_authorization(conn, host, normalize_optional(params["external_id"]), nil)
+    begin_authorization(conn, host, Util.blank_to_nil(params["external_id"]), nil)
   end
 
   def authorize(conn, _params) do
@@ -230,15 +231,6 @@ defmodule HueworksWeb.HomeAssistantAuthController do
     |> put_flash(:error, message)
     |> redirect(to: destination)
   end
-
-  defp normalize_optional(value) when is_binary(value) do
-    case String.trim(value) do
-      "" -> nil
-      normalized -> normalized
-    end
-  end
-
-  defp normalize_optional(_value), do: nil
 
   defp random_state do
     32

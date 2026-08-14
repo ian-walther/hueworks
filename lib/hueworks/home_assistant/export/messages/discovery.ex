@@ -6,6 +6,7 @@ defmodule Hueworks.HomeAssistant.Export.Messages.Discovery do
   alias Hueworks.HomeAssistant.Export.Messages.Topics
   alias Hueworks.PublishedIdentity
   alias Hueworks.Schemas.{Group, Light, PresenceInput, Area, Scene}
+  alias Hueworks.Util
 
   def discovery_payload(%Scene{} = scene, config) do
     area_name = area_name(scene.area)
@@ -27,7 +28,7 @@ defmodule Hueworks.HomeAssistant.Export.Messages.Discovery do
         "model" => "Area Scenes"
       }
     }
-    |> maybe_put("configuration_url", configuration_url(config))
+    |> Util.put_unless_nil("configuration_url", configuration_url(config))
   end
 
   def scene_attributes_payload(%Scene{} = scene) do
@@ -59,7 +60,7 @@ defmodule Hueworks.HomeAssistant.Export.Messages.Discovery do
         "model" => "Area Scenes"
       }
     }
-    |> maybe_put("configuration_url", configuration_url(config))
+    |> Util.put_unless_nil("configuration_url", configuration_url(config))
   end
 
   def area_select_attributes_payload(%Area{} = area, scenes) when is_list(scenes) do
@@ -91,7 +92,7 @@ defmodule Hueworks.HomeAssistant.Export.Messages.Discovery do
       "json_attributes_topic" => Topics.entity_attributes_topic(kind, entity.id),
       "device" => area_device(entity)
     }
-    |> maybe_put("configuration_url", configuration_url(config))
+    |> Util.put_unless_nil("configuration_url", configuration_url(config))
   end
 
   def light_discovery_payload(kind, entity, config)
@@ -112,7 +113,7 @@ defmodule Hueworks.HomeAssistant.Export.Messages.Discovery do
       "transition" => false,
       "device" => area_device(entity)
     }
-    |> maybe_put("configuration_url", configuration_url(config))
+    |> Util.put_unless_nil("configuration_url", configuration_url(config))
     |> State.maybe_put_kelvin_range(entity)
   end
 
@@ -150,7 +151,7 @@ defmodule Hueworks.HomeAssistant.Export.Messages.Discovery do
         "model" => "Presence Inputs"
       }
     }
-    |> maybe_put("configuration_url", configuration_url(config))
+    |> Util.put_unless_nil("configuration_url", configuration_url(config))
   end
 
   def presence_input_attributes_payload(%PresenceInput{} = input) do
@@ -208,7 +209,4 @@ defmodule Hueworks.HomeAssistant.Export.Messages.Discovery do
     |> Enum.map(& &1.label)
     |> then(&["Manual" | &1])
   end
-
-  defp maybe_put(payload, _key, nil), do: payload
-  defp maybe_put(payload, key, value), do: Map.put(payload, key, value)
 end

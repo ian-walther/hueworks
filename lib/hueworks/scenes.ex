@@ -39,39 +39,22 @@ defmodule Hueworks.Scenes do
   end
 
   @spec get_editable_light_state(integer() | term()) :: struct() | nil
-  def get_editable_light_state(id) when is_integer(id) do
-    LightStates.get_editable(id)
-  end
-
-  def get_editable_light_state(_id), do: nil
+  def get_editable_light_state(id), do: LightStates.get_editable(id)
 
   @spec light_state_usages(integer() | term()) :: list(map())
-  def light_state_usages(id) when is_integer(id) do
-    LightStates.usages(id)
-  end
-
-  def light_state_usages(_id), do: []
+  def light_state_usages(id), do: LightStates.usages(id)
 
   @spec create_light_state(String.t(), light_state_type(), map()) ::
           {:ok, struct()} | {:error, term()}
   def create_light_state(name, type, config \\ %{})
 
-  def create_light_state(name, type, config)
-      when type in [:manual, :circadian] do
-    LightStates.create(name, type, config)
-  end
-
-  def create_light_state(_name, _type, _config), do: {:error, :invalid_type}
+  def create_light_state(name, type, config), do: LightStates.create(name, type, config)
 
   @spec update_light_state(integer(), map()) :: {:ok, struct()} | {:error, term()}
-  def update_light_state(id, attrs) when is_integer(id) and is_map(attrs) do
-    LightStates.update(id, attrs)
-  end
+  def update_light_state(id, attrs), do: LightStates.update(id, attrs)
 
   @spec duplicate_light_state(integer()) :: {:ok, struct()} | {:error, term()}
-  def duplicate_light_state(id) when is_integer(id) do
-    LightStates.duplicate(id)
-  end
+  def duplicate_light_state(id), do: LightStates.duplicate(id)
 
   @spec delete_light_state(integer()) :: :ok | {:error, term()}
   def delete_light_state(id) do
@@ -99,32 +82,19 @@ defmodule Hueworks.Scenes do
   end
 
   @spec refresh_active_scene(integer()) :: scene_apply_result()
-  def refresh_active_scene(scene_id) when is_integer(scene_id) do
-    Active.refresh_scene(scene_id)
-  end
+  def refresh_active_scene(scene_id), do: Active.refresh_scene(scene_id)
 
-  def active_scene_rehydrate_needed?(scene_id) when is_integer(scene_id) do
-    Active.rehydrate_needed?(scene_id)
-  end
+  def active_scene_rehydrate_needed?(scene_id), do: Active.rehydrate_needed?(scene_id)
 
-  def active_scene_rehydrate_needed?(_scene_id), do: false
-
-  def active_scene_follow_presence_light_ids(scene_id, presence_input_id)
-      when is_integer(scene_id) and is_integer(presence_input_id) do
-    Active.follow_presence_light_ids(scene_id, presence_input_id)
-  end
-
-  def active_scene_follow_presence_light_ids(_scene_id, _presence_input_id), do: []
+  def active_scene_follow_presence_light_ids(scene_id, presence_input_id),
+    do: Active.follow_presence_light_ids(scene_id, presence_input_id)
 
   @spec refresh_active_scenes_for_light_state(integer()) :: {:ok, list(struct())}
-  def refresh_active_scenes_for_light_state(light_state_id) when is_integer(light_state_id) do
-    Active.refresh_for_light_state(light_state_id)
-  end
+  def refresh_active_scenes_for_light_state(light_state_id),
+    do: Active.refresh_for_light_state(light_state_id)
 
   @spec activate_scene(integer(), keyword()) :: scene_apply_result()
-  def activate_scene(scene_id, opts \\ []) when is_integer(scene_id) do
-    SceneApply.activate_scene(scene_id, opts)
-  end
+  defdelegate activate_scene(scene_id, opts \\ []), to: SceneApply
 
   def toggle_activation(scene_id, trace_source) when is_integer(scene_id) do
     case get_scene(scene_id) do
@@ -151,37 +121,24 @@ defmodule Hueworks.Scenes do
   def toggle_activation(_scene_id, _trace_source), do: {:error, :invalid_args}
 
   @spec apply_scene(struct(), keyword()) :: scene_apply_result()
-  def apply_scene(%Scene{} = scene, opts \\ []) do
-    SceneApply.apply_scene(scene, opts)
-  end
+  defdelegate apply_scene(scene, opts \\ []), to: SceneApply
 
   @spec apply_active_scene(struct(), map(), keyword()) :: scene_apply_result()
-  def apply_active_scene(%Scene{} = scene, active_scene, opts \\ []) when is_list(opts) do
-    SceneApply.apply_active_scene(scene, active_scene, opts)
-  end
+  defdelegate apply_active_scene(scene, active_scene, opts \\ []), to: SceneApply
 
   @spec recompute_active_scene_lights(integer(), list(integer()), keyword()) ::
           scene_apply_result()
   def recompute_active_scene_lights(area_id, light_ids, opts \\ [])
 
-  def recompute_active_scene_lights(area_id, light_ids, opts)
-      when is_integer(area_id) and is_list(light_ids) do
-    Active.recompute_lights(area_id, light_ids, opts)
-  end
-
-  def recompute_active_scene_lights(_area_id, _light_ids, _opts), do: {:error, :invalid_args}
+  def recompute_active_scene_lights(area_id, light_ids, opts),
+    do: Active.recompute_lights(area_id, light_ids, opts)
 
   @spec recompute_active_circadian_lights(integer(), list(integer()), keyword()) ::
           scene_apply_result()
   def recompute_active_circadian_lights(area_id, light_ids, opts \\ [])
 
-  def recompute_active_circadian_lights(area_id, light_ids, opts)
-      when is_integer(area_id) and is_list(light_ids) do
-    Active.recompute_circadian_lights(area_id, light_ids, opts)
-  end
-
-  def recompute_active_circadian_lights(_area_id, _light_ids, _opts),
-    do: {:error, :invalid_args}
+  def recompute_active_circadian_lights(area_id, light_ids, opts),
+    do: Active.recompute_circadian_lights(area_id, light_ids, opts)
 
   @spec replace_scene_components(struct(), list(map())) :: :ok | {:error, term()}
   def replace_scene_components(%Scene{} = scene, components) when is_list(components) do

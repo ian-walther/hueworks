@@ -582,13 +582,16 @@ defmodule Hueworks.Subscription.Z2MHandlerTest do
 
     stale_state = %{state | last_refresh_at: System.monotonic_time(:millisecond) - 10_000}
 
-    assert {:ok, _refreshed_state} =
+    assert {:ok, refreshed_state} =
              Handler.handle_message(
                ["zigbee2mqtt", "late_device"],
                Jason.encode!(%{"state" => "ON", "brightness" => 127}),
                stale_state
              )
 
+    assert refreshed_state.client_id == state.client_id
+    assert refreshed_state.subscriptions == state.subscriptions
+    assert refreshed_state.subscribed? == state.subscribed?
     assert %{power: :on, brightness: 50} = State.get(:light, light.id)
   end
 end

@@ -64,7 +64,7 @@ defmodule Hueworks.Schemas.Bridge.Credentials do
     |> apply_action(:validate)
     |> case do
       {:ok, credentials} -> {:ok, dump(credentials)}
-      {:error, changeset} -> {:error, changeset_errors(changeset)}
+      {:error, changeset} -> {:error, Util.changeset_errors(changeset)}
     end
   end
 
@@ -88,21 +88,21 @@ defmodule Hueworks.Schemas.Bridge.Credentials do
 
   def dump(%__MODULE__{} = credentials) do
     %{}
-    |> maybe_put("api_key", credentials.api_key)
-    |> maybe_put("token", credentials.token)
-    |> maybe_put("cert_path", credentials.cert_path)
-    |> maybe_put("key_path", credentials.key_path)
-    |> maybe_put("cacert_path", credentials.cacert_path)
-    |> maybe_put("broker_port", credentials.broker_port)
-    |> maybe_put("username", credentials.username)
-    |> maybe_put("password", credentials.password)
-    |> maybe_put("base_topic", credentials.base_topic)
-    |> maybe_put("auth_type", credentials.auth_type)
-    |> maybe_put("access_token", credentials.access_token)
-    |> maybe_put("refresh_token", credentials.refresh_token)
-    |> maybe_put("expires_at", credentials.expires_at)
-    |> maybe_put("client_id", credentials.client_id)
-    |> maybe_put("auth_status", credentials.auth_status)
+    |> Util.put_unless_nil("api_key", credentials.api_key)
+    |> Util.put_unless_nil("token", credentials.token)
+    |> Util.put_unless_nil("cert_path", credentials.cert_path)
+    |> Util.put_unless_nil("key_path", credentials.key_path)
+    |> Util.put_unless_nil("cacert_path", credentials.cacert_path)
+    |> Util.put_unless_nil("broker_port", credentials.broker_port)
+    |> Util.put_unless_nil("username", credentials.username)
+    |> Util.put_unless_nil("password", credentials.password)
+    |> Util.put_unless_nil("base_topic", credentials.base_topic)
+    |> Util.put_unless_nil("auth_type", credentials.auth_type)
+    |> Util.put_unless_nil("access_token", credentials.access_token)
+    |> Util.put_unless_nil("refresh_token", credentials.refresh_token)
+    |> Util.put_unless_nil("expires_at", credentials.expires_at)
+    |> Util.put_unless_nil("client_id", credentials.client_id)
+    |> Util.put_unless_nil("auth_status", credentials.auth_status)
   end
 
   defp normalize_input(attrs) do
@@ -120,7 +120,8 @@ defmodule Hueworks.Schemas.Bridge.Credentials do
 
   defp normalize_value("broker_port", value), do: normalize_port(value)
   defp normalize_value("expires_at", value), do: normalize_integer(value)
-  defp normalize_value(_key, value), do: normalize_optional_string(value)
+  defp normalize_value(_key, value) when is_binary(value), do: Util.blank_to_nil(value)
+  defp normalize_value(_key, value), do: value
 
   defp normalize_port(value) do
     case Util.parse_optional_integer(value) do
@@ -135,13 +136,6 @@ defmodule Hueworks.Schemas.Bridge.Credentials do
       _ -> value
     end
   end
-
-  defp normalize_optional_string(value) when is_binary(value) do
-    value = String.trim(value)
-    if value == "", do: nil, else: value
-  end
-
-  defp normalize_optional_string(value), do: value
 
   defp prune_unused_fields(changeset, :hue) do
     changeset
@@ -180,20 +174,6 @@ defmodule Hueworks.Schemas.Bridge.Credentials do
       put_change(acc, field, nil)
     end)
   end
-
-  defp changeset_errors(changeset) do
-    traverse_errors(changeset, fn {message, opts} ->
-      Enum.reduce(opts, message, fn {key, value}, acc ->
-        String.replace(acc, "%{#{key}}", to_string(value))
-      end)
-    end)
-    |> Enum.flat_map(fn {field, messages} ->
-      Enum.map(List.wrap(messages), fn message -> {Atom.to_string(field), message} end)
-    end)
-  end
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 
   defp stringify_map(map) do
     Enum.into(map, %{}, fn {key, value} -> {to_string(key), value} end)

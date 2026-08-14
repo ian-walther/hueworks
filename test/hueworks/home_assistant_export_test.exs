@@ -84,7 +84,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
 
     scene = Repo.insert!(%Scene{name: "All Auto", area_id: area.id}) |> Repo.preload(:area)
 
-    payload = Export.discovery_payload(scene)
+    payload = Messages.discovery_payload(scene, Export.export_config())
 
     assert payload["name"] == "All Auto"
     assert payload["unique_id"] == "hueworks_scene_#{scene.id}"
@@ -135,7 +135,8 @@ defmodule Hueworks.HomeAssistant.ExportTest do
     scene_a = Repo.insert!(%Scene{name: "All Auto", area_id: area.id}) |> Repo.preload(:area)
     scene_b = Repo.insert!(%Scene{name: "All Auto", area_id: area.id}) |> Repo.preload(:area)
 
-    payload = Export.area_select_discovery_payload(area, [scene_a, scene_b])
+    payload =
+      Messages.area_select_discovery_payload(area, [scene_a, scene_b], Export.export_config())
 
     assert payload["name"] == "Scene"
     assert payload["unique_id"] == "persisted-main-floor-select"
@@ -201,7 +202,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
       })
       |> Repo.preload(:area)
 
-    payload = Export.switch_discovery_payload(:light, light)
+    payload = Messages.switch_discovery_payload(:light, light, Export.export_config())
 
     assert payload["name"] == "Kitchen Task"
     assert payload["unique_id"] == "hueworks_light_#{light.id}_switch"
@@ -230,7 +231,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
       })
       |> Repo.preload(:area)
 
-    payload = Export.light_discovery_payload(:group, group)
+    payload = Messages.light_discovery_payload(:group, group, Export.export_config())
 
     assert payload["schema"] == "json"
     assert payload["unique_id"] == "hueworks_group_#{group.id}_light"
@@ -253,7 +254,7 @@ defmodule Hueworks.HomeAssistant.ExportTest do
       })
       |> Repo.preload(:area)
 
-    payload = Export.presence_input_discovery_payload(input)
+    payload = Messages.presence_input_discovery_payload(input, Export.export_config())
 
     assert payload["platform"] == "switch"
     assert payload["name"] == "Desk Presence"
@@ -1331,17 +1332,26 @@ defmodule Hueworks.HomeAssistant.ExportTest do
   end
 
   test "command_scene_id parses scene ids from export topics" do
-    assert Export.command_scene_id("hueworks/ha_export/scenes/42/set") == 42
-    assert Export.command_scene_id(["hueworks", "ha_export", "scenes", "42", "set"]) == 42
-    assert Export.command_scene_id("hueworks/ha_export/scenes/not-a-number/set") == nil
-    assert Export.command_scene_id("hueworks/ha_export/other/42/set") == nil
+    assert Messages.command_scene_id("hueworks/ha_export/scenes/42/set") == 42
+    assert Messages.command_scene_id(["hueworks", "ha_export", "scenes", "42", "set"]) == 42
+    assert Messages.command_scene_id("hueworks/ha_export/scenes/not-a-number/set") == nil
+    assert Messages.command_scene_id("hueworks/ha_export/other/42/set") == nil
   end
 
   test "command_area_id parses area ids from area select topics" do
-    assert Export.command_area_id("hueworks/ha_export/areas/42/scene/set") == 42
-    assert Export.command_area_id(["hueworks", "ha_export", "areas", "42", "scene", "set"]) == 42
-    assert Export.command_area_id("hueworks/ha_export/areas/not-a-number/scene/set") == nil
-    assert Export.command_area_id("hueworks/ha_export/scenes/42/set") == nil
+    assert Messages.command_area_id("hueworks/ha_export/areas/42/scene/set") == 42
+
+    assert Messages.command_area_id([
+             "hueworks",
+             "ha_export",
+             "areas",
+             "42",
+             "scene",
+             "set"
+           ]) == 42
+
+    assert Messages.command_area_id("hueworks/ha_export/areas/not-a-number/scene/set") == nil
+    assert Messages.command_area_id("hueworks/ha_export/scenes/42/set") == nil
   end
 
   defp put_export_settings(attrs) do
