@@ -17,6 +17,7 @@ defmodule Hueworks.Control.Planner.Context do
     physical_by_light: %{},
     group_memberships: [],
     area_light_ids: MapSet.new(),
+    force_dispatch_light_ids: MapSet.new(),
     group_candidate_light_ids: MapSet.new(),
     protected_light_ids: MapSet.new()
   ]
@@ -38,6 +39,11 @@ defmodule Hueworks.Control.Planner.Context do
       physical_by_light: Map.get(snapshot, :physical_by_light, %{}),
       group_memberships: Map.get(snapshot, :group_memberships, []),
       area_light_ids: area_light_ids,
+      force_dispatch_light_ids:
+        opts
+        |> Keyword.get(:force_dispatch_light_ids, [])
+        |> light_id_set()
+        |> MapSet.intersection(area_light_ids),
       group_candidate_light_ids: initial_group_candidate_light_ids(opts, area_light_ids),
       protected_light_ids: light_id_set(Keyword.get(opts, :protected_light_ids, []))
     }
@@ -75,8 +81,13 @@ defmodule Hueworks.Control.Planner.Context do
     context
     |> diff_light_ids(diff)
     |> Enum.filter(fn id ->
-      differs_fun.(desired_for_light(context, id), physical_for_light(context, id))
+      force_dispatch?(context, id) or
+        differs_fun.(desired_for_light(context, id), physical_for_light(context, id))
     end)
+  end
+
+  def force_dispatch?(%__MODULE__{force_dispatch_light_ids: light_ids}, id) do
+    MapSet.member?(light_ids, id)
   end
 
   def group_candidate_light_ids(%__MODULE__{} = context, ids) do

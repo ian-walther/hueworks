@@ -102,6 +102,7 @@ defmodule Hueworks.Scenes.Apply do
         force_apply: force_apply,
         enqueue_mode: enqueue_mode,
         operation: operation,
+        force_dispatch_light_ids: Keyword.get(opts, :force_dispatch_light_ids),
         group_candidate_light_ids: Keyword.get(opts, :group_candidate_light_ids)
       )
 

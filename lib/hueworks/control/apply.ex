@@ -71,6 +71,7 @@ defmodule Hueworks.Control.Apply do
         :trace,
         :transition_ms,
         :operation,
+        :force_dispatch_light_ids,
         :group_candidate_light_ids,
         :protected_light_ids
       ])

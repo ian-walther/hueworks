@@ -105,6 +105,7 @@ defmodule Hueworks.Scenes.Active do
                 trace: Keyword.get(opts, :trace),
                 origin: Keyword.get(opts, :origin, :manual),
                 transition_policy: Keyword.get(opts, :transition_policy),
+                force_dispatch_light_ids: Keyword.get(opts, :force_dispatch_light_ids),
                 group_candidate_light_ids: Keyword.get(opts, :group_candidate_light_ids)
               )
           end

@@ -26,6 +26,8 @@ defmodule Hueworks.Lights.ManualControl do
 
       case ControlApply.commit_and_enqueue(txn, area_id,
              enqueue_mode: Keyword.get(opts, :enqueue_mode, :replace_targets),
+             force_dispatch_light_ids: light_ids,
+             group_candidate_light_ids: light_ids,
              origin: :manual,
              trace: trace
            ) do
@@ -53,6 +55,8 @@ defmodule Hueworks.Lights.ManualControl do
 
       _active_scene ->
         case Scenes.recompute_active_scene_lights(area_id, light_ids,
+               force_dispatch_light_ids: light_ids,
+               group_candidate_light_ids: light_ids,
                power_override: power,
                origin: :manual,
                trace: trace

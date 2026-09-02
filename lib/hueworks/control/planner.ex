@@ -37,10 +37,8 @@ defmodule Hueworks.Control.Planner do
 
     log_light_decisions(
       trace,
-      context.area_lights,
-      diff_light_ids,
-      context.desired_by_light,
-      context.physical_by_light
+      context,
+      diff_light_ids
     )
 
     actions =
@@ -258,31 +256,29 @@ defmodule Hueworks.Control.Planner do
 
   defp log_light_decisions(
          nil,
-         _area_lights,
-         _diff_light_ids,
-         _effective_desired_by_light,
-         _physical_by_light
+         _context,
+         _diff_light_ids
        ),
        do: :ok
 
   defp log_light_decisions(
          trace,
-         area_lights,
-         diff_light_ids,
-         effective_desired_by_light,
-         physical_by_light
+         context,
+         diff_light_ids
        ) do
     diff_light_ids = MapSet.new(diff_light_ids)
 
-    Enum.each(area_lights, fn light ->
+    Enum.each(context.area_lights, fn light ->
       if MapSet.member?(diff_light_ids, light.id) do
-        desired = Map.get(effective_desired_by_light, light.id) || %{}
-        physical = Map.get(physical_by_light, light.id, %{})
-        actionable = desired_differs_from_physical?(desired, physical)
+        desired = Context.desired_for_light(context, light.id)
+        physical = Context.physical_for_light(context, light.id)
+        force_dispatch? = Context.force_dispatch?(context, light.id)
+        actionable = force_dispatch? or desired_differs_from_physical?(desired, physical)
 
         reason =
           cond do
             map_size(desired) == 0 -> :empty_desired
+            force_dispatch? -> :explicit_manual_target
             actionable -> :differs_from_physical
             true -> :physical_already_matches
           end

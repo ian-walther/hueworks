@@ -3,8 +3,8 @@ defmodule Hueworks.LightsManualControlTest do
 
   alias Hueworks.Control.{DesiredState, Executor, State, TraceBuffer}
   alias Hueworks.Lights.ManualControl
-  alias Hueworks.Repo
-  alias Hueworks.Schemas.{Light, Area, Scene}
+  alias Hueworks.{ActiveScenes, Repo, Scenes}
+  alias Hueworks.Schemas.{Group, GroupLight, Light, Area, Scene}
 
   setup do
     TraceBuffer.clear()
@@ -191,6 +191,150 @@ defmodule Hueworks.LightsManualControlTest do
            ] = actions
 
     assert light_id == light.id
+  end
+
+  test "manual power action uses the exact target group instead of a larger hardware group", %{
+    actions_agent: actions_agent
+  } do
+    area = Repo.insert!(%Area{name: "Targeted Bedroom"})
+
+    bridge =
+      insert_bridge!(%{
+        name: "Targeted Hue Bridge",
+        type: :hue,
+        host: "192.168.1.95",
+        credentials: %{"api_key" => "test"}
+      })
+
+    ceiling =
+      Repo.insert!(%Light{
+        name: "Ceiling",
+        source: :hue,
+        source_id: "targeted-ceiling",
+        bridge_id: bridge.id,
+        area_id: area.id,
+        enabled: true,
+        supports_temp: true,
+        reported_min_kelvin: 2000,
+        reported_max_kelvin: 6500
+      })
+
+    lamp =
+      Repo.insert!(%Light{
+        name: "Lamp",
+        source: :hue,
+        source_id: "targeted-lamp",
+        bridge_id: bridge.id,
+        area_id: area.id,
+        enabled: true,
+        supports_temp: true,
+        reported_min_kelvin: 2000,
+        reported_max_kelvin: 6500
+      })
+
+    all_lights =
+      Repo.insert!(%Group{
+        name: "All Bedroom Lights",
+        source: :hue,
+        source_id: "targeted-all-lights",
+        bridge_id: bridge.id,
+        area_id: area.id,
+        enabled: true
+      })
+
+    ceiling_lights =
+      Repo.insert!(%Group{
+        name: "Ceiling Lights",
+        source: :hue,
+        source_id: "targeted-ceiling-lights",
+        bridge_id: bridge.id,
+        area_id: area.id,
+        enabled: true
+      })
+
+    Repo.insert!(%GroupLight{group_id: all_lights.id, light_id: ceiling.id})
+    Repo.insert!(%GroupLight{group_id: all_lights.id, light_id: lamp.id})
+    Repo.insert!(%GroupLight{group_id: ceiling_lights.id, light_id: ceiling.id})
+
+    {:ok, light_state} =
+      Scenes.create_manual_light_state("Targeted On", %{
+        "brightness" => "100",
+        "temperature" => "4000"
+      })
+
+    {:ok, scene} = Scenes.create_scene(%{name: "Targeted Auto", area_id: area.id})
+
+    {:ok, _scene} =
+      Scenes.replace_scene_components(scene, [
+        %{
+          name: "All",
+          light_ids: [ceiling.id, lamp.id],
+          light_state_id: to_string(light_state.id)
+        }
+      ])
+
+    {:ok, _active_scene} = ActiveScenes.set_active(scene)
+
+    desired = %{power: :on, brightness: 100, kelvin: 4000}
+
+    for light <- [ceiling, lamp] do
+      _ = DesiredState.put(:light, light.id, desired)
+      _ = State.put(:light, light.id, %{power: :off, brightness: 100, kelvin: 4000})
+    end
+
+    assert {:ok, _updated} =
+             ManualControl.apply_power_action(area.id, [ceiling.id], :on)
+
+    wait_for_action_count(actions_agent, 1)
+
+    assert [%{type: :group, id: group_id} | _] = Agent.get(actions_agent, & &1)
+    assert group_id == ceiling_lights.id
+  end
+
+  test "newer manual on is dispatched while an older off command is still settling", %{
+    actions_agent: actions_agent
+  } do
+    area = Repo.insert!(%Area{name: "Rapid Bedroom"})
+
+    bridge =
+      insert_bridge!(%{
+        name: "Rapid Hue Bridge",
+        type: :hue,
+        host: "192.168.1.96",
+        credentials: %{"api_key" => "test"}
+      })
+
+    light =
+      Repo.insert!(%Light{
+        name: "Rapid Lamp",
+        source: :hue,
+        source_id: "rapid-lamp",
+        bridge_id: bridge.id,
+        area_id: area.id,
+        enabled: true,
+        supports_temp: true,
+        reported_min_kelvin: 2000,
+        reported_max_kelvin: 6500
+      })
+
+    on_state = %{power: :on, brightness: 100, kelvin: 3000}
+    _ = DesiredState.put(:light, light.id, on_state)
+    _ = State.put(:light, light.id, on_state)
+
+    assert {:ok, %{power: :off}} =
+             ManualControl.apply_power_action(area.id, [light.id], :off)
+
+    wait_for_action_count(actions_agent, 1)
+
+    assert {:ok, %{power: :on}} =
+             ManualControl.apply_power_action(area.id, [light.id], :on)
+
+    wait_for_action_count(actions_agent, 2)
+
+    assert [
+             %{desired: %{power: :off}},
+             %{desired: %{power: :on}}
+           ] = Agent.get(actions_agent, &Enum.take(&1, 2))
   end
 
   test "manual brightness changes are rejected while a scene is active" do
