@@ -74,7 +74,7 @@ defmodule HueworksWeb.SceneBuilderComponent do
             </button>
           </header>
 
-          <div class="hw-scene-component-state-row">
+          <div class="hw-scene-field-row">
             <label class="hw-field-label" for={"scene-component-#{component.id}-light-state"}>Light state</label>
             <form phx-change="select_light_state" phx-target={@myself} data-component-id={component.id}>
               <input type="hidden" name="component_id" value={component.id} />
@@ -101,7 +101,7 @@ defmodule HueworksWeb.SceneBuilderComponent do
           </div>
 
           <%= if custom_manual?(component) do %>
-            <form class="hw-embedded-state-editor" phx-change="update_embedded_manual_config" phx-target={@myself} data-component-id={component.id}>
+            <form class="hw-tile hw-tile-quiet hw-embedded-state-editor" phx-change="update_embedded_manual_config" phx-target={@myself} data-component-id={component.id}>
               <input type="hidden" name="component_id" value={component.id} />
               <input type="hidden" name="mode" value="temperature" />
 
@@ -136,7 +136,7 @@ defmodule HueworksWeb.SceneBuilderComponent do
           <% end %>
 
           <%= if custom_color?(component) do %>
-            <form class="hw-embedded-state-editor" phx-change="update_embedded_manual_config" phx-target={@myself} data-component-id={component.id}>
+            <form class="hw-tile hw-tile-quiet hw-embedded-state-editor" phx-change="update_embedded_manual_config" phx-target={@myself} data-component-id={component.id}>
               <input type="hidden" name="component_id" value={component.id} />
               <input type="hidden" name="mode" value="color" />
 
@@ -192,7 +192,7 @@ defmodule HueworksWeb.SceneBuilderComponent do
           <% end %>
 
           <%= if @builder.available_lights != [] do %>
-            <div class="hw-field-group hw-scene-add-field">
+            <div class="hw-scene-field-row">
               <label class="hw-field-label" for={"scene-component-#{component.id}-add-light"}>Add light</label>
               <form phx-change="select_light" phx-target={@myself} data-component-id={component.id}>
                 <input type="hidden" name="component_id" value={component.id} />
@@ -207,7 +207,7 @@ defmodule HueworksWeb.SceneBuilderComponent do
           <% end %>
 
           <%= if @builder.available_groups != [] do %>
-            <div class="hw-field-group hw-scene-add-field">
+            <div class="hw-scene-field-row">
               <label class="hw-field-label" for={"scene-component-#{component.id}-add-group"}>Add group</label>
               <form phx-change="select_group" phx-target={@myself} data-component-id={component.id}>
                 <input type="hidden" name="component_id" value={component.id} />
@@ -475,7 +475,7 @@ defmodule HueworksWeb.SceneBuilderComponent do
 
     ~H"""
     <div class="hw-group-node" id={"scene-component-#{@component.id}-group-#{@node.group_id}"}>
-      <div class="hw-data-row hw-scene-member-row hw-group-node-row">
+      <div class="hw-data-row hw-tile hw-scene-member-row hw-group-node-row">
         <button
           type="button"
           class="hw-group-toggle"
@@ -546,7 +546,7 @@ defmodule HueworksWeb.SceneBuilderComponent do
       |> assign_new(:class, fn -> nil end)
 
     ~H"""
-    <div id={@id} class={["hw-data-row hw-scene-member-row", @class]}>
+    <div id={@id} class={["hw-data-row hw-tile hw-scene-member-row", @class]}>
       <strong><%= light_name(@area_lights, @light_id) %></strong>
       <.power_policy_controls
         component={@component}

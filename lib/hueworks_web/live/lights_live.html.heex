@@ -27,9 +27,9 @@
           <%= length(Filters.filter_entities(@groups, @group_filter, @group_area_filter, @show_disabled_groups)) %>
         </span>
       </div>
-      <div class="hw-filter-row hw-filter-toolbar">
+      <div class="hw-filter-toolbar">
         <form class="hw-filter" phx-change="set_group_filter">
-          <select name="group_filter" class="hw-select">
+          <select name="group_filter" class="hw-field-select">
             <option value="all" selected={@group_filter == "all"}>All</option>
             <option value="hue" selected={@group_filter == "hue"}>Hue</option>
             <option value="ha" selected={@group_filter == "ha"}>HA</option>
@@ -38,7 +38,7 @@
           </select>
         </form>
         <form class="hw-filter" phx-change="set_group_area_filter">
-          <select name="group_area_filter" class="hw-select">
+          <select name="group_area_filter" class="hw-field-select">
             <option value="all" selected={@group_area_filter == "all"}>All Areas</option>
             <option value="unassigned" selected={@group_area_filter == "unassigned"}>
               Unassigned
@@ -97,7 +97,7 @@
                   <% end %>
                 </p>
               </div>
-              <span class="hw-pill">group</span>
+              <span class="hw-status-badge">group</span>
             </div>
 
             <div class="hw-entity-control-row">
@@ -131,9 +131,9 @@
           <%= length(Filters.filter_lights(@lights, @light_filter, @light_area_filter, @show_disabled_lights, @show_linked_lights)) %>
         </span>
       </div>
-      <div class="hw-filter-row hw-filter-toolbar">
+      <div class="hw-filter-toolbar">
         <form class="hw-filter" phx-change="set_light_filter">
-          <select name="light_filter" class="hw-select">
+          <select name="light_filter" class="hw-field-select">
             <option value="all" selected={@light_filter == "all"}>All</option>
             <option value="hue" selected={@light_filter == "hue"}>Hue</option>
             <option value="ha" selected={@light_filter == "ha"}>HA</option>
@@ -142,7 +142,7 @@
           </select>
         </form>
         <form class="hw-filter" phx-change="set_light_area_filter">
-          <select name="light_area_filter" class="hw-select">
+          <select name="light_area_filter" class="hw-field-select">
             <option value="all" selected={@light_area_filter == "all"}>All Areas</option>
             <option value="unassigned" selected={@light_area_filter == "unassigned"}>
               Unassigned
@@ -214,7 +214,7 @@
               </div>
               <span
                 :if={to_string(light.source_id) != Hueworks.Util.display_name(light)}
-                class="hw-pill"
+                class="hw-status-badge"
                 title="Source ID"
               >
                 ID <%= light.source_id %>
@@ -371,7 +371,7 @@
             </div>
           </div>
         <% end %>
-        <div class="hw-modal-actions">
+        <div class="hw-form-actions">
           <button type="button" class="hw-button hw-button-off" phx-click="close_edit">Cancel</button>
           <button type="submit" class="hw-button hw-button-on">Save</button>
         </div>

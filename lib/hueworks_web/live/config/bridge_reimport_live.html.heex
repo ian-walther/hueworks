@@ -10,7 +10,7 @@
   ]}
   flash={@flash}
 >
-  <div :if={@import_status == :loading} class="hw-import-loading" role="status" aria-live="polite">
+  <div :if={@import_status == :loading} class="hw-card hw-loading-card" role="status" aria-live="polite">
     <span class="hw-loading-mark" aria-hidden="true"></span>
     <div>
       <h2>Checking <%= @bridge.name %></h2>
@@ -18,13 +18,13 @@
     </div>
   </div>
 
-  <div :if={@import_status == :error and is_nil(@review)} class="hw-state-message hw-state-message-error">
+  <div :if={@import_status == :error and is_nil(@review)} class="hw-callout hw-callout-danger hw-callout-block">
     <h2>Could not check the bridge</h2>
     <p><%= @import_error %></p>
     <button type="button" class="hw-button" phx-click="import_configuration">Try again</button>
   </div>
 
-  <section :if={@import_status == :applied} id="reimport-complete" class="hw-completion-panel">
+  <section :if={@import_status == :applied} id="reimport-complete" class="hw-panel hw-completion-panel hw-tone-success">
     <div>
       <p class="hw-eyebrow">Bridge review complete</p>
       <h2>Changes applied safely</h2>
@@ -34,47 +34,47 @@
       </p>
     </div>
 
-    <div class="hw-summary-strip" aria-label="Applied bridge changes">
-      <div class="hw-summary-stat"><strong><%= @completion_summary.import %></strong><span>imported</span></div>
-      <div class="hw-summary-stat"><strong><%= @completion_summary.disable %></strong><span>disabled</span></div>
-      <div class="hw-summary-stat"><strong><%= @completion_summary.delete %></strong><span>deleted</span></div>
-      <div class="hw-summary-stat hw-summary-stat-changed">
+    <div class="hw-stat-strip" aria-label="Applied bridge changes">
+      <div class="hw-stat-tile"><strong><%= @completion_summary.import %></strong><span>imported</span></div>
+      <div class="hw-stat-tile"><strong><%= @completion_summary.disable %></strong><span>disabled</span></div>
+      <div class="hw-stat-tile"><strong><%= @completion_summary.delete %></strong><span>deleted</span></div>
+      <div class="hw-stat-tile hw-tone-warning">
         <strong><%= @completion_summary.automatic_updates %></strong><span>bridge facts refreshed</span>
       </div>
     </div>
 
-    <div class="hw-completion-actions">
+    <div class="hw-actions">
       <a class="hw-button hw-button-primary" href="/config/bridges">Return to bridges</a>
       <button class="hw-button" type="button" phx-click="import_configuration">Review again</button>
     </div>
   </section>
 
   <%= if @review do %>
-    <section class="hw-review-summary" aria-label="Reimport summary">
+    <section class="hw-panel hw-review-summary" aria-label="Reimport summary">
       <div class="hw-review-summary-intro">
         <p class="hw-eyebrow">Bridge review</p>
         <h2>What changed</h2>
         <p>HueWorks-owned names, areas, enablement, exports, scenes, and Pico configuration stay untouched unless you explicitly choose otherwise.</p>
       </div>
-      <div class="hw-summary-strip">
-        <div class="hw-summary-stat hw-summary-stat-removed">
+      <div class="hw-stat-strip">
+        <div class="hw-stat-tile hw-tone-danger">
           <strong><%= @review.summary.removed %></strong><span>Removed</span>
         </div>
-        <div class="hw-summary-stat">
+        <div class="hw-stat-tile">
           <strong><%= @review.summary.existing %></strong><span>Existing</span>
         </div>
-        <div class="hw-summary-stat hw-summary-stat-new">
+        <div class="hw-stat-tile hw-tone-success">
           <strong><%= @review.summary.new %></strong><span>New</span>
         </div>
-        <div class="hw-summary-stat hw-summary-stat-changed">
+        <div class="hw-stat-tile hw-tone-warning">
           <strong><%= @review.summary.automatic_updates %></strong><span>Auto updates</span>
         </div>
-        <div class="hw-summary-stat">
+        <div class="hw-stat-tile">
           <strong><%= @review.summary.unchanged %></strong><span>Unchanged</span>
         </div>
         <div class={[
-          "hw-summary-stat",
-          @review.summary.membership_warnings > 0 && "hw-summary-stat-warning"
+          "hw-stat-tile",
+          @review.summary.membership_warnings > 0 && "hw-tone-warning"
         ]}>
           <strong><%= @review.summary.membership_warnings %></strong><span>Warnings</span>
         </div>
@@ -86,19 +86,19 @@
         @review.summary.removed == 0 and @review.summary.new == 0 and
           @review.summary.automatic_updates == 0 and @review.summary.membership_warnings == 0
       }
-      class="hw-state-message hw-state-message-success"
+      class="hw-callout hw-callout-success hw-callout-block"
     >
       <p class="hw-eyebrow">Up to date</p>
       <h2>No bridge changes need your attention</h2>
       <p><%= @review.summary.unchanged %> existing entities match the latest bridge observation.</p>
-      <div class="hw-completion-actions">
+      <div class="hw-actions">
         <a class="hw-button hw-button-primary" href="/config/bridges">Return to bridges</a>
       </div>
     </div>
 
     <section
       :if={HueworksWeb.BridgeReimportLive.review_attention?(@review.summary)}
-      class="hw-review-section hw-review-section-removed"
+      class="hw-panel hw-review-section hw-review-section-danger"
       id="removed-from-bridge"
     >
       <header class="hw-review-section-header">
@@ -115,9 +115,9 @@
       <div :for={area <- @review.removed} class="hw-review-area">
         <h3 class="hw-review-area-title"><%= area.area %></h3>
         <div class="hw-review-rows">
-          <article :for={item <- area.items} class="hw-review-row" id={"removed-#{item.type}-#{item.source_id}"}>
+          <article :for={item <- area.items} class="hw-tile hw-review-row" id={"removed-#{item.type}-#{item.source_id}"}>
             <div class="hw-review-entity">
-              <span class="hw-status-badge hw-status-badge-removed">Removed upstream</span>
+              <span class="hw-status-badge hw-status-badge-danger">Removed upstream</span>
               <h4><%= item.name %></h4>
               <p><%= item.type_label %> · <%= item.source_id %> · HueWorks area: <%= item.current_area %></p>
             </div>
@@ -130,7 +130,7 @@
               >
                 <input type="hidden" name="type" value={if item.type == :light, do: "lights", else: "groups"} />
                 <input type="hidden" name="source_id" value={item.source_id} />
-                <select id={"resolution-#{item.type}-#{item.source_id}"} class="hw-select" name="resolution">
+                <select id={"resolution-#{item.type}-#{item.source_id}"} class="hw-field-select" name="resolution">
                   <%= for {label, value} <- HueworksWeb.BridgeReimportLive.resolution_options(item.status) do %>
                     <option value={value} selected={item.resolution == value}><%= label %></option>
                   <% end %>
@@ -154,7 +154,7 @@
 
     <section
       :if={HueworksWeb.BridgeReimportLive.review_attention?(@review.summary)}
-      class="hw-review-section"
+      class="hw-panel hw-review-section"
       id="existing-entities"
     >
       <header class="hw-review-section-header">
@@ -174,13 +174,13 @@
           <span><%= length(area.items) %> entities</span>
         </header>
 
-        <details :if={area.membership_warnings != []} class="hw-review-disclosure hw-review-disclosure-warning" open>
+        <details :if={area.membership_warnings != []} class="hw-disclosure hw-review-disclosure hw-tone-warning" open>
           <summary>
             <span>Membership Warnings</span>
             <span class="hw-count"><%= length(area.membership_warnings) %></span>
           </summary>
           <div class="hw-review-rows">
-            <article :for={item <- area.membership_warnings} class="hw-review-row">
+            <article :for={item <- area.membership_warnings} class="hw-tile hw-review-row">
               <div class="hw-review-entity">
                 <span class="hw-status-badge hw-status-badge-warning">Membership kept</span>
                 <h4><%= item.name %></h4>
@@ -191,15 +191,15 @@
           </div>
         </details>
 
-        <details :if={area.automatic_updates != []} class="hw-review-disclosure">
+        <details :if={area.automatic_updates != []} class="hw-disclosure hw-review-disclosure">
           <summary>
             <span>Automatic Updates</span>
             <span class="hw-count"><%= length(area.automatic_updates) %></span>
           </summary>
           <div class="hw-review-rows">
-            <article :for={item <- area.automatic_updates} class="hw-review-row hw-review-row-comparison">
+            <article :for={item <- area.automatic_updates} class="hw-tile hw-review-row hw-review-row-comparison">
               <div class="hw-review-entity">
-                <span class="hw-status-badge hw-status-badge-changed">Auto refresh</span>
+                <span class="hw-status-badge hw-status-badge-success">Auto refresh</span>
                 <h4><%= item.name %></h4>
                 <p><%= item.type_label %> · stays in <%= item.current_area %></p>
               </div>
@@ -220,7 +220,7 @@
           </div>
         </details>
 
-        <details :if={area.unchanged != []} class="hw-review-disclosure">
+        <details :if={area.unchanged != []} class="hw-disclosure hw-review-disclosure">
           <summary>
             <span>Unchanged</span>
             <span class="hw-count"><%= length(area.unchanged) %></span>
@@ -237,7 +237,7 @@
 
     <section
       :if={HueworksWeb.BridgeReimportLive.review_attention?(@review.summary)}
-      class="hw-review-section hw-review-section-new"
+      class="hw-panel hw-review-section hw-review-section-success"
       id="new-on-bridge"
     >
       <header class="hw-review-section-header">
@@ -269,11 +269,11 @@
           <span>Bridge area</span>
         </header>
         <div class="hw-review-rows">
-          <article :for={item <- area.items} class="hw-review-row" id={"new-#{item.type}-#{item.source_id}"}>
+          <article :for={item <- area.items} class="hw-tile hw-review-row" id={"new-#{item.type}-#{item.source_id}"}>
             <div class="hw-review-entity">
               <span class={[
                 "hw-status-badge",
-                item.status == :new && "hw-status-badge-new",
+                item.status == :new && "hw-status-badge-success",
                 item.status in [:duplicate, :ambiguous_identity] && "hw-status-badge-warning"
               ]}>
                 <%= HueworksWeb.BridgeReimportLive.status_label(item.status) %>
@@ -296,7 +296,7 @@
               >
                 <input type="hidden" name="type" value={if item.type == :light, do: "lights", else: "groups"} />
                 <input type="hidden" name="source_id" value={item.source_id} />
-                <select id={"resolution-#{item.type}-#{item.source_id}"} class="hw-select" name="resolution">
+                <select id={"resolution-#{item.type}-#{item.source_id}"} class="hw-field-select" name="resolution">
                   <%= for {label, value} <- HueworksWeb.BridgeReimportLive.resolution_options(item.status) do %>
                     <option value={value} selected={item.resolution == value}><%= label %></option>
                   <% end %>
@@ -313,7 +313,7 @@
                 <input type="hidden" name="type" value={if item.type == :light, do: "lights", else: "groups"} />
                 <input type="hidden" name="source_id" value={item.source_id} />
                 <label for={"area-#{item.type}-#{item.source_id}"}>HueWorks destination</label>
-                <select id={"area-#{item.type}-#{item.source_id}"} class="hw-select" name="target_area_id">
+                <select id={"area-#{item.type}-#{item.source_id}"} class="hw-field-select" name="target_area_id">
                   <option value="unassigned" selected={item.target_area_id in [nil, "unassigned"]}>Unassigned</option>
                   <%= if create_value = HueworksWeb.BridgeReimportLive.create_area_value(@reimport.plan, item.incoming) do %>
                     <option value={create_value} selected={item.target_area_id == "bridge_area"}>
@@ -335,7 +335,7 @@
 
     <aside
       :if={HueworksWeb.BridgeReimportLive.review_attention?(@review.summary)}
-      class="hw-review-action-bar"
+      class="hw-action-bar"
       aria-label="Apply bridge changes"
     >
       <div>
@@ -363,11 +363,11 @@
     <div
       :if={@destructive_confirmation != []}
       id="destructive-reimport-confirmation"
-      class="hw-confirmation-backdrop"
+      class="hw-modal-backdrop"
       role="presentation"
     >
       <section
-        class="hw-confirmation-dialog"
+        class="hw-modal hw-modal-wide"
         role="alertdialog"
         aria-modal="true"
         aria-labelledby="destructive-confirmation-title"
@@ -389,7 +389,7 @@
           </article>
         </div>
 
-        <div class="hw-modal-actions">
+        <div class="hw-form-actions">
           <button class="hw-button" type="button" phx-click="cancel_destructive_confirmation">Cancel</button>
           <button
             class="hw-button hw-delete-button"

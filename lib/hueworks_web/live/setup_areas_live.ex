@@ -284,7 +284,7 @@ defmodule HueworksWeb.SetupAreasLive do
       </header>
 
       <div class="hw-floor-primary-paths">
-        <form phx-submit="use_floor_one" class="hw-floor-path-card hw-floor-path-card-featured">
+        <form phx-submit="use_floor_one" class="hw-tile hw-tone-accent hw-floor-path-card">
           <input type="hidden" name="bridge_id" value={@entry.bridge.id} />
           <input type="hidden" name="external_id" value={@floor.space.external_id} />
           <div>
@@ -315,7 +315,7 @@ defmodule HueworksWeb.SetupAreasLive do
           <% end %>
         </form>
 
-        <div class="hw-floor-path-card">
+        <div class="hw-tile hw-floor-path-card">
           <div>
             <p class="hw-eyebrow">Preserve boundaries</p>
             <h4>Keep HA Areas separate</h4>
@@ -338,17 +338,17 @@ defmodule HueworksWeb.SetupAreasLive do
 
       <details
         id={"customize-floor-#{@entry.bridge.id}-#{@floor.space.external_id}"}
-        class="hw-floor-customizer"
+        class="hw-disclosure hw-floor-customizer"
         open={@open}
       >
         <summary>
-          <span class="hw-floor-customizer-copy">
+          <span class="hw-disclosure-copy">
             <strong>Customize individual Areas</strong>
             <span>Mix existing Areas, new Areas, and intentionally ignored HA Areas.</span>
           </span>
           <span class="hw-status-badge">Advanced</span>
         </summary>
-        <div class="hw-floor-customizer-body">
+        <div class="hw-disclosure-body">
           <div :if={@pending_children != []} class="hw-source-space-list">
             <.space_row :for={child <- @pending_children} entry={@entry} item={child} areas={@areas} />
           </div>
@@ -386,7 +386,7 @@ defmodule HueworksWeb.SetupAreasLive do
 
   def space_row(assigns) do
     ~H"""
-    <article class="hw-source-space-row" id={"ha-area-#{@entry.bridge.id}-#{@item.space.external_id}"}>
+    <article class="hw-tile" id={"ha-area-#{@entry.bridge.id}-#{@item.space.external_id}"}>
       <header class="hw-source-space-copy">
         <div>
           <p class="hw-eyebrow">HA Area</p>
@@ -399,7 +399,7 @@ defmodule HueworksWeb.SetupAreasLive do
       </header>
 
       <div class="hw-space-action-grid">
-        <form class="hw-space-action-card" phx-submit="create_area_for_space">
+        <form class="hw-tile hw-space-action-card" phx-submit="create_area_for_space">
           <input type="hidden" name="bridge_id" value={@entry.bridge.id} />
           <input type="hidden" name="kind" value={@item.space.kind} />
           <input type="hidden" name="external_id" value={@item.space.external_id} />
@@ -419,7 +419,7 @@ defmodule HueworksWeb.SetupAreasLive do
 
         <form
           id={"map-space-#{@entry.bridge.id}-#{@item.space.external_id}"}
-          class="hw-space-action-card"
+          class="hw-tile hw-space-action-card"
           phx-submit="map_space"
         >
           <input type="hidden" name="bridge_id" value={@entry.bridge.id} />
@@ -433,7 +433,7 @@ defmodule HueworksWeb.SetupAreasLive do
           <select
             id={"existing-area-#{@entry.bridge.id}-#{@item.space.external_id}"}
             name="target_area_id"
-            class="hw-select"
+            class="hw-field-select"
             aria-label={"Destination for #{@item.space.name}"}
           >
             <option value="">Choose an existing Area</option>
@@ -448,7 +448,7 @@ defmodule HueworksWeb.SetupAreasLive do
           <button type="submit" class="hw-button hw-button-small">Use selected Area</button>
         </form>
 
-        <div class="hw-space-action-card hw-space-ignore-action">
+        <div class="hw-tile hw-tile-dashed hw-space-action-card hw-space-ignore-action">
           <div>
             <strong>Ignore this HA Area</strong>
             <p class="hw-meta">Save that HueWorks should not create or choose a destination.</p>

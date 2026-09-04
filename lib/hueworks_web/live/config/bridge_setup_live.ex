@@ -320,7 +320,7 @@ defmodule HueworksWeb.BridgeSetupLive do
             value={elem(mapping_identity, 1)}
           />
           <label class="hw-sr-only" for={"unassigned-area-#{@type}-#{source_id}"}>HueWorks area</label>
-          <select id={"unassigned-area-#{@type}-#{source_id}"} class="hw-select" name="target_area_id">
+          <select id={"unassigned-area-#{@type}-#{source_id}"} class="hw-field-select" name="target_area_id">
             <option value="">Unassigned</option>
             <%= for area <- @areas do %>
               <option

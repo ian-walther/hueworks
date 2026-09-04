@@ -85,8 +85,8 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
     assert html =~ "Import complete"
     assert html =~ "2 lights"
     assert html =~ "2 groups"
-    assert has_element?(view, ".hw-summary-stat:first-child strong", "2")
-    assert has_element?(view, ".hw-summary-stat:first-child span", "areas created")
+    assert has_element?(view, ".hw-stat-tile:first-child strong", "2")
+    assert has_element?(view, ".hw-stat-tile:first-child span", "areas created")
     assert html =~ ~s(href="/areas")
     assert html =~ "Review areas"
     assert html =~ "Create First Scene"
@@ -1067,7 +1067,7 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
     render(reimport_view)
 
     assert has_element?(reimport_view, "section[aria-label='Reimport summary']")
-    assert has_element?(reimport_view, ".hw-state-message-success")
+    assert has_element?(reimport_view, ".hw-callout-success")
     assert has_element?(reimport_view, "a[href='/config/bridges']", "Return to bridges")
     refute has_element?(reimport_view, "#apply-reimport")
     refute has_element?(reimport_view, "#initial-import-review")

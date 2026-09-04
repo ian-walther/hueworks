@@ -10,7 +10,7 @@
   ]}
   flash={@flash}
 >
-  <div :if={@import_status == :loading} class="hw-import-loading" role="status" aria-live="polite">
+  <div :if={@import_status == :loading} class="hw-card hw-loading-card" role="status" aria-live="polite">
     <span class="hw-loading-mark" aria-hidden="true"></span>
     <div>
       <h2>Discovering <%= @bridge.name %></h2>
@@ -18,13 +18,13 @@
     </div>
   </div>
 
-  <div :if={@import_status == :error and is_nil(@normalized)} class="hw-state-message hw-state-message-error">
+  <div :if={@import_status == :error and is_nil(@normalized)} class="hw-callout hw-callout-danger hw-callout-block">
     <h2>Could not load the bridge</h2>
     <p><%= @import_error %></p>
     <button type="button" class="hw-button" phx-click="import_configuration">Try again</button>
   </div>
 
-  <section :if={@import_status == :applied} id="initial-import-complete" class="hw-completion-panel">
+  <section :if={@import_status == :applied} id="initial-import-complete" class="hw-panel hw-completion-panel hw-tone-success">
     <div>
       <p class="hw-eyebrow">Bridge connected</p>
       <h2>Import complete</h2>
@@ -34,11 +34,11 @@
       </p>
     </div>
 
-    <div class="hw-summary-strip" aria-label="Initial import summary">
-      <div class="hw-summary-stat"><strong><%= @completion_summary.areas_created %></strong><span>areas created</span></div>
-      <div class="hw-summary-stat"><strong><%= @completion_summary.areas_merged %></strong><span>areas merged</span></div>
-      <div class="hw-summary-stat"><strong><%= @completion_summary.hidden_duplicates %></strong><span>linked wrappers</span></div>
-      <div class="hw-summary-stat"><strong><%= @completion_summary.unassigned %></strong><span>unassigned</span></div>
+    <div class="hw-stat-strip" aria-label="Initial import summary">
+      <div class="hw-stat-tile"><strong><%= @completion_summary.areas_created %></strong><span>areas created</span></div>
+      <div class="hw-stat-tile"><strong><%= @completion_summary.areas_merged %></strong><span>areas merged</span></div>
+      <div class="hw-stat-tile"><strong><%= @completion_summary.hidden_duplicates %></strong><span>linked wrappers</span></div>
+      <div class="hw-stat-tile"><strong><%= @completion_summary.unassigned %></strong><span>unassigned</span></div>
     </div>
 
     <div :if={@completion_summary.unassigned > 0} class="hw-callout hw-callout-accent">
@@ -46,7 +46,7 @@
       Inspect Lights before creating scenes so every device lands in the intended HueWorks area.
     </div>
 
-    <div class="hw-completion-actions">
+    <div class="hw-actions">
       <a class="hw-button hw-button-primary" href="/areas">Review areas</a>
       <a class="hw-button" href="/lights">Inspect lights</a>
       <a
@@ -75,7 +75,7 @@
       |> Enum.filter(&is_binary/1)
     %>
 
-    <section id="initial-import-review" class="hw-import-intro">
+    <section id="initial-import-review" class="hw-panel hw-import-intro">
       <div>
         <p class="hw-eyebrow">Initial composition</p>
         <h2>Select the bridge entities HueWorks should manage</h2>
@@ -92,7 +92,7 @@
     </section>
 
     <section class="hw-import-area-list" aria-label="Bridge areas">
-      <article :for={area <- areas} class="hw-import-area-card">
+      <article :for={area <- areas} class="hw-panel hw-import-area-card">
         <% area_id = fetch(area, :source_id) %>
         <% area_key = Hueworks.Import.Normalize.normalize_source_id(area_id) %>
         <% suggestion = space_suggestion(@space_suggestions, area) %>
@@ -137,7 +137,7 @@
             <form phx-change="set_area_action" data-area-id={area_id}>
               <input type="hidden" name="area_id" value={area_id} />
               <label class="hw-sr-only" for={"area-action-#{area_id}"}>Area action</label>
-              <select id={"area-action-#{area_id}"} class="hw-select" name="action">
+              <select id={"area-action-#{area_id}"} class="hw-field-select" name="action">
                 <option value="create" selected={area_action(@plan, area_id) == "create"}>Create area</option>
                 <option value="merge" selected={area_action(@plan, area_id) == "merge"}>Merge into</option>
                 <option value="skip" selected={area_action(@plan, area_id) == "skip"}>Skip area</option>
@@ -146,7 +146,7 @@
             <form :if={area_action(@plan, area_id) == "merge"} phx-change="set_area_merge" data-area-id={area_id}>
               <input type="hidden" name="area_id" value={area_id} />
               <label class="hw-sr-only" for={"area-merge-#{area_id}"}>HueWorks area</label>
-              <select id={"area-merge-#{area_id}"} class="hw-select" name="target_area_id">
+              <select id={"area-merge-#{area_id}"} class="hw-field-select" name="target_area_id">
                 <option value="">Select area</option>
                 <%= for existing <- @areas do %>
                   <option value={existing.id} selected={area_merge_target(@plan, area_id) == to_string(existing.id)}>
@@ -202,7 +202,7 @@
         end)
       %>
 
-      <article :if={unassigned_lights != [] or unassigned_groups != []} class="hw-import-area-card">
+      <article :if={unassigned_lights != [] or unassigned_groups != []} class="hw-panel hw-import-area-card">
         <header class="hw-import-area-header">
           <div>
             <p class="hw-eyebrow">No matching area</p>
@@ -232,7 +232,7 @@
       </article>
     </section>
 
-    <aside class="hw-review-action-bar" aria-label="Apply initial bridge import">
+    <aside class="hw-action-bar" aria-label="Apply initial bridge import">
       <div>
         <p class="hw-eyebrow">Ready to create</p>
         <strong>Review the area actions and selected entities above.</strong>

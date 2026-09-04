@@ -155,12 +155,12 @@
           <h3>Area Scope</h3>
 
           <label class="hw-field-label" for="pico-area-id">Area</label>
-          <div class="hw-inline-control">
+          <div class="hw-inline-fields">
             <div class="hw-inline-field-stack hw-inline-grow">
               <select
                 id="pico-area-id"
                 name="area_id"
-                class="hw-select"
+                class="hw-field-select"
                 disabled={pico_config_locked?(@selected_pico)}
               >
                 <option
@@ -210,9 +210,9 @@
 
             <label class="hw-field-label" for="pico-clone-source">Source Pico</label>
 
-            <form id="pico-clone-source-form" phx-change="select_clone_source" class="hw-inline-control">
+            <form id="pico-clone-source-form" phx-change="select_clone_source" class="hw-inline-fields">
               <div class="hw-inline-field-stack hw-inline-grow">
-                <select id="pico-clone-source" name="id" class="hw-select" aria-label="Source Pico">
+                <select id="pico-clone-source" name="id" class="hw-field-select" aria-label="Source Pico">
                   <%= for pico <- Enum.reject(@pico_devices, &(&1.id == @selected_pico.id)) do %>
                     <option value={pico.id} selected={@clone_source_pico_id == pico.id}>
                       <%= display_name(pico) %>
@@ -249,7 +249,7 @@
             Define area-scoped target sets for this Pico. Buttons can act on one control group or the union of all control groups.
           </p>
 
-          <div class="hw-inline-action-row">
+          <div class="hw-actions">
             <button
               id="pico-create-control-group"
               type="button"
@@ -391,7 +391,7 @@
                               <input type="hidden" name="entity" value="group" />
                               <select
                                 id={control_group_picker_select_id("group", available_groups)}
-                                class="hw-select"
+                                class="hw-field-select"
                                 name="id"
                               >
                                 <option value="">Select group</option>
@@ -429,7 +429,7 @@
                               <input type="hidden" name="entity" value="light" />
                               <select
                                 id={control_group_picker_select_id("light", available_lights)}
-                                class="hw-select"
+                                class="hw-field-select"
                                 name="id"
                               >
                                 <option value="">Select light</option>
@@ -510,7 +510,7 @@
           <form id="pico-binding-editor-form" phx-change="update_binding_editor" class="hw-inline-fields">
             <div class="hw-inline-field-stack hw-inline-field-fit">
               <label class="hw-field-label" for="pico-binding-action">Action</label>
-              <select id="pico-binding-action" class="hw-select" name="action">
+              <select id="pico-binding-action" class="hw-field-select" name="action">
                 <option value="on" selected={@binding_action == "on"}>Turn On</option>
                 <option value="off" selected={@binding_action == "off"}>Turn Off</option>
                 <option value="toggle" selected={@binding_action == "toggle"}>Toggle</option>
@@ -525,7 +525,7 @@
             <%= if @binding_target_kind == "scene" do %>
               <div id="pico-binding-scene-container" class="hw-inline-field-stack hw-inline-field-fit">
                 <label class="hw-field-label" for="pico-binding-target-id">Scene</label>
-                <select id="pico-binding-target-id" class="hw-select" name="target_id">
+                <select id="pico-binding-target-id" class="hw-field-select" name="target_id">
                   <option value="">Select scene</option>
                   <%= for scene <- @area_scenes do %>
                     <option value={scene.id} selected={@binding_target_id == scene.id}>
@@ -553,7 +553,7 @@
               </fieldset>
             <% end %>
 
-            <div class="hw-inline-actions">
+            <div class="hw-actions">
               <button id="pico-start-button-learning" type="button" phx-click="start_button_learning" class="hw-button hw-button-on">
                 <%= if @learning_binding, do: "Waiting for press", else: "Assign by press" %>
               </button>

@@ -136,7 +136,7 @@
           autocomplete="off"
         />
 
-        <div class="hw-modal-actions">
+        <div class="hw-form-actions">
           <button type="submit" class="hw-button hw-button-primary">Save MQTT export</button>
           <button
             type="button"
@@ -185,7 +185,7 @@
 
       <div class="hw-form">
         <label class="hw-field-label" for="homekit_pairing_code">Apple Home Setup Code</label>
-        <code id="homekit_pairing_code" class="hw-field-input hw-api-code-value"><%= @homekit_pairing_code %></code>
+        <code id="homekit_pairing_code" class="hw-field-input hw-code-value"><%= @homekit_pairing_code %></code>
         <p class="hw-muted">Use this code when Apple Home asks to add the HueWorks bridge manually.</p>
         <p class="hw-muted">
           Runtime status:
@@ -227,7 +227,7 @@
           <span>Expose all HueWorks scenes as HomeKit switch controls.</span>
         </label>
 
-        <div class="hw-modal-actions">
+        <div class="hw-form-actions">
           <button type="submit" class="hw-button hw-button-primary">Save HomeKit bridge</button>
           <button
             id="reset-homekit-pairings"
@@ -264,13 +264,13 @@
         <p class="hw-muted">API access is enabled.</p>
         <div class="hw-form">
           <label class="hw-field-label" for="ai-api-url">API Base URL</label>
-          <code id="ai-api-url" class="hw-field-input hw-api-code-value"><%= @api_base_url %></code>
+          <code id="ai-api-url" class="hw-field-input hw-code-value"><%= @api_base_url %></code>
 
           <label class="hw-field-label" for="ai-api-token">API Token</label>
           <%= if @api_token_revealed? do %>
-            <div class="hw-api-value-row">
-              <code id="ai-api-token" class="hw-field-input hw-api-code-value"><%= @api_token %></code>
-              <div class="hw-api-utility-actions">
+            <div class="hw-value-row">
+              <code id="ai-api-token" class="hw-field-input hw-code-value"><%= @api_token %></code>
+              <div class="hw-actions">
                 <button
                   id="copy-ai-api-token"
                   type="button"
@@ -286,12 +286,12 @@
               </div>
             </div>
             <label class="hw-field-label" for="ai-api-mcp-env">MCP Environment</label>
-            <pre id="ai-api-mcp-env" class="hw-field-input hw-api-env-value">HUEWORKS_API_URL=<%= @api_base_url %>
+            <pre id="ai-api-mcp-env" class="hw-field-input hw-code-value">HUEWORKS_API_URL=<%= @api_base_url %>
 HUEWORKS_API_TOKEN=<%= @api_token %></pre>
           <% else %>
-            <div class="hw-api-value-row">
-              <code id="ai-api-token" class="hw-field-input hw-api-code-value">Hidden until revealed</code>
-              <div class="hw-api-utility-actions">
+            <div class="hw-value-row">
+              <code id="ai-api-token" class="hw-field-input hw-code-value">Hidden until revealed</code>
+              <div class="hw-actions">
                 <button id="reveal-ai-api-token" type="button" class="hw-button" phx-click="reveal_api_token">
                   Reveal token
                 </button>
@@ -299,7 +299,7 @@ HUEWORKS_API_TOKEN=<%= @api_token %></pre>
             </div>
           <% end %>
 
-          <div class="hw-modal-actions hw-api-danger-actions">
+          <div class="hw-form-actions">
             <button
               id="rotate-ai-api-token"
               type="button"
@@ -322,7 +322,7 @@ HUEWORKS_API_TOKEN=<%= @api_token %></pre>
         </div>
       <% else %>
         <p class="hw-muted">API access is disabled.</p>
-        <div class="hw-modal-actions hw-actions-start">
+        <div class="hw-form-actions hw-actions-start">
           <button id="enable-ai-api" type="button" class="hw-button hw-button-primary" phx-click="enable_api_access">
             Enable AI API
           </button>

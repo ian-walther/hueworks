@@ -77,7 +77,7 @@
 
     <form class="hw-form" phx-change="update_global_solar" phx-submit="save_global_solar">
       <label class="hw-field-label" for="global_timezone">Timezone</label>
-      <select id="global_timezone" name="timezone" class="hw-select">
+      <select id="global_timezone" name="timezone" class="hw-field-select">
         <%= for timezone <- @timezones do %>
           <option value={timezone} selected={timezone == @timezone}><%= timezone %></option>
         <% end %>
@@ -140,7 +140,7 @@
         <span>Shorten transitions for smaller brightness changes.</span>
       </label>
 
-      <div class="hw-modal-actions">
+      <div class="hw-form-actions">
         <button type="submit" class="hw-button hw-button-primary">Save and exit</button>
       </div>
     </form>

@@ -66,7 +66,7 @@ defmodule HueworksWeb.SetupAreasLiveTest do
 
     refute has_element?(
              view,
-             "#area-design-work-queue #customize-floor-#{bridge.id}-floor-1 > .hw-floor-customizer-body > .hw-source-space-list #ha-area-#{bridge.id}-office"
+             "#area-design-work-queue #customize-floor-#{bridge.id}-floor-1 > .hw-disclosure-body > .hw-source-space-list #ha-area-#{bridge.id}-office"
            )
 
     assert has_element?(

@@ -245,7 +245,7 @@ defmodule HueworksWeb.ControlLive do
         <%= for area_model <- @area_models do %>
           <% active_scene_id = Map.get(@active_scene_by_area, area_model.area.id) %>
           <% active_scene = Enum.find(area_model.scenes, &(&1.id == active_scene_id)) %>
-          <section class="hw-card hw-area-ledger-card hw-control-area-card" id={"control-area-#{area_model.area.id}"}>
+          <section class="hw-card hw-area-ledger-card" id={"control-area-#{area_model.area.id}"}>
             <header class="hw-area-card-header">
               <div class="hw-area-heading-copy">
                 <div class="hw-area-title-row">

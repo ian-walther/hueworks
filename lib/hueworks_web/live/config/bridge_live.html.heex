@@ -15,7 +15,7 @@
     </div>
     <form class="hw-form" phx-change="update_bridge">
       <label class="hw-field-label" for="bridge_type">Type</label>
-      <select id="bridge_type" name="type" class="hw-select">
+      <select id="bridge_type" name="type" class="hw-field-select">
         <option value="hue" selected={@type == "hue"}>Hue</option>
         <option value="ha" selected={@type == "ha"}>Home Assistant</option>
         <option value="caseta" selected={@type == "caseta"}>Caseta</option>
@@ -56,7 +56,7 @@
 
           <%= if @hue_discovery_status == :searching do %>
             <div class="hw-onboarding-status" role="status">
-              <span class="hw-onboarding-pulse"></span>
+              <span class="hw-pulse"></span>
               Looking for Hue bridges on your network...
             </div>
           <% end %>
@@ -64,7 +64,7 @@
           <%= if @hue_discoveries != [] do %>
             <div class="hw-discovery-list">
               <%= for discovery <- @hue_discoveries do %>
-                <article class="hw-discovery-card">
+                <article class="hw-card hw-discovery-card">
                   <div class="hw-discovery-copy">
                     <div class="hw-discovery-title-row">
                       <h4><%= discovery.device.name || "Hue Bridge" %></h4>
@@ -113,7 +113,7 @@
 
           <%= if @hue_pair_status == :pairing do %>
             <div class="hw-onboarding-status" role="status">
-              <span class="hw-onboarding-pulse"></span>
+              <span class="hw-pulse"></span>
               Waiting for the Hue bridge to approve and validate HueWorks...
               <button type="button" class="hw-link-button" phx-click="cancel_hue_pairing">
                 Cancel
@@ -153,12 +153,12 @@
           </div>
 
           <div :if={@ha_discovery_status == :searching} class="hw-onboarding-status" role="status">
-            <span class="hw-onboarding-pulse"></span>
+            <span class="hw-pulse"></span>
             Looking for Home Assistant on your network...
           </div>
 
           <div :if={@ha_discoveries != []} class="hw-discovery-list">
-            <article :for={discovery <- @ha_discoveries} class="hw-discovery-card">
+            <article :for={discovery <- @ha_discoveries} class="hw-card hw-discovery-card">
               <div class="hw-discovery-copy">
                 <div class="hw-discovery-title-row">
                   <h4><%= discovery.device.name || "Home Assistant" %></h4>
@@ -371,7 +371,7 @@
           (@type != "hue" or @hue_setup_mode == :manual) and
             not (@type == "ha" and @ha_setup_mode == :guided)
         }
-        class="hw-modal-actions"
+        class="hw-form-actions"
       >
         <%= if @test_status == :ok do %>
           <button type="button" class="hw-button hw-button-on" phx-click="proceed_bridge">

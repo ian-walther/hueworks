@@ -424,12 +424,12 @@ defmodule HueworksWeb.ConfigLiveTest do
 
     assert has_element?(
              view,
-             ".hw-api-value-row #copy-ai-api-token"
+             ".hw-value-row #copy-ai-api-token"
            )
 
     assert has_element?(
              view,
-             ".hw-api-value-row #hide-ai-api-token"
+             ".hw-value-row #hide-ai-api-token"
            )
 
     view
