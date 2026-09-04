@@ -172,7 +172,7 @@ defmodule HueworksWeb.ConfigLiveTest do
     {:ok, view, html} = live(conn, "/config/general")
 
     assert html =~ "Location and transitions"
-    assert has_element?(view, "button[type='submit']", "Save And Exit")
+    assert has_element?(view, "button[type='submit']", "Save and exit")
     assert html =~ "Default Transition (ms)"
     assert html =~ "Scale Transition By Brightness Delta"
     assert has_element?(view, "#global_default_transition_ms[value='500']")
@@ -260,7 +260,7 @@ defmodule HueworksWeb.ConfigLiveTest do
     {:ok, view, html} = live(conn, "/config/integrations")
 
     assert html =~ "Home Assistant MQTT Export"
-    assert html =~ "Save Home Assistant"
+    assert html =~ "Save MQTT export"
 
     view
     |> form("form[phx-submit='save_ha_export']", %{
@@ -349,8 +349,8 @@ defmodule HueworksWeb.ConfigLiveTest do
     assert html =~ ~r/\d{3}-\d{2}-\d{3}/
     assert html =~ "Runtime disabled"
     refute html =~ "ready to pair"
-    assert html =~ "Save HomeKit Bridge"
-    assert html =~ "Reset Pairing"
+    assert html =~ "Save HomeKit bridge"
+    assert html =~ "Reset pairing"
 
     view
     |> form("form[phx-submit='save_homekit']", %{
@@ -508,7 +508,7 @@ defmodule HueworksWeb.ConfigLiveTest do
 
     {:ok, view, html} = live(conn, "/config/integrations")
 
-    assert html =~ "Republish Exported Entities"
+    assert html =~ "Republish exported entities"
 
     view
     |> element("button[phx-click='republish_ha_export_entities']")
@@ -523,8 +523,8 @@ defmodule HueworksWeb.ConfigLiveTest do
 
     {:ok, _view, html} = live(conn, "/config/light-states")
 
-    assert html =~ "New Manual"
-    assert html =~ "New Circadian"
+    assert html =~ "New manual"
+    assert html =~ "New circadian"
     assert html =~ "Soft (manual temp)"
     assert html =~ "Circadian A (circadian)"
   end
@@ -726,7 +726,7 @@ defmodule HueworksWeb.ConfigLiveTest do
     def lookup("US", "00000"), do: {:error, :not_found}
   end
 
-  test "shows Scene Import button for Home Assistant bridges", %{conn: conn} do
+  test "shows Scene import button for Home Assistant bridges", %{conn: conn} do
     insert_bridge!(%{
       type: :ha,
       name: "Home Assistant",
@@ -738,7 +738,7 @@ defmodule HueworksWeb.ConfigLiveTest do
 
     {:ok, _view, html} = live(conn, "/config/bridges")
 
-    assert html =~ "Scene Import"
+    assert html =~ "Scene import"
     assert html =~ "/config/bridges/"
     assert html =~ "/external-scenes"
   end
@@ -892,7 +892,7 @@ defmodule HueworksWeb.ConfigLiveTest do
     assert has_element?(
              view,
              "#bridge-#{manual_bridge.id} form[action='/config/bridges/home-assistant/authorize'] button",
-             "Switch to Browser Authorization"
+             "Use browser authorization"
            )
 
     html = render(view)

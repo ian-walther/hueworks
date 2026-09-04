@@ -21,7 +21,7 @@
   <div :if={@import_status == :error and is_nil(@review)} class="hw-state-message hw-state-message-error">
     <h2>Could not check the bridge</h2>
     <p><%= @import_error %></p>
-    <button type="button" class="hw-button" phx-click="import_configuration">Try Again</button>
+    <button type="button" class="hw-button" phx-click="import_configuration">Try again</button>
   </div>
 
   <section :if={@import_status == :applied} id="reimport-complete" class="hw-completion-panel">
@@ -44,8 +44,8 @@
     </div>
 
     <div class="hw-completion-actions">
-      <a class="hw-button hw-button-primary" href="/config/bridges">Return to Bridges</a>
-      <button class="hw-button" type="button" phx-click="import_configuration">Review Again</button>
+      <a class="hw-button hw-button-primary" href="/config/bridges">Return to bridges</a>
+      <button class="hw-button" type="button" phx-click="import_configuration">Review again</button>
     </div>
   </section>
 
@@ -92,7 +92,7 @@
       <h2>No bridge changes need your attention</h2>
       <p><%= @review.summary.unchanged %> existing entities match the latest bridge observation.</p>
       <div class="hw-completion-actions">
-        <a class="hw-button hw-button-primary" href="/config/bridges">Return to Bridges</a>
+        <a class="hw-button hw-button-primary" href="/config/bridges">Return to bridges</a>
       </div>
     </div>
 

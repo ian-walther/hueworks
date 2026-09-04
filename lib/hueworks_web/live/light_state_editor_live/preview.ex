@@ -169,6 +169,9 @@ defmodule HueworksWeb.LightStateEditorLive.Preview do
   def chart_left_padding, do: @chart_padding.left
   def chart_bottom_y, do: @chart_height - @chart_padding.bottom
   def chart_x_label_y, do: @chart_height - 8
+  def x_tick_anchor(0), do: "start"
+  def x_tick_anchor(1440), do: "end"
+  def x_tick_anchor(_minute), do: "middle"
 
   def minute_label(total_minutes) do
     hour = div(total_minutes, 60)

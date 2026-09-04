@@ -238,7 +238,7 @@ defmodule HueworksWeb.ControlLive do
         <p class="hw-eyebrow">First step</p>
         <h2>Nothing to control yet</h2>
         <p>Connect and import a lighting source, then HueWorks will organize its areas here.</p>
-        <a class="hw-button hw-button-primary" href="/config/bridges/new">Add Bridge</a>
+        <a class="hw-button hw-button-primary" href="/config/bridges/new">Add bridge</a>
       </div>
 
       <div :if={@area_models != []} class="hw-list hw-area-ledger-list">
@@ -407,7 +407,6 @@ defmodule HueworksWeb.ControlLive do
             phx-value-group_id={@node.group_id}
             aria-expanded={@expanded?}
           >
-            <%= if @expanded?, do: "-", else: "+" %>
             <%= display_name(@node.group) %>
             <span class="hw-muted">(<%= count_label(@node.total_light_ids, "light") %>)</span>
           </button>

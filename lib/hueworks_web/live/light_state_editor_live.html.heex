@@ -20,13 +20,13 @@
             else: nil
         }
       >
-        Back to Light States
+        Back to light states
       </a>
   </:actions>
 
   <section class="hw-panel">
     <%= if @light_state_id && @light_state_usages != [] do %>
-      <div class="hw-row">
+      <div class="hw-row hw-usage-note">
         <p class="hw-muted">
           Used by <%= length(@light_state_usages) %> <%= if length(@light_state_usages) == 1, do: "scene", else: "scenes" %>:
           <%= Enum.map_join(@light_state_usages, ", ", fn usage -> "#{usage.area_name} / #{usage.scene_name}" end) %>
@@ -233,6 +233,7 @@
                 </div>
 
                 <div class="hw-field-flow hw-field-flow-section">
+                  <div class="hw-field-flow-row">
                   <div class="hw-field-group hw-field-single">
                     <.label_with_help
                       class="hw-field-group-label"
@@ -300,7 +301,9 @@
                       value={circadian_field_value(assigns, :sunrise_offset)}
                     />
                   </div>
+                  </div>
 
+                  <div class="hw-field-flow-row">
                   <div class="hw-field-group hw-field-single">
                     <.label_with_help
                       class="hw-field-group-label"
@@ -368,6 +371,7 @@
                       value={circadian_field_value(assigns, :sunset_offset)}
                     />
                   </div>
+                  </div>
                 </div>
             </section>
 
@@ -394,8 +398,9 @@
                           class="hw-chart-grid"
                         />
                         <text
-                          x={Preview.chart_left_padding() - 10}
+                          x={Preview.chart_left_padding() - 6}
                           y={Preview.y_position(tick.value, Preview.chart_domain(@circadian_preview, :brightness)) + 4}
+                          text-anchor="end"
                           class="hw-chart-y-label"
                         ><%= tick.label %></text>
                       <% end %>
@@ -404,7 +409,7 @@
                         <text
                           x={Preview.x_position(tick.minute)}
                           y={Preview.chart_x_label_y()}
-                          text-anchor="middle"
+                          text-anchor={Preview.x_tick_anchor(tick.minute)}
                           class="hw-chart-x-label"
                         ><%= tick.label %></text>
                       <% end %>
@@ -450,7 +455,7 @@
                 </div>
 
                 <div class="hw-field-flow hw-field-flow-card">
-                  <div class="hw-field-group hw-field-single">
+                  <div class="hw-field-group hw-field-mode">
                     <.label_with_help
                       class="hw-field-group-label"
                       for="light-state-brightness-mode"
@@ -600,8 +605,9 @@
                           class="hw-chart-grid"
                         />
                         <text
-                          x={Preview.chart_left_padding() - 10}
+                          x={Preview.chart_left_padding() - 6}
                           y={Preview.y_position(tick.value, Preview.chart_domain(@circadian_preview, :kelvin)) + 4}
+                          text-anchor="end"
                           class="hw-chart-y-label"
                         ><%= tick.label %></text>
                       <% end %>
@@ -610,7 +616,7 @@
                         <text
                           x={Preview.x_position(tick.minute)}
                           y={Preview.chart_x_label_y()}
-                          text-anchor="middle"
+                          text-anchor={Preview.x_tick_anchor(tick.minute)}
                           class="hw-chart-x-label"
                         ><%= tick.label %></text>
                       <% end %>

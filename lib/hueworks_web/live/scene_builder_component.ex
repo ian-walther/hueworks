@@ -35,7 +35,7 @@ defmodule HueworksWeb.SceneBuilderComponent do
           <h2>Scene Components</h2>
         </div>
         <button type="button" class="hw-button hw-button-primary" phx-click="add_component" phx-target={@myself}>
-          Add Component
+          Add component
         </button>
       </div>
 
@@ -485,7 +485,6 @@ defmodule HueworksWeb.SceneBuilderComponent do
           phx-value-group_id={@node.group_id}
           aria-expanded={@expanded?}
         >
-          <%= if @expanded?, do: "-", else: "+" %>
           <%= display_name(@node.group) %>
           <span class="hw-muted">(<%= count_label(@node.total_light_ids, "light") %>)</span>
         </button>

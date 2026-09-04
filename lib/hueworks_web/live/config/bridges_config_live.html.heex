@@ -6,7 +6,7 @@
   flash={@flash}
 >
   <:actions>
-    <a class="hw-button hw-button-primary" href="/config/bridges/new">Add Bridge</a>
+    <a class="hw-button hw-button-primary" href="/config/bridges/new">Add bridge</a>
   </:actions>
 
   <section class="hw-panel">
@@ -21,7 +21,7 @@
     <div :if={@bridge_entries == []} class="hw-empty-state">
       <h3>No bridges yet</h3>
       <p>Add a bridge to discover lights and groups.</p>
-      <a class="hw-button hw-button-primary" href="/config/bridges/new">Add Bridge</a>
+      <a class="hw-button hw-button-primary" href="/config/bridges/new">Add bridge</a>
     </div>
 
     <div class="hw-list">
@@ -81,13 +81,13 @@
               class="hw-button hw-button-primary"
               href={"/config/bridges/#{entry.bridge.id}/reimport"}
             >
-              Check for Changes
+              Check for changes
             </a>
             <a :if={entry.bridge.type == :caseta} class="hw-button" href={"/config/bridges/#{entry.bridge.id}/picos"}>
-              Pico Config
+              Pico config
             </a>
             <a :if={entry.bridge.type == :ha} class="hw-button" href={"/config/bridges/#{entry.bridge.id}/external-scenes"}>
-              Scene Import
+              Scene import
             </a>
             <form
               :if={entry.home_assistant_auth in [:manual, :oauth, :reauthorization_required]}
@@ -102,7 +102,7 @@
               <input type="hidden" name="bridge_id" value={entry.bridge.id} />
               <button type="submit" class="hw-button">
                 <%= if entry.home_assistant_auth == :manual,
-                  do: "Switch to Browser Authorization",
+                  do: "Use browser authorization",
                   else: "Reconnect Home Assistant" %>
               </button>
             </form>
@@ -121,7 +121,7 @@
               phx-value-id={entry.bridge.id}
               data-confirm="This removes all imported lights, groups, and Picos for this bridge, including their scene assignments."
             >
-              Delete Imported Entities
+              Delete imported entities
             </button>
             <button
               class="hw-button hw-delete-button"
@@ -130,7 +130,7 @@
               phx-value-id={entry.bridge.id}
               data-confirm="This removes the bridge configuration. This cannot be undone."
             >
-              Delete Bridge
+              Delete bridge
             </button>
           </div>
         </details>

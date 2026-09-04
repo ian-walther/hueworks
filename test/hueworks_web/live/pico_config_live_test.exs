@@ -97,7 +97,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
     |> Repo.insert!()
   end
 
-  test "bridges page shows Pico Config button for Caseta bridges", %{conn: conn} do
+  test "bridges page shows Pico config button for Caseta bridges", %{conn: conn} do
     insert_bridge!(%{
       type: :caseta,
       name: "Caseta",
@@ -119,7 +119,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
     {:ok, _view, html} = live(conn, "/config/bridges")
 
     assert html =~ "/config/bridges/"
-    assert html =~ "Pico Config"
+    assert html =~ "Pico config"
   end
 
   test "pico config uses a dedicated detail page for editing", %{conn: conn} do
@@ -1106,7 +1106,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
 
     html = render(view)
     assert html =~ "pico-clear-area-scope"
-    assert html =~ "Clear Config"
+    assert html =~ "Clear config"
     assert html =~ ~s(id="pico-area-id")
     assert html =~ ~s(id="pico-clear-area-scope")
 
@@ -1124,7 +1124,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
 
     assert updated.area_id == auto_area.id
     assert render(view) =~ "pico-clear-area-scope"
-    assert render(view) =~ "Clear Config"
+    assert render(view) =~ "Clear config"
     assert render(view) =~ "Pico config cleared."
     assert updated_button.action_type == nil
 
@@ -1676,7 +1676,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
         bridge_id: bridge.id,
         area_id: area.id,
         source_id: "manual-assign-pico",
-        name: "Manual Assign Pico",
+        name: "Assign manually Pico",
         hardware_profile: "5_button",
         metadata: %{
           "area_override" => true,
@@ -1781,7 +1781,7 @@ defmodule HueworksWeb.PicoConfigLiveTest do
     assert render(view) =~ "Control group deleted."
     refute render(view) =~ "Toggle Overhead"
     refute has_element?(view, "button[phx-click='select_control_group'][phx-value-id='group-a']")
-    assert render(view) =~ "binding: Not assigned"
+    assert render(view) =~ "Binding: Not assigned"
     assert Picos.control_groups(Picos.get_device(device.id)) == []
   end
 
@@ -1850,6 +1850,6 @@ defmodule HueworksWeb.PicoConfigLiveTest do
     updated = Repo.get!(PicoButton, button.id)
     assert updated.action_type == nil
     assert render(view) =~ "Button binding cleared."
-    assert render(view) =~ "binding: Not assigned"
+    assert render(view) =~ "Binding: Not assigned"
   end
 end

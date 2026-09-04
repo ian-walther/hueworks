@@ -88,7 +88,7 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
     assert has_element?(view, ".hw-summary-stat:first-child strong", "2")
     assert has_element?(view, ".hw-summary-stat:first-child span", "areas created")
     assert html =~ ~s(href="/areas")
-    assert html =~ "Review Areas"
+    assert html =~ "Review areas"
     assert html =~ "Create First Scene"
     assert Repo.reload!(bridge).import_complete == true
     refute html =~ "Apply Initial Import"
@@ -1068,7 +1068,7 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
 
     assert has_element?(reimport_view, "section[aria-label='Reimport summary']")
     assert has_element?(reimport_view, ".hw-state-message-success")
-    assert has_element?(reimport_view, "a[href='/config/bridges']", "Return to Bridges")
+    assert has_element?(reimport_view, "a[href='/config/bridges']", "Return to bridges")
     refute has_element?(reimport_view, "#apply-reimport")
     refute has_element?(reimport_view, "#initial-import-review")
     refute has_element?(reimport_view, "form[phx-change='set_area_action']")
@@ -1130,8 +1130,8 @@ defmodule HueworksWeb.BridgeSetupLiveTest do
 
     assert has_element?(view, "#reimport-complete")
     assert has_element?(view, "[aria-label='Applied bridge changes']")
-    assert has_element?(view, "a[href='/config/bridges']", "Return to Bridges")
-    assert has_element?(view, "button[phx-click='import_configuration']", "Review Again")
+    assert has_element?(view, "a[href='/config/bridges']", "Return to bridges")
+    assert has_element?(view, "button[phx-click='import_configuration']", "Review again")
     assert Repo.get!(Light, light.id).name == "New bridge name"
   end
 

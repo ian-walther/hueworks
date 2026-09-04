@@ -17,15 +17,18 @@ defmodule HueworksWeb.LightStateEditorLive.FormState do
   def default_edits(:manual, config), do: manual_default_edits(config)
   def default_edits(:circadian, config), do: circadian_default_edits(config)
 
+  @manual_new_defaults %{brightness: 100, kelvin: 3000, hue: 0, saturation: 100}
+
   def manual_default_edits(config \\ %{}) do
     config = LightState.manual_config(config)
+    defaults = if Map.has_key?(config, :brightness), do: %{}, else: @manual_new_defaults
 
     %{
       "mode" => manual_mode_string(config),
-      "brightness" => manual_config_value(config, :brightness),
-      "temperature" => manual_config_value(config, :kelvin),
-      "hue" => manual_config_value(config, :hue),
-      "saturation" => manual_config_value(config, :saturation)
+      "brightness" => manual_config_value(config, :brightness, defaults),
+      "temperature" => manual_config_value(config, :kelvin, defaults),
+      "hue" => manual_config_value(config, :hue, defaults),
+      "saturation" => manual_config_value(config, :saturation, defaults)
     }
   end
 
@@ -208,9 +211,9 @@ defmodule HueworksWeb.LightStateEditorLive.FormState do
     end
   end
 
-  defp manual_config_value(config, key) do
+  defp manual_config_value(config, key, defaults) do
     case Map.get(config, key) do
-      nil -> ""
+      nil -> Map.get(defaults, key, "")
       value -> value
     end
   end

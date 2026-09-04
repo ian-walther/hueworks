@@ -13,7 +13,7 @@
     <p class="hw-eyebrow">Device workspace</p>
     <h2>No devices imported yet</h2>
     <p>Add a bridge and choose which lights and groups HueWorks should manage.</p>
-    <a class="hw-button hw-button-primary" href="/config/bridges/new">Add Bridge</a>
+    <a class="hw-button hw-button-primary" href="/config/bridges/new">Add bridge</a>
   </div>
 
   <div :if={@lights != [] or @groups != []} class="hw-entity-columns">
@@ -50,17 +50,19 @@
             <% end %>
           </select>
         </form>
-        <form class="hw-filter" phx-change="toggle_group_disabled">
-          <label class="hw-checkbox">
-            <input
-              type="checkbox"
-              name="show_disabled_groups"
-              value="true"
-              checked={@show_disabled_groups}
-            />
-            Show disabled
-          </label>
-        </form>
+        <div class="hw-filter-toggles">
+          <form class="hw-filter" phx-change="toggle_group_disabled">
+            <label class="hw-checkbox">
+              <input
+                type="checkbox"
+                name="show_disabled_groups"
+                value="true"
+                checked={@show_disabled_groups}
+              />
+              Show disabled
+            </label>
+          </form>
+        </div>
       </div>
       <div class="hw-list">
         <%= for group <- Filters.filter_entities(@groups, @group_filter, @group_area_filter, @show_disabled_groups) do %>
@@ -152,28 +154,30 @@
             <% end %>
           </select>
         </form>
-        <form class="hw-filter" phx-change="toggle_light_disabled">
-          <label class="hw-checkbox">
-            <input
-              type="checkbox"
-              name="show_disabled_lights"
-              value="true"
-              checked={@show_disabled_lights}
-            />
-            Show disabled
-          </label>
-        </form>
-        <form class="hw-filter" phx-change="toggle_light_linked">
-          <label class="hw-checkbox">
-            <input
-              type="checkbox"
-              name="show_linked_lights"
-              value="true"
-              checked={@show_linked_lights}
-            />
-            Show linked
-          </label>
-        </form>
+        <div class="hw-filter-toggles">
+          <form class="hw-filter" phx-change="toggle_light_disabled">
+            <label class="hw-checkbox">
+              <input
+                type="checkbox"
+                name="show_disabled_lights"
+                value="true"
+                checked={@show_disabled_lights}
+              />
+              Show disabled
+            </label>
+          </form>
+          <form class="hw-filter" phx-change="toggle_light_linked">
+            <label class="hw-checkbox">
+              <input
+                type="checkbox"
+                name="show_linked_lights"
+                value="true"
+                checked={@show_linked_lights}
+              />
+              Show linked
+            </label>
+          </form>
+        </div>
       </div>
       <div class="hw-list">
         <%= for light <- Filters.filter_lights(@lights, @light_filter, @light_area_filter, @show_disabled_lights, @show_linked_lights) do %>
@@ -208,7 +212,13 @@
                   <% end %>
                 </p>
               </div>
-              <span class="hw-pill"><%= light.source_id %></span>
+              <span
+                :if={to_string(light.source_id) != Hueworks.Util.display_name(light)}
+                class="hw-pill"
+                title="Source ID"
+              >
+                ID <%= light.source_id %>
+              </span>
             </div>
 
             <div class="hw-entity-control-row">
@@ -278,7 +288,7 @@
             </select>
           <% else %>
             <button type="button" class="hw-button" phx-click="show_link_selector">
-              Link to Other Light
+              Link to another light
             </button>
           <% end %>
         <% end %>

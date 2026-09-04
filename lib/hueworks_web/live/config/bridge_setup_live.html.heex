@@ -21,7 +21,7 @@
   <div :if={@import_status == :error and is_nil(@normalized)} class="hw-state-message hw-state-message-error">
     <h2>Could not load the bridge</h2>
     <p><%= @import_error %></p>
-    <button type="button" class="hw-button" phx-click="import_configuration">Try Again</button>
+    <button type="button" class="hw-button" phx-click="import_configuration">Try again</button>
   </div>
 
   <section :if={@import_status == :applied} id="initial-import-complete" class="hw-completion-panel">
@@ -47,8 +47,8 @@
     </div>
 
     <div class="hw-completion-actions">
-      <a class="hw-button hw-button-primary" href="/areas">Review Areas</a>
-      <a class="hw-button" href="/lights">Inspect Lights</a>
+      <a class="hw-button hw-button-primary" href="/areas">Review areas</a>
+      <a class="hw-button" href="/lights">Inspect lights</a>
       <a
         :if={@completion_summary.first_area_id}
         class="hw-button"
@@ -56,7 +56,7 @@
       >
         Create First Scene
       </a>
-      <a class="hw-button" href="/config/bridges/new">Add Another Bridge</a>
+      <a class="hw-button" href="/config/bridges/new">Add another bridge</a>
       <a class="hw-link-button" href="/config/bridges">Done</a>
     </div>
   </section>
@@ -83,10 +83,10 @@
       </div>
       <div class="hw-row-actions">
         <button class="hw-button" type="button" phx-click="toggle_all" phx-value-action="check">
-          Check All
+          Check all
         </button>
         <button class="hw-button" type="button" phx-click="toggle_all" phx-value-action="uncheck">
-          Uncheck All
+          Uncheck all
         </button>
       </div>
     </section>
@@ -122,7 +122,7 @@
                 phx-value-area_id={area_id}
                 phx-value-action="check"
               >
-                Check All
+                Check all
               </button>
               <button
                 class="hw-button"
@@ -131,7 +131,7 @@
                 phx-value-area_id={area_id}
                 phx-value-action="uncheck"
               >
-                Uncheck All
+                Uncheck all
               </button>
             </div>
             <form phx-change="set_area_action" data-area-id={area_id}>

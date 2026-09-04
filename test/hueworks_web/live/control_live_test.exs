@@ -90,7 +90,7 @@ defmodule HueworksWeb.ControlLiveTest do
 
     assert html =~ "Nothing to control yet"
     assert html =~ ~s(href="/config/bridges/new")
-    assert html =~ "Add Bridge"
+    assert html =~ "Add bridge"
   end
 
   test "control page explains verification mode when runtime I/O is disabled", %{conn: conn} do

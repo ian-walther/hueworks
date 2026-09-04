@@ -187,7 +187,7 @@ defmodule HueworksWeb.BridgeSetupLive do
             phx-value-section={@type}
             phx-value-action="check"
           >
-            Check All
+            Check all
           </button>
           <button
             class="hw-button"
@@ -197,7 +197,7 @@ defmodule HueworksWeb.BridgeSetupLive do
             phx-value-section={@type}
             phx-value-action="uncheck"
           >
-            Uncheck All
+            Uncheck all
           </button>
         </div>
       </header>
@@ -247,7 +247,7 @@ defmodule HueworksWeb.BridgeSetupLive do
             phx-value-section={@type}
             phx-value-action="check"
           >
-            Check All
+            Check all
           </button>
           <button
             class="hw-button"
@@ -257,7 +257,7 @@ defmodule HueworksWeb.BridgeSetupLive do
             phx-value-section={@type}
             phx-value-action="uncheck"
           >
-            Uncheck All
+            Uncheck all
           </button>
         </div>
       </header>

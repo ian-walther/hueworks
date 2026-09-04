@@ -52,7 +52,7 @@ defmodule Hueworks.LightsLivePipelineTest do
 
     assert html =~ "No devices imported yet"
     assert html =~ ~s(href="/config/bridges/new")
-    assert html =~ "Add Bridge"
+    assert html =~ "Add bridge"
   end
 
   test "manual light toggle enqueues through desired-state pipeline without direct state mutation",
@@ -890,7 +890,7 @@ defmodule Hueworks.LightsLivePipelineTest do
     |> element("#light-#{light.id} button[aria-label='Edit light name']")
     |> render_click()
 
-    assert has_element?(view, "button[phx-click='show_link_selector']", "Link to Other Light")
+    assert has_element?(view, "button[phx-click='show_link_selector']", "Link to another light")
     refute has_element?(view, "select[name='canonical_light_id']")
 
     view

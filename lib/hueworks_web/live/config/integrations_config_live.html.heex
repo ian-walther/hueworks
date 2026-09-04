@@ -137,14 +137,14 @@
         />
 
         <div class="hw-modal-actions">
-          <button type="submit" class="hw-button hw-button-primary">Save Home Assistant</button>
+          <button type="submit" class="hw-button hw-button-primary">Save MQTT export</button>
           <button
             type="button"
             class="hw-button"
             phx-click="republish_ha_export_entities"
             disabled={!(@ha_export_scenes_enabled or @ha_export_area_selects_enabled or @ha_export_lights_enabled)}
           >
-            Republish Exported Entities
+            Republish exported entities
           </button>
         </div>
       </form>
@@ -185,7 +185,7 @@
 
       <div class="hw-form">
         <label class="hw-field-label" for="homekit_pairing_code">Apple Home Setup Code</label>
-        <code id="homekit_pairing_code" class="hw-field-input"><%= @homekit_pairing_code %></code>
+        <code id="homekit_pairing_code" class="hw-field-input hw-api-code-value"><%= @homekit_pairing_code %></code>
         <p class="hw-muted">Use this code when Apple Home asks to add the HueWorks bridge manually.</p>
         <p class="hw-muted">
           Runtime status:
@@ -228,7 +228,7 @@
         </label>
 
         <div class="hw-modal-actions">
-          <button type="submit" class="hw-button hw-button-primary">Save HomeKit Bridge</button>
+          <button type="submit" class="hw-button hw-button-primary">Save HomeKit bridge</button>
           <button
             id="reset-homekit-pairings"
             type="button"
@@ -236,7 +236,7 @@
             phx-click="reset_homekit_pairings"
             phx-confirm="Reset HomeKit pairings? Apple Home will need to add the HueWorks bridge again."
           >
-            Reset Pairing
+            Reset pairing
           </button>
         </div>
       </form>
@@ -278,10 +278,10 @@
                   phx-hook="CopyToClipboard"
                   data-copy-value={@api_token}
                 >
-                  Copy Token
+                  Copy token
                 </button>
                 <button id="hide-ai-api-token" type="button" class="hw-button" phx-click="hide_api_token">
-                  Hide Token
+                  Hide token
                 </button>
               </div>
             </div>
@@ -293,7 +293,7 @@ HUEWORKS_API_TOKEN=<%= @api_token %></pre>
               <code id="ai-api-token" class="hw-field-input hw-api-code-value">Hidden until revealed</code>
               <div class="hw-api-utility-actions">
                 <button id="reveal-ai-api-token" type="button" class="hw-button" phx-click="reveal_api_token">
-                  Reveal Token
+                  Reveal token
                 </button>
               </div>
             </div>
@@ -307,7 +307,7 @@ HUEWORKS_API_TOKEN=<%= @api_token %></pre>
               phx-click="rotate_api_token"
               data-confirm="Rotate the AI API token? Existing MCP clients will stop working until updated."
             >
-              Rotate Token
+              Rotate token
             </button>
             <button
               id="disable-ai-api"

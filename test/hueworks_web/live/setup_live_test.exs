@@ -29,7 +29,7 @@ defmodule HueworksWeb.SetupLiveTest do
     assert has_element?(view, ".hw-setup-path-recommended", "Recommended")
     assert has_element?(view, "button[phx-value-path='ha_assisted']", "Start with Home Assistant")
     assert has_element?(view, "button[phx-value-path='direct']", "Set up HueWorks directly")
-    assert has_element?(view, "a[href='/config']", "Leave for Config")
+    assert has_element?(view, "a[href='/config']", "Leave for config")
     assert render(view) =~ "Floors, Areas, and Lights/Groups"
     refute render(view) =~ "Floors, Areas, Rooms"
   end

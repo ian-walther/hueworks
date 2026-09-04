@@ -37,9 +37,8 @@
             maxlength="2"
             autocomplete="country"
             autocapitalize="characters"
-            aria-describedby="postal-country-help"
+            aria-describedby="postal-lookup-help"
           />
-          <small id="postal-country-help" class="hw-field-help">Two-letter code</small>
         </div>
 
         <div class="hw-inline-field-stack">
@@ -61,17 +60,17 @@
           disabled={@postal_lookup_status == :loading}
           phx-disable-with="Looking up..."
         >
-          <%= if @postal_lookup_status == :loading, do: "Looking up...", else: "Look Up" %>
+          <%= if @postal_lookup_status == :loading, do: "Looking up...", else: "Look up" %>
         </button>
       </form>
-      <p class="hw-field-help">
-        Looks up coordinates via zippopotam.us; only the country and postal code are sent.
+      <p id="postal-lookup-help" class="hw-field-help">
+        Country is a two-letter code. Looks up coordinates via zippopotam.us; only the country and postal code are sent.
       </p>
 
       <div class="hw-location-browser-action">
         <span class="hw-muted">or</span>
         <button type="button" class="hw-button" id="locate-btn" phx-hook="GeoLocate">
-          Use Current Location
+          Use current location
         </button>
       </div>
     </div>
@@ -142,7 +141,7 @@
       </label>
 
       <div class="hw-modal-actions">
-        <button type="submit" class="hw-button hw-button-primary">Save And Exit</button>
+        <button type="submit" class="hw-button hw-button-primary">Save and exit</button>
       </div>
     </form>
   </section>

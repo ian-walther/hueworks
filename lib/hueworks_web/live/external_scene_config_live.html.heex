@@ -12,7 +12,7 @@
 >
   <:actions>
     <button type="button" class="hw-button hw-button-primary" phx-click="sync_external_scenes">
-      Sync HA Scenes
+      Sync HA scenes
     </button>
   </:actions>
 
@@ -73,18 +73,18 @@
                 <% end %>
               </select>
 
-              <label class="hw-row">
+              <label class="hw-toggle">
                 <input
                   type="checkbox"
                   name="enabled"
                   value="true"
                   checked={is_nil(external_scene.mapping) || external_scene.mapping.enabled}
                 />
-                <span class="hw-row-title">Enable this mapping</span>
+                <span>Enable this mapping</span>
               </label>
 
               <div class="hw-modal-actions">
-                <button type="submit" class="hw-button">Save Mapping</button>
+                <button type="submit" class="hw-button">Save mapping</button>
               </div>
             </form>
           </div>

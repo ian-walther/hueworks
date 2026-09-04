@@ -36,7 +36,7 @@
               class="hw-button"
               phx-click="cancel_detect_pico"
             >
-              Cancel Detect
+              Cancel detection
             </button>
           <% else %>
             <button
@@ -61,18 +61,18 @@
       <% else %>
         <div class="hw-list">
           <%= for pico <- @pico_devices do %>
-            <div class="hw-card" id={"pico-#{pico.id}"}>
-              <div class="hw-card-title">
-                <div class="hw-title-row">
-                  <h3><%= display_name(pico) %></h3>
-                </div>
-                <p class="hw-meta">buttons: <%= length(pico.buttons) %></p>
-                <p class="hw-meta">area: <%= if pico.area, do: pico.area.display_name || pico.area.name, else: "Unassigned" %></p>
-                <div class="hw-actions">
-                  <button type="button" class="hw-button" phx-click="select_pico" phx-value-id={pico.id}>
-                    Configure
-                  </button>
-                </div>
+            <div class="hw-card hw-pico-row" id={"pico-#{pico.id}"}>
+              <div class="hw-pico-row-main">
+                <h3><%= display_name(pico) %></h3>
+                <p class="hw-meta">
+                  <%= length(pico.buttons) %> <%= if length(pico.buttons) == 1, do: "button", else: "buttons" %>
+                  · <%= if pico.area, do: pico.area.display_name || pico.area.name, else: "Unassigned" %>
+                </p>
+              </div>
+              <div class="hw-actions">
+                <button type="button" class="hw-button" phx-click="select_pico" phx-value-id={pico.id}>
+                  Configure
+                </button>
               </div>
             </div>
           <% end %>
@@ -155,7 +155,7 @@
           <h3>Area Scope</h3>
 
           <label class="hw-field-label" for="pico-area-id">Area</label>
-          <div class="hw-inline-control hw-field-4">
+          <div class="hw-inline-control">
             <div class="hw-inline-field-stack hw-inline-grow">
               <select
                 id="pico-area-id"
@@ -187,7 +187,7 @@
                 disabled={area_scope_clear_disabled?(@selected_pico)}
                 data-confirm="Clear this Pico config? This restores the auto-detected area and removes all control groups and button bindings."
               >
-                Clear Config
+                Clear config
               </button>
             </div>
           </div>
@@ -210,7 +210,7 @@
 
             <label class="hw-field-label" for="pico-clone-source">Source Pico</label>
 
-            <form id="pico-clone-source-form" phx-change="select_clone_source" class="hw-inline-control hw-field-4">
+            <form id="pico-clone-source-form" phx-change="select_clone_source" class="hw-inline-control">
               <div class="hw-inline-field-stack hw-inline-grow">
                 <select id="pico-clone-source" name="id" class="hw-select" aria-label="Source Pico">
                   <%= for pico <- Enum.reject(@pico_devices, &(&1.id == @selected_pico.id)) do %>
@@ -256,7 +256,7 @@
               class="hw-button"
               phx-click="create_control_group"
             >
-              Add Control Group
+              Add control group
             </button>
           </div>
 
@@ -535,7 +535,7 @@
                 </select>
               </div>
             <% else %>
-              <fieldset id="pico-binding-target-groups" class="hw-inline-field-stack hw-field-4">
+              <fieldset :if={@control_groups != []} id="pico-binding-target-groups" class="hw-inline-field-stack hw-field-4">
                 <legend class="hw-field-label">Control groups</legend>
                 <div class="hw-checkbox-list">
                   <%= for group <- @control_groups do %>
@@ -555,7 +555,7 @@
 
             <div class="hw-inline-actions">
               <button id="pico-start-button-learning" type="button" phx-click="start_button_learning" class="hw-button hw-button-on">
-                <%= if @learning_binding, do: "Waiting For Press", else: "Assign By Press" %>
+                <%= if @learning_binding, do: "Waiting for press", else: "Assign by press" %>
               </button>
               <%= if @learning_binding do %>
                 <button type="button" phx-click="cancel_button_learning" class="hw-button">
@@ -570,18 +570,17 @@
           <h3>Discovered Buttons</h3>
           <div class="hw-list">
             <%= for button <- @selected_pico.buttons do %>
-              <div class="hw-card" id={"pico-button-#{button.id}"}>
-                <div class="hw-card-title">
-                  <div class="hw-title-row">
-                    <h3>Button <%= button.button_number %></h3>
-                  </div>
+              <div class="hw-card hw-pico-row" id={"pico-button-#{button.id}"}>
+                <div class="hw-pico-row-main">
+                  <h3>Button <%= button.button_number %></h3>
                   <p class="hw-meta">
-                    binding: <%= Hueworks.Picos.button_binding_summary(button, @selected_pico) %>
+                    Binding: <%= Hueworks.Picos.button_binding_summary(button, @selected_pico) %>
                   </p>
                   <%= if button.last_pressed_at do %>
-                    <p class="hw-meta">last press: <%= button.last_pressed_at %></p>
+                    <p class="hw-meta">Last press: <%= button.last_pressed_at %></p>
                   <% end %>
-                  <div class="hw-actions">
+                </div>
+                <div class="hw-actions">
                     <button
                       id={"pico-manual-assign-button-#{button.id}"}
                       type="button"
@@ -589,7 +588,7 @@
                       phx-click="assign_button_manually"
                       phx-value-id={button.id}
                     >
-                      Manual Assign
+                      Assign manually
                     </button>
                     <button
                       type="button"
@@ -600,7 +599,6 @@
                     >
                       Clear
                     </button>
-                  </div>
                 </div>
               </div>
             <% end %>
