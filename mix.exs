@@ -54,7 +54,6 @@ defmodule Hueworks.MixProject do
       {:phoenix_html, "~> 4.0"},
       {:bandit, "~> 1.12"},
       {:esbuild, "~> 0.8", runtime: Mix.env() == :dev},
-      {:tailwind, "~> 0.2", runtime: Mix.env() == :dev},
 
       # Development
       {:phoenix_live_reload, "~> 1.4", only: :dev},
@@ -69,13 +68,9 @@ defmodule Hueworks.MixProject do
       setup: ["deps.get", "ecto.setup", "assets.setup", "assets.build"],
       "ecto.setup": ["ecto.create", "ecto.migrate"],
       "ecto.reset": ["ecto.drop", "ecto.setup"],
-      "assets.setup": ["tailwind.install --if-missing", "esbuild.install --if-missing"],
-      "assets.build": ["tailwind hueworks", "esbuild hueworks"],
-      "assets.deploy": [
-        "tailwind hueworks --minify",
-        "esbuild hueworks --minify",
-        "phx.digest"
-      ],
+      "assets.setup": ["esbuild.install --if-missing"],
+      "assets.build": ["esbuild hueworks"],
+      "assets.deploy": ["esbuild hueworks --minify", "phx.digest"],
       test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"]
     ]
   end
