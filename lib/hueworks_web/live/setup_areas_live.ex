@@ -399,7 +399,7 @@ defmodule HueworksWeb.SetupAreasLive do
       </header>
 
       <div class="hw-space-action-grid">
-        <form class="hw-space-action-card hw-space-create-form" phx-submit="create_area_for_space">
+        <form class="hw-space-action-card" phx-submit="create_area_for_space">
           <input type="hidden" name="bridge_id" value={@entry.bridge.id} />
           <input type="hidden" name="kind" value={@item.space.kind} />
           <input type="hidden" name="external_id" value={@item.space.external_id} />
@@ -419,7 +419,7 @@ defmodule HueworksWeb.SetupAreasLive do
 
         <form
           id={"map-space-#{@entry.bridge.id}-#{@item.space.external_id}"}
-          class="hw-space-action-card hw-space-map-form"
+          class="hw-space-action-card"
           phx-submit="map_space"
         >
           <input type="hidden" name="bridge_id" value={@entry.bridge.id} />

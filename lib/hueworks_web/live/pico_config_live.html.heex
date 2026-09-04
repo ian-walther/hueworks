@@ -453,7 +453,7 @@
                       <div class="hw-area-list">
                         <%= for group_id <- @control_group_group_ids do %>
                           <% selected_group = Enum.find(@area_groups, &(&1.id == group_id)) %>
-                          <span class="hw-area-item hw-area-item-row">
+                          <span class="hw-area-item">
                             <span>
                               <%= if selected_group,
                                 do: selected_group.display_name || selected_group.name,
@@ -473,7 +473,7 @@
 
                         <%= for light_id <- @control_group_light_ids do %>
                           <% selected_light = Enum.find(@area_lights, &(&1.id == light_id)) %>
-                          <span class="hw-area-item hw-area-item-row">
+                          <span class="hw-area-item">
                             <span>
                               <%= if selected_light,
                                 do: selected_light.display_name || selected_light.name,

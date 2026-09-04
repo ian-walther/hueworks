@@ -85,7 +85,7 @@
               :for={scene <- sort_by_display_name(area.scenes)}
               id={"scene-#{scene.id}"}
               class={[
-                "hw-data-row hw-scene-row",
+                "hw-data-row",
                 active_scene_id == scene.id && "hw-data-row-active"
               ]}
             >
@@ -154,7 +154,7 @@
           </div>
         </section>
 
-        <section class="hw-ledger-section hw-area-details" aria-labelledby={"area-#{area.id}-details"}>
+        <section class="hw-ledger-section" aria-labelledby={"area-#{area.id}-details"}>
           <div class="hw-section-header">
             <div>
               <p class="hw-eyebrow">Configuration</p>
@@ -173,7 +173,7 @@
               </summary>
 
               <div class="hw-detail-body">
-                <div :if={area.presence_inputs != []} class="hw-data-list hw-presence-list">
+                <div :if={area.presence_inputs != []} class="hw-data-list">
                   <div
                     :for={input <- Enum.sort_by(area.presence_inputs, & &1.name)}
                     class="hw-data-row hw-presence-row"

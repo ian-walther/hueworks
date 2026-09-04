@@ -18,7 +18,7 @@ defmodule HueworksWeb.AreasLiveTest do
     assert has_element?(view, "main.hw-content-frame .hw-page-header", "House structure")
     assert has_element?(view, "#area-#{area.id}.hw-area-ledger-card")
     assert has_element?(view, "#area-#{area.id} .hw-area-ledger-body")
-    assert has_element?(view, "#area-#{area.id} .hw-area-details", "Area details")
+    assert has_element?(view, "#area-#{area.id} section[aria-labelledby='area-#{area.id}-details']", "Area details")
   end
 
   test "areas page creates an Area through the modal", %{conn: conn} do

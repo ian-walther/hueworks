@@ -257,7 +257,7 @@ defmodule HueworksWeb.SceneBuilderComponent do
         </article>
       <% end %>
 
-      <div class="hw-scene-validation hw-scene-validation-summary">
+      <div class="hw-scene-validation-summary">
         <%= if @builder.unassigned_light_ids != [] do %>
           <p class="hw-error">
             Unassigned lights: <%= Enum.count(@builder.unassigned_light_ids) %>
