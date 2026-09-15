@@ -297,14 +297,16 @@ defmodule Hueworks.Control.Executor do
     end
   end
 
+  # Each bridge is admitted against the clock as it stands when its turn comes, not the
+  # start of the tick: a slow synchronous dispatch to one bridge must not give the next
+  # bridge a stale timestamp for pacing or tracing.
   defp dispatch_tick(state, force \\ false) do
-    now = state.now_fn.(:millisecond)
-
     {state, had_work} =
       Enum.reduce(
         state.queues,
         {state, false},
         fn {bridge_id, queue}, {state_acc, worked} ->
+          now = state_acc.now_fn.(:millisecond)
           rate = Map.get(state_acc.bridge_rates, bridge_id) || default_rate()
           interval = interval_ms(rate)
           last = Map.get(state_acc.last_sent, bridge_id, now - interval)
@@ -354,15 +356,14 @@ defmodule Hueworks.Control.Executor do
                           state_acc
                         )
 
-                      state_acc = %{
+                      state_acc =
                         state_acc
-                        | queues: Map.put(state_acc.queues, bridge_id, updated_queue),
-                          last_sent: Map.put(state_acc.last_sent, bridge_id, now),
-                          last_group_sent:
-                            mark_group_sent(state_acc.last_group_sent, action, bridge_id, now),
-                          dispatched_revisions:
-                            mark_dispatched(state_acc.dispatched_revisions, action)
-                      }
+                        |> record_attempt(bridge_id, action, now)
+                        |> Map.put(:queues, Map.put(state_acc.queues, bridge_id, updated_queue))
+                        |> Map.put(
+                          :dispatched_revisions,
+                          mark_dispatched(state_acc.dispatched_revisions, action)
+                        )
 
                       {state_acc, true}
 
@@ -375,8 +376,14 @@ defmodule Hueworks.Control.Executor do
                           requeue_action(updated_queue, action, now, state_acc)
                         end
 
-                      {%{state_acc | queues: Map.put(state_acc.queues, bridge_id, updated_queue)},
-                       true}
+                      # A refused request still reached the bridge and counts against its
+                      # budget; only revision and settlement tracking are success-only.
+                      state_acc =
+                        state_acc
+                        |> record_attempt(bridge_id, action, now)
+                        |> Map.put(:queues, Map.put(state_acc.queues, bridge_id, updated_queue))
+
+                      {state_acc, true}
                   end
                 else
                   recovery_actions = Convergence.stale_recovery_actions(action, state_acc)
@@ -405,6 +412,16 @@ defmodule Hueworks.Control.Executor do
     else
       state.group_rates
     end
+  end
+
+  # Pacing measures requests sent to the bridge, whatever the bridge answered. Actions
+  # discarded as stale without a dispatch never reach here.
+  defp record_attempt(state, bridge_id, action, now) do
+    %{
+      state
+      | last_sent: Map.put(state.last_sent, bridge_id, now),
+        last_group_sent: mark_group_sent(state.last_group_sent, action, bridge_id, now)
+    }
   end
 
   defp mark_group_sent(last_group_sent, %{type: :group}, bridge_id, now),

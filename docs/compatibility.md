@@ -48,7 +48,7 @@
 ### HomeKit
 
 - On/off behavior is the stable capability.
-- Brightness, color, and color temperature are available for entities that support them. Writes are answered immediately and applied off the HomeKit request path; this path has not yet been verified against Apple Home on hardware, so treat it as beta.
+- Brightness, color, and color temperature are available for entities that support them. Writes are answered immediately and applied off the HomeKit request path. Brightness has been used against Apple Home on hardware; color, temperature, and identity survival across topology changes have not yet been verified there, so treat those as beta.
 - Brightness, color, and temperature writes are refused while a HueWorks scene is active in the area; the scene owns those attributes.
 - Color temperature is published over 2000 K to 7142 K and clamped to each entity's calibrated range when applied.
 - Color and temperature should not be treated as release-quality behavior.

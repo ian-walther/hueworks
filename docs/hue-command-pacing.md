@@ -13,12 +13,21 @@ the value at the end of the drag sometimes did not take effect (a few seconds la
 slider snapped back to an intermediate level). Tapping the slider once, after the previous
 change had settled, always worked.
 
-## Why
+## What was verified and what is inferred
 
-A drag is a stream of writes, one every hundred milliseconds or so. Each is accepted
-instantly, the HomeKit writer collapses them into one apply at a time per entity, and the
-applies become bridge commands at close to the executor's ceiling for the bridge. Four
-things then compounded:
+The symptom above is observed. What follows separates the defects verified by reading and
+testing the code from the explanation that ties them to the symptom; no trace tying one
+particular lost final write to a specific Hue refusal was captured before the change, and a
+type 901 error on its own is the bridge reporting an internal error, not proof of overload.
+
+Verified defects: the executor paced group commands at the light rate; the Hue client
+accepted any HTTP 200 without reading the error list; every drag write carried the manual
+fade; the executor's pacing clocks advanced only on success and were sampled once per tick
+(both found in review and fixed). Plausible explanation for the symptom, given those
+defects: a drag is a stream of writes, one every hundred milliseconds or so. Each is
+accepted instantly, the HomeKit writer collapses them into one apply at a time per entity,
+and the applies become bridge commands at close to the executor's ceiling for the bridge.
+Four things then compound:
 
 1. **Group commands were paced like light commands.** The executor had one pacing interval
    per bridge, chosen by bridge type: 100 ms for Hue. Philips' published guidance is
@@ -27,7 +36,7 @@ things then compounded:
    the same figures appear in [node-hue-api](https://www.npmjs.com/package/node-hue-api)
    and in Home Assistant's own [rate discussion](https://github.com/home-assistant/core/issues/60745)).
    A group, or a set of lights the planner promoted to a group command, was being driven
-   at ten times its budget, and the bridge sheds what it cannot take.
+   at ten times its budget, and a bridge over budget can shed commands.
 2. **Shed commands looked like successes.** The Hue v1 API answers HTTP 200 even when it
    refuses a command; the refusal is an `error` object inside the result list. The client
    accepted any 200 without reading the body, so the executor's retry never fired and
@@ -65,10 +74,17 @@ for no gain.
 
 ### 2. Pace group commands separately, at 1 per second
 
-The executor keeps a second timestamp per bridge for the last group command and a group
+The executor keeps a second timestamp per bridge for the last group request and a group
 rate per bridge type (`@default_group_rates %{hue: 1}`; other bridge types have none and
 keep pacing group commands like any other). The group rate is looked up only when a bridge
-actually receives a group command, because the default lookup reads the bridge record. A group command at the head of a bridge's
+actually receives a group command, because the default lookup reads the bridge record.
+
+Pacing measures requests sent, not requests that succeeded: a busy or rejected answer
+still advances both the bridge clock and the group clock, so a retry waits for both its
+backoff and the budget, and a refusal does not let the next group command out early.
+Actions discarded as stale without a dispatch consume nothing. Each bridge is admitted
+against the clock as it stands when its turn in the tick comes, so a slow synchronous
+dispatch to one bridge does not hand the next bridge a stale timestamp. A group command at the head of a bridge's
 queue that the bridge is not yet ready for lets a light command behind it go first and
 keeps its place; nothing is reordered otherwise. The queue's existing replace-targets rule
 means only the newest value per target waits, so a drag still ends at the last value.
@@ -102,14 +118,37 @@ flight, further writes for the same entity merge into one pending apply, and the
 pacing bounds what reaches the bridge regardless of how many applies run. The window stays
 configurable (`:homekit_write_coalesce_ms`).
 
+## The tradeoff this leaves
+
+The group budget is one request per second per bridge, counting refused attempts, not one
+per group or per HomeKit accessory. Four group commands queued for one bridge therefore
+take at least three seconds from first to last dispatch, before any retry. Every control
+path shares that budget: scenes, Pico buttons, presence changes, and the Home Assistant
+export as well as HomeKit. The planner still prefers a compatible hardware group over
+individual light commands without weighing that a group command costs ten times a light
+command in budget, and even a single light can be sent as a one-member group. Whether the
+planner should weigh dispatch cost, and whether a slider should ever drive a group at all,
+are open questions to be answered from hardware measurements (see the planning note), not
+by raising the group rate or turning group promotion off to make one slider look faster.
+
 ## What to verify on hardware
 
-With `ADVANCED_DEBUG_LOGGING=true`, drag a brightness slider on a group and on a single
-lamp in the Home app:
+With `ADVANCED_DEBUG_LOGGING=true`, capture three things for each check: the accepted
+write (`[homekit] write_accepted`), the actual dispatch (control-trace `dispatch` lines,
+with their timestamps), and the observed final value (the light itself and the value the
+Home app settles on), rather than judging only the immediate Home app response.
 
-- The lamp should track the finger with at most a short lag, and the end value should hold
-  without the slider snapping back seconds later.
-- The control-trace log should show at most one group dispatch per second for the group,
-  and up to ten per second for individual lights.
+- Drag a brightness slider on a single lamp: it should track the finger with at most a
+  short lag and the end value should hold without the slider snapping back seconds later.
+- Drag a slider on a group, then on two or three distinct groups on the same bridge in
+  quick succession: group dispatches for that bridge should be at least one second apart
+  including any refused attempts, and the last value for each group should land.
+- Activate a scene that produces several group actions and note how long the last group
+  dispatch trails the first; this is the tradeoff above, measured.
+- Turn a lamp off and on again immediately after a drag: the power command must not be
+  lost behind the drag's remaining writes.
+- With one bridge slow or busy (or unreachable) and another healthy, control a light on
+  the healthy bridge: it should not wait on the slow one, and its dispatch timestamps
+  should reflect when it was actually sent.
 - Any `executor_dispatch_rejected` warning means the bridge refused a command as sent and
   is worth reading; a busy bridge shows as a retry in the trace, not a warning.

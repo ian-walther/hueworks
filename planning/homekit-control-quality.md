@@ -33,12 +33,14 @@ Blocking brightness, color, and temperature writes while a HueWorks scene is act
 The app uses an identity-only fork of the `hap` library (mtrudel/hap 0.6.0), vendored at `vendor/hap` as a path dependency and documented in `vendor/hap/FORK.md`. Decided 2026-09-14: the fork exists because stable accessory and characteristic identities could not be achieved from the app side without placeholders and layout tricks that still failed on capability loss. Keep the fork to identity. No upstream PR; the work stays local. Rolling our own HAP server remains on the table only if a further structural limitation (manager-process serialization, originator exclusion, a service-level setter) is actually hit on hardware.
 
 ## Remaining Work
-- Hardware smoke test against Apple Home (steps in `docs/homekit-internals.md`, "Verification status"): brightness latency, color and temperature round-trips, and identity survival across un-expose and re-expose. Update `README.md` and `docs/compatibility.md` once verified.
+- Hardware checks still open (steps in `docs/homekit-internals.md`, "Verification status", and `docs/hue-command-pacing.md`, "What to verify on hardware"): color and temperature round-trips, identity survival across un-expose and re-expose, a group slider drag after the pacing fixes, several groups on one bridge, a multi-group scene, and a slow bridge beside a healthy one. Update `README.md` and `docs/compatibility.md` as each is verified.
+- Measure, on hardware, how long a multi-group scene's last group dispatch trails its first under the one-per-second-per-bridge group budget, before deciding whether the planner should weigh group-command cost against individual light commands (`docs/hue-command-pacing.md`, "The tradeoff this leaves").
 - Local development databases created on this branch before the fork carry the earlier `homekit_accessory_ids` shape; `mix ecto.reset` brings them current. Production has never run either shape.
 - Confirm on the production host that HAP connections now persist past 60 seconds idle.
 - Decide whether to upgrade `hap` to 0.7.0. It changes nothing for control latency and pulls newer `mdns_lite`, `hkdf`, and `eqrcode`.
 
 ## Open Decisions
+- **Group-command cost in the planner.** The group budget is one request per second per bridge, shared by every control path. The planner prefers hardware groups without weighing that cost. Decide from the measurement above whether to weigh it, and whether sliders should drive groups at all. Do not raise the group rate or disable group promotion to make one slider look faster.
 - **Rewrite trigger.** Only worth deciding if the forked, wrapped design still shows latency on hardware.
 
 ## Non-Goals For This Planning Note
