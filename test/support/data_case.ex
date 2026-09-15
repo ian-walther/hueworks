@@ -33,6 +33,7 @@ defmodule Hueworks.DataCase do
     clear_ets(:hueworks_desired_state_updated_at)
     clear_ets(:hueworks_control_state)
     clear_ets(:hueworks_control_state_observed_at)
+    clear_ets(:hueworks_homekit_values)
     on_exit(fn -> Ecto.Adapters.SQL.Sandbox.stop_owner(pid) end)
   end
 

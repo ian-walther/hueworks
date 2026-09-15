@@ -43,7 +43,7 @@ defmodule Hueworks.MixProject do
 
       # MQTT for Zigbee2MQTT
       {:tortoise, "~> 0.10"},
-      {:hap, "~> 0.6.0"},
+      {:hap, path: "vendor/hap"},
       {:mdns_lite, "~> 0.8.11"},
       {:solarex, "~> 0.1.2"},
       {:tzdata, "~> 1.1"},

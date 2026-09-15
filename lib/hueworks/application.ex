@@ -19,7 +19,10 @@ defmodule Hueworks.Application do
       Hueworks.HomeAssistant.TokenProvider,
       Hueworks.Control.State,
       Hueworks.Control.DesiredState,
-      Hueworks.Control.TraceBuffer
+      Hueworks.Control.TraceBuffer,
+      Hueworks.HomeKit.ValueCache,
+      {Task.Supervisor, name: Hueworks.HomeKit.Writer.task_supervisor()},
+      Hueworks.HomeKit.Writer
     ]
 
     runtime_children =

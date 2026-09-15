@@ -12,6 +12,7 @@ RUN mix local.hex --force && mix local.rebar --force
 
 COPY mix.exs mix.lock ./
 COPY config/config.exs config/runtime.exs config/prod.exs config/
+COPY vendor vendor
 
 RUN mix deps.get --only ${MIX_ENV}
 RUN mix deps.compile

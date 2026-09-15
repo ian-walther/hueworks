@@ -58,6 +58,12 @@ Reimport is a review of upstream differences, not a replacement initial import. 
 - Confirm `HOMEKIT_RUNTIME_ENABLED=true`, the static HomeKit port is reachable, and the Linux host-network overlay is active where required.
 - If Apple Home and HueWorks pairing state diverge, remove the bridge from Apple Home, use Reset Pairing in HueWorks, and pair again.
 
+## HomeKit Brightness Lags Or Snaps Back
+
+- Set `ADVANCED_DEBUG_LOGGING=true` and watch for `[homekit] write_accepted` and `[homekit] write_applied` lines. `accept_ms` is the time HomeKit waited; `coalesce_ms` and `apply_ms` show where the rest went.
+- A brightness write while a HueWorks scene is active in that area is refused by design; the scene owns brightness.
+- See `docs/homekit-internals.md` for how the write, read, and notification paths work.
+
 ## Before Reporting A Bug
 
 Include the HueWorks version shown on Config, bridge type, sanitized error text, whether the operation was import/control/event update, and the smallest reproduction sequence. Never include tokens, certificates, database files, public household addresses, or unsanitized topology.

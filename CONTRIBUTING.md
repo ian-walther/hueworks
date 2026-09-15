@@ -25,6 +25,7 @@ Bridge seeds are optional recovery tooling and must not become a prerequisite fo
 - Keep planning documents forward-looking; remove completed work rather than recording progress.
 - Keep user documentation synchronized with behavior and known limitations.
 - Preserve the runtime/domain split: supervised processes and infrastructure live under `lib/hueworks_app`; domain logic lives under `lib/hueworks`.
+- `vendor/hap` is an identity-only fork of the hap library. Keep changes there minimal, record each one in `vendor/hap/FORK.md`, and run its own suite (`cd vendor/hap && MIX_ENV=test mix deps.get --only test && mix test`) when touching it.
 - Never include real bridge credentials, tokens, certificate data, addresses, entity names, or database snapshots in fixtures or reports.
 
 Hardware-dependent changes should include deterministic boundary tests plus a clearly described manual smoke test. Do not make the normal automated suite depend on household hardware or network services.

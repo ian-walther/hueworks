@@ -19,5 +19,4 @@ Reference: `planning/pre-release_refinement.md`
 ### HomeKit Control Quality
 Reference: `planning/homekit-control-quality.md`
 
-- [ ] Improve HomeKit behavior beyond reliable on/off control.
-- [ ] Define the expected user experience for brightness/color control when no HueWorks scene is active.
+- [ ] Smoke-test HomeKit brightness, color, temperature, and identity survival against Apple Home on hardware (steps in `docs/homekit-internals.md`).

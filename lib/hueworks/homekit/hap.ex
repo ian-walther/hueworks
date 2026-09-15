@@ -34,7 +34,11 @@ defmodule Hueworks.HomeKit.HAP do
        http_1_options: [clear_process_dict: false],
        thousand_island_options: [
          handler_module: Hueworks.HomeKit.HAPSessionHandler,
-         transport_module: Hueworks.HomeKit.HAPSessionTransport
+         transport_module: Hueworks.HomeKit.HAPSessionTransport,
+         # HomeKit controllers hold one connection open indefinitely for events. Thousand
+         # Island's default closes it after 60 seconds idle, forcing a reconnect and a new
+         # pair-verify before the next command.
+         read_timeout: :infinity
        ]}
     ]
   end

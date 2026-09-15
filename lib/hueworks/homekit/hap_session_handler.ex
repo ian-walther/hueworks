@@ -1,7 +1,12 @@
 defmodule Hueworks.HomeKit.HAPSessionHandler do
   @moduledoc false
+  # Thousand Island handler for HAP sessions. Decrypts inbound frames (buffering partial
+  # frames across reads) before handing requests to Bandit, and pushes HAP EVENT messages
+  # that the hap library casts to the connection process.
 
   use ThousandIsland.Handler
+
+  alias Hueworks.HomeKit.HAPSessionTransport
 
   def push(pid, data) do
     GenServer.cast(pid, {:push, data})
@@ -9,8 +14,16 @@ defmodule Hueworks.HomeKit.HAPSessionHandler do
 
   @impl ThousandIsland.Handler
   def handle_data(data, socket, state) do
-    {:ok, data} = Hueworks.HomeKit.HAPSessionTransport.decrypt_if_needed(data)
-    Bandit.HTTP1.Handler.handle_data(data, socket, state)
+    case HAPSessionTransport.decrypt_buffered(data) do
+      {:ok, plaintext} ->
+        case HAPSessionTransport.pop_plaintext() <> plaintext do
+          <<>> -> {:continue, state}
+          request -> Bandit.HTTP1.Handler.handle_data(request, socket, state)
+        end
+
+      {:error, reason} ->
+        {:error, {:hap_decrypt_failed, reason}, state}
+    end
   end
 
   @impl GenServer
@@ -35,11 +48,7 @@ defmodule Hueworks.HomeKit.HAPSessionHandler do
   end
 
   @impl GenServer
-  def handle_info({:plug_conn, :sent}, state) do
-    Bandit.HTTP1.Handler.handle_info({:plug_conn, :sent}, state)
-  end
-
-  def handle_info({:EXIT, pid, :normal}, state) when is_pid(pid) do
-    Bandit.HTTP1.Handler.handle_info({:EXIT, pid, :normal}, state)
+  def handle_info(message, {%ThousandIsland.Socket{} = socket, state}) do
+    Bandit.HTTP1.Handler.handle_info(message, {socket, state})
   end
 end

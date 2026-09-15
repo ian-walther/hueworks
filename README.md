@@ -305,9 +305,12 @@ HomeKit runtime:
 - `HOMEKIT_PORT` defaults to `51827` so Apple Home does not have to rediscover a new HAP TCP port after every HueWorks restart.
 - `HOMEKIT_MDNS_HOST` defaults to `hueworks`, which advertises the bridge at `hueworks.local` over IPv4-only mDNS. Keep normal DNS such as `hueworks.home` pointed at the same host for browser access, but HomeKit discovery itself uses mDNS.
 - The Apple Home setup code is shown on the Config page in the HomeKit Bridge section.
-- On first pairing, HueWorks initially exposes the bridge without child accessories, then publishes exposed lights/groups/scenes shortly after pairing completes. This avoids Apple Home's initial add flow prompting for dumb prefilled child names.
+- On first pairing, HueWorks initially exposes only the bridge accessory itself, then publishes exposed lights/groups/scenes shortly after pairing completes. This avoids Apple Home's initial add flow prompting for dumb prefilled child names.
 - If Apple Home and HueWorks get out of sync during pairing or testing, use Config -> HomeKit Bridge -> Reset Pairing to clear saved HomeKit controller pairings before adding the bridge again.
-- Light/group HomeKit export can expose entities as on/off switches or dimmable lights. On/off control is the reliable path today; brightness is available for testing but can be laggy or intermittently miss commands.
+- Light/group HomeKit export can expose entities as on/off switches or dimmable lights. In light mode, entities that support color also get hue and saturation, and entities that support temperature get color temperature. On/off control is the reliable path today; brightness, color, and temperature are available and answered immediately, but have not yet been verified against Apple Home on hardware. Level and color writes are refused while a HueWorks scene is active in the area.
+- HomeKit accessory and characteristic IDs are persisted per entity, so adding, removing, or renaming an exposed entity, or a light or group gaining or losing color support, never renumbers anything else in Apple Home.
+- The HomeKit protocol library is an identity-only fork of `hap` vendored at `vendor/hap`; see `vendor/hap/FORK.md`.
+- HomeKit control tuning lives in application config: `homekit_write_coalesce_ms` (default 25), `homekit_value_cache_ttl_ms` (default 5000), and `homekit_notify_debounce_ms` (default 100). See [docs/homekit-internals.md](docs/homekit-internals.md).
 - For production HomeKit pairing from Docker on Linux, set `COMPOSE_FILE=docker-compose.yml:docker-compose.homekit.yml` so the HAP server's mDNS advertisement and static TCP port are reachable on the LAN through host networking.
 
 Home Assistant MQTT export:
