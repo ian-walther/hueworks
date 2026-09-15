@@ -24,13 +24,16 @@ defmodule Hueworks.Lights.ManualControl do
           DesiredState.apply(acc, :light, light_id, desired_update)
         end)
 
-      case ControlApply.commit_and_enqueue(txn, area_id,
-             enqueue_mode: Keyword.get(opts, :enqueue_mode, :replace_targets),
-             force_dispatch_light_ids: light_ids,
-             group_candidate_light_ids: light_ids,
-             origin: :manual,
-             trace: trace
-           ) do
+      apply_opts =
+        [
+          enqueue_mode: Keyword.get(opts, :enqueue_mode, :replace_targets),
+          force_dispatch_light_ids: light_ids,
+          group_candidate_light_ids: light_ids,
+          origin: :manual,
+          trace: trace
+        ] ++ Keyword.take(opts, [:transition_ms, :transition_policy])
+
+      case ControlApply.commit_and_enqueue(txn, area_id, apply_opts) do
         {:ok, %{plan_diff: plan_diff}} ->
           {:ok, plan_diff}
 

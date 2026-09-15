@@ -310,7 +310,8 @@ HomeKit runtime:
 - Light/group HomeKit export can expose entities as on/off switches or dimmable lights. In light mode, entities that support color also get hue and saturation, and entities that support temperature get color temperature. On/off control is the reliable path today; brightness, color, and temperature are available and answered immediately, but have not yet been verified against Apple Home on hardware. Level and color writes are refused while a HueWorks scene is active in the area.
 - HomeKit accessory and characteristic IDs are persisted per entity, so adding, removing, or renaming an exposed entity, or a light or group gaining or losing color support, never renumbers anything else in Apple Home.
 - The HomeKit protocol library is an identity-only fork of `hap` vendored at `vendor/hap`; see `vendor/hap/FORK.md`.
-- HomeKit control tuning lives in application config: `homekit_write_coalesce_ms` (default 25), `homekit_value_cache_ttl_ms` (default 5000), and `homekit_notify_debounce_ms` (default 100). See [docs/homekit-internals.md](docs/homekit-internals.md).
+- HomeKit control tuning lives in application config: `homekit_write_coalesce_ms` (default 25), `homekit_value_cache_ttl_ms` (default 5000), `homekit_notify_debounce_ms` (default 100), and `homekit_write_transition_ms` (default 100). See [docs/homekit-internals.md](docs/homekit-internals.md).
+- Bridge command pacing lives in application config too: `bridge_command_rates` and `bridge_group_command_rates` map bridge type to commands per second (Hue defaults: 10 for lights, 1 for groups). See [docs/hue-command-pacing.md](docs/hue-command-pacing.md).
 - For production HomeKit pairing from Docker on Linux, set `COMPOSE_FILE=docker-compose.yml:docker-compose.homekit.yml` so the HAP server's mDNS advertisement and static TCP port are reachable on the LAN through host networking.
 
 Home Assistant MQTT export:

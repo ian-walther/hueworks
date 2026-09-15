@@ -17,7 +17,12 @@ defmodule Hueworks.Control.Executor do
   alias Hueworks.Schemas.Group, as: GroupSchema
   alias Hueworks.Schemas.Light, as: LightSchema
 
+  # Commands per second per bridge. Hue's published guidance is roughly 10 per second to
+  # /lights with a 100 ms gap, and at most 1 per second to /groups; group commands are
+  # paced separately below. Both maps can be overridden with the :bridge_command_rates and
+  # :bridge_group_command_rates application settings. See docs/hue-command-pacing.md.
   @default_rates %{hue: 10, ha: 5, caseta: 5, z2m: 5}
+  @default_group_rates %{hue: 1}
   @default_max_retries 3
   @default_backoff_ms 250
 
@@ -52,6 +57,7 @@ defmodule Hueworks.Control.Executor do
     max_retries = Keyword.get(opts, :max_retries, @default_max_retries)
     backoff_ms = Keyword.get(opts, :backoff_ms, @default_backoff_ms)
     bridge_rate_fun = Keyword.get(opts, :bridge_rate_fun, &bridge_rate/1)
+    group_rate_fun = Keyword.get(opts, :group_rate_fun, &group_rate/1)
     settlement_floor_ms = Keyword.get(opts, :settlement_floor_ms, 750)
     settlement_grace_ms = Keyword.get(opts, :settlement_grace_ms, 0)
 
@@ -59,7 +65,9 @@ defmodule Hueworks.Control.Executor do
      %{
        queues: %{},
        bridge_rates: %{},
+       group_rates: %{},
        last_sent: %{},
+       last_group_sent: %{},
        dispatched_revisions: %{},
        settlements: %{},
        timer_ref: nil,
@@ -68,6 +76,7 @@ defmodule Hueworks.Control.Executor do
        max_retries: max_retries,
        backoff_ms: backoff_ms,
        bridge_rate_fun: bridge_rate_fun,
+       group_rate_fun: group_rate_fun,
        settlement_floor_ms: settlement_floor_ms,
        settlement_grace_ms: settlement_grace_ms
      }}
@@ -91,7 +100,9 @@ defmodule Hueworks.Control.Executor do
      %{
        queues: Map.new(queues),
        bridge_rates: state.bridge_rates,
+       group_rates: state.group_rates,
        last_sent: state.last_sent,
+       last_group_sent: state.last_group_sent,
        settlements: map_size(state.settlements)
      }, state}
   end
@@ -159,6 +170,8 @@ defmodule Hueworks.Control.Executor do
       rate = Map.get(acc.bridge_rates, bridge_id) || acc.bridge_rate_fun.(bridge_id)
       interval = interval_ms(rate)
 
+      group_rates = put_group_rate(acc, bridge_id, bridge_actions)
+
       queue =
         case mode do
           :append -> Enum.reduce(normalized, existing_queue, &:queue.in/2)
@@ -183,7 +196,13 @@ defmodule Hueworks.Control.Executor do
           acc.last_sent
         end
 
-      %{acc | queues: queues, bridge_rates: bridge_rates, last_sent: last_sent}
+      %{
+        acc
+        | queues: queues,
+          bridge_rates: bridge_rates,
+          group_rates: group_rates,
+          last_sent: last_sent
+      }
     end)
   end
 
@@ -300,7 +319,7 @@ defmodule Hueworks.Control.Executor do
                   {{:value, action}, rest} -> {{:action, action}, rest}
                 end
               else
-                case next_action(queue, now) do
+                case next_action(queue, now, group_ready?(state_acc, bridge_id, now)) do
                   {:none, rest} -> {:none, rest}
                   {:action, action, rest} -> {{:action, action}, rest}
                 end
@@ -339,14 +358,22 @@ defmodule Hueworks.Control.Executor do
                         state_acc
                         | queues: Map.put(state_acc.queues, bridge_id, updated_queue),
                           last_sent: Map.put(state_acc.last_sent, bridge_id, now),
+                          last_group_sent:
+                            mark_group_sent(state_acc.last_group_sent, action, bridge_id, now),
                           dispatched_revisions:
                             mark_dispatched(state_acc.dispatched_revisions, action)
                       }
 
                       {state_acc, true}
 
-                    {:error, _} ->
-                      updated_queue = requeue_action(updated_queue, action, now, state_acc)
+                    {:error, reason} ->
+                      updated_queue =
+                        if permanent_failure?(reason) do
+                          log_rejected(action, reason)
+                          updated_queue
+                        else
+                          requeue_action(updated_queue, action, now, state_acc)
+                        end
 
                       {%{state_acc | queues: Map.put(state_acc.queues, bridge_id, updated_queue)},
                        true}
@@ -368,6 +395,43 @@ defmodule Hueworks.Control.Executor do
       |> Enum.any?(fn {_bridge_id, queue} -> not :queue.is_empty(queue) end)
 
     {state, had_work, has_pending}
+  end
+
+  # Looked up only when the bridge actually receives group commands, since the default
+  # lookup reads the bridge record.
+  defp put_group_rate(state, bridge_id, bridge_actions) do
+    if Enum.any?(bridge_actions, &(&1.type == :group)) do
+      Map.put_new_lazy(state.group_rates, bridge_id, fn -> state.group_rate_fun.(bridge_id) end)
+    else
+      state.group_rates
+    end
+  end
+
+  defp mark_group_sent(last_group_sent, %{type: :group}, bridge_id, now),
+    do: Map.put(last_group_sent, bridge_id, now)
+
+  defp mark_group_sent(last_group_sent, _action, _bridge_id, _now), do: last_group_sent
+
+  # Whether the bridge may take another group command now. Bridges without a group rate
+  # (nil) pace group commands like any other.
+  defp group_ready?(state, bridge_id, now) do
+    with rate when is_integer(rate) and rate > 0 <- Map.get(state.group_rates, bridge_id),
+         last when is_integer(last) <- Map.get(state.last_group_sent, bridge_id) do
+      now - last >= interval_ms(rate)
+    else
+      _ -> true
+    end
+  end
+
+  # A bridge that refused the command as sent will refuse it again; only a busy bridge is
+  # worth retrying.
+  defp permanent_failure?({:hue_rejected, _errors}), do: true
+  defp permanent_failure?(_reason), do: false
+
+  defp log_rejected(action, reason) do
+    Logger.warning(
+      "executor_dispatch_rejected type=#{inspect(action.type)} id=#{inspect(action.id)} bridge_id=#{inspect(action.bridge_id)} reason=#{inspect(reason)} desired=#{inspect(action.desired)}"
+    )
   end
 
   defp mark_dispatched(dispatched_revisions, %{desired_revisions: revisions})
@@ -426,19 +490,32 @@ defmodule Hueworks.Control.Executor do
 
   defp ensure_light_ids(action), do: Map.put_new(action, :light_ids, [])
 
-  defp next_action(queue, now) do
+  # The head of the queue goes next, except that a group command the bridge is not ready
+  # for lets a light command behind it go first; the group command keeps its place.
+  defp next_action(queue, now, group_ready?) do
     case :queue.out(queue) do
-      {:empty, _} ->
-        {:none, queue}
+      {:empty, _} -> {:none, queue}
+      {{:value, action}, rest} -> pick_action(action, rest, now, group_ready?)
+    end
+  end
 
-      {{:value, action}, rest} ->
-        not_before = action.not_before || now
+  defp pick_action(action, rest, now, group_ready?) do
+    cond do
+      (action.not_before || now) > now ->
+        {:none, :queue.in_r(action, rest)}
 
-        if not_before <= now do
-          {:action, action, rest}
-        else
-          {:none, :queue.in_r(action, rest)}
-        end
+      action.type == :group and not group_ready? ->
+        behind_gated_group(action, rest, now, group_ready?)
+
+      true ->
+        {:action, action, rest}
+    end
+  end
+
+  defp behind_gated_group(group_action, rest, now, group_ready?) do
+    case next_action(rest, now, group_ready?) do
+      {:none, rest} -> {:none, :queue.in_r(group_action, rest)}
+      {:action, other, rest} -> {:action, other, :queue.in_r(group_action, rest)}
     end
   end
 
@@ -464,8 +541,26 @@ defmodule Hueworks.Control.Executor do
   defp bridge_rate(bridge_id) do
     case Repo.get(Bridge, bridge_id) do
       nil -> default_rate()
-      %{type: type} -> Map.get(@default_rates, type, default_rate())
+      %{type: type} -> Map.get(command_rates(), type, default_rate())
     end
+  end
+
+  defp group_rate(bridge_id) do
+    case Repo.get(Bridge, bridge_id) do
+      nil -> nil
+      %{type: type} -> Map.get(group_command_rates(), type)
+    end
+  end
+
+  defp command_rates do
+    Map.merge(@default_rates, Application.get_env(:hueworks, :bridge_command_rates, %{}))
+  end
+
+  defp group_command_rates do
+    Map.merge(
+      @default_group_rates,
+      Application.get_env(:hueworks, :bridge_group_command_rates, %{})
+    )
   end
 
   defp default_rate, do: 5

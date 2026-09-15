@@ -292,4 +292,110 @@ defmodule Hueworks.Control.ExecutorQueueTest do
     assert_receive {:dispatched, %{id: 13}}, 500
     refute_receive {:DOWN, ^ref, :process, ^pid, _reason}, 50
   end
+
+  test "group actions are paced at the group rate while light actions on the bridge continue" do
+    parent = self()
+
+    dispatch_fun = fn action ->
+      send(parent, {:dispatched, action.type, action.id})
+      :ok
+    end
+
+    {:ok, now_agent} = start_supervised({Agent, fn -> 1_000 end}, id: :executor_group_now)
+    now_fn = fn :millisecond -> Agent.get(now_agent, & &1) end
+
+    {:ok, _pid} =
+      start_supervised(
+        {Executor,
+         name: :executor_group_pacing,
+         dispatch_fun: dispatch_fun,
+         now_fn: now_fn,
+         bridge_rate_fun: fn _ -> 10 end,
+         group_rate_fun: fn _ -> 1 end}
+      )
+
+    assert :ok ==
+             Executor.enqueue(
+               [
+                 %{type: :group, id: 1, bridge_id: 10, desired: %{brightness: 40}},
+                 %{type: :group, id: 2, bridge_id: 10, desired: %{brightness: 60}},
+                 %{type: :light, id: 3, bridge_id: 10, desired: %{brightness: 80}}
+               ],
+               server: :executor_group_pacing,
+               mode: :append
+             )
+
+    Executor.tick(:executor_group_pacing)
+    assert_receive {:dispatched, :group, 1}
+
+    # 100 ms later the bridge may take another command, but not another group command.
+    Agent.update(now_agent, fn _ -> 1_100 end)
+    Executor.tick(:executor_group_pacing)
+    assert_receive {:dispatched, :light, 3}
+    refute_received {:dispatched, :group, 2}
+
+    Agent.update(now_agent, fn _ -> 1_500 end)
+    Executor.tick(:executor_group_pacing)
+    refute_received {:dispatched, :group, 2}
+
+    Agent.update(now_agent, fn _ -> 2_000 end)
+    Executor.tick(:executor_group_pacing)
+    assert_receive {:dispatched, :group, 2}
+  end
+
+  test "a rejected bridge response is dropped while a busy one is retried" do
+    {:ok, results} =
+      start_supervised(
+        {Agent,
+         fn ->
+           [
+             {:error, {:hue_rejected, [%{"type" => 201}]}},
+             {:error, {:hue_busy, [%{"type" => 901}]}}
+           ]
+         end},
+        id: :executor_result_results
+      )
+
+    dispatch_fun = fn _action ->
+      Agent.get_and_update(results, fn [result | rest] -> {result, rest} end)
+    end
+
+    {:ok, now_agent} = start_supervised({Agent, fn -> 1_000 end}, id: :executor_result_now)
+    now_fn = fn :millisecond -> Agent.get(now_agent, & &1) end
+
+    {:ok, _pid} =
+      start_supervised(
+        {Executor,
+         name: :executor_results,
+         dispatch_fun: dispatch_fun,
+         now_fn: now_fn,
+         bridge_rate_fun: fn _ -> 10 end}
+      )
+
+    # Enqueueing schedules the executor's own tick, which may dispatch before the forced
+    # one, so the enqueue is captured too.
+    log =
+      capture_log(fn ->
+        assert :ok ==
+                 Executor.enqueue(
+                   [%{type: :light, id: 1, bridge_id: 10, desired: %{brightness: 40}}],
+                   server: :executor_results,
+                   mode: :append
+                 )
+
+        Executor.tick(:executor_results, force: true)
+      end)
+
+    assert log =~ "executor_dispatch_rejected"
+    assert Executor.stats(:executor_results).queues == %{10 => 0}
+
+    assert :ok ==
+             Executor.enqueue([%{type: :light, id: 2, bridge_id: 10, desired: %{brightness: 40}}],
+               server: :executor_results,
+               mode: :append
+             )
+
+    Executor.tick(:executor_results, force: true)
+    assert Executor.stats(:executor_results).queues == %{10 => 1}
+  end
 end

@@ -53,7 +53,10 @@ Scene switches follow the same shape: the value store records the intended state
 | `:homekit_write_coalesce_ms` | 25 | Window in which writes for one entity merge into one transaction |
 | `:homekit_value_cache_ttl_ms` | 5000 | How long a written value is served to reads before observed state takes over |
 | `:homekit_notify_debounce_ms` | 100 | Delay before notifying HomeKit of a state change, per entity |
+| `:homekit_write_transition_ms` | 100 | Fade applied to HomeKit brightness and color writes; 0 uses the manual fade |
 | Thousand Island `read_timeout` | `:infinity` | HAP connections are never closed for being idle |
+
+Bridge-side pacing of the commands these writes produce, and why slider drags needed it, is in `docs/hue-command-pacing.md`.
 
 With `ADVANCED_DEBUG_LOGGING=true` each write logs `[homekit] write_accepted` (time to answer HAP) and `[homekit] write_applied` (coalesce wait, apply time, result). The apply then appears in the control-trace logs under a `homekit-<kind>-<id>-<n>` trace id.
 

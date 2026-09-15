@@ -779,6 +779,33 @@ defmodule Hueworks.HomeKitTest do
     assert light_id == light.id
   end
 
+  test "homekit level writes use the short HomeKit transition", %{
+    actions_agent: actions_agent,
+    executor_server: executor_server
+  } do
+    area = Repo.insert!(%Area{name: "Kitchen"})
+    bridge = insert_bridge!()
+
+    light =
+      Repo.insert!(%Light{
+        name: "kitchen.task",
+        source: :hue,
+        source_id: "1",
+        bridge_id: bridge.id,
+        area_id: area.id,
+        homekit_export_mode: :light
+      })
+
+    State.put(:light, light.id, %{power: :on, brightness: 42})
+
+    assert :ok = ValueStore.put_value(73, kind: :light, id: light.id, characteristic: :brightness)
+    :ok = Writer.flush()
+    drain_executor(executor_server)
+
+    assert [%{desired: %{brightness: 73}, apply_opts: %{transition_ms: 100}}] =
+             Agent.get(actions_agent, & &1)
+  end
+
   test "value store writes light power through desired-state planning", %{
     actions_agent: actions_agent,
     executor_server: executor_server

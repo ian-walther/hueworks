@@ -25,13 +25,18 @@ defmodule Hueworks.HomeKit.Writer do
 
   alias Hueworks.ActiveScenes
   alias Hueworks.Color
-  alias Hueworks.Control.{DesiredState, ManualBaseline, State}
+  alias Hueworks.Control.{DesiredState, ManualBaseline, State, TransitionPolicy}
   alias Hueworks.DebugLogging
   alias Hueworks.HomeKit.{ValueCache, ValueStore}
   alias Hueworks.Lights.ManualControl
   alias Hueworks.Scenes
 
   @default_coalesce_ms 25
+  # A slider drag is a stream of level writes; each carrying the manual fade would make
+  # the lamp trail the finger by overlapping fades. Level writes use a short fixed fade,
+  # not scaled by brightness delta as the manual fade may be. Power on/off keeps the
+  # manual fade.
+  @default_level_transition_ms 100
   @task_supervisor Hueworks.HomeKit.TaskSupervisor
 
   def start_link(_opts) do
@@ -314,11 +319,16 @@ defmodule Hueworks.HomeKit.Writer do
           # the scene became active since; either way only power applies.
           ManualControl.apply_power_action(area_id, light_ids, :on, trace: trace)
         else
-          ManualControl.apply_updates(area_id, light_ids, power_on_desired(levels), trace: trace)
+          ManualControl.apply_updates(
+            area_id,
+            light_ids,
+            power_on_desired(levels),
+            level_opts(trace)
+          )
         end
 
       levels != %{} ->
-        ManualControl.apply_updates(area_id, light_ids, levels, trace: trace)
+        ManualControl.apply_updates(area_id, light_ids, levels, level_opts(trace))
 
       true ->
         {:ok, :noop}
@@ -403,8 +413,23 @@ defmodule Hueworks.HomeKit.Writer do
     )
   end
 
+  defp level_opts(trace) do
+    case level_transition_ms() do
+      ms when is_integer(ms) and ms > 0 ->
+        [trace: trace, transition_policy: TransitionPolicy.new(ms, :none)]
+
+      _manual ->
+        [trace: trace]
+    end
+  end
+
   defp coalesce_ms do
     Application.get_env(:hueworks, :homekit_write_coalesce_ms, @default_coalesce_ms)
+  end
+
+  # 0 means "use the manual transition"; the control pipeline treats it as unset.
+  defp level_transition_ms do
+    Application.get_env(:hueworks, :homekit_write_transition_ms, @default_level_transition_ms)
   end
 
   defp now_ms, do: System.monotonic_time(:millisecond)
