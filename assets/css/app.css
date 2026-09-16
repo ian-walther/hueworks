@@ -880,18 +880,32 @@ body {
   line-height: 1.45;
 }
 
-/* Stacked forms space their controls; grouped layouts reset that below. */
-.hw-form .hw-field-input,
-.hw-form .hw-field-select,
-.hw-modal .hw-field-input,
-.hw-modal .hw-field-select,
-.hw-form > .hw-toggle,
-.hw-form > .hw-dropzone {
-  margin-bottom: var(--hw-space-6);
+/* Stacked forms own the rhythm between their children. Siblings sit close
+   by default (label to control, control to help text); anything that starts
+   a new field or block gets the field gap, whatever happens to precede it. */
+:is(.hw-form, .hw-modal form) > * + * {
+  margin-top: var(--hw-space-1);
 }
 
-.hw-form .hw-field-help {
-  margin: calc(-1 * var(--hw-space-5)) 0 var(--hw-space-6);
+:is(.hw-form, .hw-modal form) > * + :is(.hw-field-label, .hw-toggle, .hw-modal-checkbox, .hw-row, .hw-color-preview, .hw-form-grid, .hw-modal-grid, .hw-callout, .hw-dropzone, .hw-value-row, .hw-inline-fields, .hw-onboarding-flow, .hw-form-actions, .hw-actions, h3),
+:is(.hw-form, .hw-modal form) > :is(.hw-form-grid, .hw-modal-grid, .hw-callout, .hw-dropzone, .hw-toggle, .hw-modal-checkbox, .hw-inline-fields, .hw-onboarding-flow) + *,
+.hw-panel > .hw-callout + .hw-form {
+  margin-top: var(--hw-space-6);
+}
+
+/* A toggle directly under its own label stays with it (a hidden input often sits between). */
+:is(.hw-form, .hw-modal form) > .hw-field-label + :is(.hw-toggle, .hw-modal-checkbox),
+:is(.hw-form, .hw-modal form) > .hw-field-label + input[type="hidden"] + :is(.hw-toggle, .hw-modal-checkbox) {
+  margin-top: var(--hw-space-1);
+}
+
+/* Headings inside a form introduce the field that follows. */
+:is(.hw-form, .hw-modal form) > h3 + * {
+  margin-top: var(--hw-space-3);
+}
+
+.hw-form + .hw-form {
+  margin-top: var(--hw-space-6);
 }
 
 .hw-form-grid {
@@ -1056,11 +1070,6 @@ body {
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--hw-space-4);
-  margin-bottom: var(--hw-space-6);
-}
-
-.hw-value-row .hw-field-input {
-  margin-bottom: 0;
 }
 
 /* Sliders */
@@ -1797,7 +1806,6 @@ body {
 }
 
 .hw-modal-checkbox {
-  margin-bottom: var(--hw-space-5);
   font-weight: 600;
 }
 
@@ -3563,12 +3571,8 @@ body {
   margin: var(--hw-space-1) 0 0;
 }
 
-.hw-pico-section > h3 {
-  margin: 0 0 var(--hw-space-3);
-}
-
 .hw-pico-section > h3 + .hw-meta {
-  margin: calc(-1 * var(--hw-space-2)) 0 var(--hw-space-4);
+  margin-top: var(--hw-space-1);
 }
 
 .hw-section-title-row {
