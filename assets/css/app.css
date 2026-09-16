@@ -893,9 +893,11 @@ body {
   margin-top: var(--hw-space-6);
 }
 
-/* A toggle directly under its own label stays with it (a hidden input often sits between). */
-:is(.hw-form, .hw-modal form) > .hw-field-label + :is(.hw-toggle, .hw-modal-checkbox),
-:is(.hw-form, .hw-modal form) > .hw-field-label + input[type="hidden"] + :is(.hw-toggle, .hw-modal-checkbox) {
+/* Whatever follows a label is that label's control, block or not (a hidden
+   input often sits between), and help text stays with the control above it. */
+:is(.hw-form, .hw-modal form) > .hw-field-label + *,
+:is(.hw-form, .hw-modal form) > .hw-field-label + input[type="hidden"] + *,
+:is(.hw-form, .hw-modal form) > * + :is(.hw-field-help, .hw-muted) {
   margin-top: var(--hw-space-1);
 }
 
