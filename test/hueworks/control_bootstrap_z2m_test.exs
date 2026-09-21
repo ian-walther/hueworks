@@ -357,34 +357,38 @@ defmodule Hueworks.Control.Bootstrap.Z2MTest do
   end
 
   defmodule SupervisorStub do
-    def start_child(opts) do
+    def start_child(opts, supervisor) do
       {handler_module, [owner]} = Keyword.fetch!(opts, :handler)
       sink = Application.fetch_env!(:hueworks, :z2m_bootstrap_test_sink)
       subscriptions = Keyword.fetch!(opts, :subscriptions)
       send(sink, {:start_child, opts})
 
-      worker =
-        spawn(fn ->
-          {:ok, handler_state} = handler_module.init([owner])
-          [{topic_filter, _qos}] = subscriptions
-          {:ok, _handler_state} = handler_module.subscription(:up, topic_filter, handler_state)
+      {:ok, worker} =
+        DynamicSupervisor.start_child(
+          supervisor,
+          {Task,
+           fn ->
+             {:ok, handler_state} = handler_module.init([owner])
+             [{topic_filter, _qos}] = subscriptions
+             {:ok, _handler_state} = handler_module.subscription(:up, topic_filter, handler_state)
 
-          Process.sleep(10)
+             Process.sleep(10)
 
-          send(
-            owner,
-            {:z2m_bootstrap_msg, ["zigbee2mqtt", "kitchen_strip"],
-             Jason.encode!(%{"state" => "OFF"})}
-          )
+             send(
+               owner,
+               {:z2m_bootstrap_msg, ["zigbee2mqtt", "kitchen_strip"],
+                Jason.encode!(%{"state" => "OFF"})}
+             )
 
-          send(
-            owner,
-            {:z2m_bootstrap_msg, ["zigbee2mqtt", "kitchen_group"],
-             Jason.encode!(%{"state" => "OFF"})}
-          )
+             send(
+               owner,
+               {:z2m_bootstrap_msg, ["zigbee2mqtt", "kitchen_group"],
+                Jason.encode!(%{"state" => "OFF"})}
+             )
 
-          Process.sleep(:infinity)
-        end)
+             Process.sleep(:infinity)
+           end}
+        )
 
       {:ok, worker}
     end
@@ -395,105 +399,117 @@ defmodule Hueworks.Control.Bootstrap.Z2MTest do
   end
 
   defmodule DelayedSubscriptionSupervisorStub do
-    def start_child(opts) do
+    def start_child(opts, supervisor) do
       {handler_module, [owner]} = Keyword.fetch!(opts, :handler)
       sink = Application.fetch_env!(:hueworks, :z2m_bootstrap_test_sink)
       subscriptions = Keyword.fetch!(opts, :subscriptions)
       send(sink, {:start_child, opts})
 
-      worker =
-        spawn(fn ->
-          {:ok, handler_state} = handler_module.init([owner])
-          Process.sleep(50)
-          [{topic_filter, _qos}] = subscriptions
-          send(sink, {:subscription_ready, {topic_filter, 0}})
-          {:ok, _handler_state} = handler_module.subscription(:up, topic_filter, handler_state)
+      {:ok, worker} =
+        DynamicSupervisor.start_child(
+          supervisor,
+          {Task,
+           fn ->
+             {:ok, handler_state} = handler_module.init([owner])
+             Process.sleep(50)
+             [{topic_filter, _qos}] = subscriptions
+             send(sink, {:subscription_ready, {topic_filter, 0}})
+             {:ok, _handler_state} = handler_module.subscription(:up, topic_filter, handler_state)
 
-          send(
-            owner,
-            {:z2m_bootstrap_msg, ["zigbee2mqtt", "delayed_strip"],
-             Jason.encode!(%{"state" => "OFF"})}
-          )
+             send(
+               owner,
+               {:z2m_bootstrap_msg, ["zigbee2mqtt", "delayed_strip"],
+                Jason.encode!(%{"state" => "OFF"})}
+             )
 
-          Process.sleep(:infinity)
-        end)
+             Process.sleep(:infinity)
+           end}
+        )
 
       {:ok, worker}
     end
   end
 
   defmodule MappedKelvinSupervisorStub do
-    def start_child(opts) do
+    def start_child(opts, supervisor) do
       {handler_module, [owner]} = Keyword.fetch!(opts, :handler)
       sink = Application.fetch_env!(:hueworks, :z2m_bootstrap_test_sink)
       subscriptions = Keyword.fetch!(opts, :subscriptions)
       send(sink, {:start_child, opts})
 
-      worker =
-        spawn(fn ->
-          {:ok, handler_state} = handler_module.init([owner])
-          [{topic_filter, _qos}] = subscriptions
-          {:ok, _handler_state} = handler_module.subscription(:up, topic_filter, handler_state)
+      {:ok, worker} =
+        DynamicSupervisor.start_child(
+          supervisor,
+          {Task,
+           fn ->
+             {:ok, handler_state} = handler_module.init([owner])
+             [{topic_filter, _qos}] = subscriptions
+             {:ok, _handler_state} = handler_module.subscription(:up, topic_filter, handler_state)
 
-          payload =
-            Jason.encode!(%{
-              "state" => "ON",
-              "color_mode" => "color_temp",
-              "color_temp" => 434
-            })
+             payload =
+               Jason.encode!(%{
+                 "state" => "ON",
+                 "color_mode" => "color_temp",
+                 "color_temp" => 434
+               })
 
-          send(owner, {:z2m_bootstrap_msg, ["zigbee2mqtt", "mapped_lower_cabinet"], payload})
-          send(owner, {:z2m_bootstrap_msg, ["zigbee2mqtt", "mapped_upper_cabinet"], payload})
-          send(owner, {:z2m_bootstrap_msg, ["zigbee2mqtt", "mapped_cabinet_group"], payload})
+             send(owner, {:z2m_bootstrap_msg, ["zigbee2mqtt", "mapped_lower_cabinet"], payload})
+             send(owner, {:z2m_bootstrap_msg, ["zigbee2mqtt", "mapped_upper_cabinet"], payload})
+             send(owner, {:z2m_bootstrap_msg, ["zigbee2mqtt", "mapped_cabinet_group"], payload})
 
-          Process.sleep(:infinity)
-        end)
+             Process.sleep(:infinity)
+           end}
+        )
 
       {:ok, worker}
     end
   end
 
   defmodule DivergedMemberSupervisorStub do
-    def start_child(opts) do
+    def start_child(opts, supervisor) do
       {handler_module, [owner]} = Keyword.fetch!(opts, :handler)
       subscriptions = Keyword.fetch!(opts, :subscriptions)
 
-      worker =
-        spawn(fn ->
-          {:ok, handler_state} = handler_module.init([owner])
-          [{topic_filter, _qos}] = subscriptions
-          {:ok, _handler_state} = handler_module.subscription(:up, topic_filter, handler_state)
+      {:ok, worker} =
+        DynamicSupervisor.start_child(
+          supervisor,
+          {Task,
+           fn ->
+             {:ok, handler_state} = handler_module.init([owner])
+             [{topic_filter, _qos}] = subscriptions
+             {:ok, _handler_state} = handler_module.subscription(:up, topic_filter, handler_state)
 
-          Process.sleep(10)
+             Process.sleep(10)
 
-          send(
-            owner,
-            {:z2m_bootstrap_msg, ["zigbee2mqtt", "bar_lower_cabinet"],
-             Jason.encode!(%{
-               "state" => "ON",
-               "brightness_percent" => 69,
-               "color_temp_kelvin" => 2000
-             })}
-          )
+             send(
+               owner,
+               {:z2m_bootstrap_msg, ["zigbee2mqtt", "bar_lower_cabinet"],
+                Jason.encode!(%{
+                  "state" => "ON",
+                  "brightness_percent" => 69,
+                  "color_temp_kelvin" => 2000
+                })}
+             )
 
-          send(
-            owner,
-            {:z2m_bootstrap_msg, ["zigbee2mqtt", "bar_upper_cabinet"],
-             Jason.encode!(%{"state" => "OFF"})}
-          )
+             send(
+               owner,
+               {:z2m_bootstrap_msg, ["zigbee2mqtt", "bar_upper_cabinet"],
+                Jason.encode!(%{"state" => "OFF"})}
+             )
 
-          send(
-            owner,
-            {:z2m_bootstrap_msg, ["zigbee2mqtt", "bar_cabinet_group"],
-             Jason.encode!(%{
-               "state" => "ON",
-               "brightness_percent" => 69,
-               "color_temp_kelvin" => 2000
-             })}
-          )
+             send(
+               owner,
+               {:z2m_bootstrap_msg, ["zigbee2mqtt", "bar_cabinet_group"],
+                Jason.encode!(%{
+                  "state" => "ON",
+                  "brightness_percent" => 69,
+                  "color_temp_kelvin" => 2000
+                })}
+             )
 
-          Process.sleep(:infinity)
-        end)
+             Process.sleep(:infinity)
+           end}
+        )
 
       {:ok, worker}
     end

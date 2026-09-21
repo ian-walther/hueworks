@@ -42,6 +42,48 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.ConnectionTest do
     end
   end
 
+  test "explicit index refresh replaces known membership without resetting websocket authentication" do
+    bridge =
+      insert_bridge!(%{
+        type: :ha,
+        name: "HA",
+        host: "unused.invalid",
+        credentials: %{"token" => "token"}
+      })
+
+    old =
+      Repo.insert!(%Light{name: "Old", source: :ha, source_id: "light.old", bridge_id: bridge.id})
+
+    group =
+      Repo.insert!(%Group{
+        name: "Group",
+        source: :ha,
+        source_id: "light.group",
+        bridge_id: bridge.id,
+        metadata: %{"members" => ["light.old"]}
+      })
+
+    assert {:ok, _} = Connection.start_link(bridge, FakeWebSockex)
+    assert_receive {:websockex_start_link, _, Connection, state, _}
+    {:ok, state} = Connection.handle_connect(nil, state)
+
+    new =
+      Repo.insert!(%Light{name: "New", source: :ha, source_id: "light.new", bridge_id: bridge.id})
+
+    Repo.update!(Ecto.Changeset.change(old, enabled: false))
+    Repo.update!(Ecto.Changeset.change(group, metadata: %{"members" => ["light.new"]}))
+    ref = make_ref()
+    state = %{state | next_id: 42, pending_subscriptions: []}
+    assert {:ok, refreshed} = Connection.handle_cast({:refresh_indexes, self(), ref}, state)
+    assert_receive {^ref, :refreshed}
+    assert refreshed.next_id == 42
+    assert refreshed.token == "token"
+    assert refreshed.pending_subscriptions == []
+    assert Map.keys(refreshed.lights) == [new.source_id]
+    assert Map.fetch!(refreshed.group_members, group.source_id) == [new.id]
+    assert State.get(:light, new.id) == nil
+  end
+
   test "event handler maps extended xy HA updates to low kelvin values" do
     area = Repo.insert!(%Area{name: "Living"})
 

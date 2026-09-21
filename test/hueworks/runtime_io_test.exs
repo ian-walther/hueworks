@@ -34,6 +34,7 @@ defmodule Hueworks.RuntimeIOTest do
 
     refute Hueworks.Control.Executor in ids
     refute Hueworks.Control.CircadianPoller in ids
+    refute Hueworks.Control.ImportRefresh.Supervisor in ids
     refute Hueworks.Subscription.HueEventStream in ids
     refute Hueworks.Subscription.HomeAssistantEventStream in ids
     refute Hueworks.Subscription.CasetaEventStream in ids

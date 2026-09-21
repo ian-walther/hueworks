@@ -8,6 +8,9 @@ defmodule Hueworks.DomainEvents do
 
   def topic, do: @topic
 
+  def bridge_import_applied(bridge_id) when is_integer(bridge_id),
+    do: broadcast({:bridge_import_applied, bridge_id})
+
   def scene_saved(%Scene{} = scene), do: broadcast({:scene_saved, scene})
   def scene_deleted(%Scene{} = scene), do: broadcast({:scene_deleted, scene})
 

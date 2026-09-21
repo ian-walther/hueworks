@@ -3,6 +3,7 @@ defmodule Hueworks.Control.Bootstrap.Z2M do
 
   import Ecto.Query, only: [from: 2]
 
+  alias Hueworks.Control.Bootstrap.Observations
   alias Hueworks.Control.GroupState
   alias Hueworks.Control.State
   alias Hueworks.Control.StateParser
@@ -17,12 +18,23 @@ defmodule Hueworks.Control.Bootstrap.Z2M do
 
   def run do
     bridges = Repo.all(from(b in Bridge, where: b.type == :z2m and b.enabled == true))
-    Enum.each(bridges, &bootstrap_bridge/1)
+    Enum.each(bridges, &run/1)
     :ok
   end
 
-  defp bootstrap_bridge(%Bridge{} = bridge) do
+  def run(%Bridge{} = bridge) do
+    with :ok <- Hueworks.RuntimeIO.ensure_enabled() do
+      bootstrap_bridge(bridge)
+    end
+  end
+
+  defp bootstrap_bridge(bridge) do
     indexes = Z2MTopology.load_indexes(bridge.id)
+
+    observations = %{
+      lights: Observations.capture(:light, indexes.lights_by_source_id),
+      groups: Observations.capture(:group, indexes.groups_by_source_id)
+    }
 
     entities =
       Map.values(indexes.lights_by_source_id) ++ Map.values(indexes.groups_by_source_id)
@@ -43,30 +55,33 @@ defmodule Hueworks.Control.Bootstrap.Z2M do
         ]
         |> Keyword.merge(Z2MConfig.tortoise_auth_opts(config))
 
-      with {:ok, pid} <- start_connection(start_opts),
-           :ok <- await_connection(client_id),
-           :ok <- await_subscription(config.base_topic) do
-        try do
-          request_entity_states(client_id, config.base_topic, entities)
+      # This supervisor belongs to the bootstrap task, not the long-lived MQTT
+      # runtime. Even an untrappable task exit tears down its temporary client.
+      {:ok, supervisor} = Tortoise.Supervisor.start_link([])
 
-          collect_updates(
-            indexes,
-            String.split(config.base_topic, "/", trim: true),
-            MapSet.new(Enum.map(entities, & &1.source_id))
-          )
+      try do
+        with {:ok, _pid} <- start_connection(start_opts, supervisor),
+             :ok <- await_connection(client_id),
+             :ok <- await_subscription(config.base_topic),
+             :ok <- request_entity_states(client_id, config.base_topic, entities) do
+          result =
+            collect_updates(
+              observations,
+              String.split(config.base_topic, "/", trim: true),
+              MapSet.new(Enum.map(entities, & &1.source_id))
+            )
 
           recompute_group_states(indexes)
-        after
-          if is_pid(pid), do: Process.exit(pid, :shutdown)
+          result
         end
-      else
-        _ -> :ok
+      after
+        Supervisor.stop(supervisor)
       end
     end
   end
 
-  defp start_connection(start_opts) do
-    case supervisor_module().start_child(start_opts) do
+  defp start_connection(start_opts, supervisor) do
+    case supervisor_module().start_child(start_opts, supervisor) do
       {:ok, pid} -> {:ok, pid}
       {:error, {:already_started, pid}} -> {:ok, pid}
       {:error, reason} -> {:error, reason}
@@ -93,9 +108,14 @@ defmodule Hueworks.Control.Bootstrap.Z2M do
   end
 
   defp request_entity_states(client_id, base_topic, entities) do
-    Enum.each(entities, fn entity ->
+    Enum.reduce_while(entities, :ok, fn entity, :ok ->
       topic = "#{base_topic}/#{entity.source_id}/get"
-      _ = tortoise_module().publish(client_id, topic, Jason.encode!(get_payload(entity)), qos: 0)
+
+      case tortoise_module().publish(client_id, topic, Jason.encode!(get_payload(entity)), qos: 0) do
+        :ok -> {:cont, :ok}
+        {:ok, _ref} -> {:cont, :ok}
+        {:error, _} = error -> {:halt, error}
+      end
     end)
   end
 
@@ -125,7 +145,7 @@ defmodule Hueworks.Control.Bootstrap.Z2M do
       remaining = max(0, deadline - System.monotonic_time(:millisecond))
 
       if remaining == 0 do
-        :ok
+        {:error, :state_timeout}
       else
         receive do
           {:z2m_bootstrap_msg, topic_levels, payload} ->
@@ -133,12 +153,12 @@ defmodule Hueworks.Control.Bootstrap.Z2M do
                    Z2MTopology.entity_from_topic(topic_levels, base_levels),
                  {:ok, decoded} <- Jason.decode(IO.iodata_to_binary(payload)),
                  true <- is_map(decoded) do
-              apply_entity_state(entity_source_id, decoded, indexes)
+              applied? = apply_entity_state(entity_source_id, decoded, indexes)
 
               do_collect(
                 indexes,
                 base_levels,
-                MapSet.delete(pending, entity_source_id),
+                if(applied?, do: MapSet.delete(pending, entity_source_id), else: pending),
                 deadline
               )
             else
@@ -146,26 +166,28 @@ defmodule Hueworks.Control.Bootstrap.Z2M do
             end
         after
           remaining ->
-            :ok
+            {:error, :state_timeout}
         end
       end
     end
   end
 
   defp apply_entity_state(entity_source_id, payload, indexes) do
-    case Map.get(indexes.lights_by_source_id, entity_source_id) do
-      %Light{} = light ->
+    case Map.get(indexes.lights, entity_source_id) do
+      {%Light{} = light, _version} = entry ->
         update = StateParser.z2m_state(payload, light)
-        if update != %{}, do: State.put(:light, light.id, update)
+        Observations.put(:light, entry, update)
+        update != %{}
 
       nil ->
-        case Map.get(indexes.groups_by_source_id, entity_source_id) do
-          %Group{} = group ->
+        case Map.get(indexes.groups, entity_source_id) do
+          {%Group{} = group, _version} = entry ->
             update = StateParser.z2m_state(payload, group)
-            if update != %{}, do: State.put(:group, group.id, update)
+            Observations.put(:group, entry, update)
+            update != %{}
 
           nil ->
-            :ok
+            false
         end
     end
   end

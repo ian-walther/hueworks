@@ -105,6 +105,17 @@ defmodule Hueworks.Control.StateParserTest do
            }
   end
 
+  test "hue_v1_state preserves explicit off values in individual and group snapshots" do
+    assert StateParser.hue_v1_state(%{"state" => %{"on" => false, "bri" => 127}}, "state") == %{
+             power: :off,
+             brightness: 50
+           }
+
+    assert StateParser.hue_v1_state(%{"action" => %{"on" => false}}, "action") == %{power: :off}
+    assert StateParser.hue_v1_state(%{state: %{on: false}}, :state) == %{power: :off}
+    assert StateParser.hue_v1_state(%{"state" => %{}}, "state") == %{}
+  end
+
   test "z2m_state includes color from payload" do
     assert StateParser.z2m_state(
              %{

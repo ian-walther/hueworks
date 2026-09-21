@@ -46,6 +46,26 @@ defmodule Hueworks.Control.StateTest do
     assert State.get(:light, 10_004) == %{power: :off, brightness: 60, kelvin: 3100}
   end
 
+  test "snapshot writes compare opaque observation versions and only publish accepted observations" do
+    Phoenix.PubSub.subscribe(Hueworks.PubSub, "control_state")
+    assert State.observation_version(:light, 10_007) == nil
+
+    assert {:ok, %{brightness: 10}} =
+             State.put_if_unobserved_since(:light, 10_007, %{brightness: 10}, nil)
+
+    first = State.observation_version(:light, 10_007)
+    assert is_reference(first)
+    assert_receive {:control_state, :light, 10_007, %{brightness: 10}}
+    State.put(:light, 10_007, %{brightness: 80})
+    assert_receive {:control_state, :light, 10_007, %{brightness: 80}}
+    second = State.observation_version(:light, 10_007)
+    assert first != second
+    assert :superseded = State.put_if_unobserved_since(:light, 10_007, %{brightness: 25}, first)
+    refute_receive {:control_state, :light, 10_007, _}
+    assert %{brightness: 80} = State.get(:light, 10_007)
+    assert %DateTime{} = State.observed_at(:light, 10_007)
+  end
+
   test "put canonicalizes state keys at the physical-state boundary" do
     assert State.put(:light, 10_006, %{"power" => "off", "brightness" => 25}) == %{
              power: :off,

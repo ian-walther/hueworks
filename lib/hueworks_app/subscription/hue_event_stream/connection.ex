@@ -8,18 +8,29 @@ defmodule Hueworks.Subscription.HueEventStream.Connection do
   alias Hueworks.Subscription.HueEventStream.{Mapper, Parser}
   alias Hueworks.Control.Indexes
 
-  def start_link(bridge) do
-    GenServer.start_link(__MODULE__, bridge, [])
+  def start_link(bridge, opts \\ []) do
+    GenServer.start_link(__MODULE__, {bridge, opts}, [])
+  end
+
+  def refresh(pid, _bridge) do
+    :ok = GenServer.call(pid, :refresh_indexes)
+    {:ok, pid}
   end
 
   @impl true
-  def init(bridge) do
+  def handle_call(:refresh_indexes, _from, state) do
+    {:reply, :ok, refresh_indexes(state)}
+  end
+
+  @impl true
+  def init({bridge, opts}) do
     lights_by_id = Indexes.lights_by_source_id(bridge.id, :hue)
     groups_by_id = Indexes.groups_by_source_id(bridge.id, :hue)
     {group_light_ids, group_lights} = Mapper.load_group_maps(bridge.id)
 
     state = %{
       bridge: bridge,
+      http_get: Keyword.get(opts, :http_get, &HTTPoison.get/3),
       ref: nil,
       async_response: nil,
       buffer: "",
@@ -47,7 +58,7 @@ defmodule Hueworks.Subscription.HueEventStream.Connection do
         {"Connection", "keep-alive"}
       ]
 
-      case HTTPoison.get(
+      case state.http_get.(
              url,
              headers,
              recv_timeout: :infinity,
@@ -122,23 +133,25 @@ defmodule Hueworks.Subscription.HueEventStream.Connection do
       now = System.monotonic_time(:millisecond)
 
       if now - state.last_refresh_at > 2_000 do
-        lights_by_id = Indexes.lights_by_source_id(state.bridge.id, :hue)
-        groups_by_id = Indexes.groups_by_source_id(state.bridge.id, :hue)
-        {group_light_ids, group_lights} = Mapper.load_group_maps(state.bridge.id)
-
-        %{
-          state
-          | lights_by_id: lights_by_id,
-            groups_by_id: groups_by_id,
-            group_light_ids: group_light_ids,
-            group_lights: group_lights,
-            last_refresh_at: now
-        }
+        refresh_indexes(state)
       else
         state
       end
     else
       state
     end
+  end
+
+  defp refresh_indexes(state) do
+    {group_light_ids, group_lights} = Mapper.load_group_maps(state.bridge.id)
+
+    %{
+      state
+      | lights_by_id: Indexes.lights_by_source_id(state.bridge.id, :hue),
+        groups_by_id: Indexes.groups_by_source_id(state.bridge.id, :hue),
+        group_light_ids: group_light_ids,
+        group_lights: group_lights,
+        last_refresh_at: System.monotonic_time(:millisecond)
+    }
   end
 end

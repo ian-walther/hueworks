@@ -16,6 +16,16 @@ defmodule Hueworks.Subscription.CasetaEventStream.Connection do
 
   @refresh_interval_ms 2_000
 
+  def refresh(pid, _bridge) do
+    :ok = GenServer.call(pid, :refresh_indexes)
+    {:ok, pid}
+  end
+
+  @impl true
+  def handle_call(:refresh_indexes, _from, state) do
+    {:reply, :ok, refresh_indexes(state)}
+  end
+
   def start_link(bridge, opts \\ []) do
     if missing_credentials?(bridge) do
       {:error, :missing_credentials}
@@ -292,18 +302,22 @@ defmodule Hueworks.Subscription.CasetaEventStream.Connection do
     last_refresh_at = Map.get(state, :last_refresh_at)
 
     if refresh_due?(now, last_refresh_at) do
-      old_button_ids = Map.get(state, :pico_button_ids, [])
-
-      state
-      |> Map.merge(%{
-        lights: load_lights(state.bridge.id),
-        pico_button_ids: load_pico_button_ids(state.bridge.id),
-        last_refresh_at: now
-      })
-      |> subscribe_new_button_events(old_button_ids)
+      refresh_indexes(state)
     else
       state
     end
+  end
+
+  defp refresh_indexes(state) do
+    old_button_ids = Map.get(state, :pico_button_ids, [])
+
+    state
+    |> Map.merge(%{
+      lights: load_lights(state.bridge.id),
+      pico_button_ids: load_pico_button_ids(state.bridge.id),
+      last_refresh_at: System.monotonic_time(:millisecond)
+    })
+    |> subscribe_new_button_events(old_button_ids)
   end
 
   defp refresh_due?(_now, last_refresh_at) when last_refresh_at in [nil, 0], do: true

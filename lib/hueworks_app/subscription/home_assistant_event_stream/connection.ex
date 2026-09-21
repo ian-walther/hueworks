@@ -18,6 +18,29 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.Connection do
 
   @refresh_interval_ms 2_000
 
+  def refresh(pid, _bridge) do
+    reply_to = :erlang.alias()
+
+    try do
+      WebSockex.cast(pid, {:refresh_indexes, reply_to, reply_to})
+
+      receive do
+        {^reply_to, :refreshed} -> {:ok, pid}
+      after
+        5_000 -> {:error, :refresh_timeout}
+      end
+    after
+      :erlang.unalias(reply_to)
+    end
+  end
+
+  @impl true
+  def handle_cast({:refresh_indexes, caller, ref}, state) do
+    state = refresh_indexes(state)
+    send(caller, {ref, :refreshed})
+    {:ok, state}
+  end
+
   def start_link(bridge, websockex \\ WebSockex) do
     with {:ok, token} <- TokenProvider.token_for(bridge.id) do
       state = %{
@@ -149,19 +172,23 @@ defmodule Hueworks.Subscription.HomeAssistantEventStream.Connection do
     last_refresh_at = Map.get(state, :last_refresh_at)
 
     if refresh_due?(now, last_refresh_at) do
-      lights = load_lights(state.bridge.id)
-      {groups, group_members} = load_groups(state.bridge.id, lights)
-
-      %{
-        state
-        | lights: lights,
-          groups: groups,
-          group_members: group_members,
-          last_refresh_at: now
-      }
+      refresh_indexes(state)
     else
       state
     end
+  end
+
+  defp refresh_indexes(state) do
+    lights = load_lights(state.bridge.id)
+    {groups, group_members} = load_groups(state.bridge.id, lights)
+
+    %{
+      state
+      | lights: lights,
+        groups: groups,
+        group_members: group_members,
+        last_refresh_at: System.monotonic_time(:millisecond)
+    }
   end
 
   defp refresh_due?(_now, last_refresh_at) when last_refresh_at in [nil, 0], do: true

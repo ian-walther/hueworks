@@ -4,11 +4,20 @@ defmodule Hueworks.Import do
   """
 
   alias Hueworks.Bridges
+  alias Hueworks.DomainEvents
   alias Hueworks.Import.Materialize
   alias Hueworks.Repo
   alias Hueworks.Schemas.{Bridge, BridgeImport}
 
   def apply_review(%Bridge{} = bridge, %BridgeImport{} = bridge_import, normalized, plan) do
+    if Repo.in_transaction?() do
+      {:error, :nested_import_transaction}
+    else
+      commit_review(bridge, bridge_import, normalized, plan)
+    end
+  end
+
+  defp commit_review(bridge, bridge_import, normalized, plan) do
     result =
       Repo.transaction(fn ->
         with {:ok, reviewed} <- update_review_blob(bridge_import, plan),
@@ -27,6 +36,7 @@ defmodule Hueworks.Import do
 
     case result do
       {:ok, %{bridge_import: applied} = applied_review} ->
+        DomainEvents.bridge_import_applied(applied.bridge_id)
         Bridges.prune_imports_for_bridge(applied.bridge_id)
         {:ok, applied_review}
 

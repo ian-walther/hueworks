@@ -2,6 +2,7 @@ defmodule Hueworks.Subscription.GenericEventStreamTest do
   use Hueworks.DataCase, async: false
 
   alias Hueworks.Subscription.GenericEventStream
+  alias __MODULE__.{Connection, ReplacementConnection}
 
   setup do
     Process.register(self(), :generic_stream_test_listener)
@@ -75,7 +76,81 @@ defmodule Hueworks.Subscription.GenericEventStreamTest do
     assert state.connection_refs == %{child_pid => ref}
   end
 
+  test "explicit refresh reloads only the affected connection and repeated bootstrap does not duplicate it" do
+    first = bridge("first.invalid")
+    second = bridge("second.invalid")
+    manager = manager(Connection)
+    first_id = first.id
+    second_id = second.id
+    assert_receive {:connection_attempt, ^first_id, first_pid}
+    assert_receive {:connection_attempt, ^second_id, second_pid}
+    Repo.update!(Ecto.Changeset.change(first, host: "updated.invalid"))
+
+    assert :ok = GenericEventStream.refresh(manager, first.id)
+    assert_receive {:refreshed, ^first_pid, "updated.invalid"}
+    refute_receive {:refreshed, ^second_pid, _}
+    send(manager, :retry_bootstrap)
+    send(manager, {:restart, first})
+    :sys.get_state(manager)
+    refute_receive {:connection_attempt, _, _}, 30
+    assert map_size(:sys.get_state(manager).monitors) == 2
+  end
+
+  test "targeted replacement removes the old monitor and cannot trigger a duplicate restart" do
+    start_supervised!({DynamicSupervisor, strategy: :one_for_one, name: :replacement_connections})
+    bridge = bridge("replacement.invalid")
+    id = bridge.id
+    manager = manager(ReplacementConnection)
+    assert_receive {:connection_attempt, ^id, first}
+    assert :ok = GenericEventStream.refresh(manager, id)
+    assert_receive {:connection_attempt, ^id, second}
+    refute Process.alive?(first)
+    assert first != second
+    assert_single_tracked_connection(manager, id, second)
+    send(manager, {:restart, bridge})
+    send(manager, :retry_bootstrap)
+    assert_single_tracked_connection(manager, id, second)
+    refute_receive {:connection_attempt, _, _}, 50
+  end
+
+  test "refresh starts an untracked bridge and rejects disabled, deleted and I/O-disabled bridges" do
+    manager = manager(Connection)
+    bridge = bridge("new.invalid")
+    id = bridge.id
+    assert :ok = GenericEventStream.refresh(manager, id)
+    assert_receive {:connection_attempt, ^id, child}
+    assert_single_tracked_connection(manager, id, child)
+
+    old = Application.get_env(:hueworks, :runtime_io_disabled)
+    Application.put_env(:hueworks, :runtime_io_disabled, true)
+    on_exit(fn -> restore_app_env(:hueworks, :runtime_io_disabled, old) end)
+    assert {:error, :runtime_io_disabled} = GenericEventStream.refresh(manager, id)
+    Application.put_env(:hueworks, :runtime_io_disabled, false)
+    Repo.update!(Ecto.Changeset.change(bridge, enabled: false))
+    assert {:error, :bridge_unavailable} = GenericEventStream.refresh(manager, id)
+    Repo.delete!(bridge)
+    assert {:error, :bridge_unavailable} = GenericEventStream.refresh(manager, id)
+  end
+
+  defp bridge(host),
+    do: insert_bridge!(%{type: :hue, name: "Hue", host: host, credentials: %{"api_key" => "key"}})
+
+  defp manager(module) do
+    start_supervised!(
+      {GenericEventStream,
+       name: :test_refresh_stream,
+       bridge_type: :hue,
+       connection_module: module,
+       restart_delay_ms: 10}
+    )
+  end
+
   defmodule Connection do
+    def refresh(pid, bridge) do
+      send(Process.whereis(:generic_stream_test_listener), {:refreshed, pid, bridge.host})
+      {:ok, pid}
+    end
+
     def start_link(bridge) do
       {:ok, pid} = Task.start_link(fn -> Process.sleep(:infinity) end)
 
@@ -84,6 +159,21 @@ defmodule Hueworks.Subscription.GenericEventStreamTest do
       end
 
       {:ok, pid}
+    end
+  end
+
+  defmodule ReplacementConnection do
+    def start_link(bridge) do
+      {:ok, pid} =
+        DynamicSupervisor.start_child(:replacement_connections, {Agent, fn -> bridge.id end})
+
+      send(Process.whereis(:generic_stream_test_listener), {:connection_attempt, bridge.id, pid})
+      {:ok, pid}
+    end
+
+    def refresh(pid, bridge) do
+      :ok = DynamicSupervisor.terminate_child(:replacement_connections, pid)
+      start_link(bridge)
     end
   end
 end

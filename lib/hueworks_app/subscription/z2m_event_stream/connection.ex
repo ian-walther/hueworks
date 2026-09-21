@@ -4,7 +4,36 @@ defmodule Hueworks.Subscription.Z2MEventStream.Connection do
   alias Hueworks.Control.Z2MConfig
   alias Hueworks.Schemas.Bridge
 
+  # Tortoise owns the handler process and exposes no handler-refresh callback.
+  # Terminate its supervised child before replacing it, preserving the client ID.
+  def refresh(pid, bridge) do
+    tree = registered(Tortoise.Connection.Supervisor, subscription_client_id(bridge.id))
+    monitor = if tree, do: Process.monitor(tree)
+
+    try do
+      with :ok <- DynamicSupervisor.terminate_child(Tortoise.Supervisor, pid),
+           :ok <- await_tree_shutdown(monitor) do
+        start_link(bridge)
+      end
+    after
+      if monitor, do: Process.demonitor(monitor, [:flush])
+    end
+  end
+
   def start_link(%Bridge{} = bridge) do
+    client_id = subscription_client_id(bridge.id)
+
+    # Tortoise's linked handler subtree can outlive the connection briefly. Its
+    # already-started fallback would silently reuse the old handler's indexes.
+    if registered(Tortoise.Connection.Supervisor, client_id) &&
+         is_nil(registered(Tortoise.Connection, client_id)) do
+      {:error, :previous_connection_still_stopping}
+    else
+      start_connection(bridge)
+    end
+  end
+
+  defp start_connection(bridge) do
     config = Z2MConfig.for_bridge(bridge)
 
     start_opts =
@@ -24,6 +53,19 @@ defmodule Hueworks.Subscription.Z2MEventStream.Connection do
 
   def subscription_client_id(bridge_id),
     do: Hueworks.Instance.z2m_client_id("hwz2ms", bridge_id)
+
+  defp registered(module, client_id),
+    do: GenServer.whereis(Tortoise.Registry.via_name(module, client_id))
+
+  defp await_tree_shutdown(nil), do: :ok
+
+  defp await_tree_shutdown(ref) do
+    receive do
+      {:DOWN, ^ref, :process, _, _} -> :ok
+    after
+      5_000 -> {:error, :connection_shutdown_timeout}
+    end
+  end
 
   defmodule Handler do
     @moduledoc false

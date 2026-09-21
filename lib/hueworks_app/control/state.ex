@@ -61,9 +61,20 @@ defmodule Hueworks.Control.State do
     GenServer.call(__MODULE__, {:put, type, id, attrs})
   end
 
+  def put_if_unobserved_since(type, id, attrs, version) when is_map(attrs) do
+    GenServer.call(__MODULE__, {:put_if_unobserved_since, type, id, attrs, version})
+  end
+
+  def observation_version(type, id) do
+    case :ets.lookup(@observed_at_table, {type, id}) do
+      [{_key, _timestamp, version}] -> version
+      [] -> nil
+    end
+  end
+
   def observed_at(type, id) do
     case :ets.lookup(@observed_at_table, {type, id}) do
-      [{_key, timestamp}] -> timestamp
+      [{_key, timestamp, _version}] -> timestamp
       [] -> nil
     end
   end
@@ -93,6 +104,17 @@ defmodule Hueworks.Control.State do
   end
 
   @impl true
+  def handle_call({:put_if_unobserved_since, type, id, attrs, version}, _from, state) do
+    result =
+      if observation_version(type, id) == version do
+        {:ok, merge_and_store({type, id}, attrs)}
+      else
+        :superseded
+      end
+
+    {:reply, result, state}
+  end
+
   def handle_call({:put, type, id, attrs}, _from, state) do
     key = {type, id}
 
@@ -191,7 +213,7 @@ defmodule Hueworks.Control.State do
       |> LightStateSemantics.merge_state(attrs)
 
     :ets.insert(@table, {key, updated})
-    :ets.insert(@observed_at_table, {key, DateTime.utc_now()})
+    :ets.insert(@observed_at_table, {key, DateTime.utc_now(), make_ref()})
     broadcast_update(key, updated)
     updated
   end

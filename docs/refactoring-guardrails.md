@@ -23,7 +23,7 @@ Use these rules alongside [the architecture rulebook](../planned_architecture.md
 - Keep intentional projection distinctions such as bridge-reported group state versus member-derived physical state. Group averaging and intent power policies encode product semantics, not incidental complexity.
 - `Circadian.build_context` validates all three curves before per-sample evaluation. Discarded bindings do not make that validation dead code.
 - HAP lifecycle calls can exit; network bootstrap/client functions can fail. Their boundary handling must not be removed as generic defensive cleanup.
-- Event-stream wrappers and per-connection index refresh checks may remain parallel because each transport owns different connection state. They do not replace the explicit post-import synchronization described in [the runtime-refresh plan](../planning/post-import-runtime-refresh.md).
+- Event-stream wrappers and per-connection index refresh checks may remain parallel because each transport owns different connection state. They do not replace the explicit post-import synchronization described in [the runtime-refresh contract](post-import-runtime-refresh.md).
 - When refreshing Z2M indexes, merge into the live handler state; preserve `client_id`, `subscriptions`, and `subscribed?`. `test/hueworks/subscription_z2m_handler_test.exs` guards this lifecycle requirement.
 - Preserve the bounded MQTT snapshot collection loop and HA authentication/subscription state machine. Their noise and timeout handling belongs at the transport boundary.
 - Trace stages and their payloads differ. `TraceBuffer` accepts normalized trace maps and raw action-shaped maps, so both `:source` and `:trace_source` have callers.

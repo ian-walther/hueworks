@@ -36,6 +36,7 @@ defmodule Hueworks.Application do
           Hueworks.Subscription.HomeAssistantEventStream,
           Hueworks.Subscription.CasetaEventStream,
           Hueworks.Subscription.Z2MEventStream,
+          maybe_import_refresh(),
           maybe_home_assistant_export(),
           maybe_homekit_bridge()
         ]
@@ -56,6 +57,12 @@ defmodule Hueworks.Application do
       Hueworks.Control.CircadianPoller
     else
       nil
+    end
+  end
+
+  defp maybe_import_refresh do
+    if Application.get_env(:hueworks, :import_refresh_enabled, true) do
+      Hueworks.Control.ImportRefresh.Supervisor
     end
   end
 

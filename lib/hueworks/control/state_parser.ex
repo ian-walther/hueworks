@@ -38,7 +38,7 @@ defmodule Hueworks.Control.StateParser do
     attrs = resource[state_key] || resource[to_string(state_key)] || %{}
 
     %{}
-    |> Map.merge(power_map(attrs["on"] || attrs[:on]))
+    |> Map.merge(power_map(Map.get(attrs, "on", attrs[:on])))
     |> Map.merge(brightness_from_0_255(attrs["bri"] || attrs[:bri]))
     |> Map.merge(kelvin_from_mired(attrs["ct"] || attrs[:ct]))
     |> Map.merge(color_from_hue_v1_attrs(attrs))

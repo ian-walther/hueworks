@@ -97,6 +97,47 @@ defmodule Hueworks.Subscription.CasetaEventStream.ConnectionTest do
     refute_receive :connect_attempted, 25
   end
 
+  test "explicit refresh discovers Pico subscriptions and removes disabled zones without reconnecting" do
+    bridge =
+      insert_bridge!(%{type: :caseta, name: "Caseta", host: "unused.invalid", credentials: %{}})
+
+    light =
+      Repo.insert!(%Light{name: "Zone", source: :caseta, source_id: "1", bridge_id: bridge.id})
+
+    device =
+      Repo.insert!(%PicoDevice{
+        bridge_id: bridge.id,
+        source_id: "pico",
+        name: "Pico",
+        hardware_profile: "5_button"
+      })
+
+    insert_pico_button(%{
+      pico_device_id: device.id,
+      source_id: "2",
+      button_number: 2,
+      slot_index: 0,
+      action_type: "turn_on",
+      action_config: %{"light_ids" => [light.id]}
+    })
+
+    state =
+      caseta_state(bridge, %{
+        socket: :fake_socket,
+        subscribe_fun: fn :fake_socket, url -> send(self(), {:subscription, url}) end
+      })
+
+    assert {:reply, :ok, refreshed} = Connection.handle_call(:refresh_indexes, nil, state)
+    assert refreshed.socket == :fake_socket
+    assert refreshed.lights == %{"1" => light.id}
+    assert_receive {:subscription, "/button/2/status/event"}
+    assert DesiredState.get(:light, light.id) == nil
+    Repo.update!(Ecto.Changeset.change(light, enabled: false))
+    assert {:reply, :ok, next} = Connection.handle_call(:refresh_indexes, nil, refreshed)
+    assert next.lights == %{}
+    refute_receive {:subscription, _}
+  end
+
   test "start_link rejects missing Caseta credentials before starting a process" do
     bridge =
       insert_bridge!(%{
