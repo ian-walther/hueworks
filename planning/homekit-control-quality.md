@@ -1,16 +1,9 @@
 # HomeKit Control Quality
 
-Reference for the current design, the library assessment, and the history behind it: `docs/homekit-internals.md`.
+Reference for the current design, library assessment, and hardware smoke procedure: [HomeKit Internals](../docs/homekit-internals.md). Bridge pacing and its remaining hardware checks are documented in [Hue Command Pacing](../docs/hue-command-pacing.md).
 
-## User Experience Problem
-The HomeKit integration is useful but not yet proven good enough for daily brightness control.
-
-Observed before the 2026-09 control-path changes:
-- On/off control works well.
-- Scene-based usage is acceptable because on/off is usually enough when HueWorks scenes are active.
-- Brightness control is laggy to the point of not being usable when no HueWorks scene is active.
-
-The control-path changes (non-blocking writes, On + Brightness coalescing, optimistic reads, deduplicated notifications, persistent HAP connections, integer status codes, frame reassembly), stable accessory IDs, and color/temperature exposure are in and covered by tests, but have not been exercised against Apple Home on hardware yet.
+## Scope
+This is a hardware-validation and future-quality backlog, not an implementation checklist for the existing control path. On/off and brightness have been used against Apple Home; that evidence does not establish color/temperature quality, identity lifecycle behavior, or multi-bridge performance. Keep unverified cases explicit rather than treating either the entire integration as untested or the entire smoke checklist as passed.
 
 ## Desired Outcome
 HomeKit should feel trustworthy for daily control, not just technically connected.
@@ -27,15 +20,14 @@ On/off support is the stable baseline.
 
 Brightness, color, and temperature support stay "available, not release-quality" until the hardware smoke test in `docs/homekit-internals.md` passes.
 
-Blocking brightness, color, and temperature writes while a HueWorks scene is active in the area is intentional: the scene owns those attributes. Decided 2026-09-07: HomeKit is told the write is refused (HAP status `-70404`) and the Home app reverts the control, matching the web UI. Exposure is not changed dynamically; the reasons are in `docs/homekit-internals.md`.
+Blocking brightness, color, and temperature writes while a HueWorks scene is active in the area is intentional: the scene owns those attributes. Preserve refusal with HAP status `-70404`, allowing the Home app to revert the control, rather than changing exposure dynamically.
 
 ## Library Stance
-The app uses an identity-only fork of the `hap` library (mtrudel/hap 0.6.0), vendored at `vendor/hap` as a path dependency and documented in `vendor/hap/FORK.md`. Decided 2026-09-14: the fork exists because stable accessory and characteristic identities could not be achieved from the app side without placeholders and layout tricks that still failed on capability loss. Keep the fork to identity. No upstream PR; the work stays local. Rolling our own HAP server remains on the table only if a further structural limitation (manager-process serialization, originator exclusion, a service-level setter) is actually hit on hardware.
+Keep the vendored `hap` fork scoped to identity, as documented in `vendor/hap/FORK.md`. No upstream PR is planned. Only consider expanding the fork or replacing the server if hardware testing demonstrates a further structural limitation, such as manager-process serialization, originator exclusion, or the lack of a service-level setter.
 
 ## Remaining Work
-- Hardware checks still open (steps in `docs/homekit-internals.md`, "Verification status", and `docs/hue-command-pacing.md`, "What to verify on hardware"): color and temperature round-trips, identity survival across un-expose and re-expose, a group slider drag after the pacing fixes, several groups on one bridge, a multi-group scene, and a slow bridge beside a healthy one. Update `README.md` and `docs/compatibility.md` as each is verified.
+- Hardware checks still open: color and temperature round-trips, the fresh-install bridge accessory, identity survival across un-expose and re-expose, a group slider drag after the pacing fixes, several groups on one bridge, a multi-group scene, and a slow bridge beside a healthy one. Follow the reference procedures above and update `README.md` and `docs/compatibility.md` only as each is verified.
 - Measure, on hardware, how long a multi-group scene's last group dispatch trails its first under the one-per-second-per-bridge group budget, before deciding whether the planner should weigh group-command cost against individual light commands (`docs/hue-command-pacing.md`, "The tradeoff this leaves").
-- Local development databases created on this branch before the fork carry the earlier `homekit_accessory_ids` shape; `mix ecto.reset` brings them current. Production has never run either shape.
 - Confirm on the production host that HAP connections now persist past 60 seconds idle.
 - Decide whether to upgrade `hap` to 0.7.0. It changes nothing for control latency and pulls newer `mdns_lite`, `hkdf`, and `eqrcode`.
 

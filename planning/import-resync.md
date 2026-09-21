@@ -117,13 +117,13 @@ Defaults should make "Apply" safe even when the user changes nothing.
 | Existing matched entity with only bridge-owned fact changes | Auto-refresh bridge facts | None, details only |
 | Confident technical identity drift | Auto-refresh identity/control fields | None, details only |
 | New upstream light or group | Do not import | Import, with area destination |
-| Duplicate upstream entity | Import hidden duplicate | Import as real entity |
+| Duplicate upstream entity | Import hidden duplicate | Import as real entity, do not import |
 | Missing upstream light or group | Keep existing entity | Disable, delete |
 | Missing hidden duplicate row | Auto-delete bookkeeping row | None, details only |
 | Missing entity referenced by scenes or Pico config | Keep existing entity | Disable or delete with dependency warning |
 | Ambiguous identity match | Keep separate | None in this feature |
 | Bridge group membership changes and all members resolve | Auto-refresh imported bridge group membership | None, details only |
-| Bridge group membership references missing, unimported, or ambiguous members | Keep current membership and warn | Import missing members, choose matches, or skip those members |
+| Bridge group membership references missing, unimported, or ambiguous members | Keep current membership and warn | Select resolvable missing members for import; otherwise retain membership and correct the source data. Explicit identity matching is future work. |
 | Destructive action selected | Require dependency disclosure and confirmation | Confirm or cancel |
 
 HueWorks-managed entities that appear through a Home Assistant bridge import should be filtered before matching so HueWorks exports do not re-enter HueWorks as new upstream entities. Recognition should use the HA entity registry `unique_id` convention for exported HueWorks entities, especially `hueworks_light_*`, `hueworks_group_*`, `hueworks_scene_*`, `hueworks_area_*`, and `hueworks_presence_input_*`.
@@ -133,13 +133,15 @@ Upstream areas are used only for placing new entities during manual reimport.
 
 During a reimport review:
 - For a new real entity, show an Area destination control.
-- Preselect an existing HueWorks area only when the upstream area name clearly matches a current HueWorks area by normalized name.
+- Preselect the destination from a saved source-space mapping first. Without a saved destination, a clear normalized-name match may preselect an existing HueWorks area.
 - If no clear match exists, default the new real entity to unassigned and offer `Create area` or `Choose area`.
 - Upstream areas with no imported entities should not create areas or require decisions.
 - Existing entities never receive area suggestions from manual reimport.
 - Hidden duplicate rows are always arealess.
 
-Hue-specific rule: Hue areas arrive as both normalized areas and groups of type `Area`. If a light moves areas in the Hue app, the imported area-group membership refreshes as a bridge-owned fact while the light's HueWorks `area_id` stays put as authored intent. That divergence is correct. Reimport must not infer or update HueWorks `area_id` from Hue group membership.
+Initial import can additionally preselect destinations from confident Home Assistant inventory evidence. Do not assume a manual reimport runs that fresh suggestion pass; its saved mapping defaults must still preserve existing entity placement.
+
+Hue-specific rule: Hue rooms arrive as both normalized areas and groups whose bridge-reported type is `Room`. If a light moves rooms in the Hue app, the imported room-group membership refreshes as a bridge-owned fact while the light's HueWorks `area_id` stays put as authored intent. That divergence is correct. Reimport must not infer or update HueWorks `area_id` from Hue group membership.
 
 ## Imported Group Membership
 Imported bridge group membership is bridge-owned and auto-refreshes when every referenced member resolves unambiguously.
@@ -159,11 +161,11 @@ Automatic reimport can build on this feature by adding a persistent inbox. That 
 Potential future enhancements:
 - Add richer ambiguous-identity resolutions such as choosing an explicit match or importing as a new entity. The current feature ships only `Keep separate`.
 - Add a future full export reconciliation primitive that can compare retained MQTT/HomeKit publication state with committed DB state.
-- Add an explicit "reset and reimport from scratch" flow if a destructive bridge reset is needed; the normal setup route should not silently materialize over already-imported bridge data.
 - Add a standalone dedup tool for scanning existing entities, unlinking, relinking, replacing canonical links, or converting visible twins into hidden duplicates.
 
 ## Guardrails
 Future changes must not:
+- Bypass the confirmed bridge Maintenance action for deleting imported entities and reopening initial import. The normal setup route must not silently materialize over already-imported bridge data.
 - Reintroduce global `Hueworks.Import.Link.apply/0` into initial import or manual reimport.
 - Call `Hueworks.Bridges.delete_unchecked_entities/3` from manual reimport.
 - Infer existing HueWorks `area_id` from upstream area/group membership.

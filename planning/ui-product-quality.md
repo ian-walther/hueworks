@@ -7,6 +7,8 @@ HueWorks is moving from a personal side project toward a source-available applic
 
 Source availability does not change the security posture in `planned_architecture.md`. HueWorks remains a private trusted-LAN appliance and must not become publicly network-accessible without a separate system-wide security design.
 
+Use the [UI Style Guide](../docs/ui-style-guide.md) for the current shared CSS vocabulary and form-spacing rules. This document defines how to evaluate and evolve that vocabulary, not a backlog of already-built primitives.
+
 ## Desired Outcome
 From a user's perspective:
 

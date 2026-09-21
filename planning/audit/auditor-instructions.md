@@ -28,6 +28,7 @@ Every Auditor session runs the same loop:
 ## Judgment Calibration (learned on this codebase)
 
 - `planned_architecture.md` is the rulebook; findings cite the violated rule. The pipeline (intent → DesiredState → planner → executor → dispatch; event streams → physical state) is real and respected — treat claimed violations with suspicion and verify the actual call path before writing them up.
+- Read [Refactoring Guardrails](../../docs/refactoring-guardrails.md) before proposing boundary cleanup or deduplication; it preserves the durable constraints from retired audits without keeping completed findings in the backlog.
 - Severity: high = data corruption, silent state divergence, or violations of the manual-control/observation semantics; medium = blocking UI, missing safety affordances on destructive actions, systemic duplication with drift; low = dead code, single-copy duplication, robustness nits.
 - Reference patterns to hold new code against: `Circadian.Config` and `BridgeSeeds` (boundary modules), the Hue event stream (deferred connect, staleness refresh, guarded fan-out), `LightsLive` (thin LiveView over focused submodules), `LightStateSemantics.normalize_keys` (the atom-key write funnel).
 - Boundary rules with teeth: internal control-plane state maps are atom-keyed by invariant (only `StateParser` accepts loose payloads); do NOT extend that invariant into the import plane — `Normalize.fetch`'s dual-key access is CORRECT there because blobs round-trip through JSON.

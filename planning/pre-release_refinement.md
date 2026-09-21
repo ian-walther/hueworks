@@ -60,7 +60,7 @@ Native-development mDNS success is not sufficient. Verify Hue and Home Assistant
 
 ### Circadian Basic And Advanced Modes
 
-- Add concise plain-language explanations for brightness timing, temperature timing, solar-relative versus fixed windows, offsets, and fallback behavior.
+- Check whether the existing circadian help text is sufficient for a new user to understand brightness timing, temperature timing, solar-relative versus fixed windows, offsets, and fallback behavior; improve explanations where the rehearsal exposes confusion.
 - Consider a Basic mode with a useful preset and an Advanced mode preserving the full editor.
 - Never silently discard advanced values when switching presentation modes.
 - Validate presets against real sunrise, daytime, sunset, and overnight behavior before treating them as release defaults.
@@ -75,12 +75,12 @@ The app needs one truthful operator-facing status model without creating a secon
 - Do not label a transport `connected` merely because a manager or child process is alive.
 - Expose status on bridge cards and integration panels with timestamps and recovery actions.
 - Distinguish Home Assistant MQTT-export configuration from live broker availability.
-- Distinguish HomeKit runtime configuration, HAP availability, and saved pairing.
+- Preserve the HomeKit runtime/HAP/pairing distinctions already shown on Integrations when extending the common status model and the Config overview; do not reduce them to a saved enabled flag.
 - Keep detailed payloads, credentials, and sensitive topology out of status projections.
 
 ### Human Support Information
 
-- Add a diagnostics surface that shows version, database/core readiness, bridge/integration summaries, recent sanitized errors, last successful import/reimport, and useful next actions.
+- Extend Config's existing version and database/core readiness panel with bridge/integration summaries, recent sanitized errors, last successful import/reimport, and useful next actions.
 - Provide a copyable sanitized support summary.
 - Link to relevant config and troubleshooting actions rather than requiring log or database access.
 - Keep the authenticated AI API as deeper optional diagnostics, not the only way to understand ordinary failures.
@@ -89,7 +89,7 @@ The app needs one truthful operator-facing status model without creating a secon
 
 - Add screenshots for first run, import/reimport, scene creation, Control, and integration configuration.
 - Add intentional favicon/application icons and release metadata.
-- Document source-build upgrades, prod-branch deployment, rollback, backup selection, restore, and post-upgrade verification as one coherent operator procedure.
+- Connect the existing installation and backup/restore documentation into one operator procedure covering source-build upgrades, prod-branch deployment, rollback, backup selection, and post-upgrade verification.
 - Decide whether the first release publishes tagged container images or remains source-build-only.
 - Add a changelog/release-note policy when public versioning begins.
 - Keep compatibility and known-limitations documentation synchronized with tested versions and hardware.
@@ -98,7 +98,7 @@ The app needs one truthful operator-facing status model without creating a secon
 ## UI And Accessibility Refinements
 
 - Verify keyboard order, focus-visible treatment, modal focus trapping/restoration, disabled states, and touch targets.
-- Verify setup, import, scene building, Integrations, Control, and Lights at narrow mobile, tablet, and desktop widths.
+- Verify setup, import, scene building (including member rows), saved circadian-state editing, Pico configuration, Integrations, Control, and Lights at narrow mobile, tablet, and desktop widths.
 - Keep long identifiers, tokens, source IDs, errors, and environment snippets wrapped or horizontally scrollable without page overflow.
 - Keep destructive operations separated and confirmed, including bridge/entity deletion, HomeKit pairing reset, token rotation, and database restore.
 
