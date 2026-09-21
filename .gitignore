@@ -48,7 +48,7 @@ npm-debug.log
 # OS
 .DS_Store
 Thumbs.db
-.claude/worktrees/*
+.claude/*
 
 # Vendored HAP fork: its own build artifacts when running its test suite in place
 vendor/hap/deps/
