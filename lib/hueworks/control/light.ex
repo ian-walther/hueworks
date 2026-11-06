@@ -38,11 +38,12 @@ defmodule Hueworks.Control.Light do
     end
   end
 
-  defp dispatch(%{source: :caseta} = light, action, _apply_opts) do
+  defp dispatch(%{source: :caseta} = light, action, apply_opts) do
     with {:ok, host, ssl_opts} <- CasetaBridge.connection_for(light),
-         payload when is_map(payload) <- CasetaPayload.action_payload(action, light),
+         {payload, effective_transition_ms} <-
+           CasetaPayload.action_payload(action, light, apply_opts),
          :ok <- CasetaClient.request(host, ssl_opts, payload) do
-      {:ok, DispatchReceipt.new(0)}
+      {:ok, DispatchReceipt.new(effective_transition_ms)}
     else
       {:error, _} = error -> error
       :ignore -> :ok

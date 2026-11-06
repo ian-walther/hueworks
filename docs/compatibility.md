@@ -22,6 +22,7 @@
 
 - Import, control, Pico discovery, Pico binding, and LEAP event updates are supported for bridges with valid LEAP certificates.
 - Connection validation performs a read-only LEAP request.
+- HueWorks sends explicit on, off, and brightness fades to recognized LEAP dimmers. After brightness scaling, positive durations round to the nearest whole second with a one-second minimum. Half seconds round up. Zero or unset durations use the device's default fade. Physical fade behavior still needs validation on hardware. [LEAP duration format](https://github.com/gurumitts/pylutron-caseta/blob/v0.30.1/src/pylutron_caseta/smartbridge.py#L1440-L1447)
 - Guided certificate acquisition is not yet implemented; certificate upload remains a pre-release setup limitation.
 
 ### Home Assistant Import

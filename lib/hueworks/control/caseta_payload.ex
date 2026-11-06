@@ -2,60 +2,81 @@ defmodule Hueworks.Control.CasetaPayload do
   @moduledoc false
 
   alias Hueworks.Control.LightStateSemantics
+  alias Hueworks.Control.Transition
   alias Hueworks.Util
 
-  def action_payload({:set_state, desired}, light) when is_map(desired) do
+  # Color-tuning devices use different LEAP commands.
+  @fade_dimmer_types ~w(
+    WallDimmer PlugInDimmer InLineDimmer SunnataDimmer TempInWallPaddleDimmer
+    WallDimmerWithPreset Dimmed DivaSmartDimmer PowPak0-10V
+  )
+
+  def action_payload({:set_state, desired}, light, opts) when is_map(desired) do
+    case target_level(light, desired) do
+      nil ->
+        :ignore
+
+      level ->
+        seconds = fade_seconds(light, opts)
+        {zone_payload(light.source_id, level_command(level, seconds)), seconds * 1_000}
+    end
+  end
+
+  def action_payload(_action, _light, _opts), do: :ignore
+
+  defp target_level(light, desired) do
     power = LightStateSemantics.power_value(desired)
     brightness = LightStateSemantics.brightness_value(desired)
 
     cond do
-      power == :off ->
-        power_payload(light, :off)
-
-      not is_nil(brightness) ->
-        brightness_payload(light, brightness)
-
-      power == :on ->
-        power_payload(light, :on)
-
-      true ->
-        :ignore
+      power == :off -> 0
+      not is_nil(brightness) -> brightness_level(light, brightness)
+      power == :on -> 100
+      true -> nil
     end
   end
 
-  def action_payload(_action, _light), do: :ignore
-
-  defp power_payload(light, :on),
-    do: go_to_level_command(light.source_id, 100)
-
-  defp power_payload(light, :off),
-    do: go_to_level_command(light.source_id, 0)
-
-  defp brightness_payload(light, level) do
-    if supports_level?(light) do
-      go_to_level_command(light.source_id, Util.clamp(round(level), 0, 100))
-    else
-      if level <= 0 do
-        power_payload(light, :off)
-      else
-        power_payload(light, :on)
-      end
+  defp brightness_level(light, level) do
+    cond do
+      supports_level?(light) -> level |> round() |> Util.clamp(0, 100)
+      level <= 0 -> 0
+      true -> 100
     end
   end
 
-  defp go_to_level_command(zone_id, level) do
+  defp fade_seconds(%{metadata: %{"type" => type}}, opts) when type in @fade_dimmer_types do
+    case Transition.transition_ms(opts) do
+      nil -> 0
+      duration_ms -> max(1, div(duration_ms + 500, 1_000))
+    end
+  end
+
+  defp fade_seconds(_light, _opts), do: 0
+
+  defp level_command(level, 0) do
+    %{"CommandType" => "GoToLevel", "Parameter" => [%{"Type" => "Level", "Value" => level}]}
+  end
+
+  defp level_command(level, seconds) do
+    %{
+      "CommandType" => "GoToDimmedLevel",
+      "DimmedLevelParameters" => %{"Level" => level, "FadeTime" => format_duration(seconds)}
+    }
+  end
+
+  defp format_duration(seconds) do
+    [div(seconds, 3_600), rem(div(seconds, 60), 60), rem(seconds, 60)]
+    |> Enum.map_join(":", fn part -> part |> Integer.to_string() |> String.pad_leading(2, "0") end)
+  end
+
+  defp zone_payload(zone_id, command) do
     %{
       "CommuniqueType" => "CreateRequest",
       "Header" => %{
         "Url" => "/zone/#{zone_id}/commandprocessor",
         "ClientTag" => "hueworks"
       },
-      "Body" => %{
-        "Command" => %{
-          "CommandType" => "GoToLevel",
-          "Parameter" => [%{"Type" => "Level", "Value" => level}]
-        }
-      }
+      "Body" => %{"Command" => command}
     }
   end
 

@@ -5,7 +5,12 @@ defmodule Hueworks.Control.CasetaClient do
 
   @bridge_port 8081
 
-  def request(host, ssl_opts, payload, ssl_module \\ :ssl) do
+  def request(
+        host,
+        ssl_opts,
+        payload,
+        ssl_module \\ Application.get_env(:hueworks, :caseta_client_ssl_module, :ssl)
+      ) do
     with {:ok, socket} <-
            ssl_module.connect(String.to_charlist(host), @bridge_port, ssl_opts, 5000) do
       result = request_on_socket(ssl_module, socket, payload)
