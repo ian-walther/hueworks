@@ -38,13 +38,11 @@ database migration.
 
 ## Home Assistant Contract Verification
 
-The MQTT contract is tested against stubbed networking only. Before relying on
-it, verify against the live Home Assistant and broker:
+Before relying on edited bounds, verify the remaining interactions against the
+live Home Assistant and broker:
 
 - The command template renders with `to_json`, and an empty value clears a bound.
-- An unset bound shows an empty text state, not `unknown`.
 - Reconnecting rotates the session without changing entity IDs or unique IDs.
-- `default_entity_id` produces the documented entity IDs.
 - The last will reports `offline` on an unclean disconnect, and `online` returns
   after reconnecting, including when the broker takes over the old connection.
 - A retained command is not applied after a reconnect.
