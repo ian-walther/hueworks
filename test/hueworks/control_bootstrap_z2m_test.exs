@@ -357,7 +357,7 @@ defmodule Hueworks.Control.Bootstrap.Z2MTest do
   end
 
   defmodule SupervisorStub do
-    def start_child(opts, supervisor) do
+    def start_child(supervisor, opts) when is_pid(supervisor) and is_list(opts) do
       {handler_module, [owner]} = Keyword.fetch!(opts, :handler)
       sink = Application.fetch_env!(:hueworks, :z2m_bootstrap_test_sink)
       subscriptions = Keyword.fetch!(opts, :subscriptions)
@@ -399,7 +399,7 @@ defmodule Hueworks.Control.Bootstrap.Z2MTest do
   end
 
   defmodule DelayedSubscriptionSupervisorStub do
-    def start_child(opts, supervisor) do
+    def start_child(supervisor, opts) when is_pid(supervisor) and is_list(opts) do
       {handler_module, [owner]} = Keyword.fetch!(opts, :handler)
       sink = Application.fetch_env!(:hueworks, :z2m_bootstrap_test_sink)
       subscriptions = Keyword.fetch!(opts, :subscriptions)
@@ -431,7 +431,7 @@ defmodule Hueworks.Control.Bootstrap.Z2MTest do
   end
 
   defmodule MappedKelvinSupervisorStub do
-    def start_child(opts, supervisor) do
+    def start_child(supervisor, opts) when is_pid(supervisor) and is_list(opts) do
       {handler_module, [owner]} = Keyword.fetch!(opts, :handler)
       sink = Application.fetch_env!(:hueworks, :z2m_bootstrap_test_sink)
       subscriptions = Keyword.fetch!(opts, :subscriptions)
@@ -466,7 +466,7 @@ defmodule Hueworks.Control.Bootstrap.Z2MTest do
   end
 
   defmodule DivergedMemberSupervisorStub do
-    def start_child(opts, supervisor) do
+    def start_child(supervisor, opts) when is_pid(supervisor) and is_list(opts) do
       {handler_module, [owner]} = Keyword.fetch!(opts, :handler)
       subscriptions = Keyword.fetch!(opts, :subscriptions)
 

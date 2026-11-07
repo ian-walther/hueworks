@@ -35,21 +35,37 @@ defmodule Hueworks.Control.Bootstrap.Z2MLifecycleTest do
     assert_receive {:DOWN, ^monitor, :process, ^client, _}, 1_000
   end
 
+  test "bootstrap starts its connection through the real Tortoise supervisor", %{bridge: bridge} do
+    {:ok, listener} = :gen_tcp.listen(0, [:binary, active: false, ip: {127, 0, 0, 1}])
+    on_exit(fn -> :gen_tcp.close(listener) end)
+    {:ok, port} = :inet.port(listener)
+
+    Application.put_env(:hueworks, :z2m_bootstrap_tortoise_supervisor_module, Tortoise.Supervisor)
+
+    Application.put_env(
+      :hueworks,
+      :z2m_bootstrap_tortoise_connection_module,
+      __MODULE__.UnavailableConnectionStub
+    )
+
+    bridge = %{bridge | host: "127.0.0.1", credentials: %{"broker_port" => port}}
+
+    assert {:error, :test_connection_unavailable} == Z2M.run(bridge)
+  end
+
   defmodule ConnectionStub do
     def connection(_, _), do: Process.sleep(:infinity)
   end
 
-  defmodule SupervisorStub do
-    def start_child(opts), do: start_child(opts, nil)
+  defmodule UnavailableConnectionStub do
+    def connection(_, _), do: {:error, :test_connection_unavailable}
+  end
 
-    def start_child(_opts, supervisor) do
+  defmodule SupervisorStub do
+    def start_child(supervisor, opts) when is_pid(supervisor) and is_list(opts) do
       sink = Application.fetch_env!(:hueworks, :z2m_bootstrap_test_sink)
       run = fn -> Process.sleep(:infinity) end
-
-      result =
-        if supervisor,
-          do: DynamicSupervisor.start_child(supervisor, {Task, run}),
-          else: Task.start(run)
+      result = DynamicSupervisor.start_child(supervisor, {Task, run})
 
       {:ok, client} = result
       send(sink, {:temporary_client, client})

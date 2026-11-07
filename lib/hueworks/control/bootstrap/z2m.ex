@@ -81,7 +81,7 @@ defmodule Hueworks.Control.Bootstrap.Z2M do
   end
 
   defp start_connection(start_opts, supervisor) do
-    case supervisor_module().start_child(start_opts, supervisor) do
+    case supervisor_module().start_child(supervisor, start_opts) do
       {:ok, pid} -> {:ok, pid}
       {:error, {:already_started, pid}} -> {:ok, pid}
       {:error, reason} -> {:error, reason}
