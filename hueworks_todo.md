@@ -9,7 +9,8 @@ This file should stay short. If a future idea is not likely to be acted on soon,
 ### Global Solar Bounds
 Reference: `planning/global-solar-bounds.md`
 
-- [ ] Add global sunrise/sunset bounds, full per-event timing inheritance, and HA editing while preserving existing profiles during migration.
+- [ ] Roll out the household's global sunset bound and profile inheritance after deployment approval.
+- [ ] Move the Home Assistant evening scene schedule onto astronomical sunset clamped by the global bounds.
 
 ### Public Release Readiness
 Reference: `planning/pre-release_refinement.md`

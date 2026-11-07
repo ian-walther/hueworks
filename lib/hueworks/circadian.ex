@@ -6,13 +6,15 @@ defmodule Hueworks.Circadian do
 
   require Logger
 
-  alias Hueworks.Circadian.Config
+  alias Hueworks.Circadian.Inputs
+  alias Hueworks.Circadian.Timing
   alias Hueworks.Util
 
   @sun_event_order [:sunrise, :noon, :sunset, :midnight]
   @allowed_orders Enum.map(0..3, fn index ->
                     Enum.drop(@sun_event_order, index) ++ Enum.take(@sun_event_order, index)
                   end)
+  @curves [:shared, :brightness, :temperature]
 
   @type calc_result :: %{
           brightness: integer(),
@@ -20,28 +22,38 @@ defmodule Hueworks.Circadian do
           sun_position: float()
         }
 
+  @doc """
+  Normalizes a profile config and solar config once for repeated evaluation.
+  """
+  @spec prepare(map(), map()) :: {:ok, Inputs.t()} | {:error, term()}
+  def prepare(config, solar_config), do: Inputs.load(config, solar_config)
+
   @spec calculate(map(), map(), DateTime.t()) :: {:ok, calc_result()} | {:error, term()}
   def calculate(config, solar_config, now \\ DateTime.utc_now())
 
   def calculate(config, solar_config, now) when is_map(config) and is_map(solar_config) do
-    with {:ok, normalized} <- normalize_config(config),
-         {:ok, timezone} <- timezone_name(solar_config),
-         {:ok, context} <- build_context(normalized, solar_config, timezone, now) do
-      shared_context = curve_context(context, :shared)
-      brightness_context = curve_context(context, :brightness)
-      temperature_context = curve_context(context, :temperature)
-      sun_position = sun_position(shared_context, context.now_utc)
-
-      {:ok,
-       %{
-         brightness: round(brightness_pct(context.config, brightness_context, context.now_utc)),
-         kelvin: color_temp_kelvin(context.config, temperature_context, context.now_utc),
-         sun_position: sun_position
-       }}
+    with {:ok, inputs} <- prepare(config, solar_config) do
+      evaluate(inputs, now)
     end
   end
 
   def calculate(_config, _solar_config, _now), do: {:error, :invalid_args}
+
+  @spec evaluate(Inputs.t(), DateTime.t()) :: {:ok, calc_result()} | {:error, term()}
+  def evaluate(%Inputs{} = inputs, %DateTime{} = now) do
+    now_utc = ensure_utc(now)
+
+    with {:ok, local_now} <- DateTime.shift_zone(now_utc, inputs.timezone),
+         {:ok, schedule} <- schedule(inputs, DateTime.to_date(local_now)),
+         {:ok, brightness} <- brightness_pct(inputs, schedule.brightness, now_utc) do
+      {:ok,
+       %{
+         brightness: round(brightness),
+         kelvin: color_temp_kelvin(inputs.config, schedule.temperature, now_utc),
+         sun_position: sun_position(schedule.shared, now_utc)
+       }}
+    end
+  end
 
   @spec day_events_for_date(map(), map(), Date.t(), keyword()) ::
           {:ok, keyword(DateTime.t())} | {:error, term()}
@@ -49,57 +61,87 @@ defmodule Hueworks.Circadian do
 
   def day_events_for_date(config, solar_config, %Date{} = date, opts)
       when is_map(config) and is_map(solar_config) and is_list(opts) do
-    curve = Keyword.get(opts, :curve, :shared)
-
-    with {:ok, normalized} <- normalize_config(config),
-         {:ok, timezone} <- timezone_name(solar_config),
-         {:ok, events} <- events_for_curve(normalized, solar_config, timezone, date, curve) do
-      {:ok, events}
+    with {:ok, inputs} <- prepare(config, solar_config) do
+      day_events(inputs, date, Keyword.get(opts, :curve, :shared))
     end
   end
 
   def day_events_for_date(_config, _solar_config, _date, _opts), do: {:error, :invalid_args}
 
-  defp normalize_config(config) do
-    Config.runtime(config)
-  end
-
-  defp build_context(config, solar_config, timezone, now) do
-    now_utc = ensure_utc(now)
-    date = DateTime.to_date(now_utc)
-
-    with {:ok, _local_now} <- DateTime.shift_zone(now_utc, timezone),
-         {:ok, _shared_events} <- events_for_curve(config, solar_config, timezone, date, :shared),
-         {:ok, _brightness_events} <-
-           events_for_curve(config, solar_config, timezone, date, :brightness),
-         {:ok, _temperature_events} <-
-           events_for_curve(config, solar_config, timezone, date, :temperature) do
-      {:ok,
-       %{
-         config: config,
-         now_utc: now_utc,
-         solar_config: solar_config,
-         timezone: timezone
-       }}
+  @doc """
+  Effective events for a curve on a local calendar date.
+  """
+  @spec day_events(Inputs.t(), Date.t(), :shared | :brightness | :temperature) ::
+          {:ok, keyword(DateTime.t())} | {:error, term()}
+  def day_events(%Inputs{} = inputs, %Date{} = date, curve \\ :shared) do
+    with {:ok, events} <- base_events(inputs, date) do
+      apply_curve_offsets(events, inputs.timing, curve)
     end
   end
 
-  defp curve_context(context, curve), do: Map.put(context, :curve, curve)
+  @doc """
+  True when the effective events cannot form a day on the local date. Failing to
+  calculate an event is not an ordering problem, so it reports false.
+  """
+  @spec invalid_event_order?(map(), map(), Date.t()) :: boolean()
+  def invalid_event_order?(config, solar_config, %Date{} = date) do
+    with {:ok, inputs} <- prepare(config, solar_config),
+         {:ok, _events} <- collect_ok(@curves, &day_events(inputs, date, &1)) do
+      false
+    else
+      {:error, {:invalid_sun_event_order, _order}} -> true
+      {:error, _reason} -> false
+    end
+  end
+
+  @doc """
+  The current calendar date in the solar config's timezone.
+  """
+  @spec local_today(map()) :: {:ok, Date.t()} | {:error, term()}
+  def local_today(solar_config) when is_map(solar_config) do
+    with {:ok, %Inputs{timezone: timezone}} <- prepare(%{}, solar_config),
+         {:ok, local_now} <- DateTime.now(timezone) do
+      {:ok, DateTime.to_date(local_now)}
+    end
+  end
 
   defp ensure_utc(%DateTime{} = now), do: DateTime.shift_zone!(now, "Etc/UTC")
 
-  defp events_for_curve(config, solar_config, timezone, date, curve) do
-    with {:ok, events} <- base_events(config, solar_config, timezone, date),
-         {:ok, events} <- apply_curve_offsets(events, config, curve) do
-      {:ok, events}
+  # Every curve's events for the local day and both neighbors, in time order.
+  defp schedule(inputs, date) do
+    with {:ok, days} <- collect_ok(-1..1, &base_events(inputs, Date.add(date, &1))),
+         {:ok, curves} <- collect_ok(@curves, &curve_schedule(days, inputs.timing, &1)) do
+      {:ok, @curves |> Enum.zip(curves) |> Map.new()}
     end
   end
 
-  defp base_events(config, solar_config, timezone, date) do
-    with {:ok, sunrise} <- sunrise(config, solar_config, timezone, date),
-         {:ok, sunset} <- sunset(config, solar_config, timezone, date),
-         {:ok, noon, midnight} <-
-           noon_and_midnight(config, solar_config, timezone, date, sunrise, sunset),
+  defp curve_schedule(days, timing, curve) do
+    with {:ok, days} <- collect_ok(days, &apply_curve_offsets(&1, timing, curve)) do
+      days
+      |> List.flatten()
+      |> Enum.sort_by(fn {_event, dt} -> timestamp(dt) end)
+      |> then(&{:ok, &1})
+    end
+  end
+
+  defp collect_ok(items, fun) do
+    items
+    |> Enum.reduce_while({:ok, []}, fn item, {:ok, acc} ->
+      case fun.(item) do
+        {:ok, value} -> {:cont, {:ok, [value | acc]}}
+        {:error, _reason} = error -> {:halt, error}
+      end
+    end)
+    |> case do
+      {:ok, values} -> {:ok, Enum.reverse(values)}
+      {:error, _reason} = error -> error
+    end
+  end
+
+  defp base_events(inputs, date) do
+    with {:ok, sunrise} <- sun_event(inputs, date, :sunrise),
+         {:ok, sunset} <- sun_event(inputs, date, :sunset),
+         {:ok, noon, midnight} <- noon_and_midnight(inputs, date, sunrise, sunset),
          :ok <-
            validate_sun_event_order(
              sunrise: sunrise,
@@ -111,16 +153,17 @@ defmodule Hueworks.Circadian do
     end
   end
 
-  defp apply_curve_offsets(events, _config, :shared), do: {:ok, events}
+  defp apply_curve_offsets(events, _timing, :shared), do: {:ok, events}
 
-  defp apply_curve_offsets(events, config, curve) when curve in [:brightness, :temperature] do
-    sunrise_offset = config[curve_offset_key(curve, :sunrise)]
-    sunset_offset = config[curve_offset_key(curve, :sunset)]
-
+  defp apply_curve_offsets(events, %Timing{} = timing, curve)
+       when curve in [:brightness, :temperature] do
     events =
       events
-      |> Keyword.update!(:sunrise, &DateTime.add(&1, sunrise_offset, :second))
-      |> Keyword.update!(:sunset, &DateTime.add(&1, sunset_offset, :second))
+      |> Keyword.update!(
+        :sunrise,
+        &DateTime.add(&1, curve_offset(timing.sunrise, curve), :second)
+      )
+      |> Keyword.update!(:sunset, &DateTime.add(&1, curve_offset(timing.sunset, curve), :second))
 
     case validate_sun_event_order(events) do
       :ok -> {:ok, events}
@@ -128,37 +171,24 @@ defmodule Hueworks.Circadian do
     end
   end
 
-  defp sunrise(config, solar_config, timezone, date),
-    do: sun_event(config, solar_config, timezone, date, :sunrise)
-
-  defp sunset(config, solar_config, timezone, date),
-    do: sun_event(config, solar_config, timezone, date, :sunset)
-
-  defp sun_event(config, solar_config, timezone, date, event) do
-    {time_key, offset_key, min_key, max_key} = sun_event_keys(event)
+  defp sun_event(inputs, date, name) do
+    event = Map.fetch!(inputs.timing, name)
 
     base =
-      case config[time_key] do
-        nil -> solar_event(date, solar_config, event)
-        time -> combine_local_time(date, time, timezone)
+      case event.time do
+        nil -> solar_event(inputs, date, name)
+        time -> combine_local_time(date, time, inputs.timezone)
       end
 
     with {:ok, datetime} <- base do
       datetime
-      |> DateTime.add(config[offset_key], :second)
-      |> clamp_time(date, config[min_key], config[max_key], timezone)
-      |> then(&{:ok, &1})
+      |> DateTime.add(event.offset, :second)
+      |> clamp_time(date, event.min, event.max, inputs.timezone)
     end
   end
 
-  defp sun_event_keys(:sunrise),
-    do: {:sunrise_time, :sunrise_offset, :min_sunrise_time, :max_sunrise_time}
-
-  defp sun_event_keys(:sunset),
-    do: {:sunset_time, :sunset_offset, :min_sunset_time, :max_sunset_time}
-
-  defp noon_and_midnight(config, solar_config, _timezone, date, sunrise, sunset) do
-    if solar_times_constrained?(config) do
+  defp noon_and_midnight(inputs, date, sunrise, sunset) do
+    if Timing.constrained?(inputs.timing) do
       middle_seconds = abs(DateTime.diff(sunset, sunrise, :second)) / 2
 
       if DateTime.compare(sunset, sunrise) == :gt do
@@ -171,22 +201,11 @@ defmodule Hueworks.Circadian do
         {:ok, noon, midnight}
       end
     else
-      with {:ok, noon} <- solar_event(date, solar_config, :noon) do
+      with {:ok, noon} <- solar_event(inputs, date, :noon) do
         midnight = DateTime.add(noon, midnight_offset_seconds(noon), :second)
         {:ok, noon, midnight}
       end
     end
-  end
-
-  defp solar_times_constrained?(config) do
-    Enum.any?([
-      config[:sunrise_time],
-      config[:sunset_time],
-      config[:min_sunrise_time],
-      config[:max_sunrise_time],
-      config[:min_sunset_time],
-      config[:max_sunset_time]
-    ])
   end
 
   defp midnight_offset_seconds(%DateTime{hour: hour}) when hour < 12, do: 12 * 3600
@@ -205,48 +224,24 @@ defmodule Hueworks.Circadian do
     end
   end
 
-  defp prev_and_next_events(context, now_utc) do
-    all_events =
-      for offset <- -1..1,
-          event <- events_for_offset(context, now_utc, offset),
-          do: event
-
-    all_events = Enum.sort_by(all_events, fn {_name, dt} -> timestamp(dt) end)
+  defp prev_and_next_events(events, now_utc) do
     target = timestamp(now_utc)
 
     next_index =
-      Enum.find_index(all_events, fn {_event, dt} ->
+      Enum.find_index(events, fn {_event, dt} ->
         timestamp(dt) > target
       end)
 
-    next_index = next_index || max(length(all_events) - 1, 1)
+    next_index = next_index || max(length(events) - 1, 1)
 
     {
-      Enum.at(all_events, next_index - 1),
-      Enum.at(all_events, next_index)
+      Enum.at(events, next_index - 1),
+      Enum.at(events, next_index)
     }
   end
 
-  defp events_for_offset(context, now_utc, offset) do
-    target = DateTime.add(now_utc, offset * 86_400, :second)
-
-    case events_for_curve(
-           context.config,
-           context.solar_config,
-           context.timezone,
-           DateTime.to_date(target),
-           Map.get(context, :curve, :shared)
-         ) do
-      {:ok, events} ->
-        events
-
-      {:error, reason} ->
-        raise ArgumentError, "failed to calculate neighboring sun events: #{inspect(reason)}"
-    end
-  end
-
-  defp sun_position(context, now_utc) do
-    {{_prev_event, prev_dt}, {next_event, next_dt}} = prev_and_next_events(context, now_utc)
+  defp sun_position(events, now_utc) do
+    {{_prev_event, prev_dt}, {next_event, next_dt}} = prev_and_next_events(events, now_utc)
     target_ts = timestamp(now_utc)
     prev_ts = timestamp(prev_dt)
     next_ts = timestamp(next_dt)
@@ -262,90 +257,107 @@ defmodule Hueworks.Circadian do
     k * (1 - :math.pow((target_ts - h) / (h - x), 2))
   end
 
-  defp brightness_pct(config, context, now_utc) do
+  defp brightness_pct(%Inputs{config: config} = inputs, events, now_utc) do
     case config[:brightness_mode] do
       :quadratic ->
-        sun_position = sun_position(context, now_utc)
+        sun_position = sun_position(events, now_utc)
 
         if sun_position > 0 do
-          config[:max_brightness]
+          {:ok, config[:max_brightness]}
         else
           delta = config[:max_brightness] - config[:min_brightness]
-          delta * (1 + sun_position) + config[:min_brightness]
+          {:ok, delta * (1 + sun_position) + config[:min_brightness]}
         end
 
       mode when mode in [:linear, :tanh] ->
-        {event, event_dt} = closest_event(context, now_utc)
-        delta_seconds = timestamp(now_utc) - timestamp(event_dt)
-        dark = config[:brightness_mode_time_dark]
-        light = config[:brightness_mode_time_light]
-
-        brightness =
-          case {mode, event} do
-            {:linear, :sunrise} ->
-              lerp(
-                delta_seconds,
-                -dark,
-                light,
-                config[:min_brightness],
-                config[:max_brightness]
-              )
-
-            {:linear, :sunset} ->
-              lerp(
-                delta_seconds,
-                -light,
-                dark,
-                config[:max_brightness],
-                config[:min_brightness]
-              )
-
-            {:tanh, :sunrise} ->
-              scaled_tanh(delta_seconds,
-                x1: -dark,
-                x2: light,
-                y1: 0.05,
-                y2: 0.95,
-                y_min: config[:min_brightness],
-                y_max: config[:max_brightness]
-              )
-
-            {:tanh, :sunset} ->
-              scaled_tanh(delta_seconds,
-                x1: -light,
-                x2: dark,
-                y1: 0.95,
-                y2: 0.05,
-                y_min: config[:min_brightness],
-                y_max: config[:max_brightness]
-              )
-          end
-
-        Util.clamp(brightness, config[:min_brightness], config[:max_brightness])
+        with {:ok, {event, event_dt}} <- closest_event(events, now_utc) do
+          ramped_brightness(
+            mode,
+            event,
+            Map.fetch!(inputs.timing, event),
+            timestamp(now_utc) - timestamp(event_dt),
+            config
+          )
+        end
 
       other ->
         Logger.warning("Unsupported circadian brightness mode: #{inspect(other)}")
-        brightness_pct(Map.put(config, :brightness_mode, :tanh), context, now_utc)
+
+        inputs
+        |> Map.put(:config, Map.put(config, :brightness_mode, :tanh))
+        |> brightness_pct(events, now_utc)
     end
   end
 
-  defp closest_event(context, now_utc) do
-    {prev, next} = prev_and_next_events(context, now_utc)
+  # A ramp with no width has no curve to evaluate.
+  defp ramped_brightness(_mode, event, %{dark_seconds: 0, light_seconds: 0}, _delta, _config),
+    do: {:error, {:zero_width_brightness_ramp, event}}
+
+  defp ramped_brightness(mode, event, timing_event, delta_seconds, config) do
+    dark = timing_event.dark_seconds
+    light = timing_event.light_seconds
+
+    brightness =
+      case {mode, event} do
+        {:linear, :sunrise} ->
+          lerp(
+            delta_seconds,
+            -dark,
+            light,
+            config[:min_brightness],
+            config[:max_brightness]
+          )
+
+        {:linear, :sunset} ->
+          lerp(
+            delta_seconds,
+            -light,
+            dark,
+            config[:max_brightness],
+            config[:min_brightness]
+          )
+
+        {:tanh, :sunrise} ->
+          scaled_tanh(delta_seconds,
+            x1: -dark,
+            x2: light,
+            y1: 0.05,
+            y2: 0.95,
+            y_min: config[:min_brightness],
+            y_max: config[:max_brightness]
+          )
+
+        {:tanh, :sunset} ->
+          scaled_tanh(delta_seconds,
+            x1: -light,
+            x2: dark,
+            y1: 0.95,
+            y2: 0.05,
+            y_min: config[:min_brightness],
+            y_max: config[:max_brightness]
+          )
+      end
+
+    {:ok, Util.clamp(brightness, config[:min_brightness], config[:max_brightness])}
+  end
+
+  defp closest_event(events, now_utc) do
+    {prev, next} = prev_and_next_events(events, now_utc)
 
     cond do
       elem(prev, 0) == :sunrise or elem(next, 0) == :sunrise ->
-        if elem(prev, 0) == :sunrise, do: prev, else: next
+        {:ok, if(elem(prev, 0) == :sunrise, do: prev, else: next)}
 
       elem(prev, 0) == :sunset or elem(next, 0) == :sunset ->
-        if elem(prev, 0) == :sunset, do: prev, else: next
+        {:ok, if(elem(prev, 0) == :sunset, do: prev, else: next)}
 
       true ->
-        raise ArgumentError, "No sunrise or sunset event found"
+        {:error, :no_adjacent_sun_event}
     end
   end
 
-  defp color_temp_kelvin(config, context, now_utc) do
-    sun_position = sun_position(context, now_utc)
+  defp color_temp_kelvin(config, events, now_utc) do
+    sun_position = sun_position(events, now_utc)
 
     kelvin =
       if sun_position > 0 do
@@ -365,56 +377,47 @@ defmodule Hueworks.Circadian do
 
   defp round_to_5(value), do: 5 * round(value / 5)
 
-  defp solar_event(date, solar_config, event) when event in [:sunrise, :sunset] do
-    with {:ok, latitude, longitude} <- coordinates(solar_config),
-         {:ok, solar_noon_ms} <- solar_noon_timestamp_ms(date, latitude, longitude),
-         {:ok, rise_hour_angle} <- Solarex.Sun.rise_hour_angle(solar_noon_ms, latitude) do
-      direction = if event == :sunrise, do: 1, else: -1
+  defp solar_event(inputs, date, event) when event in [:sunrise, :sunset] do
+    with {:ok, solar_noon} <- solar_noon(inputs, date) do
+      solar_noon_ms = DateTime.to_unix(solar_noon, :millisecond)
 
-      solar_noon_ms
-      |> Kernel.+(direction * round(rise_hour_angle * 4 * 1000 * 60))
-      |> DateTime.from_unix!(:millisecond)
+      case Solarex.Sun.rise_hour_angle(solar_noon_ms, inputs.latitude * 1.0) do
+        {:ok, rise_hour_angle} ->
+          solar_noon_ms
+          |> Kernel.+(sun_event_direction(event) * round(rise_hour_angle * 4 * 1000 * 60))
+          |> DateTime.from_unix!(:millisecond)
+          |> then(&{:ok, &1})
+
+        {:error, _reason} ->
+          {:error, {:sun_event_unavailable, event, date}}
+      end
+    end
+  end
+
+  defp solar_event(inputs, date, :noon), do: solar_noon(inputs, date)
+
+  defp sun_event_direction(:sunrise), do: 1
+  defp sun_event_direction(:sunset), do: -1
+
+  # Solarex counts from a UTC calendar date, which can name the neighboring
+  # local day near the date line. Select the solar noon of the local date.
+  defp solar_noon(inputs, date) do
+    with {:ok, latitude, longitude} <- coordinates(inputs),
+         {:ok, local_noon} <- combine_local_time(date, "12:00:00", inputs.timezone) do
+      date
+      |> Date.add(-1)
+      |> Date.range(Date.add(date, 1))
+      |> Enum.map(&Solarex.Sun.noon(&1, latitude, longitude))
+      |> Enum.min_by(&abs(DateTime.diff(&1, local_noon, :millisecond)))
       |> then(&{:ok, &1})
     end
   end
 
-  defp solar_event(date, solar_config, :noon) do
-    with {:ok, latitude, longitude} <- coordinates(solar_config) do
-      {:ok, Solarex.Sun.noon(date, latitude, longitude)}
-    end
-  end
-
-  defp solar_noon_timestamp_ms(date, latitude, longitude) do
-    date
-    |> Solarex.Sun.noon(latitude, longitude)
-    |> DateTime.to_unix(:millisecond)
-    |> then(&{:ok, &1})
-  end
-
-  defp coordinates(solar_config) do
-    latitude =
-      Util.to_float(Map.get(solar_config, :latitude) || Map.get(solar_config, "latitude"))
-
-    longitude =
-      Util.to_float(Map.get(solar_config, :longitude) || Map.get(solar_config, "longitude"))
-
+  defp coordinates(%Inputs{latitude: latitude, longitude: longitude}) do
     if is_number(latitude) and is_number(longitude) do
       {:ok, latitude * 1.0, longitude * 1.0}
     else
       {:error, :missing_coordinates}
-    end
-  end
-
-  defp timezone_name(solar_config) do
-    timezone =
-      Map.get(solar_config, :timezone) ||
-        Map.get(solar_config, "timezone") ||
-        "Etc/UTC"
-
-    if is_binary(timezone) and String.trim(timezone) != "" do
-      {:ok, timezone}
-    else
-      {:ok, "Etc/UTC"}
     end
   end
 
@@ -430,28 +433,19 @@ defmodule Hueworks.Circadian do
     end
   end
 
-  defp clamp_time(datetime, _date, nil, nil, _timezone), do: datetime
+  defp clamp_time(datetime, _date, nil, nil, _timezone), do: {:ok, datetime}
 
   defp clamp_time(datetime, date, min_time, max_time, timezone) do
-    datetime =
-      case min_time do
-        nil -> datetime
-        value -> max_datetime(datetime, combine_local_time!(date, value, timezone))
-      end
-
-    case max_time do
-      nil -> datetime
-      value -> min_datetime(datetime, combine_local_time!(date, value, timezone))
+    with {:ok, datetime} <- apply_bound(datetime, date, min_time, timezone, &max_datetime/2) do
+      apply_bound(datetime, date, max_time, timezone, &min_datetime/2)
     end
   end
 
-  defp combine_local_time!(date, time_string, timezone) do
-    case combine_local_time(date, time_string, timezone) do
-      {:ok, datetime} ->
-        datetime
+  defp apply_bound(datetime, _date, nil, _timezone, _select), do: {:ok, datetime}
 
-      {:error, reason} ->
-        raise ArgumentError, "invalid circadian time #{inspect(time_string)}: #{inspect(reason)}"
+  defp apply_bound(datetime, date, time, timezone, select) do
+    with {:ok, bound} <- combine_local_time(date, time, timezone) do
+      {:ok, select.(datetime, bound)}
     end
   end
 
@@ -485,8 +479,6 @@ defmodule Hueworks.Circadian do
   end
 
   defp lerp(x, x1, x2, y1, y2), do: y1 + (x - x1) * (y2 - y1) / (x2 - x1)
-  defp curve_offset_key(:brightness, :sunrise), do: :brightness_sunrise_offset
-  defp curve_offset_key(:brightness, :sunset), do: :brightness_sunset_offset
-  defp curve_offset_key(:temperature, :sunrise), do: :temperature_sunrise_offset
-  defp curve_offset_key(:temperature, :sunset), do: :temperature_sunset_offset
+  defp curve_offset(event, :brightness), do: event.brightness_offset
+  defp curve_offset(event, :temperature), do: event.temperature_offset
 end

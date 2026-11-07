@@ -81,7 +81,8 @@ defmodule Hueworks.HomeAssistant.Export.Config do
       "#{topic_prefix}/lights/+/light/set",
       "#{topic_prefix}/groups/+/switch/set",
       "#{topic_prefix}/groups/+/light/set",
-      "#{topic_prefix}/presence_inputs/+/switch/set"
+      "#{topic_prefix}/presence_inputs/+/switch/set",
+      "#{topic_prefix}/settings/+/set"
     ]
   end
 end

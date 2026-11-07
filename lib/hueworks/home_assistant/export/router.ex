@@ -6,9 +6,18 @@ defmodule Hueworks.HomeAssistant.Export.Router do
   alias Hueworks.HomeAssistant.Export.Messages.CommandTarget
   alias Hueworks.HomeAssistant.Export.Router.EntityCommands
   alias Hueworks.HomeAssistant.Export.Router.SceneCommands
+  alias Hueworks.HomeAssistant.Export.Router.SettingCommands
+  alias Hueworks.HomeAssistant.Export.ServerState
 
-  def dispatch(topic_levels, payload, config, publish_fun)
+  def dispatch(topic_levels, payload, %ServerState{} = state, publish_fun)
       when is_list(topic_levels) and is_function(publish_fun, 3) do
+    case Messages.command_setting_field(topic_levels) do
+      nil -> dispatch_entity_command(topic_levels, payload, state.config, publish_fun)
+      field -> SettingCommands.handle_command(field, payload, state, publish_fun)
+    end
+  end
+
+  defp dispatch_entity_command(topic_levels, payload, config, publish_fun) do
     normalized_payload = Config.normalize_payload(payload)
 
     case {Messages.command_scene_id(topic_levels), Messages.command_area_id(topic_levels),

@@ -1,7 +1,10 @@
 defmodule Hueworks.LightsManualControlTest do
   use Hueworks.DataCase, async: false
 
+  import ExUnit.CaptureLog
+
   alias Hueworks.Control.{DesiredState, Executor, State, TraceBuffer}
+  alias Hueworks.Control.ManualBaseline
   alias Hueworks.Lights.ManualControl
   alias Hueworks.{ActiveScenes, Repo, Scenes}
   alias Hueworks.Schemas.{Group, GroupLight, Light, Area, Scene}
@@ -436,6 +439,166 @@ defmodule Hueworks.LightsManualControlTest do
              ManualControl.apply_updates(manual_area.id, [manual_light.id], %{power: :on})
 
     assert queued_targets(executor_server, bridge.id) |> Enum.member?({:light, queued_light.id})
+  end
+
+  describe "power results while a scene is active" do
+    setup do
+      area = Repo.insert!(%Area{name: "Main Floor"})
+
+      bridge =
+        insert_bridge!(%{
+          name: "Results Hue Bridge",
+          type: :hue,
+          host: "192.168.1.95",
+          credentials: %{"api_key" => "test"}
+        })
+
+      # A zero-width ramp fails the calculation on any date.
+      {:ok, held} =
+        Scenes.create_light_state("Unavailable", :circadian, %{
+          "override_sunrise_timing" => true,
+          "override_sunset_timing" => true,
+          "sunrise_time" => "06:00:00",
+          "sunset_time" => "18:00:00",
+          "brightness_mode" => "linear",
+          "brightness_mode_time_dark" => 0,
+          "brightness_mode_time_light" => 0
+        })
+
+      {:ok, manual} =
+        Scenes.create_manual_light_state("Bright", %{
+          "brightness" => "80",
+          "temperature" => "3000"
+        })
+
+      %{area: area, bridge: bridge, held: held, manual: manual}
+    end
+
+    defp insert_lamp(context, name) do
+      Repo.insert!(%Light{
+        name: name,
+        source: :hue,
+        source_id: name,
+        bridge_id: context.bridge.id,
+        area_id: context.area.id,
+        enabled: true
+      })
+    end
+
+    defp activate_scene(context, components) do
+      {:ok, scene} = Scenes.create_scene(%{name: "Evening Auto", area_id: context.area.id})
+
+      {:ok, _components} =
+        Scenes.replace_scene_components(
+          scene,
+          Enum.map(components, fn {name, lights, light_state} ->
+            %{
+              name: name,
+              light_ids: Enum.map(lights, & &1.id),
+              light_state_id: to_string(light_state.id)
+            }
+          end)
+        )
+
+      {:ok, _active} = ActiveScenes.set_active(scene)
+    end
+
+    test "a held light reports nothing to display", context do
+      lamp = insert_lamp(context, "held-lamp")
+      activate_scene(context, [{"Held", [lamp], context.held}])
+      DesiredState.put(:light, lamp.id, %{power: :off})
+
+      capture_log(fn ->
+        assert {:ok, %{}} == ManualControl.apply_power_action(context.area.id, [lamp.id], :on)
+      end)
+
+      assert DesiredState.get(:light, lamp.id) == %{power: :off}
+    end
+
+    test "a partly held selection does not lend one member's attrs to the others", context do
+      held_lamp = insert_lamp(context, "held-lamp")
+      manual_lamp = insert_lamp(context, "manual-lamp")
+
+      activate_scene(context, [
+        {"Held", [held_lamp], context.held},
+        {"Manual", [manual_lamp], context.manual}
+      ])
+
+      DesiredState.put(:light, held_lamp.id, %{power: :off})
+      DesiredState.put(:light, manual_lamp.id, %{power: :off})
+
+      capture_log(fn ->
+        assert {:ok, %{}} ==
+                 ManualControl.apply_power_action(
+                   context.area.id,
+                   [held_lamp.id, manual_lamp.id],
+                   :on
+                 )
+      end)
+
+      assert DesiredState.get(:light, held_lamp.id) == %{power: :off}
+
+      assert DesiredState.get(:light, manual_lamp.id) == %{
+               power: :on,
+               brightness: 80,
+               kelvin: 3000
+             }
+    end
+
+    test "a light outside the active scene reports nothing to display", context do
+      in_scene = insert_lamp(context, "in-scene-lamp")
+      outside = insert_lamp(context, "outside-lamp")
+      activate_scene(context, [{"Manual", [in_scene], context.manual}])
+
+      assert {:ok, %{}} == ManualControl.apply_power_action(context.area.id, [outside.id], :on)
+    end
+
+    test "an accepted on still reports the scene's attrs", context do
+      lamp = insert_lamp(context, "manual-lamp")
+      activate_scene(context, [{"Manual", [lamp], context.manual}])
+      DesiredState.put(:light, lamp.id, %{power: :off})
+
+      assert {:ok, %{power: :on, brightness: 80, kelvin: 3000}} ==
+               ManualControl.apply_power_action(context.area.id, [lamp.id], :on)
+    end
+
+    test "an on that changes nothing still reports the scene's attrs", context do
+      lamp = insert_lamp(context, "manual-lamp")
+      activate_scene(context, [{"Manual", [lamp], context.manual}])
+      DesiredState.put(:light, lamp.id, %{power: :on, brightness: 80, kelvin: 3000})
+
+      assert {:ok, %{power: :on, brightness: 80, kelvin: 3000}} ==
+               ManualControl.apply_power_action(context.area.id, [lamp.id], :on)
+    end
+
+    test "an accepted selection still reports merged attrs", context do
+      first = insert_lamp(context, "first-lamp")
+      second = insert_lamp(context, "second-lamp")
+      activate_scene(context, [{"Manual", [first, second], context.manual}])
+
+      assert {:ok, %{power: :on, brightness: 80, kelvin: 3000}} ==
+               ManualControl.apply_power_action(context.area.id, [first.id, second.id], :on)
+    end
+
+    test "an off is still honored and reported during a failed calculation", context do
+      lamp = insert_lamp(context, "held-lamp")
+      activate_scene(context, [{"Held", [lamp], context.held}])
+      DesiredState.put(:light, lamp.id, %{power: :on, brightness: 40, kelvin: 3000})
+
+      capture_log(fn ->
+        assert {:ok, %{power: :off}} ==
+                 ManualControl.apply_power_action(context.area.id, [lamp.id], :off)
+      end)
+
+      assert DesiredState.get(:light, lamp.id) == %{power: :off}
+    end
+  end
+
+  test "without an active scene power still reports the manual baseline" do
+    area = Repo.insert!(%Area{name: "No Scene Area"})
+
+    assert {:ok, ManualBaseline.power_on_state()} ==
+             ManualControl.apply_power_action(area.id, [], :on)
   end
 
   defp drain_executor(server, attempts \\ 5)

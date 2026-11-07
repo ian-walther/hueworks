@@ -29,6 +29,8 @@ defmodule Hueworks.HomeAssistant.Export.Handler do
   @spec connection(atom(), state()) :: {:ok, state()}
   def connection(:up, state) do
     {:ok, _ref} = Tortoise.Connection.subscribe(state.client_id, state.subscriptions)
+    # This process forwards every message, so the server always sees a new
+    # connection before any retained message the subscription replays.
     send(state.server, {:mqtt_connected, state.client_id})
     {:ok, %{state | subscribed?: true}}
   end

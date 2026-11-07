@@ -14,7 +14,8 @@ defmodule HueworksWeb.LightStateEditorLive.Preview do
         preview_date,
         preview_latitude,
         preview_longitude,
-        preview_timezone
+        preview_timezone,
+        global_timing \\ %{}
       )
 
   def refresh_assigns(
@@ -23,13 +24,15 @@ defmodule HueworksWeb.LightStateEditorLive.Preview do
         preview_date,
         preview_latitude,
         preview_longitude,
-        preview_timezone
+        preview_timezone,
+        global_timing
       ) do
-    solar_config = %{
-      latitude: preview_latitude,
-      longitude: preview_longitude,
-      timezone: preview_timezone
-    }
+    solar_config =
+      Map.merge(global_timing, %{
+        latitude: preview_latitude,
+        longitude: preview_longitude,
+        timezone: preview_timezone
+      })
 
     case CircadianPreview.sample_day(
            config,
@@ -54,7 +57,8 @@ defmodule HueworksWeb.LightStateEditorLive.Preview do
         _preview_date,
         _preview_latitude,
         _preview_longitude,
-        _preview_timezone
+        _preview_timezone,
+        _global_timing
       ) do
     %{circadian_preview: nil, circadian_preview_error: nil}
   end
@@ -65,6 +69,13 @@ defmodule HueworksWeb.LightStateEditorLive.Preview do
   def error_message(:invalid_date), do: "Preview date must be valid."
   def error_message(:invalid_interval), do: "Preview interval must be positive."
   def error_message(:missing_coordinates), do: "Preview needs both latitude and longitude."
+
+  def error_message({:sun_event_unavailable, event, date}),
+    do: "Preview unavailable: no astronomical #{event} at this latitude on #{date}."
+
+  def error_message({:invalid_sun_event_order, _order}),
+    do: "Preview unavailable: sunrise and sunset are out of order for this date."
+
   def error_message(reason), do: "Preview unavailable: #{inspect(reason)}"
 
   def chart_view_box, do: "0 0 #{@chart_width} #{@chart_height}"

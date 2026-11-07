@@ -1,6 +1,7 @@
 defmodule Hueworks.HomeAssistant.Export.Messages.Topics do
   @moduledoc false
 
+  alias Hueworks.Circadian.Timing
   alias Hueworks.HomeAssistant.Export.Messages.CommandTarget
 
   @default_discovery_prefix "homeassistant"
@@ -52,6 +53,12 @@ defmodule Hueworks.HomeAssistant.Export.Messages.Topics do
       when kind in [:light, :group] and is_integer(id),
       do: "#{@default_topic_prefix}/#{kind_segment(kind)}/#{id}/light/state"
 
+  def setting_command_topic(field) when is_atom(field),
+    do: "#{@default_topic_prefix}/settings/#{field}/set"
+
+  def setting_state_topic(field) when is_atom(field),
+    do: "#{@default_topic_prefix}/settings/#{field}/state"
+
   def discovery_topic(scene_id, discovery_prefix \\ @default_discovery_prefix)
       when is_integer(scene_id) and is_binary(discovery_prefix) do
     "#{discovery_prefix}/scene/hueworks_scene_#{scene_id}/config"
@@ -76,6 +83,36 @@ defmodule Hueworks.HomeAssistant.Export.Messages.Topics do
       when kind in [:light, :group] and is_integer(id) and is_binary(discovery_prefix) do
     "#{discovery_prefix}/light/#{entity_object_id(kind, id)}/config"
   end
+
+  def setting_discovery_topic(field, discovery_prefix \\ @default_discovery_prefix)
+      when is_atom(field) and is_binary(discovery_prefix) do
+    "#{discovery_prefix}/text/hueworks_setting_#{field}/config"
+  end
+
+  def command_setting_field(topic_levels, topic_prefix \\ @default_topic_prefix)
+
+  def command_setting_field(topic, topic_prefix)
+      when is_binary(topic) and is_binary(topic_prefix) do
+    topic
+    |> String.split("/", trim: true)
+    |> command_setting_field(topic_prefix)
+  end
+
+  def command_setting_field(topic_levels, topic_prefix)
+      when is_list(topic_levels) and is_binary(topic_prefix) do
+    prefix_levels = String.split("#{topic_prefix}/settings", "/", trim: true)
+
+    if Enum.take(topic_levels, length(prefix_levels)) == prefix_levels do
+      case Enum.drop(topic_levels, length(prefix_levels)) do
+        [field, "set"] -> Enum.find(Timing.window_fields(), &(Atom.to_string(&1) == field))
+        _ -> nil
+      end
+    else
+      nil
+    end
+  end
+
+  def command_setting_field(_topic_levels, _topic_prefix), do: nil
 
   def command_scene_id(topic_levels, topic_prefix \\ @default_topic_prefix)
 

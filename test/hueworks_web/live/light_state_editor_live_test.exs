@@ -9,7 +9,6 @@ defmodule HueworksWeb.LightStateEditorLiveTest do
 
   setup do
     Repo.delete_all(AppSetting)
-    HueworksApp.Cache.flush_namespace(:app_settings)
 
     Repo.insert!(%AppSetting{
       scope: "global",
@@ -24,6 +23,13 @@ defmodule HueworksWeb.LightStateEditorLiveTest do
 
   defp insert_area do
     Repo.insert!(%Area{name: "Studio", metadata: %{}})
+  end
+
+  defp override_both_events(view) do
+    render_change(view, "update_form", %{
+      "override_sunrise_timing" => "true",
+      "override_sunset_timing" => "true"
+    })
   end
 
   test "new manual editor renders manual controls and creates a temperature state", %{conn: conn} do
@@ -181,6 +187,8 @@ defmodule HueworksWeb.LightStateEditorLiveTest do
     assert html =~ "After sunrise is chosen and the sunrise offset is applied"
     assert html =~ "Used only for linear and tanh"
 
+    override_both_events(view)
+
     assert {:error, {:live_redirect, %{to: "/config"}}} =
              render_submit(view, "save", %{
                "name" => "Circadian A",
@@ -234,6 +242,8 @@ defmodule HueworksWeb.LightStateEditorLiveTest do
   test "circadian preview responds to preview input changes", %{conn: conn} do
     {:ok, view, _html} = live(conn, "/config/light-states/new/circadian")
 
+    override_both_events(view)
+
     html =
       view
       |> form("form[phx-change='update_form']", %{
@@ -257,6 +267,8 @@ defmodule HueworksWeb.LightStateEditorLiveTest do
     conn: conn
   } do
     {:ok, view, _html} = live(conn, "/config/light-states/new/circadian")
+
+    override_both_events(view)
 
     _html =
       view

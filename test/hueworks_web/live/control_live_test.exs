@@ -2,6 +2,7 @@ defmodule HueworksWeb.ControlLiveTest do
   use HueworksWeb.ConnCase, async: false
 
   import Phoenix.LiveViewTest
+  import ExUnit.CaptureLog
 
   alias Hueworks.Repo
   alias Hueworks.Control.DesiredState
@@ -388,6 +389,80 @@ defmodule HueworksWeb.ControlLiveTest do
 
     assert render(view) =~ "Reloaded control snapshot"
     refute_receive {:control_reload_bootstrapped, _pid}, 50
+  end
+
+  describe "power commands during a failed circadian calculation" do
+    setup do
+      area = insert_area()
+      bridge = insert_bridge()
+      held_lamp = insert_light(area, bridge, %{name: "Held Lamp"})
+      manual_lamp = insert_light(area, bridge, %{name: "Manual Lamp"})
+
+      # A zero-width ramp fails the calculation on any date.
+      {:ok, held} =
+        Scenes.create_light_state("Unavailable", :circadian, %{
+          "override_sunrise_timing" => true,
+          "override_sunset_timing" => true,
+          "sunrise_time" => "06:00:00",
+          "sunset_time" => "18:00:00",
+          "brightness_mode" => "linear",
+          "brightness_mode_time_dark" => 0,
+          "brightness_mode_time_light" => 0
+        })
+
+      {:ok, manual} =
+        Scenes.create_manual_light_state("Bright", %{
+          "brightness" => "80",
+          "temperature" => "3000"
+        })
+
+      {:ok, scene} = Scenes.create_scene(%{name: "Evening Auto", area_id: area.id})
+
+      {:ok, _components} =
+        Scenes.replace_scene_components(scene, [
+          %{name: "Held", light_ids: [held_lamp.id], light_state_id: to_string(held.id)},
+          %{name: "Manual", light_ids: [manual_lamp.id], light_state_id: to_string(manual.id)}
+        ])
+
+      {:ok, _active} = Hueworks.ActiveScenes.set_active(scene)
+
+      for lamp <- [held_lamp, manual_lamp] do
+        State.put(:light, lamp.id, %{power: :off})
+        DesiredState.put(:light, lamp.id, %{power: :off})
+      end
+
+      %{area: area, held_lamp: held_lamp, manual_lamp: manual_lamp}
+    end
+
+    test "area on does not paint the held light on", %{conn: conn} = context do
+      {:ok, view, _html} = live(conn, "/control")
+
+      capture_log(fn ->
+        view
+        |> element(
+          "button[phx-click='toggle_area_power'][phx-value-area_id='#{context.area.id}'][phx-value-action='on']"
+        )
+        |> render_click()
+      end)
+
+      light_state = :sys.get_state(view.pid).socket.assigns.light_state
+
+      assert light_state[context.held_lamp.id][:power] == :off
+      assert DesiredState.get(:light, context.held_lamp.id) == %{power: :off}
+      assert DesiredState.get(:light, context.manual_lamp.id)[:power] == :on
+    end
+
+    test "toggling the held light on leaves it displayed off", %{conn: conn} = context do
+      {:ok, view, _html} = live(conn, "/control")
+
+      capture_log(fn ->
+        render_click(view, "toggle", %{"type" => "light", "id" => "#{context.held_lamp.id}"})
+      end)
+
+      light_state = :sys.get_state(view.pid).socket.assigns.light_state
+
+      assert light_state[context.held_lamp.id][:power] == :off
+    end
   end
 
   defmodule RefreshBootstrapStub do

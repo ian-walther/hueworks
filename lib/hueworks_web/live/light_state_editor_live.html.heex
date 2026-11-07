@@ -233,6 +233,21 @@
                 </div>
 
                 <div class="hw-field-flow">
+                  <div class="hw-field-flow-note">
+                    <input type="hidden" name="override_sunrise_timing" value="false" />
+                    <label class="hw-toggle" for="light-state-override_sunrise_timing">
+                      <input
+                        id="light-state-override_sunrise_timing"
+                        type="checkbox"
+                        name="override_sunrise_timing"
+                        value="true"
+                        checked={timing_override?(assigns, :sunrise)}
+                      />
+                      <span>Override sunrise timing</span>
+                    </label>
+                    <p id="light-state-sunrise-timing-note" class="hw-field-help"><%= timing_note(assigns, :sunrise) %></p>
+                  </div>
+
                   <div class="hw-field-flow-row">
                   <div class="hw-field-group hw-field-single">
                     <.label_with_help
@@ -247,6 +262,7 @@
                       class="hw-field-input hw-compact-input"
                       name="sunrise_time"
                       step="1"
+                      disabled={timing_locked?(assigns, :sunrise_time)}
                       value={Preview.time_input_value(circadian_time_field_value(assigns, :sunrise_time))}
                     />
                   </div>
@@ -266,6 +282,7 @@
                           class="hw-field-input hw-compact-input"
                           name="min_sunrise_time"
                           step="1"
+                          disabled={timing_locked?(assigns, :min_sunrise_time)}
                           value={Preview.time_input_value(circadian_time_field_value(assigns, :min_sunrise_time))}
                         />
                       </div>
@@ -277,6 +294,7 @@
                           class="hw-field-input hw-compact-input"
                           name="max_sunrise_time"
                           step="1"
+                          disabled={timing_locked?(assigns, :max_sunrise_time)}
                           value={Preview.time_input_value(circadian_time_field_value(assigns, :max_sunrise_time))}
                         />
                       </div>
@@ -298,9 +316,25 @@
                       min="-86400"
                       max="86400"
                       step="60"
+                      disabled={timing_locked?(assigns, :sunrise_offset)}
                       value={circadian_field_value(assigns, :sunrise_offset)}
                     />
                   </div>
+                  </div>
+
+                  <div class="hw-field-flow-note">
+                    <input type="hidden" name="override_sunset_timing" value="false" />
+                    <label class="hw-toggle" for="light-state-override_sunset_timing">
+                      <input
+                        id="light-state-override_sunset_timing"
+                        type="checkbox"
+                        name="override_sunset_timing"
+                        value="true"
+                        checked={timing_override?(assigns, :sunset)}
+                      />
+                      <span>Override sunset timing</span>
+                    </label>
+                    <p id="light-state-sunset-timing-note" class="hw-field-help"><%= timing_note(assigns, :sunset) %></p>
                   </div>
 
                   <div class="hw-field-flow-row">
@@ -317,6 +351,7 @@
                       class="hw-field-input hw-compact-input"
                       name="sunset_time"
                       step="1"
+                      disabled={timing_locked?(assigns, :sunset_time)}
                       value={Preview.time_input_value(circadian_time_field_value(assigns, :sunset_time))}
                     />
                   </div>
@@ -336,6 +371,7 @@
                           class="hw-field-input hw-compact-input"
                           name="min_sunset_time"
                           step="1"
+                          disabled={timing_locked?(assigns, :min_sunset_time)}
                           value={Preview.time_input_value(circadian_time_field_value(assigns, :min_sunset_time))}
                         />
                       </div>
@@ -347,6 +383,7 @@
                           class="hw-field-input hw-compact-input"
                           name="max_sunset_time"
                           step="1"
+                          disabled={timing_locked?(assigns, :max_sunset_time)}
                           value={Preview.time_input_value(circadian_time_field_value(assigns, :max_sunset_time))}
                         />
                       </div>
@@ -368,6 +405,7 @@
                       min="-86400"
                       max="86400"
                       step="60"
+                      disabled={timing_locked?(assigns, :sunset_offset)}
                       value={circadian_field_value(assigns, :sunset_offset)}
                     />
                   </div>
@@ -526,6 +564,7 @@
                           min="-86400"
                           max="86400"
                           step="60"
+                          disabled={timing_locked?(assigns, :brightness_sunrise_offset)}
                           value={circadian_field_value(assigns, :brightness_sunrise_offset)}
                         />
                       </div>
@@ -539,6 +578,7 @@
                           min="-86400"
                           max="86400"
                           step="60"
+                          disabled={timing_locked?(assigns, :brightness_sunset_offset)}
                           value={circadian_field_value(assigns, :brightness_sunset_offset)}
                         />
                       </div>
@@ -562,6 +602,7 @@
                           min="0"
                           max="86400"
                           step="60"
+                          disabled={timing_locked?(assigns, :brightness_mode_time_dark)}
                           value={circadian_field_value(assigns, :brightness_mode_time_dark)}
                         />
                       </div>
@@ -575,11 +616,18 @@
                           min="0"
                           max="86400"
                           step="60"
+                          disabled={timing_locked?(assigns, :brightness_mode_time_light)}
                           value={circadian_field_value(assigns, :brightness_mode_time_light)}
                         />
                       </div>
                     </div>
                   </div>
+
+                  <%= if note = ramp_note(assigns) do %>
+                    <div class="hw-field-flow-note">
+                      <p id="light-state-ramp-note" class="hw-field-help"><%= note %></p>
+                    </div>
+                  <% end %>
                 </div>
               </section>
 
@@ -729,6 +777,7 @@
                           min="-86400"
                           max="86400"
                           step="60"
+                          disabled={timing_locked?(assigns, :temperature_sunrise_offset)}
                           value={circadian_field_value(assigns, :temperature_sunrise_offset)}
                         />
                       </div>
@@ -742,6 +791,7 @@
                           min="-86400"
                           max="86400"
                           step="60"
+                          disabled={timing_locked?(assigns, :temperature_sunset_offset)}
                           value={circadian_field_value(assigns, :temperature_sunset_offset)}
                         />
                       </div>

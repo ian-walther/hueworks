@@ -64,15 +64,23 @@ defmodule Hueworks.Lights.ManualControl do
                origin: :manual,
                trace: trace
              ) do
-          {:ok, _diff, updated} when map_size(updated) > 0 ->
-            {:ok, merged_updated_light_attrs(updated, light_ids)}
-
-          {:ok, _diff, _updated} ->
-            {:ok, %{power: power}}
+          {:ok, _diff, updated} ->
+            {:ok, display_attrs(updated, light_ids)}
 
           other ->
             other
         end
+    end
+  end
+
+  # Every light the scene applied has an entry, changed or not. A light without
+  # one was held or is outside the scene, so it has no attrs and must not borrow
+  # another member's. Observed state then updates the members that did change.
+  defp display_attrs(updated, light_ids) do
+    if Enum.all?(light_ids, &Map.has_key?(updated, {:light, &1})) do
+      merged_updated_light_attrs(updated, light_ids)
+    else
+      %{}
     end
   end
 

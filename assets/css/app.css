@@ -2587,6 +2587,7 @@ body {
 
 .hw-circadian-sections {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--hw-space-5);
 }
 
@@ -2608,7 +2609,7 @@ body {
 
 .hw-circadian-card-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 26rem), 1fr));
   gap: var(--hw-space-4);
 }
 
@@ -2644,6 +2645,17 @@ body {
   gap: var(--hw-space-4) var(--hw-space-5);
 }
 
+/* Field groups size to their content, so an explanation inside one would stretch
+   it to a single line. A note takes its own row and wraps to the available width. */
+.hw-field-flow-note {
+  display: flex;
+  flex: 1 1 100%;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--hw-space-2);
+  min-width: 0;
+}
+
 .hw-field-single,
 .hw-field-compact {
   width: 10.75rem;
@@ -2666,8 +2678,8 @@ body {
 .hw-field-pair > .hw-field-compact,
 .hw-field-triplet > .hw-field-compact {
   display: flex;
-  align-items: center;
-  gap: var(--hw-space-2);
+  flex-direction: column;
+  gap: var(--hw-space-1);
 }
 
 .hw-field-pair .hw-mini-label,
@@ -2833,8 +2845,21 @@ body {
   .hw-preview-field,
   .hw-preview-field-wide,
   .hw-field-flow-card .hw-field-single,
+  .hw-field-flow-card .hw-field-compact,
   .hw-field-flow-card .hw-field-mode {
     width: 100%;
+  }
+
+  /* Each group takes a row, so its fields size to the screen rather than to their
+     content, and inputs can shrink below their intrinsic width. */
+  .hw-field-flow .hw-field-group {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+
+  .hw-compact-input,
+  .hw-compact-select {
+    min-width: 0;
   }
 
   .hw-field-pair,
@@ -2847,6 +2872,16 @@ body {
   .hw-field-flow-card .hw-field-triplet {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     width: 100%;
+  }
+}
+
+/* Time and number inputs cannot share a row here without cutting off their values. */
+@media (max-width: 520px) {
+  .hw-field-pair,
+  .hw-field-triplet,
+  .hw-field-flow-card .hw-field-pair,
+  .hw-field-flow-card .hw-field-triplet {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 

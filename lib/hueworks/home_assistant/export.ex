@@ -126,9 +126,12 @@ defmodule Hueworks.HomeAssistant.Export do
     {:noreply, Lifecycle.handle_connected(connection_client_id, state, client_id(), &publish/3)}
   end
 
-  def handle_info({:mqtt_message, topic_levels, payload}, %ServerState{config: config} = state) do
-    if Config.export_enabled?(config) do
-      Router.dispatch(topic_levels, payload, config, &publish/3)
+  # An empty MQTT payload is a retained-message deletion, never a command.
+  def handle_info({:mqtt_message, _topic_levels, nil}, state), do: {:noreply, state}
+
+  def handle_info({:mqtt_message, topic_levels, payload}, %ServerState{} = state) do
+    if Config.export_enabled?(state.config) do
+      Router.dispatch(topic_levels, payload, state, &publish/3)
     end
 
     {:noreply, state}
@@ -167,6 +170,10 @@ defmodule Hueworks.HomeAssistant.Export do
 
   def handle_info({:presence_input_deleted, input_id}, state) when is_integer(input_id) do
     {:noreply, handle_sync(state, {:remove_presence_input, input_id})}
+  end
+
+  def handle_info({:global_settings_changed, fields}, state) when is_list(fields) do
+    {:noreply, Lifecycle.handle_settings_changed(fields, state, &publish/3)}
   end
 
   def handle_info(_message, state), do: {:noreply, state}

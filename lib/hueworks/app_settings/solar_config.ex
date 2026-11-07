@@ -3,13 +3,16 @@ defmodule Hueworks.AppSettings.SolarConfig do
   Boundary module for solar/transition app settings.
 
   Owns parsing and normalization for: latitude, longitude, timezone,
-  default_transition_ms, and scale_transition_by_brightness.
+  the global sunrise and sunset windows, default_transition_ms, and
+  scale_transition_by_brightness.
 
   Does not validate ranges — that is AppSetting.global_changeset's job.
   Does not change the persisted shape — these remain flat columns on AppSetting.
   """
 
   alias Hueworks.AppSettings.FieldParser
+  alias Hueworks.Circadian.Config, as: CircadianConfig
+  alias Hueworks.Circadian.Timing
   alias Hueworks.Util
 
   @default_transition_ms 500
@@ -72,6 +75,7 @@ defmodule Hueworks.AppSettings.SolarConfig do
         FieldParser.get_field_value(attrs, :timezone, "timezone"),
         &FieldParser.parse_string/1
       )
+      |> parse_timing_window(attrs)
       |> FieldParser.parse_present_field(
         :default_transition_ms,
         FieldParser.get_field_value(attrs, :default_transition_ms, "default_transition_ms"),
@@ -94,4 +98,15 @@ defmodule Hueworks.AppSettings.SolarConfig do
   end
 
   defp fallback_value({:ok, value}), do: value
+
+  defp parse_timing_window(acc, attrs) do
+    Enum.reduce(Timing.window_fields(), acc, fn field, acc ->
+      FieldParser.parse_present_field(
+        acc,
+        field,
+        FieldParser.get_field_value(attrs, field, Atom.to_string(field)),
+        &CircadianConfig.normalize_wall_clock_time/1
+      )
+    end)
+  end
 end

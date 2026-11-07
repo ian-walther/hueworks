@@ -475,6 +475,8 @@ defmodule Hueworks.CircadianIntegrationTest do
 
     {:ok, circadian_state} =
       Scenes.create_light_state("Adaptive", :circadian, %{
+        "override_sunrise_timing" => true,
+        "override_sunset_timing" => true,
         "sunrise_time" => "06:00:00",
         "sunset_time" => "18:00:00",
         "min_brightness" => 10,
@@ -577,6 +579,8 @@ defmodule Hueworks.CircadianIntegrationTest do
 
     {:ok, state} =
       Scenes.create_light_state("Rapid Poller", :circadian, %{
+        "override_sunrise_timing" => true,
+        "override_sunset_timing" => true,
         "sunrise_time" => sunrise,
         "sunset_time" => sunset,
         "min_brightness" => 10,
@@ -650,6 +654,8 @@ defmodule Hueworks.CircadianIntegrationTest do
 
     {:ok, state} =
       Scenes.create_light_state("Compressed Day", :circadian, %{
+        "override_sunrise_timing" => true,
+        "override_sunset_timing" => true,
         "sunrise_time" => "06:00:00",
         "sunset_time" => "06:10:00",
         "min_brightness" => 10,
@@ -973,6 +979,8 @@ defmodule Hueworks.CircadianIntegrationTest do
 
     {:ok, circadian_state} =
       Scenes.create_light_state("Integration Circadian#{area_suffix}", :circadian, %{
+        "override_sunrise_timing" => true,
+        "override_sunset_timing" => true,
         "sunrise_time" => "06:00:00",
         "sunset_time" => "18:00:00",
         "min_brightness" => 10,

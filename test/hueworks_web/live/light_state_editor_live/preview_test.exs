@@ -42,4 +42,27 @@ defmodule HueworksWeb.LightStateEditorLive.PreviewTest do
     assert Preview.range_label(preview, :kelvin) =~ "K - "
     assert Preview.time_input_value("06:30") == "06:30:00"
   end
+
+  test "refresh_assigns passes global bounds to the shared calculation" do
+    assert %{circadian_preview: preview, circadian_preview_error: nil} =
+             Preview.refresh_assigns(
+               :circadian,
+               %{"override_sunset_timing" => false},
+               "2026-12-21",
+               "47.6062",
+               "-122.3321",
+               "America/Los_Angeles",
+               %{min_sunset_time: "18:00:00"}
+             )
+
+    assert Preview.marker_summary(preview, :sunset) == "18:00"
+  end
+
+  test "error messages explain seasonal failures and ordering conflicts" do
+    assert Preview.error_message({:sun_event_unavailable, :sunset, ~D[2026-06-21]}) ==
+             "Preview unavailable: no astronomical sunset at this latitude on 2026-06-21."
+
+    assert Preview.error_message({:invalid_sun_event_order, [:sunset, :sunrise]}) ==
+             "Preview unavailable: sunrise and sunset are out of order for this date."
+  end
 end

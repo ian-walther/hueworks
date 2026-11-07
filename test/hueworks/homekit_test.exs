@@ -19,7 +19,6 @@ defmodule Hueworks.HomeKitTest do
 
   setup do
     Repo.delete_all(AppSetting)
-    HueworksApp.Cache.flush_namespace(:app_settings)
     :ok = Writer.discard_pending()
 
     actions_id = {:homekit_executor_actions, self()}

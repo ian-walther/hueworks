@@ -322,6 +322,7 @@ Home Assistant MQTT export:
 - Presence Inputs are configured per area on `/areas` and exported as writable MQTT switches. `ON` means `Occupied`; `OFF` means `Unoccupied`.
 - Scene components can use `Follow Presence` as a power policy for individual lights or nested groups. The policy resolves to on/off from the selected Presence Input when a scene is applied.
 - Home Assistant owns Presence Input values. Changing one stores and republishes state, then recomputes only the active-scene lights that follow that specific input.
+- Global sunrise and sunset bounds are exported as editable MQTT text entities. See [Circadian Timing And Global Bounds](docs/circadian-timing.md) for their semantics, entity IDs, and clear behavior.
 
 Useful commands:
 

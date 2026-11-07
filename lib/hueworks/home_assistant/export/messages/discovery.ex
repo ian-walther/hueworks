@@ -8,6 +8,16 @@ defmodule Hueworks.HomeAssistant.Export.Messages.Discovery do
   alias Hueworks.Schemas.{Group, Light, PresenceInput, Area, Scene}
   alias Hueworks.Util
 
+  # An empty string is honest for an optional bound; 00:00 is a real time.
+  @setting_pattern "^$|^([01][0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$"
+
+  @setting_names %{
+    min_sunrise_time: "Sunrise minimum",
+    max_sunrise_time: "Sunrise maximum",
+    min_sunset_time: "Sunset minimum",
+    max_sunset_time: "Sunset maximum"
+  }
+
   def discovery_payload(%Scene{} = scene, config) do
     area_name = area_name(scene.area)
 
@@ -163,6 +173,44 @@ defmodule Hueworks.HomeAssistant.Export.Messages.Discovery do
       "area_name" => area_name(input.area),
       "presence_input_name" => presence_input_name(input)
     }
+  end
+
+  @doc """
+  Discovery for one global timing bound. The session in the command template
+  ties commands to this connection, so a retained command from an earlier one
+  cannot replay over newer settings.
+  """
+  def setting_discovery_payload(field, session, config)
+      when is_atom(field) and is_binary(session) do
+    name = Map.fetch!(@setting_names, field)
+
+    %{
+      "platform" => "text",
+      "name" => name,
+      "unique_id" => "hueworks_setting_#{field}",
+      "default_entity_id" =>
+        "text.hueworks_#{name |> String.downcase() |> String.replace(" ", "_")}",
+      "command_topic" => Topics.setting_command_topic(field),
+      "command_template" => ~s({"value": {{ value | to_json }}, "session": "#{session}"}),
+      "state_topic" => Topics.setting_state_topic(field),
+      "value_template" => "{{ value_json.value }}",
+      "retain" => false,
+      "mode" => "text",
+      "min" => 0,
+      "max" => 8,
+      "pattern" => @setting_pattern,
+      "entity_category" => "config",
+      "availability_topic" => Topics.availability_topic(),
+      "payload_available" => "online",
+      "payload_not_available" => "offline",
+      "device" => %{
+        "identifiers" => ["hueworks_global_settings"],
+        "name" => "HueWorks",
+        "manufacturer" => "HueWorks",
+        "model" => "Global Settings"
+      }
+    }
+    |> Util.put_unless_nil("configuration_url", configuration_url(config))
   end
 
   def area_scene_options(scenes) when is_list(scenes), do: State.area_scene_options(scenes)

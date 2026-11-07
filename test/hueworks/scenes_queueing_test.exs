@@ -266,6 +266,8 @@ defmodule Hueworks.ScenesQueueingTest do
 
     {:ok, circadian_state} =
       Scenes.create_light_state("Adaptive Queue", :circadian, %{
+        "override_sunrise_timing" => true,
+        "override_sunset_timing" => true,
         "sunrise_time" => "06:00:00",
         "sunset_time" => "18:00:00",
         "min_brightness" => 10,

@@ -34,7 +34,9 @@ defmodule Hueworks.Circadian.Config do
     :brightness_sunrise_offset,
     :brightness_sunset_offset,
     :temperature_sunrise_offset,
-    :temperature_sunset_offset
+    :temperature_sunset_offset,
+    :override_sunrise_timing,
+    :override_sunset_timing
   ]
 
   @supported_keys Enum.map(@supported_key_atoms, &Atom.to_string/1)
@@ -52,6 +54,11 @@ defmodule Hueworks.Circadian.Config do
   @duration_fields [
     :brightness_mode_time_dark,
     :brightness_mode_time_light
+  ]
+
+  @override_fields [
+    :override_sunrise_timing,
+    :override_sunset_timing
   ]
 
   @time_fields [
@@ -83,7 +90,16 @@ defmodule Hueworks.Circadian.Config do
     "brightness_sunrise_offset" => 0,
     "brightness_sunset_offset" => 0,
     "temperature_sunrise_offset" => 0,
-    "temperature_sunset_offset" => 0
+    "temperature_sunset_offset" => 0,
+    # A missing flag keeps a legacy profile's local timing. New profiles are
+    # initialized explicitly by new_profile_config/0 instead.
+    "override_sunrise_timing" => true,
+    "override_sunset_timing" => true
+  }
+
+  @new_profile_config %{
+    "override_sunrise_timing" => false,
+    "override_sunset_timing" => false
   }
 
   @primary_key false
@@ -108,10 +124,18 @@ defmodule Hueworks.Circadian.Config do
     field(:brightness_sunset_offset, :integer)
     field(:temperature_sunrise_offset, :integer)
     field(:temperature_sunset_offset, :integer)
+    field(:override_sunrise_timing, :boolean)
+    field(:override_sunset_timing, :boolean)
   end
 
   def supported_keys, do: @supported_keys
   def defaults, do: @defaults
+
+  @doc """
+  Explicit timing inheritance for a newly created profile. Legacy payloads
+  without these flags keep local timing through `defaults/0`.
+  """
+  def new_profile_config, do: @new_profile_config
 
   def load(%__MODULE__{} = config), do: {:ok, config}
 
@@ -209,8 +233,8 @@ defmodule Hueworks.Circadian.Config do
     |> validate_number(:brightness_mode_time_light, greater_than_or_equal_to: 0)
     |> validate_min_max_order(:min_brightness, :max_brightness)
     |> validate_min_max_order(:min_color_temp, :max_color_temp)
-    |> validate_time_order(:min_sunrise_time, :max_sunrise_time)
-    |> validate_time_order(:min_sunset_time, :max_sunset_time)
+    |> validate_event_window(:override_sunrise_timing, :min_sunrise_time, :max_sunrise_time)
+    |> validate_event_window(:override_sunset_timing, :min_sunset_time, :max_sunset_time)
     |> validate_ceiling_order(:temperature_ceiling_kelvin, :min_color_temp, :max_color_temp)
   end
 
@@ -264,6 +288,9 @@ defmodule Hueworks.Circadian.Config do
     do: parse_non_negative_seconds(value)
 
   defp normalize_value(field, value) when field in @time_fields, do: parse_time_or_none(value)
+
+  defp normalize_value(field, value) when field in @override_fields,
+    do: parse_override_flag(value)
 
   defp normalize_value(:brightness_mode, value) do
     mode =
@@ -341,6 +368,22 @@ defmodule Hueworks.Circadian.Config do
     end
   end
 
+  @doc """
+  Normalizes an optional global bound to `HH:MM:SS`. Blank and `None` mean
+  unset; midnight is a real time. Only wall-clock digits are accepted, so a
+  fraction or offset is rejected instead of being stored or silently dropped.
+  Profile times keep their looser parsing because stored values may rely on it.
+  """
+  def normalize_wall_clock_time(value) when is_binary(value) do
+    if value in ["", "None"] or Regex.match?(~r/^\d{2}:\d{2}(:\d{2})?$/, String.trim(value)) do
+      parse_time_or_none(value)
+    else
+      {:error, "must be HH:MM[:SS] or None"}
+    end
+  end
+
+  def normalize_wall_clock_time(value), do: parse_time_or_none(value)
+
   defp parse_time_or_none(nil), do: {:ok, nil}
   defp parse_time_or_none(""), do: {:ok, nil}
   defp parse_time_or_none("None"), do: {:ok, nil}
@@ -358,6 +401,15 @@ defmodule Hueworks.Circadian.Config do
   end
 
   defp parse_time_or_none(_value), do: {:error, "must be HH:MM[:SS] or None"}
+
+  defp parse_override_flag(value) when value in [nil, ""], do: {:ok, nil}
+
+  defp parse_override_flag(value) do
+    case Util.parse_optional_bool(value) do
+      nil -> {:error, "must be true or false"}
+      flag -> {:ok, flag}
+    end
+  end
 
   defp maybe_expand_hours_minutes(value) do
     if Regex.match?(~r/^\d{1,2}:\d{2}$/, value), do: value <> ":00", else: value
@@ -437,7 +489,11 @@ defmodule Hueworks.Circadian.Config do
     end
   end
 
-  defp validate_time_order(changeset, min_field, max_field) do
+  @doc """
+  Rejects a same-day time window whose minimum is later than its maximum.
+  An inverted pair is never treated as an overnight range.
+  """
+  def validate_time_window(changeset, min_field, max_field) do
     min = get_field(changeset, min_field)
     max = get_field(changeset, max_field)
 
@@ -451,6 +507,16 @@ defmodule Hueworks.Circadian.Config do
       |> add_error(max_field, "must be greater than or equal to #{min_field}")
     else
       _ -> changeset
+    end
+  end
+
+  # An inherited event ignores its stored window, so an inverted pair only
+  # matters once the event is overridden again.
+  defp validate_event_window(changeset, override_field, min_field, max_field) do
+    if get_field(changeset, override_field) == false do
+      changeset
+    else
+      validate_time_window(changeset, min_field, max_field)
     end
   end
 

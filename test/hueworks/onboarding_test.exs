@@ -7,7 +7,6 @@ defmodule Hueworks.OnboardingTest do
 
   setup do
     Repo.delete_all(AppSetting)
-    HueworksApp.Cache.flush_namespace(:app_settings)
     :ok
   end
 
@@ -68,7 +67,6 @@ defmodule Hueworks.OnboardingTest do
     })
 
     Repo.insert!(%Scene{name: "Auto", area_id: area.id})
-    HueworksApp.Cache.flush_namespace(:app_settings)
 
     status = Onboarding.status()
 

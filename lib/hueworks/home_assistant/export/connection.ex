@@ -4,13 +4,16 @@ defmodule Hueworks.HomeAssistant.Export.Connection do
   require Logger
 
   alias Hueworks.Mqtt.Options, as: MqttOptions
+  alias Hueworks.HomeAssistant.Export.Messages
 
   def start(client_id, server_pid, config, topic_filters) when is_pid(server_pid) do
     start_opts =
       [
         client_id: client_id,
         handler: {Hueworks.HomeAssistant.Export.Handler, [server_pid, client_id, topic_filters]},
-        server: {Tortoise.Transport.Tcp, host: String.to_charlist(config.host), port: config.port}
+        server:
+          {Tortoise.Transport.Tcp, host: String.to_charlist(config.host), port: config.port},
+        will: offline_will()
       ]
       |> MqttOptions.put_auth(config)
 
@@ -18,16 +21,33 @@ defmodule Hueworks.HomeAssistant.Export.Connection do
       {:ok, pid} ->
         {:ok, pid}
 
+      # The surviving connection's handler still reports to the exporter
+      # process that started it, so it has to be replaced.
       {:error, {:already_started, pid}} ->
-        {:ok, pid}
+        _ = stop(pid)
+        supervisor_module().start_child(start_opts) |> connection_result()
 
       {:error, reason} ->
-        Logger.warning(
-          "Failed to start Home Assistant export MQTT connection: #{inspect(reason)}"
-        )
-
-        {:error, reason}
+        connection_result({:error, reason})
     end
+  end
+
+  defp connection_result({:ok, pid}), do: {:ok, pid}
+
+  defp connection_result({:error, reason}) do
+    Logger.warning("Failed to start Home Assistant export MQTT connection: #{inspect(reason)}")
+
+    {:error, reason}
+  end
+
+  # The broker reports HueWorks offline when the connection is lost uncleanly.
+  defp offline_will do
+    %Tortoise.Package.Publish{
+      topic: Messages.availability_topic(),
+      payload: "offline",
+      qos: 0,
+      retain: true
+    }
   end
 
   def stop(nil), do: :ok

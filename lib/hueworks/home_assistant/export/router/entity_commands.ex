@@ -4,6 +4,8 @@ defmodule Hueworks.HomeAssistant.Export.Router.EntityCommands do
   require Logger
 
   alias Hueworks.HomeAssistant.Export.Commands
+  alias Hueworks.Control.DesiredState
+  alias Hueworks.Control.GroupState
   alias Hueworks.HomeAssistant.Export.Entities
   alias Hueworks.HomeAssistant.Export.Messages
   alias Hueworks.HomeAssistant.Export.Publisher
@@ -53,7 +55,7 @@ defmodule Hueworks.HomeAssistant.Export.Router.EntityCommands do
        ) do
     case ManualControl.apply_power_action(area_id, light_ids, power) do
       {:ok, _diff} ->
-        publish_optimistic_power_state(kind, entity, power, publish_fun)
+        publish_optimistic_power_state(kind, entity, light_ids, power, publish_fun)
         :ok
 
       {:error, reason} ->
@@ -89,7 +91,7 @@ defmodule Hueworks.HomeAssistant.Export.Router.EntityCommands do
         case ManualControl.apply_power_action(area_id, light_ids, power) do
           {:ok, _diff} ->
             if entity = Entities.fetch_entity(kind, id) do
-              publish_optimistic_power_state(kind, entity, power, publish_fun)
+              publish_optimistic_power_state(kind, entity, light_ids, power, publish_fun)
             end
 
             :ok
@@ -118,11 +120,24 @@ defmodule Hueworks.HomeAssistant.Export.Router.EntityCommands do
     end
   end
 
-  defp publish_optimistic_power_state(kind, entity, power, publish_fun)
+  # A command can succeed without changing intent, as when a failed circadian
+  # calculation holds a light off or a forced member keeps a group on. Home
+  # Assistant is told only what the members' desired state adds up to.
+  defp publish_optimistic_power_state(kind, entity, light_ids, power, publish_fun)
        when kind in [:light, :group] and is_map(entity) do
-    kind
-    |> Commands.optimistic_power_state(entity, power)
-    |> then(&Publisher.publish_optimistic_entity_state(publish_fun, kind, entity, &1))
+    if desired_power(light_ids) == power do
+      kind
+      |> Commands.optimistic_power_state(entity, power)
+      |> then(&Publisher.publish_optimistic_entity_state(publish_fun, kind, entity, &1))
+    end
+  end
+
+  defp desired_power(light_ids) do
+    light_ids
+    |> Enum.map(&DesiredState.get(:light, &1))
+    |> Enum.reject(&is_nil/1)
+    |> GroupState.derive_from_states(length(light_ids))
+    |> Map.get(:power)
   end
 
   defp publish_optimistic_light_state(kind, entity, attrs, publish_fun)

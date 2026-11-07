@@ -2,6 +2,7 @@ defmodule Hueworks.HomeAssistant.Export.Lifecycle.SyncDispatch do
   @moduledoc false
 
   alias Hueworks.HomeAssistant.Export.Config
+  alias Hueworks.Circadian.Timing
   alias Hueworks.HomeAssistant.Export.Connection
   alias Hueworks.HomeAssistant.Export.Messages
   alias Hueworks.HomeAssistant.Export.ServerState
@@ -101,14 +102,30 @@ defmodule Hueworks.HomeAssistant.Export.Lifecycle.SyncDispatch do
       when is_binary(connection_client_id) and is_binary(client_id) and
              is_function(publish_fun, 3) do
     if connection_client_id == client_id and Config.export_enabled?(state.config) do
+      # Commands from earlier connections carry an older session, including any
+      # retained command the broker replays when this connection subscribes.
+      session = new_settings_session()
+
       :ok =
         publish_fun.(Messages.availability_topic(), "online", retain: true)
 
       :ok = Sync.publish_all_entities(publish_fun, state.config)
-      state
+      :ok = Sync.publish_settings(publish_fun, session, state.config)
+      %{state | settings_session: session}
     else
       state
     end
+  end
+
+  def handle_settings_changed(fields, %ServerState{} = state, publish_fun)
+      when is_list(fields) and is_function(publish_fun, 3) do
+    changed_window_fields = Enum.filter(Timing.window_fields(), &(&1 in fields))
+
+    if changed_window_fields != [] and Connection.alive?(state.connection_pid) do
+      :ok = Sync.publish_setting_states(publish_fun, changed_window_fields, state.config)
+    end
+
+    state
   end
 
   def handle_control_state(kind, id, %ServerState{} = state, publish_fun)
@@ -126,5 +143,11 @@ defmodule Hueworks.HomeAssistant.Export.Lifecycle.SyncDispatch do
     else
       state
     end
+  end
+
+  defp new_settings_session do
+    8
+    |> :crypto.strong_rand_bytes()
+    |> Base.encode16(case: :lower)
   end
 end

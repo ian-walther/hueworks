@@ -83,7 +83,7 @@ defmodule Hueworks.Scenes.Intent do
       if skip_component?(component, circadian_only) do
         acc
       else
-        desired = desired_from_light_state(component.light_state, now)
+        {desired, targets} = desired_from_light_state(component.light_state, now)
         default_power_by_light = component_default_power_map(component)
         presence_by_light = component_presence_map(component)
         component_lights = target_component_lights(component.lights, target_light_ids)
@@ -107,41 +107,55 @@ defmodule Hueworks.Scenes.Intent do
             )
             |> maybe_apply_power_override(power_override, power_policy)
 
-          DesiredState.apply(txn, :light, light.id, DesiredAttrs.to_map(light_desired))
+          apply_light_desired(txn, light.id, light_desired, targets)
         end)
       end
     end)
   end
+
+  # Without calculated targets only an off intent can be honored. Anything else
+  # would emit an incomplete on, so the light's existing desired state stands.
+  defp apply_light_desired(txn, light_id, %DesiredAttrs{power: power} = desired, targets)
+       when targets == :available or power == :off do
+    DesiredState.apply(txn, :light, light_id, DesiredAttrs.to_map(desired))
+  end
+
+  defp apply_light_desired(txn, _light_id, _desired, :unavailable), do: txn
 
   defp desired_from_light_state(%LightState{type: :manual, config: config}, _now) do
     config = LightState.manual_config(config)
     base = DesiredAttrs.on()
     mode = Map.get(config, :mode, :temperature)
 
-    base
-    |> maybe_put(:brightness, config)
-    |> maybe_put_manual_color(mode, config)
-    |> maybe_put_manual_temperature(mode, config)
+    desired =
+      base
+      |> maybe_put(:brightness, config)
+      |> maybe_put_manual_color(mode, config)
+      |> maybe_put_manual_temperature(mode, config)
+
+    {desired, :available}
   end
 
   defp desired_from_light_state(%LightState{type: :circadian, config: config}, now) do
     config = LightState.circadian_config(config)
-    solar_config = AppSettings.global_map()
     base = DesiredAttrs.on()
 
-    case Circadian.calculate(config, solar_config, now) do
+    case Circadian.calculate(config, AppSettings.solar_config(), now) do
       {:ok, circadian} ->
-        base
-        |> put_attr(:brightness, circadian.brightness)
-        |> put_attr(:kelvin, circadian.kelvin)
+        desired =
+          base
+          |> put_attr(:brightness, circadian.brightness)
+          |> put_attr(:kelvin, circadian.kelvin)
+
+        {desired, :available}
 
       {:error, reason} ->
-        Logger.warning("Skipping circadian apply due to calculation error: #{inspect(reason)}")
-        %DesiredAttrs{}
+        Logger.warning("Holding circadian targets due to calculation error: #{inspect(reason)}")
+        {%DesiredAttrs{}, :unavailable}
     end
   end
 
-  defp desired_from_light_state(_, _now), do: %DesiredAttrs{}
+  defp desired_from_light_state(_, _now), do: {%DesiredAttrs{}, :available}
 
   defp maybe_put_manual_temperature(attrs, :temperature, config) do
     maybe_put(attrs, :kelvin, config)

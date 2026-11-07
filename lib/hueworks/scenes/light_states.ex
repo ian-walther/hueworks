@@ -3,6 +3,9 @@ defmodule Hueworks.Scenes.LightStates do
 
   import Ecto.Query, only: [from: 2]
 
+  alias Hueworks.AppSettings
+  alias Hueworks.Circadian
+  alias Hueworks.Circadian.Config, as: CircadianConfig
   alias Hueworks.Repo
   alias Hueworks.Schemas.{LightState, Area, Scene, SceneComponent}
 
@@ -71,37 +74,44 @@ defmodule Hueworks.Scenes.LightStates do
   def create(name, type, config \\ %{})
 
   def create(name, type, config) when type in [:manual, :circadian] do
-    %LightState{}
-    |> LightState.changeset(%{
-      name: name,
-      type: type,
-      config: config || %{}
-    })
-    |> Repo.insert()
+    write_transaction(fn ->
+      %LightState{}
+      |> LightState.changeset(%{
+        name: name,
+        type: type,
+        config: initial_config(type, config || %{})
+      })
+      |> validate_event_order(nil)
+      |> Repo.insert()
+    end)
   end
 
   def create(_name, _type, _config), do: {:error, :invalid_type}
 
   def update(id, attrs) when is_integer(id) and is_map(attrs) do
-    case Repo.get(LightState, id) do
-      nil ->
-        {:error, :not_found}
+    write_transaction(fn ->
+      case Repo.get(LightState, id) do
+        nil ->
+          {:error, :not_found}
 
-      %LightState{type: type} = state when type in [:manual, :circadian] ->
-        config =
+        %LightState{type: type} = state when type in [:manual, :circadian] ->
+          config =
+            state
+            |> LightState.persisted_config()
+            |> Map.merge(Map.get(attrs, :config) || Map.get(attrs, "config") || %{})
+
+          merged_attrs =
+            Map.merge(%{name: state.name, type: state.type, config: config}, attrs)
+
           state
-          |> LightState.persisted_config()
-          |> Map.merge(Map.get(attrs, :config) || Map.get(attrs, "config") || %{})
+          |> LightState.changeset(merged_attrs)
+          |> validate_event_order(state)
+          |> Repo.update()
 
-        merged_attrs = Map.merge(%{name: state.name, type: state.type, config: config}, attrs)
-
-        state
-        |> LightState.changeset(merged_attrs)
-        |> Repo.update()
-
-      _ ->
-        {:error, :invalid_type}
-    end
+        _ ->
+          {:error, :invalid_type}
+      end
+    end)
   end
 
   def duplicate(id) when is_integer(id) do
@@ -147,6 +157,61 @@ defmodule Hueworks.Scenes.LightStates do
   end
 
   def delete(_id), do: {:error, :not_found}
+
+  defp initial_config(:circadian, config) do
+    Map.merge(CircadianConfig.new_profile_config(), LightState.persisted_config(config))
+  end
+
+  defp initial_config(_type, config), do: config
+
+  # Immediate so a concurrent global timing edit validates against this write.
+  defp write_transaction(write) do
+    Repo.transaction(
+      fn ->
+        case write.() do
+          {:ok, state} -> state
+          {:error, reason} -> Repo.rollback(reason)
+        end
+      end,
+      mode: :immediate
+    )
+  end
+
+  defp validate_event_order(%Ecto.Changeset{valid?: false} = changeset, _previous), do: changeset
+
+  defp validate_event_order(changeset, previous) do
+    state = Ecto.Changeset.apply_changes(changeset)
+
+    if state.type == :circadian and introduces_event_order_conflict?(state, previous) do
+      Ecto.Changeset.add_error(
+        changeset,
+        :config,
+        "would put sunrise and sunset out of order for: #{state.name}"
+      )
+    else
+      changeset
+    end
+  end
+
+  defp introduces_event_order_conflict?(state, previous) do
+    solar_config = AppSettings.solar_config()
+
+    case Circadian.local_today(solar_config) do
+      {:ok, date} ->
+        Circadian.invalid_event_order?(LightState.circadian_config(state), solar_config, date) and
+          not previously_invalid?(previous, solar_config, date)
+
+      {:error, _reason} ->
+        false
+    end
+  end
+
+  defp previously_invalid?(nil, _solar_config, _date), do: false
+
+  defp previously_invalid?(%LightState{} = previous, solar_config, date) do
+    previous.type == :circadian and
+      Circadian.invalid_event_order?(LightState.circadian_config(previous), solar_config, date)
+  end
 
   defp usage_map([]), do: %{}
 

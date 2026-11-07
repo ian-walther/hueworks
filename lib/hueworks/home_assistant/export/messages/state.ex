@@ -1,6 +1,14 @@
 defmodule Hueworks.HomeAssistant.Export.Messages.State do
   @moduledoc false
 
+  @doc """
+  Retained state for an optional setting. The envelope is never empty, because
+  an empty retained payload would delete the state instead of reporting unset.
+  """
+  def setting_state_payload(value) when is_binary(value) or is_nil(value) do
+    Jason.encode!(%{"value" => value || ""})
+  end
+
   alias Hueworks.ActiveScenes
   alias Hueworks.Control.GroupState
   alias Hueworks.Control.State

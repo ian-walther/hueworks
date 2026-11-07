@@ -153,6 +153,39 @@ defmodule Hueworks.HomeAssistant.Export.Publisher do
     publish_fun.(Messages.presence_input_state_topic(input_id), "None", retain: true)
   end
 
+  def publish_setting_payloads(publish_fun, field, value, session, config)
+      when is_function(publish_fun, 3) and is_atom(field) do
+    :ok =
+      publish_fun.(
+        Messages.setting_discovery_topic(field, config.discovery_prefix),
+        Jason.encode!(Messages.setting_discovery_payload(field, session, config)),
+        retain: true
+      )
+
+    publish_setting_state(publish_fun, field, value)
+  end
+
+  def publish_setting_state(publish_fun, field, value)
+      when is_function(publish_fun, 3) and is_atom(field) do
+    publish_fun.(
+      Messages.setting_state_topic(field),
+      Messages.setting_state_payload(value),
+      retain: true
+    )
+  end
+
+  def unpublish_setting_payloads(publish_fun, field, config)
+      when is_function(publish_fun, 3) and is_atom(field) do
+    :ok =
+      publish_fun.(
+        Messages.setting_discovery_topic(field, config.discovery_prefix),
+        "",
+        retain: true
+      )
+
+    publish_fun.(Messages.setting_state_topic(field), "", retain: true)
+  end
+
   def publish_optimistic_entity_state(publish_fun, kind, entity, state)
       when is_function(publish_fun, 3) and kind in [:light, :group] and is_map(entity) and
              is_map(state) do

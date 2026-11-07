@@ -3,6 +3,7 @@ defmodule HueworksWeb.LightStateEditorLive.FormState do
 
   alias Hueworks.Color
   alias Hueworks.Circadian.Config, as: CircadianConfig
+  alias Hueworks.Circadian.Timing
   alias Hueworks.Schemas.LightState
   alias Hueworks.Util
 
@@ -16,6 +17,9 @@ defmodule HueworksWeb.LightStateEditorLive.FormState do
   def default_edits(type, config \\ %{})
   def default_edits(:manual, config), do: manual_default_edits(config)
   def default_edits(:circadian, config), do: circadian_default_edits(config)
+
+  def new_edits(:manual), do: manual_default_edits()
+  def new_edits(:circadian), do: circadian_default_edits(CircadianConfig.new_profile_config())
 
   @manual_new_defaults %{brightness: 100, kelvin: 3000, hue: 0, saturation: 100}
 
@@ -57,17 +61,16 @@ defmodule HueworksWeb.LightStateEditorLive.FormState do
     config =
       case type do
         :manual ->
-          manual_keys()
-          |> Enum.reduce(current_config, fn key, acc ->
-            if Map.has_key?(params, key), do: Map.put(acc, key, Map.get(params, key)), else: acc
-          end)
+          current_config
+          |> Map.merge(Map.take(params, manual_keys()))
           |> Map.put_new("mode", "temperature")
 
         :circadian ->
-          circadian_form_keys()
-          |> Enum.reduce(current_config, fn key, acc ->
-            if Map.has_key?(params, key), do: Map.put(acc, key, Map.get(params, key)), else: acc
-          end)
+          # Controls locked when the form rendered cannot submit a real edit, and
+          # a value for one must not replace the local value stored behind it.
+          editable_keys = circadian_form_keys() -- locked_circadian_keys(current_config)
+
+          Map.merge(current_config, Map.take(params, editable_keys))
       end
 
     {name, config}
@@ -119,6 +122,58 @@ defmodule HueworksWeb.LightStateEditorLive.FormState do
     case circadian_field_value(config, :brightness_mode) do
       "" -> "tanh"
       value -> value
+    end
+  end
+
+  def timing_override?(config, event) do
+    config
+    |> Map.get(Timing.override_field(event))
+    |> Util.parse_optional_bool()
+    |> Kernel.!=(false)
+  end
+
+  def timing_locked?(config, key) do
+    normalize_config_key(key) in locked_circadian_keys(config)
+  end
+
+  @doc """
+  The value a control shows: the effective value while it is locked, otherwise
+  the value being edited. Stored local values stay in the config underneath.
+  """
+  def circadian_display_value(config, key, global_timing) do
+    key = normalize_config_key(key)
+
+    case locked_display_values(config, global_timing) do
+      %{^key => value} -> stringify_config_value(value)
+      _unlocked -> circadian_field_value(config, key)
+    end
+  end
+
+  def timing_note(config, event, global_timing) do
+    if timing_override?(config, event) do
+      "Uses this light state's #{event} timing and window. Global bounds do not apply."
+    else
+      "Inherits astronomical #{event} with #{global_bounds_label(event, global_timing)}, " <>
+        "no offsets, and default ramps. Values stored here are kept for a later override."
+    end
+  end
+
+  def ramp_note(config) do
+    %{dark_seconds: dark, light_seconds: light} = Timing.default_ramp()
+    defaults = "#{dark} s dark and #{light} s light"
+
+    case {timing_override?(config, :sunrise), timing_override?(config, :sunset)} do
+      {true, true} ->
+        nil
+
+      {false, false} ->
+        "Both events inherit, so they use the defaults: #{defaults}. Stored durations are kept."
+
+      {true, false} ->
+        "These durations apply only around sunrise. Sunset uses the defaults: #{defaults}."
+
+      {false, true} ->
+        "These durations apply only around sunset. Sunrise uses the defaults: #{defaults}."
     end
   end
 
@@ -208,6 +263,43 @@ defmodule HueworksWeb.LightStateEditorLive.FormState do
     case Util.to_number(value) do
       number when is_number(number) -> round(number)
       _ -> fallback
+    end
+  end
+
+  defp locked_circadian_keys(config) do
+    sunrise_override? = timing_override?(config, :sunrise)
+    sunset_override? = timing_override?(config, :sunset)
+
+    [
+      {sunrise_override?, Timing.event_fields(:sunrise)},
+      {sunset_override?, Timing.event_fields(:sunset)},
+      {sunrise_override? or sunset_override?, Timing.ramp_fields()}
+    ]
+    |> Enum.reject(fn {editable?, _keys} -> editable? end)
+    |> Enum.flat_map(fn {_editable?, keys} -> keys end)
+  end
+
+  defp locked_display_values(config, global_timing) do
+    [:sunrise, :sunset]
+    |> Enum.reject(&timing_override?(config, &1))
+    |> Enum.map(&Timing.inherited_values(&1, global_timing))
+    |> Enum.reduce(locked_ramp_values(config), &Map.merge/2)
+  end
+
+  defp locked_ramp_values(config) do
+    if timing_override?(config, :sunrise) or timing_override?(config, :sunset) do
+      %{}
+    else
+      Map.take(CircadianConfig.defaults(), Timing.ramp_fields())
+    end
+  end
+
+  defp global_bounds_label(event, global_timing) do
+    case Timing.global_bounds(event, global_timing) do
+      {nil, nil} -> "no global bounds"
+      {min, nil} -> "a global minimum of #{min}"
+      {nil, max} -> "a global maximum of #{max}"
+      {min, max} -> "global bounds of #{min} to #{max}"
     end
   end
 

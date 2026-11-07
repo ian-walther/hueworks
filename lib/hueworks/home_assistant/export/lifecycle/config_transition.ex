@@ -34,29 +34,23 @@ defmodule Hueworks.HomeAssistant.Export.Lifecycle.ConfigTransition do
          config,
          publish_fun
        ) do
-    cond do
-      not Connection.alive?(state.connection_pid) ->
-        state
-
-      not is_map(previous) ->
-        state
-
-      true ->
-        if Config.scenes_enabled?(previous) and not Config.scenes_enabled?(config) do
-          Sync.unpublish_all_scenes(publish_fun, previous)
-        end
-
-        if Config.area_selects_enabled?(previous) and
-             not Config.area_selects_enabled?(config) do
-          Sync.unpublish_all_area_selects(publish_fun, previous)
-        end
-
-        if Config.lights_enabled?(previous) and not Config.lights_enabled?(config) do
-          Sync.unpublish_all_light_entities(publish_fun, previous)
-        end
-
-        state
+    if Connection.alive?(state.connection_pid) and is_map(previous) do
+      unpublish_removed_entities(previous, config, publish_fun)
     end
+
+    state
+  end
+
+  defp unpublish_removed_entities(previous, config, publish_fun) do
+    [
+      {&Config.scenes_enabled?/1, &Sync.unpublish_all_scenes/2},
+      {&Config.area_selects_enabled?/1, &Sync.unpublish_all_area_selects/2},
+      {&Config.lights_enabled?/1, &Sync.unpublish_all_light_entities/2},
+      {&Config.export_enabled?/1, &Sync.unpublish_settings/2}
+    ]
+    |> Enum.each(fn {enabled?, unpublish} ->
+      if enabled?.(previous) and not enabled?.(config), do: unpublish.(publish_fun, previous)
+    end)
   end
 
   defp start_connection(state, config, client_id) do
@@ -71,11 +65,11 @@ defmodule Hueworks.HomeAssistant.Export.Lifecycle.ConfigTransition do
   end
 
   defp stop_connection(%ServerState{connection_pid: nil} = state),
-    do: %{state | connection_pid: nil}
+    do: %{state | settings_session: nil}
 
   defp stop_connection(%ServerState{connection_pid: pid} = state) do
     _ = Connection.stop(pid)
-    %{state | connection_pid: nil}
+    %{state | connection_pid: nil, settings_session: nil}
   end
 
   defp publish_availability_if_connected(state, value, publish_fun) do

@@ -45,6 +45,81 @@ defmodule HueworksWeb.ThemeCssTest do
     refute css =~ ".hw-import-room-"
   end
 
+  describe "field flow layout" do
+    test "notes take their own row and field groups stay content-sized on wide screens" do
+      css = File.read!(@stylesheet)
+
+      assert css =~ ~r/\.hw-field-flow-note\s*\{[^}]*flex: 1 1 100%;[^}]*min-width: 0;/s
+      assert css =~ ~r/\.hw-field-group\s*\{[^}]*flex: 0 0 auto;/s
+    end
+
+    test "mini-labels sit above paired inputs so each input keeps its full column" do
+      css = File.read!(@stylesheet)
+
+      assert css =~
+               ~r/\.hw-field-pair > \.hw-field-compact,\s*\.hw-field-triplet > \.hw-field-compact\s*\{[^}]*flex-direction: column;/s
+
+      refute media_rules(css, "(max-width: 520px)") =~ ".hw-mini-label"
+    end
+
+    test "single-column sections do not grow to fit their content" do
+      css = File.read!(@stylesheet)
+
+      assert css =~ ~r/\.hw-circadian-sections\s*\{[^}]*grid-template-columns: minmax\(0, 1fr\);/s
+    end
+
+    test "field groups and card fields fill the screen at the narrow breakpoint" do
+      rules = media_rules(File.read!(@stylesheet), "(max-width: 720px)")
+
+      assert rules =~
+               ~r/\.hw-field-flow \.hw-field-group\s*\{[^}]*flex: 1 1 100%;[^}]*min-width: 0;/s
+
+      assert rules =~ ~r/\.hw-field-flow-card \.hw-field-compact,?[^{]*\{[^}]*width: 100%;/s
+      assert rules =~ ~r/\.hw-compact-input,\s*\.hw-compact-select\s*\{[^}]*min-width: 0;/s
+    end
+
+    test "pairs and triplets stack at the narrowest breakpoint, including inside cards" do
+      rules = media_rules(File.read!(@stylesheet), "(max-width: 520px)")
+
+      for selector <- ~w(.hw-field-pair .hw-field-triplet) do
+        assert rules =~ selector
+        assert rules =~ ".hw-field-flow-card #{selector}"
+      end
+
+      assert rules =~
+               ~r/\.hw-field-flow-card \.hw-field-triplet\s*\{[^}]*grid-template-columns: minmax\(0, 1fr\);/s
+    end
+
+    test "the field flow never hides overflow to look like it fits" do
+      css = File.read!(@stylesheet)
+
+      for selector <-
+            ~w(.hw-field-flow .hw-field-flow-row .hw-field-flow-note .hw-field-group .hw-field-pair .hw-field-triplet .hw-field-compact) do
+        refute css =~ ~r/#{Regex.escape(selector)}\s*\{[^}]*overflow/s,
+               "#{selector} clips its content"
+      end
+    end
+  end
+
+  defp media_rules(css, query) do
+    css
+    |> String.split("@media #{query} {")
+    |> tl()
+    |> Enum.map_join("\n", &until_block_closes(&1, 1, []))
+  end
+
+  defp until_block_closes(<<"{", rest::binary>>, depth, acc),
+    do: until_block_closes(rest, depth + 1, ["{" | acc])
+
+  defp until_block_closes(<<"}", _rest::binary>>, 1, acc),
+    do: acc |> Enum.reverse() |> IO.iodata_to_binary()
+
+  defp until_block_closes(<<"}", rest::binary>>, depth, acc),
+    do: until_block_closes(rest, depth - 1, ["}" | acc])
+
+  defp until_block_closes(<<char::utf8, rest::binary>>, depth, acc),
+    do: until_block_closes(rest, depth, [<<char::utf8>> | acc])
+
   test "web templates and presentation modules do not construct literal CSS colors" do
     files =
       Path.wildcard(Path.join(@root, "lib/hueworks_web/**/*.{ex,heex}")) ++

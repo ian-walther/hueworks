@@ -59,7 +59,6 @@ defmodule HueworksWeb.ConfigLiveTest do
     Application.put_env(:hueworks, :homekit_config_test_pairing, %{paired?: false, clear_count: 0})
 
     Repo.delete_all(AppSetting)
-    HueworksApp.Cache.flush_namespace(:app_settings)
     start_supervised!({Export, []})
     Export.reload()
 
@@ -129,8 +128,6 @@ defmodule HueworksWeb.ConfigLiveTest do
       longitude: -74.0060,
       timezone: "America/New_York"
     })
-
-    HueworksApp.Cache.flush_namespace(:app_settings)
 
     bridge =
       Repo.insert!(%Bridge{
@@ -224,8 +221,6 @@ defmodule HueworksWeb.ConfigLiveTest do
       scale_transition_by_brightness: false
     })
 
-    HueworksApp.Cache.flush_namespace(:app_settings)
-
     {:ok, view, _html} = live(conn, "/config/general")
 
     view
@@ -254,8 +249,6 @@ defmodule HueworksWeb.ConfigLiveTest do
       default_transition_ms: 0,
       scale_transition_by_brightness: false
     })
-
-    HueworksApp.Cache.flush_namespace(:app_settings)
 
     {:ok, view, html} = live(conn, "/config/integrations")
 
@@ -308,8 +301,6 @@ defmodule HueworksWeb.ConfigLiveTest do
       ha_export_discovery_prefix: "homeassistant"
     })
 
-    HueworksApp.Cache.flush_namespace(:app_settings)
-
     {:ok, view, _html} = live(conn, "/config/integrations")
 
     view
@@ -339,8 +330,6 @@ defmodule HueworksWeb.ConfigLiveTest do
       default_transition_ms: 0,
       scale_transition_by_brightness: false
     })
-
-    HueworksApp.Cache.flush_namespace(:app_settings)
 
     {:ok, view, html} = live(conn, "/config/integrations")
 
@@ -465,8 +454,6 @@ defmodule HueworksWeb.ConfigLiveTest do
       ha_export_discovery_prefix: "homeassistant"
     })
 
-    HueworksApp.Cache.flush_namespace(:app_settings)
-
     {:ok, view, _html} = live(conn, "/config/integrations")
 
     view
@@ -503,8 +490,6 @@ defmodule HueworksWeb.ConfigLiveTest do
       ha_export_mqtt_port: 1883,
       ha_export_discovery_prefix: "homeassistant"
     })
-
-    HueworksApp.Cache.flush_namespace(:app_settings)
 
     {:ok, view, html} = live(conn, "/config/integrations")
 
@@ -687,8 +672,6 @@ defmodule HueworksWeb.ConfigLiveTest do
       ha_export_mqtt_password: "secret",
       ha_export_discovery_prefix: "custom_ha"
     })
-
-    HueworksApp.Cache.flush_namespace(:app_settings)
 
     {:ok, _view, html} = live(conn, "/config/general")
 

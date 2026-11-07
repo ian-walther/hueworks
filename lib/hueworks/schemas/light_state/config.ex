@@ -27,7 +27,9 @@ defmodule Hueworks.Schemas.LightState.Config do
     :brightness_sunrise_offset,
     :brightness_sunset_offset,
     :temperature_sunrise_offset,
-    :temperature_sunset_offset
+    :temperature_sunset_offset,
+    :override_sunrise_timing,
+    :override_sunset_timing
   ]
 
   @primary_key false
@@ -59,6 +61,8 @@ defmodule Hueworks.Schemas.LightState.Config do
     field(:brightness_sunset_offset, :integer)
     field(:temperature_sunrise_offset, :integer)
     field(:temperature_sunset_offset, :integer)
+    field(:override_sunrise_timing, :boolean)
+    field(:override_sunset_timing, :boolean)
   end
 
   def manual_changeset(config, attrs) when is_map(attrs) do

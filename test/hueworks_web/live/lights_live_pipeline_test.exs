@@ -566,6 +566,8 @@ defmodule Hueworks.LightsLivePipelineTest do
 
     {:ok, state} =
       Scenes.create_light_state("Circadian", :circadian, %{
+        "override_sunrise_timing" => true,
+        "override_sunset_timing" => true,
         "sunrise_time" => "06:00:00",
         "sunset_time" => "18:00:00",
         "min_brightness" => 90,

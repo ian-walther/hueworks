@@ -47,7 +47,6 @@ defmodule Hueworks.HomeAssistant.ExportTest do
     Application.put_env(:hueworks, :ha_export_publish_sink, self())
 
     Repo.delete_all(AppSetting)
-    HueworksApp.Cache.flush_namespace(:app_settings)
     start_supervised!({Export, []})
     Export.reload()
     _ = :sys.get_state(Export)
@@ -1370,8 +1369,6 @@ defmodule Hueworks.HomeAssistant.ExportTest do
           attrs
         )
       )
-
-    HueworksApp.Cache.flush_namespace(:app_settings)
   end
 
   defp assert_publish(topic, payload_matcher \\ fn _payload -> true end) do

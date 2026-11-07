@@ -11,4 +11,5 @@ defmodule Hueworks.HomeAssistant.Export.Lifecycle do
     to: SyncDispatch
 
   defdelegate handle_control_state(kind, id, state, publish_fun), to: SyncDispatch
+  defdelegate handle_settings_changed(fields, state, publish_fun), to: SyncDispatch
 end

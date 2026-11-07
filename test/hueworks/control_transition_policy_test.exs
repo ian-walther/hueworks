@@ -8,7 +8,6 @@ defmodule Hueworks.Control.TransitionPolicyTest do
 
   setup do
     Repo.delete_all(AppSetting)
-    HueworksApp.Cache.flush_namespace(:app_settings)
     :ok
   end
 
@@ -18,8 +17,6 @@ defmodule Hueworks.Control.TransitionPolicyTest do
       default_transition_ms: 750,
       scale_transition_by_brightness: true
     })
-
-    HueworksApp.Cache.flush_namespace(:app_settings)
 
     assert TransitionPolicy.manual() == %TransitionPolicy{
              duration_ms: 750,
@@ -40,8 +37,6 @@ defmodule Hueworks.Control.TransitionPolicyTest do
       default_transition_ms: 750,
       scale_transition_by_brightness: true
     })
-
-    HueworksApp.Cache.flush_namespace(:app_settings)
 
     assert Operation.new(transition_ms: 1_200).transition_policy == %TransitionPolicy{
              duration_ms: 1_200,

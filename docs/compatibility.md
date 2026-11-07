@@ -44,6 +44,7 @@
 ### Home Assistant MQTT Export
 
 - Scene controls, area scene selectors, opt-in lights/groups, and writable Presence Inputs are supported.
+- Global sunrise and sunset bounds are editable through MQTT text entities. An unset bound is an empty text state; see [Circadian Timing And Global Bounds](circadian-timing.md).
 - MQTT settings describe export from HueWorks to Home Assistant; they are separate from importing Home Assistant as a bridge.
 
 ### HomeKit

@@ -10,7 +10,6 @@ defmodule Hueworks.Control.PlannerTest do
 
   setup do
     Repo.delete_all(AppSetting)
-    HueworksApp.Cache.flush_namespace(:app_settings)
 
     if :ets.whereis(:hueworks_desired_state) != :undefined do
       :ets.delete_all_objects(:hueworks_desired_state)

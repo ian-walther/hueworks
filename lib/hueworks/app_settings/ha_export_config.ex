@@ -121,15 +121,18 @@ defmodule Hueworks.AppSettings.HaExportConfig do
     end
   end
 
-  def finalize_enabled(attrs, incoming_attrs) when is_map(attrs) and is_map(incoming_attrs) do
+  def finalize_enabled(%Ecto.Changeset{} = changeset, incoming_attrs)
+      when is_map(incoming_attrs) do
     if toggle_present?(incoming_attrs) do
-      Map.put(attrs, :ha_export_enabled, Enum.any?(@toggle_fields, &(Map.get(attrs, &1) == true)))
+      Ecto.Changeset.put_change(
+        changeset,
+        :ha_export_enabled,
+        Enum.any?(@toggle_fields, &(Ecto.Changeset.get_field(changeset, &1) == true))
+      )
     else
-      attrs
+      changeset
     end
   end
-
-  def finalize_enabled(attrs, _incoming_attrs), do: attrs
 
   defp toggle_present?(attrs) do
     Enum.any?(@toggle_fields, fn field ->

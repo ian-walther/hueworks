@@ -207,6 +207,7 @@ Rules:
 - `/Users/ianwalther/code/hueworks/planning/ui-product-quality.md` contains the reusable UI design and verification method.
 - `/Users/ianwalther/code/hueworks/docs/ui-style-guide.md` documents the shared CSS vocabulary and form-spacing rules.
 - `/Users/ianwalther/code/hueworks/docs/refactoring-guardrails.md` preserves boundary and simplification rules for future refactoring.
+- `/Users/ianwalther/code/hueworks/docs/circadian-timing.md` documents effective circadian timing, global bounds, and their Home Assistant contract.
 - `/Users/ianwalther/code/hueworks/planning/audit/` contains the reusable auditor/implementer workflow for future bounded audits.
 - `/Users/ianwalther/code/hueworks/hueworks_todo.md` contains prioritized future work.
 

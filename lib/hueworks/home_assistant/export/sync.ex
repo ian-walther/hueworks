@@ -7,6 +7,7 @@ defmodule Hueworks.HomeAssistant.Export.Sync do
   alias Hueworks.HomeAssistant.Export.Sync.PresenceInputs, as: PresenceInputSync
   alias Hueworks.HomeAssistant.Export.Sync.Areas, as: AreaSync
   alias Hueworks.HomeAssistant.Export.Sync.Scenes, as: SceneSync
+  alias Hueworks.HomeAssistant.Export.Sync.Settings, as: SettingSync
   alias Hueworks.Schemas.Scene
 
   def publish_all_entities(publish_fun, config) when is_function(publish_fun, 3) do
@@ -75,6 +76,18 @@ defmodule Hueworks.HomeAssistant.Export.Sync do
   def publish_groups_for_light(publish_fun, light_id, config)
       when is_function(publish_fun, 3) and is_integer(light_id) do
     EntitySync.publish_groups_for_light(publish_fun, light_id, config)
+  end
+
+  def publish_settings(publish_fun, session, config) when is_function(publish_fun, 3) do
+    SettingSync.publish_all(publish_fun, session, config)
+  end
+
+  def publish_setting_states(publish_fun, fields, config) when is_function(publish_fun, 3) do
+    SettingSync.publish_states(publish_fun, fields, config)
+  end
+
+  def unpublish_settings(publish_fun, config) when is_function(publish_fun, 3) do
+    SettingSync.unpublish_all(publish_fun, config)
   end
 
   def publish_presence_input(publish_fun, input_id, config)

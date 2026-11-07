@@ -24,6 +24,7 @@ Keep a field's parts together:
 - A hidden checkbox input between the label and visible control must not break that relationship.
 - `.hw-field-help` and `.hw-muted` retain the small gap under the content they explain.
 - Grids own their internal gaps; do not stack form margins onto their children.
+- Field groups in a `.hw-field-flow` size to their content, so explanatory text goes in a full-width `.hw-field-flow-note`, not inside the group. Mini-labels sit above paired inputs so each input keeps its full column. At narrow widths each group takes a row, and pairs and triplets stack rather than cut off their inputs.
 
 ## Tokens And Build
 

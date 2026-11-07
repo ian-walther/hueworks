@@ -2,6 +2,8 @@ defmodule Hueworks.Schemas.AppSetting do
   use Ecto.Schema
   import Ecto.Changeset
 
+  alias Hueworks.Circadian.Config, as: CircadianConfig
+
   @default_transition_ms 500
   @default_scale_transition_by_brightness true
 
@@ -10,6 +12,10 @@ defmodule Hueworks.Schemas.AppSetting do
     field(:latitude, :float)
     field(:longitude, :float)
     field(:timezone, :string)
+    field(:min_sunrise_time, :string)
+    field(:max_sunrise_time, :string)
+    field(:min_sunset_time, :string)
+    field(:max_sunset_time, :string)
     field(:default_transition_ms, :integer, default: @default_transition_ms)
 
     field(:scale_transition_by_brightness, :boolean,
@@ -43,6 +49,10 @@ defmodule Hueworks.Schemas.AppSetting do
       :latitude,
       :longitude,
       :timezone,
+      :min_sunrise_time,
+      :max_sunrise_time,
+      :min_sunset_time,
+      :max_sunset_time,
       :default_transition_ms,
       :scale_transition_by_brightness,
       :ha_export_enabled,
@@ -78,6 +88,8 @@ defmodule Hueworks.Schemas.AppSetting do
     |> validate_length(:homekit_bridge_name, max: 64)
     |> validate_length(:api_token, min: 32, max: 255)
     |> validate_inclusion(:onboarding_path, ["ha_assisted", "direct"])
+    |> CircadianConfig.validate_time_window(:min_sunrise_time, :max_sunrise_time)
+    |> CircadianConfig.validate_time_window(:min_sunset_time, :max_sunset_time)
     |> validate_ha_export_requirements()
     |> unique_constraint(:scope)
   end

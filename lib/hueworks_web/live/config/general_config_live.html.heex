@@ -112,6 +112,61 @@
         </div>
       </div>
 
+      <h3>Sunrise and sunset bounds</h3>
+      <p class="hw-field-help">
+        Light states that inherit timing use astronomical sunrise and sunset held to these local times in the timezone above. Leave a bound blank for no limit.
+      </p>
+
+      <div class="hw-form-grid">
+        <div>
+          <label class="hw-field-label" for="global_min_sunrise_time">Sunrise minimum</label>
+          <input
+            id="global_min_sunrise_time"
+            name="min_sunrise_time"
+            type="time"
+            step="1"
+            value={@min_sunrise_time}
+            class="hw-field-input"
+          />
+        </div>
+        <div>
+          <label class="hw-field-label" for="global_max_sunrise_time">Sunrise maximum</label>
+          <input
+            id="global_max_sunrise_time"
+            name="max_sunrise_time"
+            type="time"
+            step="1"
+            value={@max_sunrise_time}
+            class="hw-field-input"
+          />
+        </div>
+      </div>
+
+      <div class="hw-form-grid">
+        <div>
+          <label class="hw-field-label" for="global_min_sunset_time">Sunset minimum</label>
+          <input
+            id="global_min_sunset_time"
+            name="min_sunset_time"
+            type="time"
+            step="1"
+            value={@min_sunset_time}
+            class="hw-field-input"
+          />
+        </div>
+        <div>
+          <label class="hw-field-label" for="global_max_sunset_time">Sunset maximum</label>
+          <input
+            id="global_max_sunset_time"
+            name="max_sunset_time"
+            type="time"
+            step="1"
+            value={@max_sunset_time}
+            class="hw-field-input"
+          />
+        </div>
+      </div>
+
       <label class="hw-field-label" for="global_default_transition_ms">Default Transition (ms)</label>
       <input
         id="global_default_transition_ms"

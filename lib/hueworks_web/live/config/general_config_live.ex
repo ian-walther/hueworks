@@ -4,27 +4,50 @@ defmodule HueworksWeb.GeneralConfigLive do
   import HueworksWeb.Notices
 
   alias Hueworks.AppSettings
+  alias Hueworks.Circadian.Config, as: CircadianConfig
+  alias Hueworks.Circadian.Timing
+  alias Hueworks.DomainEvents
   alias HueworksWeb.ConfigHelpers
+  alias Phoenix.PubSub
+
+  @timing_fields Timing.window_fields()
+  @form_fields [
+    :latitude,
+    :longitude,
+    :timezone,
+    :default_transition_ms,
+    :scale_transition_by_brightness | @timing_fields
+  ]
+  @timing_labels %{
+    min_sunrise_time: "Sunrise minimum",
+    max_sunrise_time: "Sunrise maximum",
+    min_sunset_time: "Sunset minimum",
+    max_sunset_time: "Sunset maximum"
+  }
 
   def mount(params, _session, socket) do
+    if connected?(socket), do: PubSub.subscribe(Hueworks.PubSub, DomainEvents.topic())
+
     app_setting = AppSettings.get_global()
     timezone = app_setting.timezone || "Etc/UTC"
+    persisted = persisted_form_values(app_setting)
 
     {:ok,
      assign(socket,
        timezones: ConfigHelpers.timezone_options(timezone),
-       latitude: ConfigHelpers.format_coord(app_setting.latitude),
-       longitude: ConfigHelpers.format_coord(app_setting.longitude),
+       latitude: persisted.latitude,
+       longitude: persisted.longitude,
        timezone: timezone,
        postal_country_code: "US",
        postal_code: "",
        postal_lookup_status: :idle,
-       default_transition_ms:
-         ConfigHelpers.format_integer(
-           app_setting.default_transition_ms || AppSettings.default_transition_ms()
-         ),
-       scale_transition_by_brightness:
-         transition_scaling_value(app_setting.scale_transition_by_brightness),
+       default_transition_ms: persisted.default_transition_ms,
+       scale_transition_by_brightness: persisted.scale_transition_by_brightness,
+       min_sunrise_time: persisted.min_sunrise_time,
+       max_sunrise_time: persisted.max_sunrise_time,
+       min_sunset_time: persisted.min_sunset_time,
+       max_sunset_time: persisted.max_sunset_time,
+       persisted_form: persisted,
        exit_path: exit_path(params)
      )}
   end
@@ -46,43 +69,19 @@ defmodule HueworksWeb.GeneralConfigLive do
   end
 
   def handle_event("update_global_solar", params, socket) do
-    timezone = Map.get(params, "timezone", socket.assigns.timezone)
+    values = form_values(params, socket.assigns)
 
     {:noreply,
-     assign(socket,
-       latitude: Map.get(params, "latitude", socket.assigns.latitude),
-       longitude: Map.get(params, "longitude", socket.assigns.longitude),
-       timezone: timezone,
-       default_transition_ms:
-         Map.get(params, "default_transition_ms", socket.assigns.default_transition_ms),
-       scale_transition_by_brightness:
-         ConfigHelpers.parse_boolean_param(
-           Map.get(
-             params,
-             "scale_transition_by_brightness",
-             socket.assigns.scale_transition_by_brightness
-           )
-         ),
-       timezones: ConfigHelpers.timezone_options(timezone)
-     )}
+     socket
+     |> assign(values)
+     |> assign(timezones: ConfigHelpers.timezone_options(values.timezone))}
   end
 
   def handle_event("save_global_solar", params, socket) do
-    attrs = %{
-      latitude: Map.get(params, "latitude", socket.assigns.latitude),
-      longitude: Map.get(params, "longitude", socket.assigns.longitude),
-      timezone: Map.get(params, "timezone", socket.assigns.timezone),
-      default_transition_ms:
-        Map.get(params, "default_transition_ms", socket.assigns.default_transition_ms),
-      scale_transition_by_brightness:
-        ConfigHelpers.parse_boolean_param(
-          Map.get(
-            params,
-            "scale_transition_by_brightness",
-            socket.assigns.scale_transition_by_brightness
-          )
-        )
-    }
+    attrs =
+      params
+      |> form_values(socket.assigns)
+      |> edited_values(socket.assigns.persisted_form)
 
     case AppSettings.upsert_global(attrs) do
       {:ok, app_setting} ->
@@ -159,10 +158,75 @@ defmodule HueworksWeb.GeneralConfigLive do
      |> put_notice(:error, postal_lookup_error(:temporarily_unavailable))}
   end
 
+  # A Home Assistant or other tab's commit appears here unless this form has its
+  # own unsaved edit of that field, which saving later patches over the latest.
+  def handle_info({:global_settings_changed, _fields}, socket) do
+    persisted = persisted_form_values(AppSettings.get_global())
+
+    refreshed =
+      @form_fields
+      |> Enum.filter(
+        &same_value?(&1, Map.fetch!(socket.assigns, &1), socket.assigns.persisted_form[&1])
+      )
+      |> Map.new(&{&1, Map.fetch!(persisted, &1)})
+
+    socket =
+      socket
+      |> assign(refreshed)
+      |> assign(persisted_form: persisted)
+
+    {:noreply, assign(socket, timezones: ConfigHelpers.timezone_options(socket.assigns.timezone))}
+  end
+
+  def handle_info(_message, socket), do: {:noreply, socket}
+
+  defp form_values(params, assigns) do
+    @form_fields
+    |> Map.new(&{&1, Map.get(params, Atom.to_string(&1), Map.fetch!(assigns, &1))})
+    |> Map.update!(:scale_transition_by_brightness, &ConfigHelpers.parse_boolean_param/1)
+  end
+
+  defp persisted_form_values(app_setting) do
+    timing_values = Map.new(@timing_fields, &{&1, Map.fetch!(app_setting, &1) || ""})
+
+    Map.merge(timing_values, %{
+      latitude: ConfigHelpers.format_coord(app_setting.latitude),
+      longitude: ConfigHelpers.format_coord(app_setting.longitude),
+      timezone: app_setting.timezone || "",
+      default_transition_ms:
+        ConfigHelpers.format_integer(
+          app_setting.default_transition_ms || AppSettings.default_transition_ms()
+        ),
+      scale_transition_by_brightness:
+        transition_scaling_value(app_setting.scale_transition_by_brightness)
+    })
+  end
+
+  defp edited_values(values, persisted) do
+    values
+    |> Enum.reject(fn {field, value} -> same_value?(field, value, persisted[field]) end)
+    |> Map.new()
+  end
+
+  defp same_value?(field, value, persisted) when field in @timing_fields do
+    CircadianConfig.normalize_wall_clock_time(value) ==
+      CircadianConfig.normalize_wall_clock_time(persisted)
+  end
+
+  defp same_value?(_field, value, persisted), do: value == persisted
+
   defp changeset_message(changeset) do
-    changeset.errors
-    |> Enum.map(fn {field, {text, _opts}} -> "#{field} #{text}" end)
-    |> Enum.join(", ")
+    Enum.map_join(changeset.errors, ", ", fn {field, {text, _opts}} ->
+      "#{field_label(field)} #{timing_labels_in(text)}"
+    end)
+  end
+
+  defp field_label(field), do: Map.get(@timing_labels, field, field)
+
+  defp timing_labels_in(text) do
+    Enum.reduce(@timing_labels, text, fn {field, label}, acc ->
+      String.replace(acc, Atom.to_string(field), String.downcase(label))
+    end)
   end
 
   defp exit_path(%{"return_to" => "setup"}), do: "/setup"

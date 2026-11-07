@@ -4,7 +4,6 @@ defmodule Hueworks.CircadianPreview do
   """
 
   alias Hueworks.Circadian
-  alias Hueworks.Circadian.Config
   alias Hueworks.Util
   alias __MODULE__.{Marker, Point, Result}
 
@@ -62,54 +61,34 @@ defmodule Hueworks.CircadianPreview do
   def sample_day(config, solar_config, date, opts) when is_map(config) and is_map(solar_config) do
     interval_minutes = Keyword.get(opts, :interval_minutes, @default_interval_minutes)
 
-    with {:ok, normalized_config} <- normalize_config(config),
-         {:ok, normalized_solar} <- normalize_solar_config(solar_config),
+    with {:ok, inputs} <- Circadian.prepare(config, solar_config),
+         :ok <- validate_location(solar_config),
          {:ok, parsed_date} <- parse_date(date),
-         {:ok, events} <-
-           Circadian.day_events_for_date(normalized_config, normalized_solar, parsed_date),
-         {:ok, brightness_events} <-
-           Circadian.day_events_for_date(
-             normalized_config,
-             normalized_solar,
-             parsed_date,
-             curve: :brightness
-           ),
-         {:ok, temperature_events} <-
-           Circadian.day_events_for_date(
-             normalized_config,
-             normalized_solar,
-             parsed_date,
-             curve: :temperature
-           ),
-         {:ok, points} <-
-           sample_points(normalized_config, normalized_solar, parsed_date, interval_minutes) do
+         {:ok, events} <- Circadian.day_events(inputs, parsed_date),
+         {:ok, brightness_events} <- Circadian.day_events(inputs, parsed_date, :brightness),
+         {:ok, temperature_events} <- Circadian.day_events(inputs, parsed_date, :temperature),
+         {:ok, points} <- sample_points(inputs, parsed_date, interval_minutes) do
       {:ok,
        %Result{
          date: parsed_date,
-         timezone: normalized_solar.timezone,
-         config: normalized_config,
+         timezone: inputs.timezone,
+         config: inputs.config,
          interval_minutes: interval_minutes,
          points: points,
-         markers: build_markers(events, parsed_date, normalized_solar.timezone),
-         brightness_markers:
-           build_markers(brightness_events, parsed_date, normalized_solar.timezone),
-         temperature_markers:
-           build_markers(temperature_events, parsed_date, normalized_solar.timezone),
-         min_brightness: normalized_config[:min_brightness],
-         max_brightness: normalized_config[:max_brightness],
-         min_kelvin: normalized_config[:min_color_temp],
-         max_kelvin: effective_max_kelvin(normalized_config)
+         markers: build_markers(events, parsed_date, inputs.timezone),
+         brightness_markers: build_markers(brightness_events, parsed_date, inputs.timezone),
+         temperature_markers: build_markers(temperature_events, parsed_date, inputs.timezone),
+         min_brightness: inputs.config[:min_brightness],
+         max_brightness: inputs.config[:max_brightness],
+         min_kelvin: inputs.config[:min_color_temp],
+         max_kelvin: effective_max_kelvin(inputs.config)
        }}
     end
   end
 
   def sample_day(_config, _solar_config, _date, _opts), do: {:error, :invalid_args}
 
-  defp normalize_config(config) do
-    Config.runtime(config)
-  end
-
-  defp normalize_solar_config(solar_config) do
+  defp validate_location(solar_config) do
     latitude =
       Util.to_float(Map.get(solar_config, :latitude) || Map.get(solar_config, "latitude"))
 
@@ -123,7 +102,7 @@ defmodule Hueworks.CircadianPreview do
       is_nil(latitude) -> {:error, :missing_latitude}
       is_nil(longitude) -> {:error, :missing_longitude}
       is_nil(timezone) -> {:error, :missing_timezone}
-      true -> {:ok, %{latitude: latitude, longitude: longitude, timezone: timezone}}
+      true -> :ok
     end
   end
 
@@ -138,11 +117,11 @@ defmodule Hueworks.CircadianPreview do
 
   defp parse_date(_value), do: {:error, :invalid_date}
 
-  defp sample_points(config, solar_config, date, interval_minutes) when interval_minutes > 0 do
+  defp sample_points(inputs, date, interval_minutes) when interval_minutes > 0 do
     sample_minutes(interval_minutes)
     |> Enum.reduce_while({:ok, []}, fn minute, {:ok, acc} ->
-      with {:ok, now_utc} <- local_minute_to_utc(date, minute, solar_config.timezone),
-           {:ok, result} <- Circadian.calculate(config, solar_config, now_utc) do
+      with {:ok, now_utc} <- local_minute_to_utc(date, minute, inputs.timezone),
+           {:ok, result} <- Circadian.evaluate(inputs, now_utc) do
         point = %Point{minute: minute, brightness: result.brightness, kelvin: result.kelvin}
         {:cont, {:ok, [point | acc]}}
       else
@@ -155,8 +134,7 @@ defmodule Hueworks.CircadianPreview do
     end
   end
 
-  defp sample_points(_config, _solar_config, _date, _interval_minutes),
-    do: {:error, :invalid_interval}
+  defp sample_points(_inputs, _date, _interval_minutes), do: {:error, :invalid_interval}
 
   defp sample_minutes(interval_minutes) do
     minutes = Enum.to_list(0..1439//interval_minutes)

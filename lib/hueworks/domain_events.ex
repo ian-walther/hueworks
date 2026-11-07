@@ -20,6 +20,13 @@ defmodule Hueworks.DomainEvents do
   def presence_input_deleted(input_id) when is_integer(input_id),
     do: broadcast({:presence_input_deleted, input_id})
 
+  @doc """
+  Announces which global settings fields a commit changed. Subscribers read the
+  current values, so a late delivery cannot show them stale data.
+  """
+  def global_settings_changed(fields) when is_list(fields),
+    do: broadcast({:global_settings_changed, fields})
+
   defp broadcast(message) do
     PubSub.broadcast(Hueworks.PubSub, @topic, message)
   end

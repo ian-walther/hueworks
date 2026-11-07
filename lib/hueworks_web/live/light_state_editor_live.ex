@@ -2,18 +2,24 @@ defmodule HueworksWeb.LightStateEditorLive do
   use Phoenix.LiveView
 
   alias Hueworks.AppSettings
+  alias Hueworks.Circadian.Timing
+  alias Hueworks.DomainEvents
   alias Hueworks.Scenes
   alias Hueworks.Util
   alias HueworksWeb.LightStateEditorLive.FormState
   alias HueworksWeb.LightStateEditorLive.Preview
+  alias Phoenix.PubSub
 
   def mount(_params, _session, socket) do
+    if connected?(socket), do: PubSub.subscribe(Hueworks.PubSub, DomainEvents.topic())
+
     app_setting = AppSettings.get_global()
     preview_timezone = app_setting.timezone || "Etc/UTC"
 
     {:ok,
      assign(socket,
        page_title: "Light State",
+       global_timing: global_timing(app_setting),
        light_state_id: nil,
        light_state_type: :manual,
        light_state_name: "",
@@ -155,6 +161,25 @@ defmodule HueworksWeb.LightStateEditorLive do
     {:noreply, assign(socket, circadian_preview_error: "Location error: #{message}")}
   end
 
+  def handle_info({:global_settings_changed, fields}, socket) do
+    if Enum.any?(Timing.window_fields(), &(&1 in fields)) do
+      {:noreply,
+       socket
+       |> assign(global_timing: global_timing(AppSettings.get_global()))
+       |> refresh_circadian_preview()}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_info(_message, socket), do: {:noreply, socket}
+
+  defp global_timing(app_setting) do
+    app_setting
+    |> AppSettings.solar_config()
+    |> Map.take(Timing.window_fields())
+  end
+
   defp save_light_state(%{assigns: %{light_state_id: nil}} = socket, attrs, action) do
     case Scenes.create_light_state(attrs.name, attrs.type, attrs.config) do
       {:ok, state} ->
@@ -210,7 +235,7 @@ defmodule HueworksWeb.LightStateEditorLive do
   end
 
   defp assign_new_state(socket, type) do
-    config = FormState.default_edits(type)
+    config = FormState.new_edits(type)
 
     socket
     |> assign(
@@ -292,11 +317,27 @@ defmodule HueworksWeb.LightStateEditorLive do
   end
 
   defp circadian_field_value(assigns, key) do
-    FormState.circadian_field_value(assigns.light_state_config, key)
+    FormState.circadian_display_value(assigns.light_state_config, key, assigns.global_timing)
   end
 
   defp circadian_time_field_value(assigns, key) do
-    FormState.circadian_time_value(assigns.light_state_config, key)
+    FormState.circadian_display_value(assigns.light_state_config, key, assigns.global_timing)
+  end
+
+  defp timing_override?(assigns, event) do
+    FormState.timing_override?(assigns.light_state_config, event)
+  end
+
+  defp timing_locked?(assigns, key) do
+    FormState.timing_locked?(assigns.light_state_config, key)
+  end
+
+  defp timing_note(assigns, event) do
+    FormState.timing_note(assigns.light_state_config, event, assigns.global_timing)
+  end
+
+  defp ramp_note(assigns) do
+    FormState.ramp_note(assigns.light_state_config)
   end
 
   defp circadian_brightness_mode(assigns) do
@@ -324,7 +365,8 @@ defmodule HueworksWeb.LightStateEditorLive do
         socket.assigns.preview_date,
         socket.assigns.preview_latitude,
         socket.assigns.preview_longitude,
-        socket.assigns.preview_timezone
+        socket.assigns.preview_timezone,
+        socket.assigns.global_timing
       )
     )
   end
@@ -404,11 +446,11 @@ defmodule HueworksWeb.LightStateEditorLive do
 
   defp help_text(:sunrise_time),
     do:
-      "If set, this replaces astronomical sunrise for the whole calculation. Leave blank to derive sunrise from latitude, longitude, date, and timezone."
+      "With Override sunrise timing on, this replaces astronomical sunrise for the whole calculation. Leave blank to derive sunrise from latitude, longitude, date, and timezone."
 
   defp help_text(:sunrise_window),
     do:
-      "After sunrise is chosen and the sunrise offset is applied, clamp the final sunrise into this min/max window."
+      "After sunrise is chosen and the sunrise offset is applied, clamp the final sunrise into this min/max window. While inheriting, this shows the global window from General settings."
 
   defp help_text(:sunrise_offset),
     do:
@@ -416,11 +458,11 @@ defmodule HueworksWeb.LightStateEditorLive do
 
   defp help_text(:sunset_time),
     do:
-      "If set, this replaces astronomical sunset for the whole calculation. Leave blank to derive sunset from latitude, longitude, date, and timezone."
+      "With Override sunset timing on, this replaces astronomical sunset for the whole calculation. Leave blank to derive sunset from latitude, longitude, date, and timezone."
 
   defp help_text(:sunset_window),
     do:
-      "After sunset is chosen and the sunset offset is applied, clamp the final sunset into this min/max window."
+      "After sunset is chosen and the sunset offset is applied, clamp the final sunset into this min/max window. While inheriting, this shows the global window from General settings."
 
   defp help_text(:sunset_offset),
     do:

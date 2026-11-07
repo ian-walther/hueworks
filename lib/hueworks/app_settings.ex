@@ -1,24 +1,34 @@
 defmodule Hueworks.AppSettings do
   @moduledoc """
   Global app settings storage with DB persistence and app-config fallback.
+
+  Reads come straight from the database, so nobody sees an uncommitted write.
+  Every writer patches the latest persisted row in its own immediate transaction
+  and announces the change after that commit. Writers refuse to run inside a
+  surrounding transaction, which could still roll back after the announcement.
   """
 
   import Ecto.Changeset
+  import Ecto.Query, only: [from: 2]
 
   alias Hueworks.AppSettings.HaExportConfig
   alias Hueworks.AppSettings.HomeKitConfig
   alias Hueworks.AppSettings.SolarConfig
+  alias Hueworks.Circadian
+  alias Hueworks.Circadian.Timing
+  alias Hueworks.DomainEvents
   alias Hueworks.Repo
-  alias Hueworks.Schemas.AppSetting
+  alias Hueworks.Schemas.{AppSetting, LightState}
   alias Hueworks.Util
-  alias HueworksApp.Cache
 
   @global_scope "global"
-  @cache_namespace :app_settings
-  @cache_key :global
+  @location_fields [:latitude, :longitude, :timezone]
 
   def get_global do
-    Cache.get_or_load(@cache_namespace, @cache_key, &load_global/0)
+    case Repo.get_by(AppSetting, scope: @global_scope) do
+      %AppSetting{} = app_setting -> app_setting
+      nil -> fallback_setting()
+    end
   end
 
   def default_transition_ms, do: SolarConfig.default_transition_ms()
@@ -27,42 +37,26 @@ defmodule Hueworks.AppSettings do
     do: SolarConfig.default_scale_transition_by_brightness?()
 
   def upsert_global(attrs) when is_map(attrs) do
-    current = get_global()
-    base_attrs = merged_attrs(current)
-
     case normalize_updates(attrs) do
       {:ok, updates} ->
-        merged =
-          base_attrs
-          |> Map.merge(updates)
-          |> Map.put(:scope, @global_scope)
+        patch_global(fn current ->
+          current
+          |> AppSetting.global_changeset(updates)
           |> HaExportConfig.finalize_enabled(attrs)
-
-        result =
-          case Repo.get_by(AppSetting, scope: @global_scope) do
-            nil ->
-              %AppSetting{}
-              |> AppSetting.global_changeset(merged)
-              |> Repo.insert()
-
-            %AppSetting{} = app_setting ->
-              app_setting
-              |> AppSetting.global_changeset(merged)
-              |> Repo.update()
-          end
-
-        case result do
-          {:ok, %AppSetting{} = app_setting} ->
-            :ok = Cache.put(@cache_namespace, @cache_key, app_setting)
-            {:ok, app_setting}
-
-          other ->
-            other
-        end
+        end)
 
       {:error, errors} ->
-        {:error, boundary_error_changeset(current, base_attrs, errors)}
+        {:error, boundary_error_changeset(get_global(), errors)}
     end
+  end
+
+  @doc """
+  The settings a circadian calculation needs, without integration credentials.
+  """
+  def solar_config, do: solar_config(get_global())
+
+  def solar_config(%AppSetting{} = app_setting) do
+    Map.take(app_setting, @location_fields ++ Timing.window_fields())
   end
 
   def global_map do
@@ -102,54 +96,112 @@ defmodule Hueworks.AppSettings do
   end
 
   def enable_api_access do
-    app_setting = get_global()
-
-    update_api_access(%{
-      api_enabled: true,
-      api_token: app_setting.api_token || generate_api_token()
-    })
+    patch_global(fn current ->
+      AppSetting.changeset(current, %{
+        api_enabled: true,
+        api_token: current.api_token || generate_api_token()
+      })
+    end)
   end
 
   def disable_api_access do
-    update_api_access(%{api_enabled: false})
+    patch_global(&AppSetting.changeset(&1, %{api_enabled: false}))
   end
 
   def rotate_api_token do
-    if api_enabled?() do
-      update_api_access(%{api_token: generate_api_token()})
-    else
-      {:error, :api_disabled}
-    end
+    patch_global(fn current ->
+      if api_enabled?(current) do
+        AppSetting.changeset(current, %{api_token: generate_api_token()})
+      else
+        {:error, :api_disabled}
+      end
+    end)
   end
 
   def update_onboarding_state(attrs) when is_map(attrs) do
-    current = get_global()
+    patch_global(&AppSetting.changeset(&1, attrs))
+  end
 
-    result =
-      current
-      |> AppSetting.changeset(attrs)
-      |> then(fn changeset ->
-        if current.id do
-          Repo.update(changeset)
-        else
-          Repo.insert(changeset)
-        end
-      end)
-
-    case result do
-      {:ok, %AppSetting{} = app_setting} ->
-        :ok = Cache.put(@cache_namespace, @cache_key, app_setting)
-        {:ok, app_setting}
-
-      other ->
-        other
+  defp patch_global(build_changeset) do
+    if Repo.in_transaction?() do
+      {:error, :nested_settings_transaction}
+    else
+      commit_patch(build_changeset)
     end
   end
 
-  defp load_global do
-    case Repo.get_by(AppSetting, scope: @global_scope) do
-      %AppSetting{} = app_setting -> app_setting
-      nil -> fallback_setting()
+  defp commit_patch(build_changeset) do
+    with {:ok, {app_setting, changed_fields}} <-
+           Repo.transaction(fn -> write_patch(build_changeset) end, mode: :immediate) do
+      announce_changes(changed_fields)
+      {:ok, app_setting}
+    end
+  end
+
+  defp write_patch(build_changeset) do
+    current = get_global()
+
+    with %Ecto.Changeset{} = changeset <- build_changeset.(current),
+         changeset = validate_event_order(changeset, current),
+         {:ok, app_setting} <- Repo.insert_or_update(changeset) do
+      {app_setting, Map.keys(changeset.changes)}
+    else
+      {:error, reason} -> Repo.rollback(reason)
+    end
+  end
+
+  defp announce_changes([]), do: :ok
+  defp announce_changes(fields), do: DomainEvents.global_settings_changed(fields)
+
+  # Location and global window edits move effective events for every profile
+  # that uses them. Only a conflict this edit introduces blocks it; failing to
+  # calculate an event is seasonal and leaves the edit valid.
+  defp validate_event_order(%Ecto.Changeset{valid?: false} = changeset, _current), do: changeset
+
+  defp validate_event_order(changeset, current) do
+    (Timing.window_fields() ++ @location_fields)
+    |> Enum.find(&Map.has_key?(changeset.changes, &1))
+    |> case do
+      nil -> changeset
+      field -> add_event_order_conflicts(changeset, field, current)
+    end
+  end
+
+  defp add_event_order_conflicts(changeset, field, current) do
+    current
+    |> solar_config()
+    |> event_order_conflicts(solar_config(apply_changes(changeset)))
+    |> case do
+      [] ->
+        changeset
+
+      names ->
+        add_error(
+          changeset,
+          field,
+          "would put sunrise and sunset out of order for: #{Enum.join(names, ", ")}"
+        )
+    end
+  end
+
+  defp event_order_conflicts(previous, next) do
+    case Circadian.local_today(next) do
+      {:ok, date} ->
+        from(ls in LightState,
+          where: ls.type == :circadian,
+          order_by: [asc: ls.name, asc: ls.id]
+        )
+        |> Repo.all()
+        |> Enum.filter(fn light_state ->
+          config = LightState.circadian_config(light_state)
+
+          Circadian.invalid_event_order?(config, next, date) and
+            not Circadian.invalid_event_order?(config, previous, date)
+        end)
+        |> Enum.map(& &1.name)
+
+      {:error, _reason} ->
+        []
     end
   end
 
@@ -183,9 +235,9 @@ defmodule Hueworks.AppSettings do
     end
   end
 
-  defp boundary_error_changeset(current, base_attrs, errors) do
+  defp boundary_error_changeset(current, errors) do
     current
-    |> change(base_attrs)
+    |> change()
     |> Map.put(:action, :validate)
     |> then(fn changeset ->
       Enum.reduce(errors, changeset, fn {field, message}, acc ->
@@ -195,67 +247,6 @@ defmodule Hueworks.AppSettings do
         end
       end)
     end)
-  end
-
-  defp merged_attrs(%AppSetting{} = current) do
-    current
-    |> solar_attrs_from_setting()
-    |> Map.merge(ha_attrs_from_setting(current))
-  end
-
-  defp solar_attrs_from_setting(%AppSetting{} = s) do
-    %{
-      latitude: s.latitude,
-      longitude: s.longitude,
-      timezone: s.timezone,
-      default_transition_ms: s.default_transition_ms || default_transition_ms(),
-      scale_transition_by_brightness: transition_scaling_value(s.scale_transition_by_brightness)
-    }
-  end
-
-  defp ha_attrs_from_setting(%AppSetting{} = s) do
-    %{
-      ha_export_enabled: s.ha_export_enabled == true,
-      ha_export_scenes_enabled: s.ha_export_scenes_enabled == true,
-      ha_export_area_selects_enabled: s.ha_export_area_selects_enabled == true,
-      ha_export_lights_enabled: s.ha_export_lights_enabled == true,
-      ha_export_mqtt_host: s.ha_export_mqtt_host,
-      ha_export_mqtt_port: s.ha_export_mqtt_port || 1883,
-      ha_export_mqtt_username: s.ha_export_mqtt_username,
-      ha_export_mqtt_password: s.ha_export_mqtt_password,
-      ha_export_discovery_prefix: s.ha_export_discovery_prefix || "homeassistant",
-      homekit_scenes_enabled: s.homekit_scenes_enabled == true,
-      homekit_bridge_name: s.homekit_bridge_name || HomeKitConfig.default_bridge_name(),
-      api_enabled: s.api_enabled == true,
-      api_token: s.api_token,
-      onboarding_path: s.onboarding_path,
-      onboarding_completed_at: s.onboarding_completed_at,
-      onboarding_dismissed_at: s.onboarding_dismissed_at
-    }
-  end
-
-  defp update_api_access(attrs) do
-    result =
-      case Repo.get_by(AppSetting, scope: @global_scope) do
-        nil ->
-          %AppSetting{}
-          |> AppSetting.changeset(Map.put(attrs, :scope, @global_scope))
-          |> Repo.insert()
-
-        %AppSetting{} = app_setting ->
-          app_setting
-          |> AppSetting.changeset(attrs)
-          |> Repo.update()
-      end
-
-    case result do
-      {:ok, %AppSetting{} = app_setting} ->
-        :ok = Cache.put(@cache_namespace, @cache_key, app_setting)
-        {:ok, app_setting}
-
-      other ->
-        other
-    end
   end
 
   defp api_enabled?(%AppSetting{api_enabled: true, api_token: token})

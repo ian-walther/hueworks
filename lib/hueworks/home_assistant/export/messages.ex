@@ -33,14 +33,18 @@ defmodule Hueworks.HomeAssistant.Export.Messages do
   defdelegate presence_input_state_topic(id), to: Topics
   defdelegate light_command_topic(kind, id), to: Topics
   defdelegate light_state_topic(kind, id), to: Topics
+  defdelegate setting_command_topic(field), to: Topics
+  defdelegate setting_state_topic(field), to: Topics
   defdelegate discovery_topic(scene_id, discovery_prefix), to: Topics
   defdelegate area_select_discovery_topic(area_id, discovery_prefix), to: Topics
   defdelegate switch_discovery_topic(kind, id, discovery_prefix), to: Topics
   defdelegate presence_input_discovery_topic(id, discovery_prefix), to: Topics
   defdelegate light_discovery_topic(kind, id, discovery_prefix), to: Topics
+  defdelegate setting_discovery_topic(field, discovery_prefix), to: Topics
   defdelegate command_scene_id(topic_levels, topic_prefix), to: Topics
   defdelegate command_area_id(topic_levels, topic_prefix), to: Topics
   defdelegate command_export_target(topic, topic_prefix), to: Topics
+  defdelegate command_setting_field(topic_levels), to: Topics
 
   defdelegate discovery_payload(scene, config), to: Discovery
   defdelegate scene_attributes_payload(scene), to: Discovery
@@ -51,6 +55,7 @@ defmodule Hueworks.HomeAssistant.Export.Messages do
   defdelegate light_discovery_payload(kind, entity, config), to: Discovery
   defdelegate entity_attributes_payload(kind, entity), to: Discovery
   defdelegate presence_input_attributes_payload(input), to: Discovery
+  defdelegate setting_discovery_payload(field, session, config), to: Discovery
   defdelegate area_scene_options(scenes), to: Discovery
   defdelegate active_scene_name(area_id, scenes), to: Discovery
 
@@ -60,6 +65,7 @@ defmodule Hueworks.HomeAssistant.Export.Messages do
   defdelegate normalize_export_kelvin(value), to: State
   defdelegate normalize_export_xy(color), to: State
   defdelegate area_select_state_payload(area_id, scenes), to: State
+  defdelegate setting_state_payload(value), to: State
 
   def discovery_topic(scene_id), do: Topics.discovery_topic(scene_id)
 

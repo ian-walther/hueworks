@@ -10,7 +10,6 @@ defmodule HueworksWeb.SetupLiveTest do
     previous_pipeline = Application.get_env(:hueworks, :onboarding_import_pipeline)
     previous_test_pid = Application.get_env(:hueworks, :setup_live_test_pid)
     Repo.delete_all(AppSetting)
-    HueworksApp.Cache.flush_namespace(:app_settings)
 
     on_exit(fn ->
       restore_app_env(:hueworks, :onboarding_import_pipeline, previous_pipeline)
